@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CRM · groups, tags, bulk groups and the form's messages at 1100 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:1100px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../crm/index.html#customers';
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const ready = () => win() && win().SlopCrm && doc() && doc().getElementById('boot').hidden && !doc().getElementById('view-customers').hidden;
+  const errors = [];
+  const S = () => win().SlopData;
+  const customerNamed = async (name) => (await S().store.list('customers')).value.find((c) => c.name === name);
+  const dlg = () => [...doc().querySelectorAll('.sui-dlg')].pop();   // the topmost dialog
+  const titled = (t) => () => [...doc().querySelectorAll('.sui-dlg')].find((d) => d.querySelector('.sui-title').textContent === t);
+  const dlgButton = (label) => [...dlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+  const sideItem = (text) => [...doc().querySelectorAll('#cSide .side-item')].find((b) => b.textContent.includes(text));
+  const row = (name) => doc().querySelector(`#cRows .row[data-name="${name}"]`);
+
+  describe('groups and tags in the Customers list', () => {
+    it('opens with three customers and no groups or tags yet', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      win().addEventListener('error', (e) => errors.push(e.message));
+      for (const name of ['Ada Lab', 'Ben Lab', 'Cy Lab']) expect((await win().SlopCrm.customers.save(null, { name, stage: 'lead' })).ok).toBe(true);
+      await waitFor(() => doc().querySelectorAll('#cRows .row').length === 3, { timeout: 8000 });
+      expect(doc().querySelector('#cSide').textContent).toContain('No groups yet.');
+    });
+
+    it('a group is created in the Groups panel, a duplicate name is refused beside the field, and a rename shows in the sidebar', async () => {
+      doc().querySelector('#cSide [aria-label="Groups"] .side-manage').click();
+      await waitFor(() => doc().querySelector('.lab-dlg input[aria-label="New group name"]'), { timeout: 4000 });
+      const add = (text) => { doc().querySelector('.lab-dlg input[aria-label="New group name"]').value = text; [...doc().querySelectorAll('.lab-dlg button')].find((b) => b.textContent === 'Add group').click(); };
+      add('Wholesale');
+      await waitFor(async () => (await S().store.list('customerGroups')).value.length === 1, { timeout: 8000 });
+      add('wholesale');
+      await waitFor(() => doc().querySelector('.lab-dlg .msg').textContent.includes('already a group'), { timeout: 4000 });
+      const name = doc().querySelector('.lab-dlg input[aria-label="Name of group Wholesale"]');
+      name.value = 'Trade';
+      [...doc().querySelectorAll('.lab-dlg .lab-row')][0].querySelector('.btn').click();
+      await waitFor(() => sideItem('Trade'), { timeout: 8000 });
+      expect(!!sideItem('Wholesale')).toBe(false);
+      doc().querySelector('.lab-dlg .sui-primary').click();
+      await waitFor(() => !dlg(), { timeout: 4000 });
+    });
+
+    it('bulk "Add to group" adds every selected customer, the sidebar counts them, and the filter shows them', async () => {
+      row('Ada Lab').querySelector('.row-check').click();
+      row('Ben Lab').querySelector('.row-check').click();
+      await waitFor(() => !$('cBulk').hidden, { timeout: 4000 });
+      [...doc().querySelectorAll('#cBulk button')].find((b) => b.textContent === 'Add to group…').click();
+      await waitFor(titled('Add to group'), { timeout: 4000 });
+      dlg().querySelector('select').value = (await S().store.list('customerGroups')).value[0].id;
+      dlgButton('Add').click();
+      await waitFor(async () => ((await customerNamed('Ben Lab')).groupIds || []).length === 1, { timeout: 8000 });
+      expect((await customerNamed('Ada Lab')).groupIds.length).toBe(1);
+      expect((await customerNamed('Cy Lab')).groupIds || []).toHaveLength(0);
+      await waitFor(() => sideItem('Trade') && sideItem('Trade').querySelector('.side-count').textContent === '2', { timeout: 8000 });
+      sideItem('Trade').click();
+      await waitFor(() => doc().querySelectorAll('#cRows .row').length === 2, { timeout: 8000 });
+      expect(!!row('Cy Lab')).toBe(false);
+    });
+
+    it('bulk "Remove from group" takes them out again', async () => {
+      sideItem('Trade').click();   // clears the group filter first if it is on
+      await waitFor(() => doc().querySelectorAll('#cRows .row').length === 3, { timeout: 8000 });
+      [...doc().querySelectorAll('#cBulk button')].find((b) => b.textContent === 'Clear selection')?.click();
+      row('Ada Lab').querySelector('.row-check').click();
+      await waitFor(() => !$('cBulk').hidden, { timeout: 4000 });
+      [...doc().querySelectorAll('#cBulk button')].find((b) => b.textContent === 'Remove from group…').click();
+      await waitFor(titled('Remove from group'), { timeout: 4000 });
+      dlgButton('Remove').click();
+      await waitFor(async () => ((await customerNamed('Ada Lab')).groupIds || []).length === 0, { timeout: 8000 });
+      [...doc().querySelectorAll('#cBulk button')].find((b) => b.textContent === 'Clear selection').click();
+    });
+
+    it('two tags on one customer merge into one: the customer keeps it once, and the old tag is gone', async () => {
+      const ada = await customerNamed('Ada Lab');
+      const hot = await win().SlopCrm.labels.createTag('Hot', 'red');
+      const warm = await win().SlopCrm.labels.createTag('Warm', 'amber');
+      expect(hot.ok && warm.ok).toBe(true);
+      const hotId = hot.value.id, warmId = warm.value.id;
+      await win().SlopCrm.labels.setOnCustomer(ada, 'tag', hotId, true);
+      await win().SlopCrm.labels.setOnCustomer(await customerNamed('Ada Lab'), 'tag', warmId, true);
+      await waitFor(async () => ((await customerNamed('Ada Lab')).tagIds || []).length === 2, { timeout: 8000 });
+      doc().querySelector('#cSide [aria-label="Tags"] .side-manage').click();
+      await waitFor(() => doc().querySelector('.lab-dlg select[aria-label="Merge Hot into"]'), { timeout: 4000 });
+      const mergeSel = doc().querySelector('.lab-dlg select[aria-label="Merge Hot into"]');
+      mergeSel.value = warmId;
+      [...doc().querySelectorAll('.lab-dlg .lab-row')].find((r) => r.querySelector('input').value === 'Hot')
+        .querySelectorAll('.btn')[1].click();
+      await waitFor(() => dlg() && dlg().textContent.includes('Merge “Hot” into “Warm”'), { timeout: 4000 });
+      dlgButton('Merge').click();
+      await waitFor(async () => !(await S().store.get('customerTags', hotId)).value, { timeout: 8000 });
+      expect((await customerNamed('Ada Lab')).tagIds).toEqual([warmId]);
+      doc().querySelector('.lab-dlg .sui-primary').click();
+      await waitFor(() => !dlg(), { timeout: 4000 });
+    });
+
+    it('a bad email shows its message next to the field and keeps the form open; a fixed one saves', async () => {
+      const ben = await customerNamed('Ben Lab');
+      win().SlopCrm.form.open(ben.id);
+      await waitFor(() => doc().querySelector('.crm-dlg'), { timeout: 4000 });
+      for (const legend of ['Contact', 'Company', 'Addresses', 'Tags and groups', 'Notes', 'Follow-up']) {
+        expect([...doc().querySelectorAll('.crm-dlg legend')].some((l) => l.textContent === legend)).toBe(true);
+      }
+      const email = doc().querySelector('.crm-dlg input[aria-label="Email 1"]');
+      email.value = 'ben@';
+      doc().querySelector('.crm-dlg .sui-primary').click();
+      await waitFor(() => doc().querySelector('[data-err="email:0"]').textContent.includes('does not look right'), { timeout: 4000 });
+      expect(doc().querySelector('.crm-dlg')).toBeTruthy();
+      expect(email.getAttribute('aria-invalid')).toBe('true');
+      email.value = 'ben@example.com';
+      doc().querySelector('.crm-dlg .sui-primary').click();
+      await waitFor(async () => (await customerNamed('Ben Lab')).email === 'ben@example.com', { timeout: 8000 });
+      await waitFor(() => !doc().querySelector('.crm-dlg'), { timeout: 4000 });
+    });
+  });
+
+  describe('the local-only rule', () => {
+    it('no error reached the page', () => {
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  run({ name: 'Slop CRM · groups, tags and the form at 1100 px' });
+  </script>
+</body>
+</html>

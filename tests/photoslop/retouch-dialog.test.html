@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop Auto Retouch dialog</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- Filter ▸ Auto Retouch…: the before/after split view (dragged with a finger), the sliders, Apply as one undo step and a
+       macro step, Cancel changing nothing, a bottom sheet at phone width, the Straighten offer, and readable text in the
+       Light, Dark, Classic 98 and Lime themes.
+       Covers: photoslop/js/retouch/dialog.js, photoslop/js/retouch/dialog-view.js, photoslop/js/retouch/boot.js -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/color/contrast.js"></script>
+  <script src="../a11y/contrast.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, win, frame;
+  const dlg = () => win.document.querySelector('.sui-dlg.rt-dlg');
+  const btn = (label) => [...dlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+  /** A small photo-like picture with a warm cast and a tilted horizon. */
+  function scene() {
+    W.newDocTab(360, 240, '#ffffff', 'Retouch'); W.fitView(); W.selectTool('move');
+    const c = W.mkCanvas(360, 240), g = c.getContext('2d'), t = Math.tan((3 * Math.PI) / 180);
+    const img = g.createImageData(360, 240);
+    for (let y = 0; y < 240; y++) for (let x = 0; x < 360; x++) {
+      const sky = y < 120 + t * (x - 180), i = (y * 360 + x) * 4, n = ((x * 7 + y * 13) % 11) - 5;
+      const [r, gg, b] = sky ? [180, 175, 150] : [110, 95, 60];
+      img.data[i] = r + n; img.data[i + 1] = gg + n; img.data[i + 2] = b + n; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    W.addLayer({ name: 'Photo', canvas: c }, 'Add Photo');
+  }
+  async function openDialog() {
+    W.psRetouchDialog();
+    await waitFor(() => dlg() && dlg().querySelector('.rt-canvas'), { timeout: 10000 });
+    await sleep(400);
+  }
+  const touch = (el, type, x, y) => el.dispatchEvent(new win.PointerEvent(type, { clientX: x, clientY: y, pointerId: 3, pointerType: 'touch', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1, bubbles: true, cancelable: true }));
+
+  describe('Auto Retouch dialog', () => {
+    it('opens from the menu with the split view, both sections and the Straighten offer', async () => {
+      ({ W, win, frame } = await freshApp());
+      scene();
+      const item = W.MENUS.find((m) => m[0] === 'Filter')[1].find((it) => it && it.label === 'Auto Retouch…');
+      item.act();
+      await waitFor(() => dlg() && dlg().querySelector('.rt-canvas'), { timeout: 10000 });
+      expect(dlg().querySelector('.rt-before').textContent).toBe('Before');
+      expect(dlg().querySelector('.rt-after').textContent).toBe('After');
+      expect(dlg().textContent).toContain('Auto enhance');
+      expect(dlg().textContent).toContain('Portrait retouch');
+      expect(dlg().textContent).toMatch(/Straighten: the horizon leans/);
+      expect(!!btn('Apply')).toBe(true);
+      expect(dlg().querySelector('.rt-view').hasAttribute('data-touch-surface')).toBe(true);
+      expect(win.getComputedStyle(dlg().querySelector('.rt-view')).touchAction).toBe('none');
+    }, { timeout: 40000 });
+
+    it('a finger drag moves the before/after divider; arrow keys move it too', async () => {
+      const view = dlg().querySelector('.rt-view'), cv = dlg().querySelector('.rt-canvas'), knob = dlg().querySelector('.rt-knob');
+      const r = cv.getBoundingClientRect();
+      expect(knob.getAttribute('aria-valuenow')).toBe('50');
+      touch(view, 'pointerdown', r.left + r.width * 0.5, r.top + 20);
+      touch(view, 'pointermove', r.left + r.width * 0.3, r.top + 24);
+      touch(view, 'pointermove', r.left + r.width * 0.2, r.top + 24);
+      touch(view, 'pointerup', r.left + r.width * 0.2, r.top + 24);
+      expect(Math.abs(+knob.getAttribute('aria-valuenow') - 20)).toBeLessThan(3);
+      knob.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+      expect(knob.getAttribute('aria-valuenow')).toBe('100');
+    });
+
+    it('the preview shows the change on the After side only', async () => {
+      const knob = dlg().querySelector('.rt-knob');
+      knob.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Home', bubbles: true }));   // all After
+      await sleep(500);
+      const cv = dlg().querySelector('.rt-canvas'), d = cv.getContext('2d').getImageData(Math.round(cv.width * 0.5), 10, 1, 1).data;
+      const s = W.rtSmall(W.rtComposite(), 640), o = s.data, i = (10 * s.w + Math.round(cv.width * 0.5)) * 4;
+      expect(Math.abs(d[0] - o[i]) + Math.abs(d[2] - o[i + 2])).toBeGreaterThan(6);   // the warm cast is corrected
+    });
+
+    it('Apply is one undo step (and a macro step); Cancel changes nothing', async () => {
+      const before = W.Hist.idx, n0 = W.D.layers.length;
+      win.SlopMacros.record();
+      btn('Apply').click();
+      await waitFor(() => W.Hist.idx === before + 1, { timeout: 15000 });
+      expect(W.D.layers.length).toBe(n0 + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Auto Enhance');
+      expect(win.SlopMacros.steps().some((s) => s.cmd === 'ps.retouch.auto-enhance')).toBe(true);
+      win.SlopMacros.cancel();
+      W.undo();
+      expect(W.D.layers.length).toBe(n0);
+      await openDialog();
+      btn('Cancel').click();
+      await sleep(300);
+      expect(W.Hist.idx).toBe(before);
+      expect(!!dlg()).toBe(false);
+    }, { timeout: 30000 });
+
+    it('the text in the dialog is readable in the Light, Dark, Classic 98 and Lime themes', async () => {
+      const fails = [];
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        win.SlopTheme.set(theme);
+        await openDialog();
+        const r = SlopContrast.audit(win, { root: dlg(), label: theme });
+        if (r.checked < 10) fails.push(`${theme}: only ${r.checked} texts checked`);
+        for (const f of r.fails) fails.push(`${theme}: "${f.text}" ${f.ratio} < ${f.need} (${f.sel})`);
+        btn('Cancel').click(); await sleep(250);
+      }
+      expect(fails).toEqual([]);
+    }, { timeout: 60000 });
+
+    it('at phone width the dialog is a bottom sheet with the preview on top, and Remove an object picks the tool', async () => {
+      frame.style.width = '390px'; frame.style.height = '844px';
+      await sleep(400);
+      await openDialog();
+      const r = dlg().getBoundingClientRect(), v = dlg().querySelector('.rt-view').getBoundingClientRect(), c = dlg().querySelector('.rt-controls').getBoundingClientRect();
+      expect(Math.round(r.width)).toBe(390);
+      expect(Math.abs(r.bottom - win.innerHeight)).toBeLessThan(2);
+      expect(v.bottom).toBeLessThanOrEqual(c.top + 1);
+      expect(win.document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      [...dlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Remove an object…').click();
+      await sleep(300);
+      expect(W.UI.tool).toBe('remove');
+      frame.style.width = '1280px'; frame.style.height = '760px';
+    }, { timeout: 30000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop Auto Retouch dialog' });
+  </script>
+</body>
+</html>

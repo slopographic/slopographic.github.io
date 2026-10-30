@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs layout engine</title></head>
+<body>
+<script src="../harness.js"></script>
+<script type="module">
+import { newDoc, para } from '../../docs/js/model/doc.js';
+import { ensureFaces } from '../../docs/js/fonts/registry.js';
+import { layoutDoc } from '../../docs/js/layout/index.js';
+const { describe, it, expect } = SlopTest;
+describe('layout', () => {
+  it('breaks lines and paginates a long document', async () => {
+    await ensureFaces([{ font: 'Carlito' }, { font: 'Carlito', b: true }]);
+    const d = newDoc();
+    d.blocks = Array.from({ length: 60 }, (_, i) => para(('Paragraph ' + i + ' lorem ipsum dolor sit amet. ').repeat(6)));
+    const L = layoutDoc(d);
+    expect(L.pages.length).toBeGreaterThan(2);
+    const lines = L.pages[0].items.filter((x) => x.kind === 'line');
+    expect(lines.length).toBeGreaterThan(10);
+    for (const l of lines) expect(l.line.w).toBeLessThanOrEqual(468 + 0.01);
+    for (const pg of L.pages) for (const l of pg.items.filter((x) => x.kind === 'line')) expect(l.y + l.line.h).toBeLessThanOrEqual(pg.body.bottom + 0.01);
+  });
+});
+SlopTest.run({ name: 'Slop Docs layout engine' });
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+/* Slop Tables: charts on the grid, the chart and pivot table dialogs, the sidebar's Charts and pivots, the drop strip. */
+.objects { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.chart-box { position: absolute; box-sizing: border-box; pointer-events: auto; border: 1px solid var(--g-line); border-radius: 6px; background: var(--g-surface); overflow: visible; cursor: move; touch-action: none; }
+.chart-svg, .chart-svg svg { display: block; width: 100%; height: 100%; border-radius: 5px; overflow: hidden; }
+.chart-svg text { font-family: var(--font-ui); }
+.chart-svg .mark { transition: opacity .12s; }
+.chart-svg .mark:hover { opacity: .8; }
+.chart-box.on { outline: 2px solid var(--g-accent); outline-offset: 1px; }
+.chart-h { position: absolute; width: 10px; height: 10px; box-sizing: border-box; background: var(--g-surface); border: 2px solid var(--g-accent); border-radius: 2px; display: none; }
+.chart-box.on .chart-h { display: block; }
+.chart-h[data-h="nw"] { left: -6px; top: -6px; cursor: nwse-resize; }
+.chart-h[data-h="ne"] { right: -6px; top: -6px; cursor: nesw-resize; }
+.chart-h[data-h="sw"] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.chart-h[data-h="se"] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.chart-bar { position: absolute; right: 6px; top: 6px; display: none; gap: 4px; }
+.chart-box.on .chart-bar, .chart-box:hover .chart-bar { display: flex; }
+.chart-b { font: 12px var(--font-ui); color: var(--g-text); background: var(--g-surface); border: 1px solid var(--g-line); border-radius: 5px; padding: 2px 8px; cursor: pointer; }
+.chart-b:hover { border-color: var(--g-accent); }
+@media (hover: none) { .chart-h { width: 16px; height: 16px; } .chart-h[data-h="nw"], .chart-h[data-h="sw"] { left: -9px; } .chart-h[data-h="ne"], .chart-h[data-h="se"] { right: -9px; } .chart-h[data-h="nw"], .chart-h[data-h="ne"] { top: -9px; } .chart-h[data-h="sw"], .chart-h[data-h="se"] { bottom: -9px; } }
+
+/* dialogs */
+.chart-dialog.sui-dlg, .pv-dialog.sui-dlg { width: min(760px, calc(100vw - 24px)); max-width: none; }
+.chart-dlg { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 16px; align-items: start; }
+.chart-form, .pv-dlg { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.chart-preview { min-height: 200px; min-width: 0; border: 1px solid var(--line, #8883); border-radius: 6px; overflow: hidden; }
+.chart-preview svg { display: block; width: 100%; height: auto; }
+.chart-msg { margin: 0; min-height: 1.2em; color: var(--danger, #d0263f); font-size: 12px; }
+.pv-dialog.sui-dlg { width: min(560px, calc(100vw - 24px)); }
+.pv-grid, .pv-place { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.pv-grid .sui-field, .pv-place .sui-field { grid-template-columns: 1fr; gap: 4px; margin-bottom: 0; }
+.pv-dlg > .sui-field, .chart-form .sui-field { margin-bottom: 0; }
+.chart-form .sui-field { grid-template-columns: 72px 1fr; }
+.pv-h { font-weight: 600; margin-top: 4px; }
+.pv-values { display: flex; flex-direction: column; gap: 6px; }
+.pv-value { display: grid; grid-template-columns: 1fr 120px auto; gap: 6px; align-items: center; }
+.pv-add { align-self: flex-start; }
+.import-notes ul { margin: 0 0 8px; padding-left: 18px; }
+.import-notes li { margin: 4px 0; }
+@media (max-width: 640px) {
+  .chart-dlg { grid-template-columns: 1fr; }
+  .chart-preview { min-height: 160px; }
+  .pv-value { grid-template-columns: 1fr 96px auto; }
+}
+
+/* sidebar */
+.side-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.side-obj { display: flex; align-items: center; gap: 4px; }
+.side-obj .side-item { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-mini { font: 11px var(--font-ui); color: var(--fg); background: transparent; border: 1px solid var(--line-2); border-radius: 5px; padding: 2px 6px; cursor: pointer; flex: none; }
+.side-mini:hover { background: var(--hover); }
+
+/* drop strip (hidden at rest; shows while dropped files are read) */
+.drop-strip { flex: none; }
+.drop-strip:not(.sd-quiet) { padding: 4px 8px; background: var(--panel); border-top: 1px solid var(--line); }

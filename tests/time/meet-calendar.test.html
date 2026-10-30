@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Time · a planned meeting is added to Calendar</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../time/index.html" title="Slop Time"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const W = () => frame.contentWindow;
+  const $ = (sel) => frame.contentDocument.querySelector(sel);
+  const $$ = (sel) => [...frame.contentDocument.querySelectorAll(sel)];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+
+  describe('Slop Time: a meeting from the planner goes on the calendar', () => {
+    it('plans a meeting with London, shows the windows, and adds one to Calendar as a meeting', async () => {
+      await until(() => W().SlopData && W().SlopData.store && $('#tab-meet'), 'the page and the store');
+      $('#tab-meet').click();
+      // the planner draws its starting zones once the app has loaded them: changing anything before that is undone
+      await until(() => $$('#st-meet-zones button').length > 0, 'the planner drawn');
+      $('#st-meet-date').value = '2026-10-12';          // a Monday, inside the working days of the default week
+      $('#st-meet-date').dispatchEvent(new Event('input', { bubbles: true }));
+      // Only London in the meeting, so the windows are simple to check.
+      while ($('#st-meet-zones button')) $('#st-meet-zones button').click();   // each removal redraws the list
+      $('#st-meet-add').value = 'Europe/London';
+      $('#st-meet-add-btn').click();
+      const btn = await until(() => $$('#st-meet-out button').find((b) => b.textContent === 'Add to Calendar'), 'a meeting window');
+      const head = btn.closest('li').querySelector('.st-win-head').textContent;
+      btn.click();
+      await until(() => $('#st-meet-msg').textContent.startsWith('Added to Calendar'), 'the saved message');
+
+      const events = (await W().SlopData.store.list('events')).value;
+      const ev = events.find((e) => e.kind === 'meeting' && e.title === 'Meeting with London');
+      expect(ev).toBeTruthy();
+      expect(ev.allDay).toBe(false);
+      expect(ev.end > ev.start).toBeTruthy();
+      expect(ev.end - ev.start).toBeGreaterThanOrEqual(60 * 60 * 1000);
+      // The event's start, read in its own zone, is the window's start shown on the page.
+      const hm = new Intl.DateTimeFormat('en-GB', { timeZone: ev.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ev.start);
+      expect(head).toContain(hm);
+    });
+  });
+
+  run({ name: 'Slop Time · meeting on the calendar' });
+  </script>
+</body>
+</html>

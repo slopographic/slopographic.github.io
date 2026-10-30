@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop: drawing and tool commands for the assistant</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  // Covers: photoslop/js/app/ai-draw.js, photoslop/js/app/ai-tool-use.js, photoslop/js/app/ai-draw-cmds.js, photoslop/js/app/ai-ops.js, photoslop/js/app/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let app, win, W, C;
+  const run = async (id, args) => { const r = await C.exec('ps.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const px = (x, y) => [...W.flattenCanvas().getContext('2d').getImageData(x, y, 1, 1).data];
+  const near = (a, b, d = 40) => a.every((v, i) => Math.abs(v - b[i]) <= d);
+  const fresh = (bg = '#ffffff') => { W.newDocument(200, 100, bg, 'T'); };
+  const blankLayer = () => run('new-layer', { name: 'Paint' });
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/></linearGradient></defs>'
+    + '<rect width="200" height="100" fill="url(#g)"/><circle cx="100" cy="50" r="20" fill="#00ff00"/></svg>';
+
+  describe('PhotoSlop drawing commands', () => {
+    it('prepare() loads them; use_tool lists every toolbox tool', async () => {
+      app = await freshApp(); win = app.win; W = app.W; C = win.SlopCmd;
+      await C.prepare();
+      for (const id of ['new-document', 'add-svg-layer', 'gradient-fill', 'draw-shape', 'use-tool', 'click-tool', 'brush-stroke', 'transform-layer', 'list-tools']) expect(!!C.get('ps.ai.' + id)).toBe(true);
+      const box = [...win.document.querySelectorAll('#toolbox .tool')].map((b) => b.dataset.tool);
+      expect(box.length).toBeGreaterThan(20);
+      const values = C.get('ps.ai.use-tool').args.find((x) => x.name === 'tool').values;
+      for (const t of box) expect(values).toContain(t);
+      const cat = (await run('list-tools', {})).value;
+      expect(cat.find((t) => t.id === 'brush').options.join(' ')).toContain('hardness');
+    }, { timeout: 40000 });
+
+    it('new_document opens a new tab with the size and background', async () => {
+      const n = W.DOCS.length;
+      await run('new-document', { width: 200, height: 100, background: '#336699', name: 'Poster' });
+      expect(W.DOCS.length).toBe(n + 1);
+      expect([W.D.w, W.D.h, W.D.name]).toEqual([200, 100, 'Poster']);
+      expect(near(px(5, 5), [0x33, 0x66, 0x99, 255], 2)).toBe(true);
+    });
+
+    it('add_svg_layer: a gradient and a circle become a layer with the right colours', async () => {
+      fresh();
+      const before = W.Hist.idx;
+      const r = await run('add-svg-layer', { svg: SVG, name: 'Art' });
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.activeLayer().name).toBe('Art');
+      expect(r.value).toMatch(/200 × 100/);
+      expect(near(px(2, 10), [255, 0, 0, 255])).toBe(true);
+      expect(near(px(197, 10), [0, 0, 255, 255])).toBe(true);
+      expect(near(px(100, 50), [0, 255, 0, 255], 10)).toBe(true);
+    });
+
+    it('add_svg_layer refuses scripts, event handlers and outside links', async () => {
+      const bad = ['<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)<\/script></svg>', '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="5" height="5"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="https://example.com/a.png" width="9" height="9"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><rect width="9" height="9" style="fill:url(https://example.com/x)"/></svg>', '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject/></svg>', 'hello', '<svg><rect></svg>'];
+      const n = W.D.layers.length;
+      for (const svg of bad) { const r = await C.exec('ps.ai.add-svg-layer', { svg }); expect(r.ok).toBe(false); }
+      expect(W.D.layers.length).toBe(n);
+    });
+
+    it('gradient_fill: linear on a new layer, and on the layer only inside the selection', async () => {
+      fresh();
+      await run('gradient-fill', { colors: ['#000000', '#ffffff'], target: 'new_layer', name: 'G' });
+      expect(px(2, 50)[0]).toBeLessThan(30);
+      expect(px(197, 50)[0]).toBeGreaterThan(225);
+      fresh();
+      await run('use-tool', { tool: 'marquee', points: [[0, 0], [100, 100]] });
+      expect(W.D.sel.bounds.w).toBe(100);
+      await run('gradient-fill', { type: 'radial', colors: ['#ff0000', '#ff0000'] });
+      expect(near(px(50, 50), [255, 0, 0, 255])).toBe(true);
+      expect(px(150, 50)).toEqual([255, 255, 255, 255]);
+    });
+
+    it('draw_shape, with the bounds warning and fit; add_text warns past the canvas and fits', async () => {
+      fresh(); W.deselect();
+      await run('draw-shape', { kind: 'ellipse', x: 50, y: 20, width: 100, height: 60, fill: 'red' });
+      expect(near(px(100, 50), [255, 0, 0, 255])).toBe(true);
+      expect(px(52, 22)).toEqual([255, 255, 255, 255]);
+      let r = await run('draw-shape', { kind: 'rect', x: -20, y: 0, width: 240, height: 40, fill: '#000000' });
+      expect(r.value).toMatch(/240 px wide, wider than the 200 px canvas; 20 px is cut off on each side/);
+      r = await run('draw-shape', { kind: 'rect', x: -20, y: 0, width: 240, height: 40, fill: '#000000', fit: true });
+      expect(r.value).not.toMatch(/Warning/);
+      r = await run('add-text', { text: 'WIDE HEADLINE', size: 120, position: 'center' });
+      expect(r.value).toMatch(/Warning: The text is \d+ px wide, wider than the 200 px canvas/);
+      r = await run('add-text', { text: 'WIDE HEADLINE', size: 120, position: 'center', fit: true });
+      expect(r.value).not.toMatch(/Warning/);
+      const b = W.psLayerBounds(W.activeLayer());
+      expect(b.x >= 0 && b.x + b.w <= 200).toBe(true);
+    }, { timeout: 20000 });
+
+    it('use_tool brush and eraser along points, each one undo step', async () => {
+      fresh(); await blankLayer();
+      const before = W.Hist.idx;
+      await run('use-tool', { tool: 'brush', points: [[10, 50], [100, 50], [190, 50]], options: { size: 12, hardness: 1, opacity: 100, color: '#00ff00' } });
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(near(px(100, 50), [0, 255, 0, 255], 20)).toBe(true);
+      expect(px(100, 10)).toEqual([255, 255, 255, 255]);
+      await run('brush-stroke', { tool: 'eraser', points: [[0, 50], [200, 50]], size: 30, hardness: 100 });
+      expect(px(100, 50)).toEqual([255, 255, 255, 255]);
+      W.undo();
+      expect(near(px(100, 50), [0, 255, 0, 255], 20)).toBe(true);
+    });
+
+    it('click_tool bucket, use_tool gradient, lasso + fill, magic wand, eyedropper', async () => {
+      fresh();
+      await run('click-tool', { tool: 'bucket', x: 5, y: 5, options: { color: '#ff00ff', tol: 10 } });
+      expect(px(150, 80)).toEqual([255, 0, 255, 255]);
+      fresh();
+      W.setColor('fg', '#000000'); W.setColor('bg', '#ffffff');
+      await run('use-tool', { tool: 'gradient', points: [[0, 50], [200, 50]], options: { type: 'linear', mode: 'fgbg', opacity: 1 } });
+      expect(px(3, 50)[0]).toBeLessThan(30); expect(px(196, 50)[0]).toBeGreaterThan(225);
+      fresh();
+      const r = await run('use-tool', { tool: 'lasso', points: [[10, 10], [90, 10], [90, 90], [10, 90]] });
+      expect(r.value).toMatch(/Selection: (79|80|81) × (79|80|81)/);
+      await run('fill', { color: '#0000ff' });
+      expect(px(50, 50)).toEqual([0, 0, 255, 255]); expect(px(150, 50)).toEqual([255, 255, 255, 255]);
+      W.deselect();
+      await run('click-tool', { tool: 'wand', x: 50, y: 50, options: { tol: 10, contiguous: true, sampleAll: true } });
+      const sb = W.D.sel.bounds;
+      expect(Math.abs(sb.x - 10) <= 1 && Math.abs(sb.y - 10) <= 1 && Math.abs(sb.w - 80) <= 2).toBe(true);
+      const e = await run('click-tool', { tool: 'eyedropper', x: 50, y: 50 });
+      expect(e.value).toMatch(/#0000ff/i);
+    });
+
+    it('clone stamp with a source, and transform_layer', async () => {
+      fresh(); W.deselect();
+      await run('draw-shape', { kind: 'rect', x: 0, y: 0, width: 20, height: 100, fill: '#ff0000' });
+      W.D.activeId = W.D.layers[0].id;
+      await run('use-tool', { tool: 'clone', source: [10, 50], points: [[150, 50], [151, 50]], options: { size: 10, hardness: 1, aligned: true, sampleAll: true } });
+      expect(near(px(150, 50), [255, 0, 0, 255], 30)).toBe(true);
+      fresh(); W.deselect();
+      await run('draw-shape', { kind: 'rect', x: 50, y: 25, width: 100, height: 50, fill: '#000000', blur: 0, stroke: 'none', name: 'Box' });
+      const before = W.Hist.idx;
+      const r = await run('transform-layer', { scale: 50 });
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(r.value).toMatch(/50% × 50%/);
+      const b = W.psLayerBounds(W.activeLayer());
+      expect(Math.abs(b.w - 50) <= 2 && Math.abs(b.h - 25) <= 2).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop drawing commands' });
+  </script>
+</body>
+</html>

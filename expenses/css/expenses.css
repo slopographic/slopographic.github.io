@@ -1,0 +1,12 @@
+/* Slop Expenses: only what is its own. The base (tokens, tabs, toolbar, cards, forms, chips, stats) is shared/biz/app.css;
+ * the rows are shared/ui/list.css. */
+.facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; }
+.facts dt { color: var(--mute); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.total { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.months { width: 100%; border-collapse: collapse; font-size: 13px; }
+.months th, .months td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.months thead th { border-top: 0; color: var(--mute); font-weight: 500; }
+.months .num { text-align: right; }
+.table-wrap { overflow-x: auto; }
+.months th[scope="row"] { white-space: nowrap; }

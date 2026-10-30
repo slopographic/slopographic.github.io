@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Quotes: write, send, expire, decline, reopen, make an order and an invoice, PDF, at 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: quotes/index.html, quotes/js/ui/app.js, quotes/js/ui/list.js, quotes/js/ui/editor.js, quotes/js/ui/page.js, quotes/js/ui/commands.js, quotes/js/ui/layout.js
+  // Covers: shared/docs/workspace.css, shared/biz/docbar.js, quotes/index.html
+  // Covers: quotes/js/core/util.js, quotes/js/core/quotes.js, quotes/js/core/pdf.js, quotes/css/quotes.css, shared/docs/doc-layout.js, orders/js/ui/layout.js, shared/biz/app.css, shared/layouts/presets.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const set = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); el.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const rows = () => [...D.querySelectorAll('#qRows .sl-row')];
+  const button = (text) => [...D.querySelectorAll('#eActions button, .ws-panel .sf-p-foot button')].find((b) => b.textContent === text);
+  const S = () => W.SlopData;
+  async function boot(hash = '') {
+    const f = document.getElementById('app');
+    f.src = '../../quotes/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopQuotes && f.contentWindow.SlopQuotes.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  W = null;
+  const quoteNamed = async () => (await S().store.list('quotes')).value.find((q) => q.id === W.SlopQuotes.editor.id());
+
+  describe('Slop Quotes', () => {
+    it('opens on an empty list (fresh data)', async () => {
+      await boot();
+      await S().store.erase(); await S().store.ready();
+      await S().store.put('customers', { name: 'Ada Ltd', stage: 'customer' });
+      await boot('#list');
+      await waitFor(() => $('qSummary').textContent === '0 quotes');
+      expect($('tab-edit').hidden).toBe(true);
+    });
+    it('a new quote is valid for 30 days; saving gives it the next QUO number', async () => {
+      W.SlopQuotes.app.go('new');
+      await waitFor(() => !$('view-edit').hidden && $('eCustomer').options.length > 1);
+      // the shared workspace (as in Invoices): the sheet in the centre, the details on the right, under the record bar
+      if (W.innerWidth > 720) expect(D.querySelector('.ws-panel').getBoundingClientRect().left).toBeGreaterThan(D.querySelector('.ws-stage').getBoundingClientRect().left);
+      expect(D.querySelector('.biz-docbar').hidden).toBe(false);
+      expect(D.getElementById('eTitle').closest('.biz-docbar')).toBeTruthy();
+      expect($('eValid').value).toBe(W.SlopDocs.model.addDays($('eDate').value, 30));
+      set($('eCustomer'), $('eCustomer').options[1].value);
+      const card = D.querySelector('#eLines .line-card');
+      set(card.querySelector('[data-f="description"]'), 'Website design');
+      set(card.querySelector('[data-f="qty"]'), '2');
+      set(card.querySelector('[data-f="unitPrice"]'), '500');
+      set(card.querySelector('[data-f="taxRate"]'), '20');
+      button('Save draft').click();
+      await waitFor(() => $('eTitle').textContent === 'QUO-0001');
+      const q = await quoteNamed();
+      expect(q.total).toBe(120000);
+      expect(q.status).toBe('draft');
+      expect(W.location.hash).toBe(`#q/${q.id}`);
+    });
+    it('a valid-until date before the quote date is refused in plain words', async () => {
+      set($('eValid'), '2000-01-01');
+      button('Save').click();
+      await waitFor(() => $('eMsg').textContent === 'Valid until is before the quote date.');
+      set($('eValid'), W.SlopDocs.model.addDays($('eDate').value, 14));
+      button('Save').click();
+      await waitFor(() => $('eMsg').textContent.startsWith('Saved'));
+    });
+    it('Mark as sent, then Decline and Reopen; declined is read only', async () => {
+      button('Mark as sent').click();
+      await waitFor(() => $('eStatus').textContent === 'Sent');
+      W.SlopUI.confirm = async () => true;
+      button('Decline…').click();
+      await waitFor(() => $('eStatus').textContent === 'Declined');
+      expect($('eCustomer').disabled).toBe(true);
+      expect(!!button('Make order')).toBe(false);
+      button('Reopen').click();
+      await waitFor(() => $('eStatus').textContent === 'Draft' && !$('eCustomer').disabled);
+    });
+    it('Make order: a confirmed order with the same lines, and the quote is accepted with a link', async () => {
+      button('Make order').click();
+      await waitFor(() => $('eStatus').textContent === 'Accepted');
+      const q = await quoteNamed();
+      const o = (await S().store.get('orders', q.orderId)).value;
+      expect(o.status).toBe('open');
+      expect(o.total).toBe(120000);
+      expect(o.quoteId).toBe(q.id);
+      expect($('eLinks').textContent).toContain(o.number);
+      expect(!!button('Make invoice')).toBe(false);
+    });
+    it('Make invoice from another quote: a draft invoice due after the payment terms', async () => {
+      const c = (await S().store.list('customers')).value[0];
+      const q = (await W.SlopQuotes.quotes.save({ customerId: c.id, date: '2026-10-01', lines: [{ description: 'Hosting', qty: 1, unitPrice: 9000, taxRate: 0 }] })).value;
+      W.SlopQuotes.app.go(`q/${q.id}`);
+      await waitFor(() => $('eTitle').textContent === 'QUO-0002' && !!button('Make invoice'));
+      button('Make invoice').click();
+      await waitFor(() => $('eStatus').textContent === 'Accepted');
+      const inv = (await S().store.get('invoices', (await quoteNamed()).invoiceId)).value;
+      expect(inv.status).toBe('draft');
+      expect(inv.total).toBe(9000);
+      expect(inv.dueDate).toBe(W.SlopDocs.model.addDays(S().ledger.today(), 30));
+    });
+    it('the list: an open quote past its date shows Expired and the Expired filter finds it', async () => {
+      const c = (await S().store.list('customers')).value[0];
+      await W.SlopQuotes.quotes.save({ customerId: c.id, date: '2026-01-01', validUntil: '2026-01-31', lines: [{ description: 'Old', qty: 1, unitPrice: 100, taxRate: 0 }] });
+      W.SlopQuotes.app.go('list');
+      await waitFor(() => rows().length === 3);
+      expect(rows()[0].textContent).toContain('Expired');
+      set($('qStatus'), 'expired');
+      await waitFor(() => rows().length === 1);
+      expect($('qSummary').textContent).toBe('1 quote');
+      set($('qStatus'), 'all');
+    });
+    it('Export PDF makes a PDF named after the quote, with Valid until on it', async () => {
+      const q = (await S().store.list('quotes')).value.find((x) => x.number === 'QUO-0003');
+      const r = await W.SlopQuotes.pdf.quotePdf(q.id);
+      expect(r.ok).toBe(true);
+      expect(new TextDecoder().decode(r.value.slice(0, 5))).toBe('%PDF-');
+      const v = W.SlopQuotes.pdf.viewOf((await W.SlopQuotes.pdf.load(q.id)).value);
+      expect(v.title).toBe('Quote');
+      expect(v.meta.map((m) => m.label)).toEqual(['Date', 'Valid until']);
+    });
+    it('commands: new quote from the palette list, and the menu bar keeps working at 390 px with no sideways scroll', async () => {
+      expect(W.SlopQuotes.commands.list.some((c) => c.id === 'quotes.new')).toBe(true);
+      document.getElementById('app').style.width = '390px';
+      await waitFor(() => W.innerWidth === 390);
+      W.SlopQuotes.app.go('new');
+      await waitFor(() => !$('view-edit').hidden && $('eCustomer').options.length > 1);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+      W.SlopQuotes.editor.clean();
+      W.SlopQuotes.app.go('data');
+      await waitFor(() => !$('view-data').hidden);
+      expect($('dBackup').textContent).toBe('Download full backup');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

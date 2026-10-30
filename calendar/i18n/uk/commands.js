@@ -1,0 +1,22 @@
+/* Slop Calendar, Ukrainian: the palette. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-uk.md. */
+window.SlopI18n && window.SlopI18n.add('uk', {
+  'calendar.cmd.g_cal': 'Календар',
+  'calendar.cmd.g_goto': 'Перейти',
+  'calendar.cmd.prev': 'Календар: попередній період',
+  'calendar.cmd.next': 'Календар: наступний період',
+  'calendar.cmd.today': 'Календар: перейти до сьогодні',
+  'calendar.cmd.year': 'Календар: вигляд року',
+  'calendar.cmd.month': 'Календар: вигляд місяця',
+  'calendar.cmd.split': 'Календар: розділений вигляд',
+  'calendar.cmd.undo': 'Календар: скасувати останнє переміщення',
+  'calendar.cmd.week': 'Календар: вигляд тижня',
+  'calendar.cmd.day': 'Календар: вигляд дня',
+  'calendar.cmd.agenda': 'Календар: порядок денний',
+  'calendar.cmd.new': 'Календар: нова подія',
+  'calendar.cmd.tasks': 'Календар: показати або приховати завдання',
+  'calendar.cmd.import': 'Календар: імпорт .ics',
+  'calendar.cmd.export': 'Календар: експорт .ics',
+  'calendar.cmd.todo': 'Перейти до Slop To-do',
+  'calendar.cmd.reminders': 'Перейти до Slop Reminders',
+  'calendar.cmd.crm': 'Перейти до Slop CRM',
+});

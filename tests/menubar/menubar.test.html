@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop menu bar</title></head>
+<body>
+<button id="go" type="button">Go</button>
+<button id="off" type="button" disabled>Off</button>
+<script src="../harness.js"></script>
+<link rel="stylesheet" href="../../shared/menubar/menubar.css">
+<script src="../../shared/menubar/menubar.js"></script>
+<script>
+  const { describe, it, expect, run } = SlopTest;
+  // mount() does nothing when a bar is already on the page, so each test that mounts again clears the page first.
+  const reset = () => document.querySelectorAll('.smb-bar').forEach((b) => b.remove());
+  describe('SlopMenuBar', () => {
+    it('mounts a bar with a menu per title, items labelled from their buttons, and a home link', () => {
+      SlopMenuBar.mount({ app: 'Test app', home: '../', menus: { File: ['#go', '-', '#off'], Help: [{ label: 'About', act: () => {} }] } });
+      const bar = document.querySelector('.smb-bar');
+      expect(!!bar).toBeTruthy();
+      expect(bar.querySelector('.smb-app').textContent).toBe('Test app');
+      expect(bar.querySelector('.smb-brand').getAttribute('href')).toBe('../');
+      expect([...bar.querySelectorAll('.smb-menu-b')].map((b) => b.textContent).join(',')).toBe('File,Help');
+      expect([...bar.querySelectorAll('.smb-item')].map((b) => b.textContent).join('|')).toBe('Go|Off|About');
+    });
+    it('a menu item clicks its button; a disabled button is greyed, not clickable', () => {
+      const bar = document.querySelector('.smb-bar');
+      let clicked = 0;
+      document.getElementById('go').addEventListener('click', () => clicked++);
+      [...bar.querySelectorAll('.smb-menu-b')].find((b) => b.textContent === 'File').click();
+      const item = (t) => [...bar.querySelectorAll('.smb-item')].find((b) => b.textContent === t);
+      expect(item('Go').disabled).toBe(false);
+      expect(item('Off').disabled).toBe(true);
+      item('Go').click();
+      expect(clicked).toBe(1);
+    });
+    it('a menu closes on a click elsewhere', () => {
+      const bar = document.querySelector('.smb-bar');
+      const fileBtn = [...bar.querySelectorAll('.smb-menu-b')].find((b) => b.textContent === 'File');
+      fileBtn.click();
+      expect(fileBtn.getAttribute('aria-expanded')).toBe('true');
+      document.body.click();
+      expect(fileBtn.getAttribute('aria-expanded')).toBe('false');
+    });
+    it('a button named in tools is moved into the bar and keeps its listener', () => {
+      reset();
+      const own = document.createElement('button');
+      own.id = 'own'; own.textContent = 'Own'; document.body.append(own);
+      let hits = 0; own.addEventListener('click', () => hits++);
+      SlopMenuBar.mount({ app: 'Tools test', tools: ['#own'], menus: {} });
+      expect(!!document.querySelector('.smb-tools #own')).toBe(true);
+      document.getElementById('own').click();
+      expect(hits).toBe(1);
+    });
+    it('host: the bar fills the element the app already has, instead of adding one at the top', () => {
+      reset();
+      const host = document.createElement('div');
+      host.id = 'host'; host.textContent = 'old';
+      document.body.append(host);
+      SlopMenuBar.mount({ app: 'Host test', host: '#host', menus: { File: ['#go'] } });
+      expect(document.getElementById('host').classList.contains('smb-bar')).toBe(true);
+      expect(document.getElementById('host').textContent.includes('old')).toBe(false);
+      expect(document.body.firstElementChild.id).not.toBe('host');
+      host.remove();
+    });
+    it('a menu given as a function is built when it opens, and a submenu opens from its item', () => {
+      reset();
+      let calls = 0;
+      SlopMenuBar.mount({ app: 'Lazy', menus: { Insert: () => { calls++; return [{ label: 'More', sub: [{ label: 'Deep', act: () => {} }] }]; } } });
+      expect(calls).toBe(0);
+      const menu = [...document.querySelectorAll('.smb-menu-b')].find((b) => b.textContent === 'Insert');
+      menu.click();
+      expect(calls).toBe(1);
+      const more = [...document.querySelectorAll('.smb-item.smb-has-sub')].find((b) => b.textContent.startsWith('More'));
+      more.click();
+      const deep = [...document.querySelectorAll('.smb-item')].find((b) => b.textContent === 'Deep');
+      expect(!!deep && !deep.disabled).toBe(true);
+    });
+  });
+  describe('SlopMenuBar: one header for every app', () => {
+    it("menus can name SlopCmd commands: the title without its group, the keys, and the command runs", () => {
+      reset();
+      let ran = 0;
+      window.SlopCmd = { get: (id) => (id === 'customers.new' ? { title: 'Customers: add a customer' } : null), keyFor: () => 'Ctrl+N', run: (id) => { if (id === 'customers.new') ran++; } };
+      SlopMenuBar.mount({ app: 'CRM', menus: { File: ['cmd:customers.new', 'cmd:not.there'] } });
+      const bar = document.querySelector('.smb-bar');
+      bar.querySelector('.smb-menu-b').click();
+      const rows = [...bar.querySelectorAll('.smb-item')];
+      expect(rows.length).toBe(1);   // a command that is not registered is left out
+      expect(rows[0].firstChild.textContent).toBe('Add a customer');
+      expect(rows[0].querySelector('.smb-keys').textContent).toBe('Ctrl+N');
+      rows[0].click();
+      expect(ran).toBe(1);
+      delete window.SlopCmd;
+    });
+    it("the brand is the Slopographic mark (the app's icon replaces it where the page has one), and the page's 100% local badge moves next to the name", () => {
+      reset();
+      const badge = document.createElement('span'); badge.className = 'local-badge'; badge.textContent = '100% local';
+      document.body.append(badge);
+      SlopMenuBar.mount({ app: 'Ledger' });
+      const bar = document.querySelector('.smb-bar');
+      expect(bar.querySelector('.smb-brand').classList.contains('brand')).toBe(true);
+      expect(!!bar.querySelector('.smb-brand svg.brand-mark')).toBe(true);
+      expect(bar.querySelector('.smb-app').nextElementSibling).toBe(badge);
+    });
+    it("a host header is emptied into the bar, and its own buttons named in tools are kept", () => {
+      reset();
+      const h = document.createElement('header'); h.className = 'topbar';
+      h.innerHTML = '<span class="base" id="baseLabel">Base currency USD</span><button id="cmdk">⌘K</button>';
+      document.body.append(h);
+      SlopMenuBar.mount({ app: 'Ledger', host: 'header.topbar', tools: ['#baseLabel'] });
+      expect(h.classList.contains('smb-bar')).toBe(true);
+      expect(h.querySelector('.smb-tools #baseLabel').textContent).toBe('Base currency USD');
+      expect(document.getElementById('cmdk')).toBe(null);
+      h.remove();
+    });
+  });
+  run({ name: 'SlopMenuBar' });
+</script>
+</body>
+</html>

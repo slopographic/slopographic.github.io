@@ -1,0 +1,88 @@
+/* Slop Projects timeline (Gantt) and list. The timeline scrolls sideways inside its own box; the task names stay at the
+ * start edge (sticky), the scale at the top. Bars take the project's colour (--pc, projects.css); arrows are an SVG under
+ * the bars. The task names are narrower on a phone. */
+.tl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block-end: 8px; }
+.tl-tools .note { margin: 0; color: var(--danger); }
+.seg { display: inline-flex; }
+.seg .btn { border-radius: 0; margin-inline-start: -1px; }
+.seg .btn:first-child { border-start-start-radius: var(--r-s); border-end-start-radius: var(--r-s); margin-inline-start: 0; }
+.seg .btn:last-child { border-start-end-radius: var(--r-s); border-end-end-radius: var(--r-s); }
+.seg .btn[aria-pressed="true"] { background: var(--sel); border-color: var(--accent); color: var(--ink); font-weight: 600; position: relative; }
+.tl-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 12px; align-items: start; }
+.tl { min-width: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); overflow: hidden; }
+.tl-scroll { --name: 220px; overflow: auto; max-block-size: calc(100vh - 230px); min-block-size: 200px; overscroll-behavior-x: contain; }
+.tl-head { display: flex; position: sticky; inset-block-start: 0; z-index: 4; background: var(--panel); border-block-end: 1px solid var(--line); inline-size: max-content; }
+.tl-corner { position: sticky; inset-inline-start: 0; z-index: 5; flex: 0 0 var(--name); inline-size: var(--name); box-sizing: border-box; padding: 6px 10px; display: flex; align-items: flex-end; font-size: 12px; color: var(--mute); background: var(--panel); border-inline-end: 1px solid var(--line); }
+.tl-scale { position: relative; block-size: 44px; flex: none; }
+.tl-top, .tl-bot { position: absolute; inset-inline: 0; block-size: 22px; }
+.tl-top { inset-block-start: 0; }
+.tl-bot { inset-block-start: 22px; }
+.tl-tk { position: absolute; inset-block: 0; box-sizing: border-box; padding-inline: 4px; font-size: 11.5px; line-height: 22px; color: var(--mute); white-space: nowrap; overflow: hidden; border-inline-start: 1px solid var(--line); }
+.tl-top .tl-tk { color: var(--ink); font-weight: 600; }
+.tl-bot .tl-tk { text-align: center; padding-inline: 0; }
+.tl-tk.we { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.tl-tk.now { color: var(--accent-ink); background: var(--accent); font-weight: 700; }
+.tl-main { display: flex; inline-size: max-content; min-inline-size: 100%; }
+.tl-names { position: sticky; inset-inline-start: 0; z-index: 3; flex: 0 0 var(--name); inline-size: var(--name); background: var(--panel); border-inline-end: 1px solid var(--line); }
+.tl-name { display: flex; align-items: center; gap: 6px; block-size: var(--row); padding-inline: 10px 6px; box-sizing: border-box; border-block-end: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.tl-open { all: unset; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-size: 13px; }
+.tl-open:hover { text-decoration: underline; }
+.tl-name .avatar { margin-inline-start: 0; inline-size: 20px; block-size: 20px; font-size: 9.5px; }
+.tl-none { padding: 10px; }
+.tl-body { position: relative; flex: none; block-size: calc(var(--rows) * var(--row)); }
+.tl-body.z-day { background: repeating-linear-gradient(to right, transparent 0 calc(var(--ppd) * 5), color-mix(in srgb, var(--ink) 4%, transparent) calc(var(--ppd) * 5) calc(var(--ppd) * 7)); }
+.tl-body.z-week { background: repeating-linear-gradient(to right, color-mix(in srgb, var(--line) 70%, transparent) 0 1px, transparent 1px calc(var(--ppd) * 7)); }
+.tl-row { position: absolute; inset-inline: 0; block-size: var(--row); border-block-end: 1px solid color-mix(in srgb, var(--line) 60%, transparent); box-sizing: border-box; }
+.tl-bar { position: absolute; inset-block: 7px; display: flex; align-items: center; box-sizing: border-box; border-radius: 6px; background: color-mix(in srgb, var(--pc, var(--p-blue)) 78%, var(--panel)); color: #fff; font-size: 12px; font-weight: 600; cursor: grab; touch-action: none; user-select: none; z-index: 2; min-inline-size: 6px; }
+.tl-bar:hover { filter: brightness(1.08); }
+.tl-bar:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tl-bar.is-done { background: color-mix(in srgb, var(--pc, var(--p-blue)) 30%, var(--panel)); color: var(--ink); }
+.tl-bar.is-dragging { cursor: grabbing; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); z-index: 6; }
+.tl-lbl { flex: 1 1 auto; min-width: 0; padding-inline: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 1px rgba(0, 0, 0, .25); }
+.tl-bar.is-done .tl-lbl { text-shadow: none; }
+.tl-bar.narrow .tl-lbl { position: absolute; inset-inline-start: calc(100% + 6px); overflow: visible; color: var(--ink); text-shadow: none; padding: 0; font-weight: 500; }
+.tl-h { flex: none; inline-size: 8px; align-self: stretch; cursor: ew-resize; border-radius: 6px; }
+.tl-h:hover, .tl-bar:focus-visible .tl-h { background: rgba(255, 255, 255, .35); }
+.tl-tip { position: absolute; inset-block-end: calc(100% + 4px); inset-inline-start: 0; background: var(--ink); color: var(--bg); font-size: 11px; padding: 2px 6px; border-radius: 4px; white-space: nowrap; pointer-events: none; }
+.tl-due { position: absolute; inset-block-start: 50%; inline-size: 9px; block-size: 9px; margin: -5px 0 0 -5px; background: var(--warn); transform: rotate(45deg); z-index: 3; border-radius: 1px; }
+.tl-due.late { background: var(--danger); }
+.tl-today { position: absolute; inset-block: 0; inline-size: 2px; margin-inline-start: -1px; background: var(--accent); z-index: 4; pointer-events: none; }
+.tl-arrows { position: absolute; inset-block-start: 0; inset-inline-start: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.tl-arrow { fill: none; stroke: var(--mute); stroke-width: 1.5; }
+.tl-arrow.bad { stroke: var(--danger); stroke-width: 2; }
+.tl-ah.ok { fill: var(--mute); } .tl-ah.bad { fill: var(--danger); }
+.tl-side { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; min-width: 0; }
+.tl-side .h3 { font-size: 13px; }
+.tl-undated { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tl-undated li { display: flex; align-items: center; gap: 6px; }
+.tl-undated li.is-done .tl-u-title { text-decoration: line-through; color: var(--mute); }
+.tl-u-title { all: unset; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; cursor: pointer; font-size: 13px; }
+.tl-u-title:hover { text-decoration: underline; }
+
+/* The list */
+.plist th[data-key] { padding: 0; }
+.plist .sort { all: unset; display: flex; align-items: center; gap: 4px; padding: 7px 10px; cursor: pointer; color: var(--mute); font-weight: 600; white-space: nowrap; }
+.plist .sort:hover { color: var(--ink); }
+.plist .sort:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.plist th[aria-sort="ascending"] .sort, .plist th[aria-sort="descending"] .sort { color: var(--ink); }
+.sort-i { font-size: 9px; color: var(--accent); }
+.plist td { white-space: nowrap; }
+.plist td:first-child { white-space: normal; min-inline-size: 180px; }
+.plist .linkish { all: unset; cursor: pointer; font-weight: 550; overflow-wrap: anywhere; }
+.plist .linkish:hover { text-decoration: underline; }
+.plist tr.is-done .linkish { text-decoration: line-through; color: var(--mute); }
+.plist .late { color: var(--danger); font-weight: 600; }
+.plist tbody tr:hover { background: var(--hover); }
+
+@media (max-width: 900px) { .tl-wrap { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .tl-scroll { --name: 116px; max-block-size: 62vh; } .tl-name .avatar { display: none; } }
+.plist td.num { text-align: start; }
+html[data-slop-theme="light"] .tl-bar:not(.is-done), html[data-slop-theme="classic"] .tl-bar:not(.is-done) { background: color-mix(in srgb, var(--pc, var(--p-blue)) 78%, #000); }
+/* Finger-sized date edges (--slop-hit: 44 px under a coarse pointer, shared/input/touch.css): an invisible grip that
+   reaches past the bar's end, so a short bar keeps its middle for moving. */
+@media (pointer: coarse) {
+  .tl-h { position: relative; }
+  .tl-h::after { content: ''; position: absolute; top: -7px; bottom: -7px; width: calc(var(--slop-hit) / 2); }
+  .tl-h.s::after { right: 0; }
+  .tl-h.e::after { left: 0; }
+}

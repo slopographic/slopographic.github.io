@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CRM · bulk actions and the two-pane view at 1100 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:1100px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../crm/index.html#pipeline';
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const ready = () => win() && win().SlopCrm && doc() && doc().getElementById('boot').hidden && !doc().getElementById('view-pipeline').hidden;
+  const errors = [];
+  const customerNamed = async (name) => (await win().SlopData.store.list('customers')).value.find((c) => c.name === name);
+  const row = (name) => [...doc().querySelectorAll('#cRows .row')].find((r) => r.dataset.name === name);
+  const check = (name) => row(name).querySelector('.row-check');
+  const bulkSelect = () => doc().querySelector('#cBulk select');
+  const stageOf = async (name) => (await customerNamed(name)).stage;
+
+  describe('bulk actions on the Customers list', () => {
+    it('opens in a 1100 px window with three customers to work on', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      win().addEventListener('error', (e) => errors.push(e.message));
+      for (const name of ['Ada Bulk', 'Ben Bulk', 'Cy Bulk']) {
+        const r = await win().SlopCrm.customers.save(null, { name, stage: 'lead' });
+        expect(r.ok).toBe(true);
+      }
+      win().SlopCrm.app.show('customers');
+      await waitFor(() => doc().querySelectorAll('#cRows .row').length === 3, { timeout: 8000 });
+      expect(doc().querySelectorAll('#cRows .row-check')).toHaveLength(3);
+      expect($('cBulk').hidden).toBe(true);
+    });
+
+    it('selecting rows shows the bar with the count, and a checkbox does not open the customer', async () => {
+      check('Ada Bulk').click();
+      check('Ben Bulk').click();
+      await waitFor(() => !$('cBulk').hidden, { timeout: 4000 });
+      expect($('bCount').textContent).toBe('2 selected');
+      expect(win().SlopCrm.selection.size).toBe(2);
+      expect(win().SlopCrm.state.view).toBe('customers');
+      expect($('cSelAll').indeterminate).toBe(true);
+    });
+
+    it('select all picks every shown row, and Clear selection hides the bar', async () => {
+      $('cSelAll').click();
+      await waitFor(() => $('bCount').textContent === '3 selected', { timeout: 4000 });
+      expect(check('Cy Bulk').checked).toBe(true);
+      $('cSelAll').click();
+      await waitFor(() => $('cBulk').hidden, { timeout: 4000 });
+      expect($('cBulk').hidden).toBe(true);
+      check('Ada Bulk').click();
+      check('Ben Bulk').click();
+      await waitFor(() => $('bCount').textContent === '2 selected', { timeout: 4000 });
+      [...doc().querySelectorAll('#cBulk button')].find((b) => b.textContent === 'Clear selection').click();
+      await waitFor(() => $('cBulk').hidden, { timeout: 4000 });
+      expect(win().SlopCrm.selection.size).toBe(0);
+      expect(check('Ada Bulk').checked).toBe(false);
+    });
+
+    it('a stage chosen in the bar moves every selected customer and leaves the others alone', async () => {
+      check('Ada Bulk').click();
+      check('Ben Bulk').click();
+      await waitFor(() => $('bCount').textContent === '2 selected', { timeout: 4000 });
+      bulkSelect().value = 'customer';
+      bulkSelect().dispatchEvent(new (win().Event)('change', { bubbles: true }));
+      await waitFor(async () => (await stageOf('Ada Bulk')) === 'customer' && (await stageOf('Ben Bulk')) === 'customer', { timeout: 8000 });
+      expect(await stageOf('Cy Bulk')).toBe('lead');
+      expect(win().SlopCrm.selection.size).toBe(2);
+      expect(bulkSelect().value).toBe('');
+    });
+  });
+
+  describe('the two-pane view on a wide screen', () => {
+    it('with nothing picked the list stays full width and the detail pane stays hidden', async () => {
+      win().SlopCrm.app.show('customers');
+      await waitFor(() => !$('view-customers').hidden, { timeout: 4000 });
+      expect($('main').classList.contains('split')).toBe(false);
+      expect($('view-customer').hidden).toBe(true);
+      expect($('view-customers').getBoundingClientRect().width).toBeGreaterThan(900);
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(1100);
+    });
+
+    it('a customer picked from the list opens beside it, on the right', async () => {
+      row('Cy Bulk').querySelector('.row-open').click();
+      await waitFor(() => $('main').classList.contains('split'), { timeout: 4000 });
+      expect($('view-customers').hidden).toBe(false);
+      expect($('view-customer').hidden).toBe(false);
+      expect($('view-customer').getBoundingClientRect().left).toBeGreaterThan($('view-customers').getBoundingClientRect().left);
+    });
+
+    it('picking a customer name fills the right pane and keeps the list in place', async () => {
+      row('Cy Bulk').querySelector('.row-open').click();
+      await waitFor(() => $('dBody').querySelector('.h2') && $('dBody').querySelector('.h2').textContent === 'Cy Bulk', { timeout: 8000 });
+      expect($('view-customers').hidden).toBe(false);
+      expect($('view-customer').hidden).toBe(false);
+      expect($('main').classList.contains('split')).toBe(true);
+      expect(win().getComputedStyle($('view-customer').querySelector('.ssh-x')).display).toBe('none');   // the phone sheet's × is not on a wide screen
+    });
+
+    it('the Pipeline tab still shows the board at full width', async () => {
+      win().SlopCrm.app.show('pipeline');
+      await waitFor(() => !$('view-pipeline').hidden, { timeout: 4000 });
+      expect($('main').classList.contains('split')).toBe(false);
+      expect($('view-customers').hidden).toBe(true);
+      expect($('view-customer').hidden).toBe(true);
+      expect(doc().querySelectorAll('.col')).toHaveLength(4);
+    });
+  });
+
+  describe('the local-only rule', () => {
+    it('no error reached the page', () => {
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  run({ name: 'Slop CRM · bulk actions and two panes' });
+  </script>
+</body>
+</html>

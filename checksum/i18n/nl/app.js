@@ -1,0 +1,28 @@
+/* Checksum, Dutch: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'checksum.app.home': 'Slopographic-start',
+  'checksum.app.lede': 'Bereken de hash van een bestand, of controleer hem tegen de hash die de uitgever je heeft gegeven. Het bestand wordt op dit apparaat gelezen en nooit geüpload.',
+  'checksum.app.step_choose': '1. Kies een bestand',
+  'checksum.app.drop': 'Kies een bestand of zet het hier neer',
+  'checksum.app.step_hash': '2. De hash',
+  'checksum.app.hash_label': 'Hash van het bestand',
+  'checksum.app.settings_label': 'Hash-instellingen',
+  'checksum.app.algorithm': 'Algoritme',
+  'checksum.app.sha1_note': 'SHA-1 blijft alleen beschikbaar om oudere gepubliceerde hashes te vergelijken. Gebruik SHA-256 voor nieuwe controles.',
+  'checksum.app.check_against': 'Controleren tegen een gepubliceerde hash',
+  'checksum.app.expected': 'Verwachte hash',
+  'checksum.app.expected_ph': 'Plak de hash van de downloadpagina',
+  'checksum.app.copy': 'Hash kopiëren',
+  'checksum.app.copied': 'Gekopieerd',
+  'checksum.app.copy_failed': 'Kopiëren mislukt',
+  'checksum.app.settings': 'Instellingen',
+  'checksum.app.a_file': 'een bestand',
+  'checksum.app.reading': '{name} wordt gelezen ({mb} MB)…',
+  'checksum.app.hash_of': '{alg} van {name}',
+  'checksum.app.choose_first': 'Kies eerst een bestand.',
+  'checksum.app.not_hash': 'Dit lijkt niet op een hash (alleen de letters a tot en met f en cijfers).',
+  'checksum.app.length_differs': 'De lengte verschilt: de {alg}-hash is {n} tekens. Controleer het algoritme.',
+  'checksum.app.match': 'Komt overeen: het bestand is het bestand dat is gepubliceerd.',
+  'checksum.app.no_match': 'Komt niet overeen: het bestand verschilt van de gepubliceerde hash.',
+});

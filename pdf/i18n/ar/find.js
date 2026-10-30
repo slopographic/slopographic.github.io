@@ -1,0 +1,95 @@
+/* Slop PDF, Arabic: the find bar, the Replace dialog and the page grid (thumbnails, drag, keys, size). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  // find/bar.js
+  'pdf.find.input': 'بحث في المستند',
+  'pdf.find.match_case': 'مطابقة حالة الأحرف',
+  'pdf.find.whole_word': 'الكلمة بأكملها',
+  'pdf.find.prev_tip': 'السابق (Shift+Enter)',
+  'pdf.find.prev': 'التطابق السابق',
+  'pdf.find.next_tip': 'التالي (Enter)',
+  'pdf.find.next': 'التطابق التالي',
+  'pdf.find.list_tip': 'إظهار قائمة النتائج',
+  'pdf.find.list': 'القائمة',
+  'pdf.find.replace_tip': 'استبدال في المستند',
+  'pdf.find.replace': 'استبدال…',
+  'pdf.find.close_tip': 'إغلاق (Esc)',
+  'pdf.find.close': 'إغلاق البحث',
+  'pdf.find.matches': 'التطابقات',
+  'pdf.find.page_short': 'ص {page}',
+
+  // find/search.js
+  'pdf.find.searching': 'جارٍ البحث…',
+  'pdf.find.no_results': 'لا توجد نتائج',
+  'pdf.find.count': '{cur} من {total}',
+
+  // find/replace-ui.js
+  'pdf.find.rep_find': 'البحث عن',
+  'pdf.find.rep_with': 'الاستبدال بـ',
+  'pdf.find.rep_go': 'استبدال المحدد',
+  'pdf.find.rep_go_n': 'استبدال المحدد ({n})',
+  'pdf.find.rep_type': 'اكتب النص المراد البحث عنه.',
+  'pdf.find.rep_match': 'استبدال التطابق {n}',
+  'pdf.find.rep_unplaced': 'تعذّر تحديد الموضع بدقة: لم يُستبدل',
+  'pdf.find.rep_status': '{matches} · {n} محدد',
+  'pdf.find.rep_matches': '{n} تطابق',
+  'pdf.find.rep_matches#zero': 'لا توجد تطابقات',
+  'pdf.find.rep_matches#one': 'تطابق واحد',
+  'pdf.find.rep_matches#two': 'تطابقان',
+  'pdf.find.rep_matches#few': '{n} تطابقات',
+  'pdf.find.rep_matches#many': '{n} تطابقًا',
+  'pdf.find.rep_none': 'لا توجد تطابقات.',
+  'pdf.find.rep_done': 'تم استبدال {done} من {total}.',
+  'pdf.find.rep_skipped': 'لم يُستبدل {n}: تعذّر تحديد الموضع بدقة.',
+  'pdf.find.rep_unticked': 'تُرك {n} دون تحديد.',
+  'pdf.find.rep_wide': '{n} أعرض من الأصل وقد يتداخل مع النص المجاور.',
+  'pdf.find.rep_unsupported': 'بعض الأحرف غير موجودة في الخط القياسي وكُتبت على شكل “?”.',
+
+  // find/replace.js
+  'pdf.find.undo_replace': 'استبدال “{text}”',
+
+  // organize/grid.js
+  'pdf.org.toggle_sel': 'تبديل التحديد',
+  'pdf.org.rotate_left': 'تدوير لليسار',
+  'pdf.org.rotate_right': 'تدوير لليمين',
+  'pdf.org.open_page': 'فتح الصفحة',
+  'pdf.org.dup_page': 'تكرار الصفحة',
+  'pdf.org.move_up': 'نقل لأعلى',
+  'pdf.org.move_page_up': 'نقل الصفحة لأعلى',
+  'pdf.org.move_down': 'نقل لأسفل',
+  'pdf.org.move_page_down': 'نقل الصفحة لأسفل',
+  'pdf.org.extract_page': 'استخراج هذه الصفحة',
+  'pdf.org.delete_page': 'حذف الصفحة',
+  'pdf.org.src_blank': 'فارغة',
+  'pdf.org.src_file_page': '{file} · ص{page}',
+  'pdf.org.src_page': 'ص{page}',
+  'pdf.org.thumb_blank': 'الصفحة {n}، فارغة',
+  'pdf.org.thumb_from': 'الصفحة {n}، من {file} الصفحة {page}',
+  'pdf.org.thumb_rotated': '{label}، مدوَّرة {deg}°',
+  'pdf.org.blank_page': 'صفحة فارغة',
+  'pdf.org.thumb_title': '{file} — الصفحة {page}',
+  'pdf.org.to_redact': '{n} للتنقيح',
+  'pdf.org.redacted': 'تم التنقيح',
+
+  // organize/drag.js
+  'pdf.org.undo_move_page': 'نقل الصفحة',
+  'pdf.org.undo_move_pages': 'نقل {n} صفحة',
+  'pdf.org.undo_move_pages#two': 'نقل صفحتين',
+  'pdf.org.undo_move_pages#few': 'نقل {n} صفحات',
+  'pdf.org.moved_page': 'تم نقل الصفحة إلى الموضع {pos}',
+  'pdf.org.moved_pages': 'تم نقل {n} صفحة إلى الموضع {pos}',
+  'pdf.org.moved_pages#two': 'تم نقل صفحتين إلى الموضع {pos}',
+  'pdf.org.moved_pages#few': 'تم نقل {n} صفحات إلى الموضع {pos}',
+
+  // organize/keys.js
+  'pdf.org.key_moved_page': 'نُقلت الصفحة إلى الموضع {pos} من {total}',
+  'pdf.org.key_moved_pages': 'نُقلت {n} صفحة إلى الموضع {pos} من {total}',
+  'pdf.org.key_moved_pages#two': 'نُقلت صفحتان إلى الموضع {pos} من {total}',
+  'pdf.org.key_moved_pages#few': 'نُقلت {n} صفحات إلى الموضع {pos} من {total}',
+
+  // organize/zoom.js
+  'pdf.org.thumb_size': 'حجم الصور المصغرة',
+  'pdf.org.thumb_presets': 'أحجام الصور المصغرة الجاهزة',
+  'pdf.org.thumb_size_n': 'حجم الصور المصغرة {size}',
+  'pdf.org.thumb_size_tip': 'حجم الصور المصغرة (Ctrl مع عجلة الماوس أو القرص بإصبعين على الصفحات)',
+  'pdf.org.one_per_row': 'صفحة واحدة في كل صف',
+});

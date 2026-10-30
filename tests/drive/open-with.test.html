@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: open in</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, sdoc, contacts, png, unknown, opened = [];
+  const menuRows = (level = 0) => [...W.document.querySelectorAll(`.sui-menu[data-level="${level}"] .sui-row`)];
+  const labels = (level = 0) => menuRows(level).map((r) => r.querySelector('.sui-lbl').textContent);
+  const rowNamed = (label, level = 0) => menuRows(level).find((r) => r.querySelector('.sui-lbl').textContent === label);
+  const itemEl = (id) => W.document.querySelector(`#pane [data-key="f:${id}"]`);
+  const rightClick = (el, x = 200, y = 200) => el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, detail: 1 }));
+  const hover = (row) => row.dispatchEvent(new W.Event('pointerenter'));
+  const closeMenus = () => W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+  const idsOf = (recs) => recs.map((a) => a.id);
+  const stubOpen = () => { opened = []; W.open = (u) => { opened.push(String(u)); return {}; }; };
+
+  describe('Open in: which apps open a file', () => {
+    it('boots Slop Drive and seeds a .sdoc, a .scontacts (a vCard), a .png and a file no app takes', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      sdoc = await H.put(DT.text('{}', 'application/x-slop-doc'), { name: 'Letter.sdoc', from: 'upload' });
+      contacts = await H.put(DT.text('BEGIN:VCARD\nEND:VCARD', 'text/vcard'), { name: 'team.scontacts', from: 'upload' });
+      png = await H.put(await DT.png(), { name: 'pic.png', from: 'upload' });
+      unknown = await H.put(DT.text('???', 'application/octet-stream'), { name: 'data.xyz', from: 'upload' });
+      await DR.refresh(); DR.render();
+      await waitFor(() => itemEl(png) && itemEl(unknown), { timeout: 10000 });
+      expect(!!itemEl(sdoc)).toBe(true);
+      localStorage.removeItem('slop-drive.openIn');
+    }, { timeout: 30000 });
+
+    it('a .sdoc is opened by Slop Docs only, and its menu lists Slop Docs as the default', async () => {
+      const r = await H.get(sdoc);
+      expect(idsOf(DR.appsFor(r))).toEqual(['docs']);
+      expect(DR.openInRows(r).map((x) => x.label)).toEqual(['Slop Docs (default)']);
+    });
+
+    it('a .scontacts file is opened by Slop Contacts (and the other text apps), and not by the document apps', async () => {
+      const r = await H.get(contacts);
+      const ids = idsOf(DR.appsFor(r));
+      expect(ids).toContain('contacts');
+      expect(ids).not.toContain('docs');
+      expect(ids).not.toContain('tables');
+      expect(DR.orderedAppsFor(r)[0].id).toBe('contacts');
+    });
+
+    it('a .png lists the image apps with the default first, and not the document apps', async () => {
+      const r = await H.get(png);
+      const ids = idsOf(DR.appsFor(r));
+      expect(ids).toContain('photoslop');
+      expect(ids).toContain('vector');
+      expect(ids).toContain('pdf');
+      expect(ids).not.toContain('tables');
+      expect(DR.openInRows(r)[0].label).toBe('PhotoSlop (default)');
+    });
+
+    it('right-click on a .png shows an Open in submenu with the matching apps', async () => {
+      rightClick(itemEl(png));
+      expect(labels()).toContain('Open with');
+      hover(rowNamed('Open with'));
+      await waitFor(() => labels(1).length > 0, { timeout: 3000 });
+      expect(labels(1)).toContain('SlopVector');
+      expect(labels(1)).toContain('PhotoSlop (default)');
+      closeMenus();
+    });
+
+    it('a file no app accepts shows "No app opens this type" in its menu, not an empty one', async () => {
+      expect(DR.openInRows(await H.get(unknown)).map((x) => x.label)).toEqual(['No app opens this type']);
+      rightClick(itemEl(unknown));
+      hover(rowNamed('Open with'));
+      await waitFor(() => labels(1).length > 0, { timeout: 3000 });
+      expect(labels(1)).toEqual(['No app opens this type']);
+      expect(rowNamed('No app opens this type', 1).disabled).toBe(true);
+      closeMenus();
+    });
+
+    it('picking an app in the submenu opens the file in that app with ?drive=<id>, and remembers it for the type', async () => {
+      stubOpen();
+      rightClick(itemEl(png));
+      hover(rowNamed('Open with'));
+      await waitFor(() => labels(1).length > 0, { timeout: 3000 });
+      rowNamed('SlopVector', 1).click();
+      await waitFor(() => opened.length === 1, { timeout: 5000 });
+      expect(opened[0]).toContain('/slopvector/?drive=' + png);
+      expect(JSON.parse(localStorage.getItem('slop-drive.openIn'))).toEqual({ png: 'vector' });
+    });
+
+    it('the remembered app is the default for that type: Enter opens it, and the menu marks it', async () => {
+      stubOpen();
+      const r = await H.get(png);
+      expect(DR.defaultAppFor(r).id).toBe('vector');
+      expect(DR.openInRows(r)[0].label).toBe('SlopVector (default)');
+      DR.open(r);
+      await waitFor(() => opened.length === 1, { timeout: 5000 });
+      expect(opened[0]).toContain('/slopvector/?drive=' + png);
+    });
+
+    it('the choice is per file type: another .png follows it, a .jpg does not', async () => {
+      const other = await H.get(png);
+      expect(DR.defaultAppFor({ ...other, name: 'other.png' }).id).toBe('vector');
+      expect(DR.defaultAppFor({ name: 'photo.jpg', type: 'image/jpeg' }).id).toBe('photoslop');
+    });
+
+    it('a remembered app that no longer takes the file is not used as the default', async () => {
+      const r = await H.get(sdoc);
+      DR.rememberApp(r, 'vector');
+      expect(DR.defaultAppFor(r).id).toBe('docs');
+    });
+
+    it('the details panel offers the default app first (at its foot), and an Open in… menu for the rest', async () => {
+      DR.select(['f:' + png]);
+      DR.toggleInfo(true);
+      DR.renderInfo(true);
+      const foot = [...W.document.querySelectorAll('#info .sf-p-foot button:not(.sf-foot-more)')].map((b) => b.textContent);
+      expect(foot[0]).toBe('Open in SlopVector');   // the main button (ui/info-foot.js)
+      const acts = [...W.document.querySelectorAll('#info .acts button')].map((b) => b.textContent);
+      expect(acts).toContain('Open in…');
+      DR.select([]);
+    });
+
+    it('Quick look and the details panel say so when no app opens a file', async () => {
+      DR.select(['f:' + unknown]);
+      DR.renderInfo(true);
+      const text = W.document.querySelector('#info .acts').textContent;
+      expect(text).toContain('No app opens this type');
+      DR.select([]);
+    });
+
+    it('cleans up the remembered choice', async () => {
+      localStorage.removeItem('slop-drive.openIn');
+      expect(localStorage.getItem('slop-drive.openIn')).toBe(null);
+    });
+  });
+
+  SlopTest.run({ name: 'Slop Drive: open in' });
+  </script>
+</body>
+</html>

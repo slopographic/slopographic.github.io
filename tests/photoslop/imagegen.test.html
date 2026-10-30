@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop: Generate image… and Edit with AI… with the person’s own key (fake providers)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script src="../ai/cloud-util.js"></script>
+  <script src="../ai/imagegen-util.js"></script>
+  <script>
+  // Covers: photoslop/js/app/imagegen.js, photoslop/js/app/commands.js, photoslop/js/ui/menus.js, shared/ai/imagegen/index.js,
+  //   shared/ai/imagegen/dialog.js, shared/ai/imagegen/pixels.js, shared/ai/imagegen/tools.js, shared/ai/imagegen/run.js,
+  //   shared/ai/imagegen/core.js, shared/ai/imagegen/openai.js, shared/ai/imagegen/gemini.js, shared/ai/apptools.js, shared/ai/panel.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let app, win, W, F, G;
+  const dlg = () => [...win.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const button = (d, label) => [...d.querySelectorAll('button')].find((b) => b.textContent === label);
+  const px = (L, x, y) => [...L.canvas.getContext('2d').getImageData(x - L.x, y - L.y, 1, 1).data];
+  const layer = (name) => W.D.layers.find((l) => l.name === name);
+  /** A dialog left open by a failed test would hide the next one: close them first. */
+  const closeAll = () => { for (const x of win.document.querySelectorAll('.sui-back:not(.sui-out) .sui-x')) x.click(); };
+  function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.(cloud|imagegen)|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.cloud/.test(k)) sessionStorage.removeItem(k);
+  }
+
+  describe('Layer › Generate Image…', () => {
+    it('without a picture provider the dialog says how to connect one, and sends nothing', async () => {
+      wipe();
+      app = await freshApp(); win = app.win; W = app.W;
+      F = IG.install(win);
+      const menu = W.MENUS.find((m) => m[0] === 'Layer')[1].map((i) => i && i.label);
+      expect(menu).toContain('Generate Image…'); expect(menu).toContain('Edit with AI…');
+      expect(win.SlopCmd.list().find((c) => c.id === 'ps.generate').args.map((a) => a.name)).toContain('prompt');
+      closeAll(); const open = W.psImageGen('generate');
+      const d = await waitFor(dlg, { timeout: 15000 });
+      expect(d.textContent).toContain('cannot draw'); expect(d.textContent).toContain('Use your own AI account');
+      button(d, 'Close').click(); await open;
+      expect(F.calls.length).toBe(0);
+    }, { timeout: 40000 });
+
+    it('with an OpenAI key: prompt, price and who receives it; Generate adds a new named layer with the pixels', async () => {
+      IG.key(win, 'openai', 'sk-proj-PHOTOSLOP0123456789');
+      W.newDocument(600, 400, '#ffffff', 'Gen');
+      const before = W.D.layers.length, hist = W.Hist.idx;
+      closeAll(); const open = W.psImageGen('generate', { prompt: 'a red square on white', aspect: '3:2' });
+      const d = await waitFor(() => { const x = dlg(); return x && x.querySelector('.sig-prompt') ? x : null; }, { timeout: 15000 });
+      expect(d.querySelector('.sig-prompt').value).toBe('a red square on white');
+      expect(d.querySelector('.sig-who').textContent).toContain('goes to OpenAI, which makes the picture and charges your account. OpenAI’s terms and content rules apply.');
+      expect(d.querySelector('.sig-cost').textContent).toContain('1536 × 1024 px');
+      const sel = d.querySelectorAll('select')[1]; sel.value = 'gpt-image-2'; sel.dispatchEvent(new win.Event('change'));
+      expect(d.querySelector('.sig-cost').textContent).toContain('Price: about $0.04 per picture');
+      F.size = [300, 200];
+      button(d, 'Generate').click();
+      await open;
+      expect(F.calls.length).toBe(1);
+      expect(F.calls[0].body).toEqual({ model: 'gpt-image-2', prompt: 'a red square on white', n: 1, quality: 'medium', output_format: 'png', size: '1536x1024' });
+      expect(F.calls[0].headers.authorization).toBe('Bearer sk-proj-PHOTOSLOP0123456789');
+      expect(W.D.layers.length).toBe(before + 1); expect(W.Hist.idx).toBe(hist + 1);
+      const L = layer('AI: a red square on white');
+      expect(!!L).toBe(true); expect(W.D.activeId).toBe(L.id);
+      expect([L.canvas.width, L.canvas.height, L.x, L.y]).toEqual([300, 200, 150, 100]);   // inside the document, centred
+      expect(px(L, 300, 200).slice(0, 3)).toEqual([255, 0, 0]);
+    }, { timeout: 40000 });
+
+    it('a new document instead of a layer', async () => {
+      const tabs = W.DOCS.length;
+      closeAll(); const open = W.psImageGen('generate', { prompt: 'blue sky', target: 'document' });
+      const d = await waitFor(() => { const x = dlg(); return x && x.querySelector('.sig-prompt') ? x : null; });
+      F.color = '#0000ff'; F.size = [320, 240];
+      button(d, 'Generate').click(); await open;
+      expect(W.DOCS.length).toBe(tabs + 1);
+      expect([W.D.w, W.D.h]).toEqual([320, 240]); expect(W.D.name).toBe('AI: blue sky');
+      expect(px(W.D.layers[0], 10, 10).slice(0, 3)).toEqual([0, 0, 255]);
+    }, { timeout: 30000 });
+
+    it('the provider’s content rules come back in plain words and nothing is added', async () => {
+      W.newDocument(200, 200, '#ffffff', 'Refused');
+      const n = W.D.layers.length;
+      F.fail = { status: 400, body: { error: { message: 'Your request was rejected as a result of our safety system.', type: 'image_generation_user_error', code: 'moderation_blocked' } } };
+      closeAll(); const open = W.psImageGen('generate', { prompt: 'something not allowed' });
+      const d = await waitFor(() => { const x = dlg(); return x && x.querySelector('.sig-prompt') ? x : null; });
+      button(d, 'Generate').click();
+      await waitFor(() => /declined to make this picture under its content rules/.test(d.querySelector('.sig-msg').textContent));
+      expect(W.D.layers.length).toBe(n);
+      button(d, 'Cancel').click(); await open;
+    }, { timeout: 30000 });
+  });
+
+  describe('Layer › Edit with AI… on a selection', () => {
+    async function editWith(provider) {
+      W.newDocument(200, 100, '#ffffff', 'Edit ' + provider);
+      const m = W.mkCanvas(200, 100), g = m.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 100, 100);
+      W.D.sel = W.makeSel(m);
+      F.color = '#00ff00'; F.size = [256, 128];
+      closeAll(); const open = W.psImageGen('edit', { prompt: 'make it green', provider });
+      const d = await waitFor(() => { const x = dlg(); return x && x.querySelector('.sig-prompt') ? x : null; });
+      expect(d.querySelector('.sig-who').textContent).toContain('a copy of the layer (at most 1536 px)');
+      button(d, 'Edit').click(); await open;
+      return layer('AI edit: make it green');
+    }
+    it('OpenAI gets the layer and a mask (transparent where it may change); the result changes only the selection', async () => {
+      const L = await editWith('openai');
+      const call = F.calls[F.calls.length - 1];
+      expect(call.url).toBe('https://api.openai.com/v1/images/edits');
+      expect(call.body instanceof win.FormData).toBe(true);
+      const mask = await createImageBitmap(call.body.get('mask')), c = document.createElement('canvas'); c.width = mask.width; c.height = mask.height;
+      const g = c.getContext('2d'); g.drawImage(mask, 0, 0);
+      expect(g.getImageData(10, 50, 1, 1).data[3]).toBe(0); expect(g.getImageData(190, 50, 1, 1).data[3]).toBe(255);
+      expect(px(L, 50, 50).slice(0, 3)).toEqual([0, 255, 0]); expect(px(L, 150, 50).slice(0, 3)).toEqual([255, 255, 255]);
+    }, { timeout: 30000 });
+    it('Gemini takes no mask: the picture goes alone and the result is kept inside the selection here', async () => {
+      IG.key(win, 'gemini', 'AIzaSyPHOTOSLOP0123456789');
+      const L = await editWith('gemini');
+      const call = F.calls[F.calls.length - 1];
+      expect(call.url).toBe('https://generativelanguage.googleapis.com/v1beta/interactions');
+      expect(call.body.input.map((x) => x.type)).toEqual(['text', 'image']);
+      expect(px(L, 50, 50).slice(0, 3)).toEqual([0, 255, 0]); expect(px(L, 150, 50).slice(0, 3)).toEqual([255, 255, 255]);
+    }, { timeout: 30000 });
+  });
+
+  describe('the AI panel’s generate_image', () => {
+    it('Claude calls it; the person is asked to spend; the picture lands as a layer; the cap stops the next one', async () => {
+      localStorage.setItem('slop-firstrun:ai-cloud:anthropic', '1');
+      const cu = CU.install(win, 'anthropic'); F = IG.install(win);   // pictures answered by IG, the chat by CU
+      await win.SlopHeader.openAI(); await win.SlopAIPanel.ready;
+      await win.SlopAIKit.picker.loadCloud();
+      const eng = new win.SlopAIKit.CloudEngine({ provider: 'anthropic', model: 'claude-sonnet-5-5', key: async () => 'sk-ant-api03-PHOTO-0123456789' });
+      await eng.load(); await win.SlopAIPanel.use(eng);
+      const G = win.SlopAIKit.imageGen;
+      G.save({ provider: 'openai', models: { openai: 'gpt-image-2.5-flare' } }); await G.choose();
+      W.newDocument(400, 300, '#ffffff', 'Panel');
+      const asked = []; win.SlopAIPermissions.prompt = async (r) => { asked.push(r.title + ' | ' + r.detail); return 'once'; };   // the permission question
+      F.color = '#ff00ff'; F.size = [256, 256];
+      cu.replies.push(CU.anthropic.call('generate_image', { prompt: 'a magenta square', aspect: '1:1' }), CU.anthropic.text('Added it as a new layer.'));
+      await win.SlopAIPanel.send('make me a magenta square picture');
+      const tools = cu.requests.find((r) => /\/v1\/messages$/.test(r.url)).body.tools.map((t) => t.name);
+      expect(tools).toContain('generate_image'); expect(tools).toContain('edit_image');
+      expect(asked.length).toBe(1);
+      expect(asked[0]).toMatch(/^Spend on image generation\? \| Make 1 picture with OpenAI \(GPT Image 2\.5 Flare, 1024 × 1024 px\)/);
+      const steps = [...win.document.querySelectorAll('.sap-step')].map((x) => [...x.childNodes].filter((n) => !n.classList || !n.classList.contains('sap-step-r')).map((n) => n.textContent).join(''));
+      expect(steps.pop()).toBe('✓Make a picture: a magenta square (done)');
+      const L = layer('AI: a magenta square');
+      expect(!!L).toBe(true); expect(px(L, 200, 150).slice(0, 3)).toEqual([255, 0, 255]);
+      const res = cu.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body.messages.pop().content[0].content;
+      expect(res).toMatch(/^Made 1 picture with OpenAI gpt-image-2\.5-flare \(1024 × 1024 px\) · about \$0\.03\. Added “AI: a magenta square” as a new layer\./);
+      // the spending cap: this visit is over it, so the tool refuses before anything is sent
+      const C = win.SlopAIKit.cloud; C.keys.save(Object.assign(C.keys.settings(), { cap: 100 }));
+      const sent = F.calls.length, gen = win.SlopAIKit.imageTools.build({}).find((t) => t.name === 'generate_image');
+      let err = ''; try { await gen.run({ prompt: 'another' }); } catch (e) { err = e.message; }
+      expect(err).toMatch(/spending cap of 100 tokens/); expect(F.calls.length).toBe(sent);
+      C.keys.save(Object.assign(C.keys.settings(), { cap: 0 }));
+    }, { timeout: 60000 });
+  });
+  describe('in Swedish', () => {
+    it('Generate image… reads Swedish (fields, price, who receives it), with no key showing', async () => {
+      IG.key(win, 'openai', 'sk-proj-PHOTOSLOP0123456789');
+      const I = win.SlopI18n;
+      try {
+        I.set('sv');
+        await waitFor(() => I.t('ui.ai.img.title_make') === 'Skapa bild', { timeout: 15000 });
+        closeAll(); const open = W.psImageGen('generate', { prompt: 'en röd kvadrat' });
+        const d = await waitFor(() => { const x = dlg(); return x && x.querySelector('.sig-prompt') ? x : null; }, { timeout: 15000 });
+        expect(d.textContent).toContain('Görs av'); expect(d.textContent).toContain('Genomskinlig bakgrund');
+        expect(d.querySelector('.sig-who').textContent).toContain('skickas till OpenAI, som gör bilden och debiterar ditt konto');
+        expect(d.querySelector('.sig-cost').textContent).toMatch(/^Pris: /);
+        expect(/\bui\.[a-z_]+\./.test(d.innerText)).toBe(false);
+        expect(button(d, 'Skapa')).toBeTruthy();
+        closeAll(); await open;
+      } finally { I.set('en'); }
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'PhotoSlop: AI pictures' });
+  </script>
+</body>
+</html>

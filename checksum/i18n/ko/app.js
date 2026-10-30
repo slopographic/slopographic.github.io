@@ -1,0 +1,28 @@
+/* Checksum, Korean: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'checksum.app.home': 'Slopographic 홈',
+  'checksum.app.lede': '파일의 해시를 계산하거나, 배포자가 제공한 해시와 비교합니다. 파일은 이 기기에서만 읽으며 업로드되지 않습니다.',
+  'checksum.app.step_choose': '1. 파일 선택',
+  'checksum.app.drop': '파일을 선택하거나 여기에 놓으세요',
+  'checksum.app.step_hash': '2. 해시',
+  'checksum.app.hash_label': '파일의 해시',
+  'checksum.app.settings_label': '해시 설정',
+  'checksum.app.algorithm': '알고리즘',
+  'checksum.app.sha1_note': 'SHA-1은 이전에 게시된 해시와 맞추기 위해서만 남겨 두었습니다. 새로운 확인에는 SHA-256을 사용하세요.',
+  'checksum.app.check_against': '게시된 해시와 비교',
+  'checksum.app.expected': '예상 해시',
+  'checksum.app.expected_ph': '다운로드 페이지의 해시를 붙여넣으세요',
+  'checksum.app.copy': '해시 복사',
+  'checksum.app.copied': '복사됨',
+  'checksum.app.copy_failed': '복사 실패',
+  'checksum.app.settings': '설정',
+  'checksum.app.a_file': '파일',
+  'checksum.app.reading': '{name} 읽는 중 ({mb} MB)…',
+  'checksum.app.hash_of': '{name}의 {alg}',
+  'checksum.app.choose_first': '먼저 파일을 선택하세요.',
+  'checksum.app.not_hash': '해시처럼 보이지 않습니다(a부터 f까지의 문자와 숫자만 사용할 수 있습니다).',
+  'checksum.app.length_differs': '길이가 다릅니다. {alg} 해시는 {n}자입니다. 알고리즘을 확인하세요.',
+  'checksum.app.match': '일치합니다. 파일이 게시된 파일과 같습니다.',
+  'checksum.app.no_match': '일치하지 않습니다. 파일이 게시된 해시와 다릅니다.',
+});

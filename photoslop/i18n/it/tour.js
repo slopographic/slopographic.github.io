@@ -1,0 +1,20 @@
+/* PhotoSlop, Italian: the guided tour (shared/tour/tours/photoslop.js). Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'photoslop.tour.title': 'Tour di PhotoSlop',
+  'photoslop.tour.new_title': 'Inizia un file',
+  'photoslop.tour.new_text': 'Nuovo imposta dimensione, preset e sfondo di un documento (in Altro ▾ su una finestra stretta); Apri carica un PSD, ORA o un’immagine. Ogni file ha una scheda.',
+  'photoslop.tour.menus_title': 'Barra dei menu',
+  'photoslop.tour.menus_text': 'File, Modifica, Immagine, Livello, Seleziona e Filtro sono qui. Ogni menu elenca i propri comandi.',
+  'photoslop.tour.tools_title': 'Strumenti',
+  'photoslop.tour.tools_text': 'Pennelli, selezione, testo e ritaglio stanno nella casella degli strumenti. Scegline uno, poi impostalo nella barra delle opzioni.',
+  'photoslop.tour.options_title': 'Opzioni strumento',
+  'photoslop.tour.options_text': 'La barra delle opzioni cambia con lo strumento attivo: dimensione, opacità, modalità di fusione e altro.',
+  'photoslop.tour.canvas_title': 'La tela',
+  'photoslop.tour.canvas_text': 'Dipingi, seleziona e trasforma sulla tela. La barra di stato mostra zoom e dimensione.',
+  'photoslop.tour.panels_title': 'Livelli e pannelli',
+  'photoslop.tour.panels_text': 'Livelli, cronologia e proprietà stanno in questa colonna. Su telefono, il pulsante Livelli le mostra.',
+  'photoslop.tour.export_title': 'Esporta',
+  'photoslop.tour.export_text': 'Esporta PNG, JPEG, WebP o PSD. Il file viene creato sul dispositivo; non viene caricato nulla.',
+  'photoslop.tour.theme_title': 'Tema',
+  'photoslop.tour.theme_text': 'Passa tra Pro, Chiaro e Paint ’98.',
+});

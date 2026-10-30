@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Checksum: the algorithm from a task page's link (?alg=sha512)</title></head>
+<body>
+<iframe id="app" style="width:900px;height:700px;border:0" src="../../checksum/index.html?alg=sha512"></iframe>
+<script src="../harness.js"></script>
+<script>
+// Covers: checksum/js/checksum.js
+const { describe, it, expect, waitFor } = SlopTest;
+const W = () => document.getElementById('app').contentWindow;
+describe('Checksum presets', () => {
+  it('?alg=sha512 picks SHA-512 for this visit', async () => {
+    await waitFor(() => W().SlopChecksum);
+    expect(W().document.getElementById('ck-alg').value).toBe('SHA-512');
+  });
+  it('presetOf: known algorithms only', async () => {
+    const P = W().SlopChecksum.presetOf;
+    expect(P('?alg=sha1')).toBe('SHA-1');
+    expect(P('?alg=SHA384')).toBe('SHA-384');
+    expect(P('?alg=md5')).toBe(null);
+    expect(P('?alg=<b>')).toBe(null);
+    expect(P('')).toBe(null);
+  });
+});
+SlopTest.run({ name: 'Checksum presets' });
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+/* Slop AI shared words, English: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'ui.ai.cloud.or_signin': 'Sign in with {name}',
+  'ui.ai.cloud.or_note': 'No key yet? Sign in and {name} makes a key for this browser, paid from your own {name} credits. You can cap or revoke it at {link}.',
+  'ui.ai.cloud.or_privacy': 'The sign-in goes straight from this browser to {name}; nothing passes through {brand} servers.',
+  'ui.ai.cloud.or_manage': 'Your {name} keys, made by signing in or by hand, can be capped or revoked at {link}. Forget key removes a key from this browser only.',
+  'ui.ai.cloud.or_going': 'Opening {name}…',
+  'ui.ai.cloud.or_finishing': 'Finishing the sign-in with {name}…',
+  'ui.ai.cloud.or_done': 'Signed in with {name}: the key for this browser is stored like a pasted one.',
+  'ui.ai.cloud.or_denied': 'Access was not allowed at {name}, so nothing was connected. Press Sign in with {name} to try again, or paste a key.',
+  'ui.ai.cloud.or_state': 'This sign-in did not start in this tab, so it was refused to keep your account safe. Press Sign in with {name} to start again.',
+  'ui.ai.cloud.or_used': 'That sign-in code was already used or has expired (codes last 10 minutes). Press Sign in with {name} to start again.',
+  'ui.ai.cloud.or_failed': '{name} did not give a key ({why}). Press Sign in with {name} to try again, or paste a key.',
+  'ui.ai.cloud.or_offline': 'This browser is offline, so the sign-in could not finish. Connect to the internet, then press Sign in with {name} again.',
+  'ui.ai.cloud.or_network': 'Could not reach {name} to finish the sign-in. Check your connection, then press Sign in with {name} again.',
+  'ui.ai.cloud.or_no_crypto': 'This browser cannot sign in with {name} here (it needs Web Crypto on an https page). Paste a key instead.',
+  'ui.ai.cloud.or_key_label': '{brand} in this browser',
+  'ui.ai.cloud.or_badge': 'Sign in',
+  'ui.ai.cloud.or_badge_t': 'No key to copy: sign in with your {name} account and a key is made for this browser.',
+});

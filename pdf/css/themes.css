@@ -1,0 +1,111 @@
+/* Slop PDF — Classic 98 overrides, touch and responsive layouts. */
+/* ---------------------------------------------------------------- Classic 98 */
+:root[data-slop-theme="classic"] .topbar, :root[data-slop-theme="classic"] .ctxbar, :root[data-slop-theme="classic"] .statusbar { box-shadow: inset 0 1px var(--input), inset 0 -1px var(--line); border-color: var(--line); }
+:root[data-slop-theme="classic"] .topbar { background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--input))); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .appname b { font: 700 13px var(--font-ui); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .home-link { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .menu-b, :root[data-slop-theme="classic"] .topbar .tb { color: var(--accent-ink); border-radius: 0; }
+:root[data-slop-theme="classic"] .menu-b:hover, :root[data-slop-theme="classic"] .topbar .tb:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .brand { border-radius: 0; box-shadow: var(--bevel); background: var(--bg); }
+:root[data-slop-theme="classic"] .local-badge { border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel); font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .btn, :root[data-slop-theme="classic"] .tog, :root[data-slop-theme="classic"] .thumb-tools button, :root[data-slop-theme="classic"] .tool-b, :root[data-slop-theme="classic"] .seg { border: 0; border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel); font-weight: 400; }
+:root[data-slop-theme="classic"] .btn:active:not(:disabled), :root[data-slop-theme="classic"] .tool-b.on, :root[data-slop-theme="classic"] .tog.on { box-shadow: var(--bevel-in); transform: none; background: var(--hover); color: var(--fg); }
+:root[data-slop-theme="classic"] .btn.primary { outline: 1px solid var(--fg); outline-offset: -1px; background: var(--bg); color: var(--fg); font-weight: 700; }
+:root[data-slop-theme="classic"] .seg-b.on { background: var(--accent); color: var(--accent-ink); border-radius: 0; }
+:root[data-slop-theme="classic"] .inp, :root[data-slop-theme="classic"] .fname input { border: 0; border-radius: 0; box-shadow: var(--bevel-in); background: var(--input); color: var(--fg); }
+:root[data-slop-theme="classic"] .rail, :root[data-slop-theme="classic"] .props { box-shadow: var(--bevel); }
+:root[data-slop-theme="classic"] .rail-b { border-radius: 0; color: var(--fg); }
+:root[data-slop-theme="classic"] .rail-b.on { background: var(--input); box-shadow: var(--bevel-in); }
+:root[data-slop-theme="classic"] .rail-b.on .ic { color: var(--accent); }
+:root[data-slop-theme="classic"] .rail-b.on::before { display: none; }
+:root[data-slop-theme="classic"] .pp-title { background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--input))); color: var(--accent-ink); padding: 6px 10px; }
+:root[data-slop-theme="classic"] .pp-title .ic { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .pp-title h2 { font: 700 12px var(--font-ui); }
+:root[data-slop-theme="classic"] .pp-h { color: var(--fg); font-family: var(--font-ui); text-transform: none; letter-spacing: 0; font-size: 11px; }
+:root[data-slop-theme="classic"] .pp-note, :root[data-slop-theme="classic"] .pp-row, :root[data-slop-theme="classic"] .chk { color: var(--fg); }
+:root[data-slop-theme="classic"] .file-item { border-radius: 0; background: var(--input); box-shadow: var(--bevel-in); }
+:root[data-slop-theme="classic"] .thumb { border-radius: 0; }
+:root[data-slop-theme="classic"] .thumb-cap, :root[data-slop-theme="classic"] .pnum, :root[data-slop-theme="classic"] .psrc { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .thumb.selected { background: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: inset 0 0 0 1px var(--input); outline: 1px dotted var(--accent-ink); outline-offset: -4px; }
+:root[data-slop-theme="classic"] .thumb:hover:not(.selected) { background: color-mix(in srgb, var(--accent-ink) 12%, transparent); }
+:root[data-slop-theme="classic"] .drop-card { border-radius: 0; background: var(--bg); border: 0; box-shadow: var(--bevel), 4px 4px 0 rgba(0, 0, 0, .4); }
+:root[data-slop-theme="classic"] .drop-card h1 { font: 700 26px var(--font-ui); }
+:root[data-slop-theme="classic"] .drop-card p, :root[data-slop-theme="classic"] .empty-privacy { color: var(--fg) !important; }
+:root[data-slop-theme="classic"] .empty-feats li { border-radius: 0; background: var(--bg); border: 0; box-shadow: var(--bevel); color: var(--fg); }
+:root[data-slop-theme="classic"] .empty-feats b { font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .busy { border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel), 3px 3px 0 rgba(0, 0, 0, .5); }
+:root[data-slop-theme="classic"] .busy-bar { border-radius: 0; background: var(--input); box-shadow: var(--bevel-in); height: 14px; }
+:root[data-slop-theme="classic"] .busy-bar i { background: repeating-linear-gradient(90deg, var(--accent) 0 10px, transparent 10px 12px); }
+:root[data-slop-theme="classic"] .statusbar { color: var(--fg); }
+:root[data-slop-theme="classic"] #statusLeft, :root[data-slop-theme="classic"] .st-msg, :root[data-slop-theme="classic"] .st-local { color: var(--fg); }
+:root[data-slop-theme="classic"] .ctxbar .tb { color: var(--fg); border-radius: 0; }
+:root[data-slop-theme="classic"] .ctxbar .tb:hover:not(:disabled) { box-shadow: var(--bevel); background: var(--bg); }
+:root[data-slop-theme="classic"] .ctxbar .tb.on { box-shadow: var(--bevel-in); background: var(--hover); color: var(--fg); }
+:root[data-slop-theme="classic"] .pv-num, :root[data-slop-theme="classic"] .tb-zoom { color: var(--fg); font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .thumb-check { border-radius: 0; }
+:root[data-slop-theme="classic"] .tb-group { border-color: color-mix(in srgb, var(--accent-ink) 30%, transparent); }
+
+/* ---------------------------------------------------------------- touch */
+@media (hover: none) {
+  .thumb-grip { display: grid; }
+  .thumb-check { opacity: 1; }
+  .thumb-tools { opacity: 0; pointer-events: none; }
+  .thumb.selected .thumb-tools { opacity: 1; transform: none; pointer-events: auto; }
+}
+
+/* ---------------------------------------------------------------- responsive */
+@media (max-width: 1440px) { .local-badge span { display: none; } .local-badge { padding: 0 6px; } }
+/* The top bar's items must fit the window, so the view-mode slot (last in the bar) stays on screen. */
+@media (max-width: 1180px) { :root { --props-w: 280px; } }
+@media (max-width: 1000px) { .tb-group, .local-badge { display: none; } }
+@media (max-width: 560px) { #btnSplit { display: none; } }
+@media (max-width: 1200px) { .menus { display: none; } #btnMore { display: inline-flex; } .topbar .btn.dl span { display: none; } .topbar .btn.dl { padding: 0 10px; } }
+@media (max-width: 900px) {
+  :root { --rail-w: 0px; --status-h: 0px; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--top-h) minmax(0, 1fr) 62px; grid-template-areas: "top" "work" "rail"; }
+  .app.no-panel { grid-template-columns: minmax(0, 1fr); }
+  .statusbar { display: none; }
+  .rail { position: relative; z-index: 41; flex-direction: row; gap: 0; padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; } /* over the sheet's dimmed page */
+  .rail-b { flex: none; width: 72px; padding: 6px 2px; font-size: 10px; }
+  .rail-b span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rail-b.on::before { left: 14px; right: 14px; top: -4px; bottom: auto; width: auto; height: 3px; border-radius: 0 0 3px 3px; }
+  .props { position: fixed; left: 0; right: 0; bottom: 62px; max-height: 62vh; z-index: 40; border-left: 0; border-top: 1px solid var(--line-2); border-radius: 18px 18px 0 0; box-shadow: 0 -16px 40px rgba(0, 0, 0, .4); transform: translateY(calc(100% + 80px)); visibility: hidden; transition: transform .22s ease, visibility 0s .22s; display: block !important; }
+  .app.sheet-open .props { transform: none; visibility: visible; transition: transform .22s ease; }
+  /* the closed sheet still shows its footer (Download, shared/frame/panel.js) above the rail, as every app's does */
+  .props.sf-has-foot { display: flex !important; flex-direction: column; }
+  .app:not(.sheet-open) .props.sf-has-foot { transform: none; visibility: visible; transition: none; overflow: hidden; border-radius: 0; box-shadow: 0 -6px 18px rgba(0, 0, 0, .18); }
+  .app:not(.sheet-open) .props.sf-has-foot > :not(.sf-p-foot) { display: none; }
+  .app:has(.props.sf-has-foot) .workspace { padding-bottom: var(--sf-foot-h, 64px); }
+  .pp-title { border-radius: 18px 18px 0 0; }
+  #btnPanel { display: inline-flex; }
+  .menus, .tb-group { display: none; }
+  #btnMore { display: inline-flex; }
+  .local-badge span { display: none; }
+  .fname input { width: 150px; }
+  .empty-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Small screens: the brand mark names the app, and Fonts… stays in File (under More). */
+@media (max-width: 680px) { .appname, #btnFonts { display: none; } }
+@media (max-width: 560px) {
+  .topbar { gap: 4px; padding: 0 6px 0 8px; }
+  .fname { display: none; }
+  .topbar .btn.dl span { display: none; }
+  .topbar .btn.dl { padding: 0 10px; }
+  .grid { gap: 8px 4px; padding: 10px 8px 60px; }
+  .tb-l span { display: none; }
+  .drop-card { padding: 28px 16px 20px; }
+  .empty { justify-content: flex-start; }
+  .empty-feats li { font-size: 11px; }
+  .pp-row { grid-template-columns: 78px minmax(0, 1fr) auto; }
+}
+@media (max-width: 400px) { .topbar { gap: 2px; } }
+/* A finger: fields of 16 px or more, so iOS never zooms the page in when one takes the focus (the zoomed, shifted layout
+   then covered the buttons). */
+@media (max-width: 900px) and (pointer: coarse) {
+  .props input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]), .props select, .props textarea,
+  .topbar input, .ctxbar input, .ctxbar select { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* The shared header buttons keep their own light face on the title bar: dark text on it. */
+:root[data-slop-theme="classic"] .topbar .slop-hbtn { color: var(--fg); }

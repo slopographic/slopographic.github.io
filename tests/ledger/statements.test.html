@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Ledger: Statements (profit and loss, balance sheet, the balance check, CSV)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: ledger/js/ui/statements.js, ledger/js/core/statements.js, ledger/index.html, ledger/css/ledger.css, shared/biz/sheet.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const sheets = () => [...D.querySelectorAll('#fsSheets .fs-sheet')];
+  const rowText = (sheet, label) => [...sheet.querySelectorAll('tr')].map((r) => r.textContent).find((t) => t.startsWith(label));
+
+  describe('Statements', () => {
+    it('this year: revenue, expenses and the profit; the balance sheet balances with the result to date', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../ledger/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopLedger && f.contentWindow.SlopLedger.statementsView && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+      W = f.contentWindow; D = W.document;
+      const S = W.SlopData;
+      await S.store.erase(); await S.store.ready();
+      const y = S.ledger.today().slice(0, 4);
+      await S.ledger.postJournal({ date: `${y}-01-02`, memo: 'Owner', source: 't:own', lines: [{ account: '1010', debit: 500000, credit: 0 }, { account: '3000', debit: 0, credit: 500000 }] });
+      await S.ledger.postJournal({ date: `${y}-01-10`, memo: 'Sale', source: 't:sale', lines: [{ account: '1010', debit: 120000, credit: 0 }, { account: '4000', debit: 0, credit: 100000 }, { account: '2100', debit: 0, credit: 20000 }] });
+      await S.ledger.postJournal({ date: `${y}-01-15`, memo: 'Rent', source: 't:rent', lines: [{ account: '5000', debit: 30000, credit: 0 }, { account: '1010', debit: 0, credit: 30000 }] });
+      W.SlopLedger.app.show('fin');
+      await waitFor(() => sheets().length === 2);
+      const [pnl, bs] = sheets();
+      expect(pnl.querySelector('.sheet-title h2').textContent).toBe('Profit and loss');
+      expect(rowText(pnl, '4000 Sales Revenue')).toContain('$1,000.00');
+      expect(rowText(pnl, 'Total expenses')).toContain('$300.00');
+      expect(pnl.querySelector('.sheet-total').textContent).toBe('Profit$700.00');
+      expect(rowText(bs, '1010 Bank')).toContain('$5,900.00');
+      expect(rowText(bs, 'Result to date')).toContain('$700.00');
+      expect(bs.querySelector('.note.ok').textContent).toContain('It balances');
+    });
+    it('last year shows nothing in its period; the dates can be typed', async () => {
+      $('fsPeriod').value = 'last-year'; $('fsPeriod').dispatchEvent(new W.Event('change'));
+      await waitFor(() => sheets()[0].querySelector('.sheet-total').textContent === 'Profit$0.00');
+      expect($('fsFrom').disabled).toBe(true);
+      $('fsPeriod').value = 'custom'; $('fsPeriod').dispatchEvent(new W.Event('change'));
+      expect($('fsFrom').disabled).toBe(false);
+    });
+    it('Download CSV gives both statements in one file', async () => {
+      $('fsPeriod').value = 'year'; $('fsPeriod').dispatchEvent(new W.Event('change'));
+      await waitFor(() => sheets()[0].querySelector('.sheet-total').textContent === 'Profit$700.00');
+      let got = null;
+      W.SlopUI.download = (blob, name) => { got = { blob, name }; };
+      $('fsCsv').click();
+      const text = await got.blob.text();
+      expect(/^statements-\d{4}-01-01-to-\d{4}-12-31\.csv$/.test(got.name)).toBe(true);
+      expect(text.split('\r\n')).toContain('Profit and loss,Result,,700.00');
+      expect(text.split('\r\n')).toContain('Balance sheet,Equity,Result to date,700.00');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

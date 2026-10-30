@@ -1,0 +1,22 @@
+/* Slop Calendar, Russian: the palette. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-ru.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'calendar.cmd.g_cal': 'Календарь',
+  'calendar.cmd.g_goto': 'Перейти',
+  'calendar.cmd.prev': 'Календарь: предыдущий период',
+  'calendar.cmd.next': 'Календарь: следующий период',
+  'calendar.cmd.today': 'Календарь: перейти к сегодня',
+  'calendar.cmd.year': 'Календарь: вид «Год»',
+  'calendar.cmd.month': 'Календарь: вид «Месяц»',
+  'calendar.cmd.split': 'Календарь: разделённый вид',
+  'calendar.cmd.undo': 'Календарь: отменить последнее перемещение',
+  'calendar.cmd.week': 'Календарь: вид «Неделя»',
+  'calendar.cmd.day': 'Календарь: вид «День»',
+  'calendar.cmd.agenda': 'Календарь: повестка',
+  'calendar.cmd.new': 'Календарь: новое событие',
+  'calendar.cmd.tasks': 'Календарь: показать или скрыть задачи',
+  'calendar.cmd.import': 'Календарь: импорт .ics',
+  'calendar.cmd.export': 'Календарь: экспорт .ics',
+  'calendar.cmd.todo': 'Перейти в Slop To-do',
+  'calendar.cmd.reminders': 'Перейти в Slop Reminders',
+  'calendar.cmd.crm': 'Перейти в Slop CRM',
+});

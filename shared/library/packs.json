@@ -1,0 +1,3033 @@
+{
+  "note": "Packs offered by Get more (shared/library/get-more.js): font packs (kind \"font\", the default) and AI model packs (kind \"model\", one .onnx file, used by Slop Upscale). Nothing downloads until a person clicks Download and confirms the licence and size. Each file needs its path in the Slopographic cdn repository (\"cdn\", served from the release tag in shared/cdn/assets.js) or an https URL on one of the hosts below (the cdn files are allowed on their own hosts, only for that repository), its exact size in bytes and its lowercase SHA-256. See shared/fonts/HANDOFF.md and upscale/HANDOFF.md.",
+  "hosts": [
+    "raw.githubusercontent.com"
+  ],
+  "packs": [
+    {
+      "id": "barlow",
+      "name": "Barlow and Barlow Condensed",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Barlow and Barlow Condensed, static Regular to Bold, from google/fonts (SIL Open Font License 1.1).",
+      "size": 849352,
+      "files": [
+        {
+          "name": "Barlow-Regular.ttf",
+          "cdn": "packs/barlow/v1/Barlow-Regular.ttf",
+          "size": 104068,
+          "sha256": "95aa02c7c43096e0dd44d787ba6216864a67157e402adab59b35572e0c1577ea",
+          "family": "Barlow",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "Barlow-Medium.ttf",
+          "cdn": "packs/barlow/v1/Barlow-Medium.ttf",
+          "size": 103536,
+          "sha256": "f8906f762cb73dca441da034bc363b2d8e2e68bc10d5c05e58717646c20cc4b4",
+          "family": "Barlow",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "Barlow-SemiBold.ttf",
+          "cdn": "packs/barlow/v1/Barlow-SemiBold.ttf",
+          "size": 108348,
+          "sha256": "86577cb32f8abe3673db53ca0f4221e6856751a4f6730c867e00f720f8bb1fc5",
+          "family": "Barlow",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "Barlow-Bold.ttf",
+          "cdn": "packs/barlow/v1/Barlow-Bold.ttf",
+          "size": 108220,
+          "sha256": "84e6a4d61e7c3e21f3c50ea6a4f7e5303a3467864c038be6ea3759bab8d547f9",
+          "family": "Barlow",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "BarlowCondensed-Regular.ttf",
+          "cdn": "packs/barlow/v1/BarlowCondensed-Regular.ttf",
+          "size": 102480,
+          "sha256": "583cec5da3b84bc4dc7c9c72e2a565c94d34e431518b19d7e250b7830ad5f996",
+          "family": "Barlow Condensed",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "BarlowCondensed-Medium.ttf",
+          "cdn": "packs/barlow/v1/BarlowCondensed-Medium.ttf",
+          "size": 103360,
+          "sha256": "262bd143292ce479ee0cd09a42b47ab173fca8e9c6eb5ed0b5c8a845bc371d17",
+          "family": "Barlow Condensed",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "BarlowCondensed-SemiBold.ttf",
+          "cdn": "packs/barlow/v1/BarlowCondensed-SemiBold.ttf",
+          "size": 109428,
+          "sha256": "7b619d14bc2327509a9ef32b0890f709626f7ecc9ff61191c2a4314c5499d2d9",
+          "family": "Barlow Condensed",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "BarlowCondensed-Bold.ttf",
+          "cdn": "packs/barlow/v1/BarlowCondensed-Bold.ttf",
+          "size": 109912,
+          "sha256": "e476562ec9c1e16cf16475895b511f08c804f438cc9a9f80a44ea50a0eeb5b65",
+          "family": "Barlow Condensed",
+          "weight": "700",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "metric-compatible",
+      "kind": "font",
+      "name": "Office-compatible fonts (Calibri, Cambria, Arial, Times New Roman, Courier New)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Carlito, Caladea, Arimo, Tinos and Cousine: the same character widths as Calibri, Cambria, Arial, Times New Roman and Courier New, so text that names those fonts keeps its line breaks. Regular, Bold, Italic and Bold Italic (SIL Open Font License 1.1).",
+      "size": 8516432,
+      "files": [
+        {
+          "name": "Carlito-Regular.ttf",
+          "cdn": "packs/metric-compatible/v1/carlito/Carlito-Regular.ttf",
+          "size": 628032,
+          "sha256": "f6418f708baede9789daef5d458c0f53d2a888af9820e8062934e504fedc6595",
+          "family": "Carlito",
+          "weight": "400",
+          "style": "normal",
+          "metricFor": [
+            "Calibri"
+          ]
+        },
+        {
+          "name": "Carlito-Bold.ttf",
+          "cdn": "packs/metric-compatible/v1/carlito/Carlito-Bold.ttf",
+          "size": 682468,
+          "sha256": "bb5d20f79b82599ec72983597437373a80f2d2085fa91fc144fd74e876a594db",
+          "family": "Carlito",
+          "weight": "700",
+          "style": "normal",
+          "metricFor": [
+            "Calibri"
+          ]
+        },
+        {
+          "name": "Carlito-Italic.ttf",
+          "cdn": "packs/metric-compatible/v1/carlito/Carlito-Italic.ttf",
+          "size": 615236,
+          "sha256": "0b019225e58d702bfedcbd35c21696769f8ee115cb6343f84c2f240312450d1c",
+          "family": "Carlito",
+          "weight": "400",
+          "style": "italic",
+          "metricFor": [
+            "Calibri"
+          ]
+        },
+        {
+          "name": "Carlito-BoldItalic.ttf",
+          "cdn": "packs/metric-compatible/v1/carlito/Carlito-BoldItalic.ttf",
+          "size": 808508,
+          "sha256": "b32928186c119599e03ca6a1ffc680fdcb7fac95772f4b95d989cf6cd3861517",
+          "family": "Carlito",
+          "weight": "700",
+          "style": "italic",
+          "metricFor": [
+            "Calibri"
+          ]
+        },
+        {
+          "name": "Caladea-Regular.ttf",
+          "cdn": "packs/metric-compatible/v1/caladea/Caladea-Regular.ttf",
+          "size": 81600,
+          "sha256": "f1e899278b7b4491aba5b6a8253c4b04c050cc59b21865be5c37559a775153cd",
+          "family": "Caladea",
+          "weight": "400",
+          "style": "normal",
+          "metricFor": [
+            "Cambria"
+          ]
+        },
+        {
+          "name": "Caladea-Bold.ttf",
+          "cdn": "packs/metric-compatible/v1/caladea/Caladea-Bold.ttf",
+          "size": 84492,
+          "sha256": "ae3cb2dcbc925809dd29d2a44e9802211cab66be541bacbfc9c08c74b27c3742",
+          "family": "Caladea",
+          "weight": "700",
+          "style": "normal",
+          "metricFor": [
+            "Cambria"
+          ]
+        },
+        {
+          "name": "Caladea-Italic.ttf",
+          "cdn": "packs/metric-compatible/v1/caladea/Caladea-Italic.ttf",
+          "size": 83780,
+          "sha256": "4359a8e24f748b6447b1ff6d7a174febe70961d29f8bb8634b56dacd740a3deb",
+          "family": "Caladea",
+          "weight": "400",
+          "style": "italic",
+          "metricFor": [
+            "Cambria"
+          ]
+        },
+        {
+          "name": "Caladea-BoldItalic.ttf",
+          "cdn": "packs/metric-compatible/v1/caladea/Caladea-BoldItalic.ttf",
+          "size": 83356,
+          "sha256": "ccabaa7b7e2fdf253d2b1a5fa699dd8a3df8d835a9eb285ad82631a677eb76c0",
+          "family": "Caladea",
+          "weight": "700",
+          "style": "italic",
+          "metricFor": [
+            "Cambria"
+          ]
+        },
+        {
+          "name": "Arimo-Regular.ttf",
+          "cdn": "packs/metric-compatible/v1/arimo/Arimo-Regular.ttf",
+          "size": 478712,
+          "sha256": "41b22bc8f0b51f932825d37bc55b5eb6ba67dfe599a626e4aff2b43b624f9f8c",
+          "family": "Arimo",
+          "weight": "400",
+          "style": "normal",
+          "metricFor": [
+            "Arial"
+          ]
+        },
+        {
+          "name": "Arimo-Bold.ttf",
+          "cdn": "packs/metric-compatible/v1/arimo/Arimo-Bold.ttf",
+          "size": 485872,
+          "sha256": "d7a8b187cf8444d4cfee102e8eae9e3043682fd5106d5d33ed677fe268a0e2ba",
+          "family": "Arimo",
+          "weight": "700",
+          "style": "normal",
+          "metricFor": [
+            "Arial"
+          ]
+        },
+        {
+          "name": "Arimo-Italic.ttf",
+          "cdn": "packs/metric-compatible/v1/arimo/Arimo-Italic.ttf",
+          "size": 502332,
+          "sha256": "ffdf690e4357a392e4edcc3df0b3adb0302920f75e54f2e6eec355afbe7edcba",
+          "family": "Arimo",
+          "weight": "400",
+          "style": "italic",
+          "metricFor": [
+            "Arial"
+          ]
+        },
+        {
+          "name": "Arimo-BoldItalic.ttf",
+          "cdn": "packs/metric-compatible/v1/arimo/Arimo-BoldItalic.ttf",
+          "size": 508508,
+          "sha256": "77c967d49d4ef4a63c39fbcd1e27892102e503e35a20983cb058430c4f268b34",
+          "family": "Arimo",
+          "weight": "700",
+          "style": "italic",
+          "metricFor": [
+            "Arial"
+          ]
+        },
+        {
+          "name": "Tinos-Regular.ttf",
+          "cdn": "packs/metric-compatible/v1/tinos/Tinos-Regular.ttf",
+          "size": 521588,
+          "sha256": "60a0e8ef0c04dd5dd69ffe91025fa2ae5836cbd35600a82ba031977557e2cb61",
+          "family": "Tinos",
+          "weight": "400",
+          "style": "normal",
+          "metricFor": [
+            "Times New Roman"
+          ]
+        },
+        {
+          "name": "Tinos-Bold.ttf",
+          "cdn": "packs/metric-compatible/v1/tinos/Tinos-Bold.ttf",
+          "size": 597880,
+          "sha256": "393269dbab8899f938db19783eca5eac92eb431f7ae0ab45b8349ca895f1a06b",
+          "family": "Tinos",
+          "weight": "700",
+          "style": "normal",
+          "metricFor": [
+            "Times New Roman"
+          ]
+        },
+        {
+          "name": "Tinos-Italic.ttf",
+          "cdn": "packs/metric-compatible/v1/tinos/Tinos-Italic.ttf",
+          "size": 565016,
+          "sha256": "5942266ed398b155d7dc23e36833e7ec6be988f2439bdbeb8ef1bede808eaa91",
+          "family": "Tinos",
+          "weight": "400",
+          "style": "italic",
+          "metricFor": [
+            "Times New Roman"
+          ]
+        },
+        {
+          "name": "Tinos-BoldItalic.ttf",
+          "cdn": "packs/metric-compatible/v1/tinos/Tinos-BoldItalic.ttf",
+          "size": 578976,
+          "sha256": "a5de79f0fe863ea0954757acb3d47b3ccd0a930ce3dd5b97230cd3866790a06e",
+          "family": "Tinos",
+          "weight": "700",
+          "style": "italic",
+          "metricFor": [
+            "Times New Roman"
+          ]
+        },
+        {
+          "name": "Cousine-Regular.ttf",
+          "cdn": "packs/metric-compatible/v1/cousine/Cousine-Regular.ttf",
+          "size": 296856,
+          "sha256": "1da22250675fc4c42fcf3a9736c44bc0570516105331443b663fd5cfbd1412fe",
+          "family": "Cousine",
+          "weight": "400",
+          "style": "normal",
+          "metricFor": [
+            "Courier New"
+          ]
+        },
+        {
+          "name": "Cousine-Bold.ttf",
+          "cdn": "packs/metric-compatible/v1/cousine/Cousine-Bold.ttf",
+          "size": 298048,
+          "sha256": "17c8a7245156d2253531c9e529474937b09d9f641c5ae7695c5e33f22822eef4",
+          "family": "Cousine",
+          "weight": "700",
+          "style": "normal",
+          "metricFor": [
+            "Courier New"
+          ]
+        },
+        {
+          "name": "Cousine-Italic.ttf",
+          "cdn": "packs/metric-compatible/v1/cousine/Cousine-Italic.ttf",
+          "size": 306880,
+          "sha256": "ea2a76ae3d0ece9cd59f0d30fdc08dd70e8f5f457beee5b0852a7b50c2286c7c",
+          "family": "Cousine",
+          "weight": "400",
+          "style": "italic",
+          "metricFor": [
+            "Courier New"
+          ]
+        },
+        {
+          "name": "Cousine-BoldItalic.ttf",
+          "cdn": "packs/metric-compatible/v1/cousine/Cousine-BoldItalic.ttf",
+          "size": 308292,
+          "sha256": "848e858726fee0ae27b754e4cd6a2755209bf1428a8c91f747696d58c33906c3",
+          "family": "Cousine",
+          "weight": "700",
+          "style": "italic",
+          "metricFor": [
+            "Courier New"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "realesrgan-x4plus",
+      "kind": "model",
+      "name": "Real-ESRGAN x4plus (Slop Upscale, 4×)",
+      "licence": "BSD-3-Clause",
+      "licenceUrl": "https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE",
+      "description": "Real-ESRGAN x4plus from xinntao/Real-ESRGAN, converted to ONNX without changes to the weights. Runs on your device; the picture is not uploaded.",
+      "size": 67051618,
+      "files": [
+        {
+          "name": "model.onnx",
+          "cdn": "models/upscale/realesrgan-x4plus.onnx",
+          "size": 67051618,
+          "sha256": "8213c3a2f08808d375d2b1aeeb52847fb53a38aea9df15835eabb203dbcbc52c"
+        }
+      ]
+    },
+    {
+      "id": "depth-anything-v2-small",
+      "kind": "model",
+      "name": "Depth Anything V2 Small (Slop Image to 3D, depth)",
+      "licence": "Apache-2.0",
+      "licenceUrl": "https://github.com/DepthAnything/Depth-Anything-V2/blob/main/LICENSE",
+      "description": "Depth Anything V2 Small (depth-anything/Depth-Anything-V2-Small, Apache-2.0), ONNX export from onnx-community with int8 weight quantisation. Estimates depth from one picture. Runs on your device; the picture is not uploaded.",
+      "size": 27258801,
+      "files": [
+        {
+          "name": "depth-anything-v2-small.onnx",
+          "cdn": "models/depth/depth-anything-v2-small.onnx",
+          "size": 27258801,
+          "sha256": "fcf51f1b230362b28690bb9d1809bf0431f29cad20534e3f589bd7285547f20d"
+        }
+      ]
+    },
+    {
+      "id": "google-fonts-1",
+      "kind": "font",
+      "name": "Google Fonts, set 1 (20 families)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Google Fonts, set 1: abrilfatface, alegreya, almarai, anton, archivo, arvo, asap, asapcondensed, barlowsemicondensed, bebasneue, bitter, bricolagegrotesque, cabin, cabincondensed, cairo, cardo, catamaran, caveat, chivo, comfortaa (SIL Open Font License 1.1). Upright TTF files from github.com/google/fonts, pinned in the cdn repository.",
+      "size": 7916884,
+      "files": [
+        {
+          "name": "abrilfatface-AbrilFatface-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/abrilfatface/AbrilFatface-Regular.ttf",
+          "size": 67364,
+          "sha256": "5971d4a3758a922a9fedc7f6fb825a96341a2e718c45a4b2c9a6b417c8c4dbe9",
+          "family": "Abril Fatface",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "alegreya-Alegreya-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/alegreya/Alegreya-wght.ttf",
+          "size": 425288,
+          "sha256": "ba5564634b93a8f8ba57b48cd4f1ae7417d2b4656fbac779028679b00de3cf12",
+          "family": "Alegreya",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "almarai-Almarai-Bold.ttf",
+          "cdn": "packs/google-fonts-1/v1/almarai/Almarai-Bold.ttf",
+          "size": 156672,
+          "sha256": "06401391b5b39fbcf2bc0c6a6e03faf992435e7b011183a1861737e913af8613",
+          "family": "Almarai",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "almarai-Almarai-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-1/v1/almarai/Almarai-ExtraBold.ttf",
+          "size": 168292,
+          "sha256": "9f8f72f1cb06db787a5b32e314a109267e53c505c9f9ab0dad5aa8ff8b219a07",
+          "family": "Almarai",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "almarai-Almarai-Light.ttf",
+          "cdn": "packs/google-fonts-1/v1/almarai/Almarai-Light.ttf",
+          "size": 149480,
+          "sha256": "a57bca270340202a28899f7488ee76ed9b93115b89d7a81db92d68e29993da5a",
+          "family": "Almarai",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "almarai-Almarai-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/almarai/Almarai-Regular.ttf",
+          "size": 152824,
+          "sha256": "5b5cad33c8e5922083728d271cdcda91f96ba291f1307eccc4f4ef732dc19622",
+          "family": "Almarai",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "anton-Anton-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/anton/Anton-Regular.ttf",
+          "size": 170812,
+          "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+          "family": "Anton",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "archivo-Archivo-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/archivo/Archivo-wdth-wght.ttf",
+          "size": 658596,
+          "sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053",
+          "family": "Archivo",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "arvo-Arvo-Bold.ttf",
+          "cdn": "packs/google-fonts-1/v1/arvo/Arvo-Bold.ttf",
+          "size": 37652,
+          "sha256": "6239b2edee762db0ab99343137c9ba15ae81fc843da2e76a0a395781748cc21f",
+          "family": "Arvo",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "arvo-Arvo-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/arvo/Arvo-Regular.ttf",
+          "size": 38780,
+          "sha256": "f41bd41471ec2db7140351bdde614da5341524503598ff7fe79f3c89c13b605e",
+          "family": "Arvo",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "asap-Asap-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/asap/Asap-wdth-wght.ttf",
+          "size": 376764,
+          "sha256": "7bf29bcab72f7d00de600e964a3fc206620050d8448ddd976822378d0fe18028",
+          "family": "Asap",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-Black.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-Black.ttf",
+          "size": 113996,
+          "sha256": "30e3b2f8c5154fd754057e1a067a0e00ee67efe40e2178af16bcf244d1d0474a",
+          "family": "Asap Condensed",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-Bold.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-Bold.ttf",
+          "size": 111544,
+          "sha256": "0ed4b4f29a0abed3a5049270f28d8e11c797edc7c0270cc51495c0578622f82a",
+          "family": "Asap Condensed",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-ExtraBold.ttf",
+          "size": 113560,
+          "sha256": "6c904a245bb9d04b0b2b1cc441c77c1d2c3710ad872cfbc37cb644cc2857e860",
+          "family": "Asap Condensed",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-ExtraLight.ttf",
+          "size": 106820,
+          "sha256": "e30503c60c1b098ae0657d1527ca596715491db012e2dff9433a61f6cfa7746a",
+          "family": "Asap Condensed",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-Light.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-Light.ttf",
+          "size": 108020,
+          "sha256": "5c0efec5bc4edf6ab723c7e9aee01c6a77286a47b09ec2bb2242c1301b5d3f7f",
+          "family": "Asap Condensed",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-Medium.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-Medium.ttf",
+          "size": 111476,
+          "sha256": "91a4c8a3a3199d7553aa9b720336cf3fef50b5dbac1d11f8a53241808d72faa0",
+          "family": "Asap Condensed",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-Regular.ttf",
+          "size": 110332,
+          "sha256": "297336aba664e16c2c6aadb64a66fb31d63f048eae3d22409492cd2f1b4cdda0",
+          "family": "Asap Condensed",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "asapcondensed-AsapCondensed-SemiBold.ttf",
+          "cdn": "packs/google-fonts-1/v1/asapcondensed/AsapCondensed-SemiBold.ttf",
+          "size": 111244,
+          "sha256": "92d1eb2579fa9868a1c3676bdb51079d5c13469aa61a12164e25dc46c24bdbae",
+          "family": "Asap Condensed",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-Black.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-Black.ttf",
+          "size": 113212,
+          "sha256": "171502596b584862a651426010f14878d8f7a87e6a080a621c0b1cd447a5fefc",
+          "family": "Barlow Semi Condensed",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-Bold.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-Bold.ttf",
+          "size": 111772,
+          "sha256": "5bd6757e459a110da81b44532f0f43058e2dab2401688abca84f2fdbde193cbb",
+          "family": "Barlow Semi Condensed",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-ExtraBold.ttf",
+          "size": 112096,
+          "sha256": "a8096d0dc3ff22ea015d63f436a6856a69e402c12da9991f4a40f2c0bedf44ee",
+          "family": "Barlow Semi Condensed",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-ExtraLight.ttf",
+          "size": 103908,
+          "sha256": "e1ffda60bc25a7f3682785c287b1a167838e786fc018130f7a6907a15e4d0d14",
+          "family": "Barlow Semi Condensed",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-Light.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-Light.ttf",
+          "size": 104704,
+          "sha256": "cc4a1ad3d68ec017a79b098228e76c722ed92e5e791978467c76437186f22a03",
+          "family": "Barlow Semi Condensed",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-Medium.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-Medium.ttf",
+          "size": 105560,
+          "sha256": "4998b693a190b76f2b11315844345a8546c1e2e6a320905507a9eed04edf8b48",
+          "family": "Barlow Semi Condensed",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-Regular.ttf",
+          "size": 105776,
+          "sha256": "e8c7242f612b13d026e18a94b63b0fd079e91a3faf009d1b6981dbb5f16d1153",
+          "family": "Barlow Semi Condensed",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-SemiBold.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-SemiBold.ttf",
+          "size": 109772,
+          "sha256": "bd299f4bc5b44d30be8d42e9bad3a5df7d66af1cd55d0ed72a8b8916360a1424",
+          "family": "Barlow Semi Condensed",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "barlowsemicondensed-BarlowSemiCondensed-Thin.ttf",
+          "cdn": "packs/google-fonts-1/v1/barlowsemicondensed/BarlowSemiCondensed-Thin.ttf",
+          "size": 103072,
+          "sha256": "f2ca25edad258019d88879a9a8ae1a952a7a7f68dadef945954c63bacda08026",
+          "family": "Barlow Semi Condensed",
+          "weight": "100",
+          "style": "normal"
+        },
+        {
+          "name": "bebasneue-BebasNeue-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/bebasneue/BebasNeue-Regular.ttf",
+          "size": 61400,
+          "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+          "family": "Bebas Neue",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "bitter-Bitter-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/bitter/Bitter-wght.ttf",
+          "size": 328636,
+          "sha256": "ef2b9a711fb02f1e5823b34da1b7450e0fc76793b7d733a8b41006e24916d4a7",
+          "family": "Bitter",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "bricolagegrotesque-BricolageGrotesque-opsz-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/bricolagegrotesque/BricolageGrotesque-opsz-wdth-wght.ttf",
+          "size": 408496,
+          "sha256": "413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682",
+          "family": "Bricolage Grotesque",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "cabin-Cabin-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/cabin/Cabin-wdth-wght.ttf",
+          "size": 165468,
+          "sha256": "a16576e6cec01cf994c46838ed1c17ffdb62cf6da8430edfbcb011f57dd62457",
+          "family": "Cabin",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "cabincondensed-CabinCondensed-Bold.ttf",
+          "cdn": "packs/google-fonts-1/v1/cabincondensed/CabinCondensed-Bold.ttf",
+          "size": 97876,
+          "sha256": "55c7759cde62445fe60d36df812f83ad2f720929628040f2a036e1e8c6e48671",
+          "family": "Cabin Condensed",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "cabincondensed-CabinCondensed-Medium.ttf",
+          "cdn": "packs/google-fonts-1/v1/cabincondensed/CabinCondensed-Medium.ttf",
+          "size": 98504,
+          "sha256": "08475cc737055f1c08eb1fbcad084abd9d4d0342cb55b3a76e9114cab99ad9e2",
+          "family": "Cabin Condensed",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "cabincondensed-CabinCondensed-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/cabincondensed/CabinCondensed-Regular.ttf",
+          "size": 99468,
+          "sha256": "d3ad2ca1872bc3a8664ba913314b2f85fef015d0a7cb3007a7ca6420b84e574d",
+          "family": "Cabin Condensed",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "cabincondensed-CabinCondensed-SemiBold.ttf",
+          "cdn": "packs/google-fonts-1/v1/cabincondensed/CabinCondensed-SemiBold.ttf",
+          "size": 98996,
+          "sha256": "a73b89d750f03af8a6cd8783678cd163ec78f9e2c603d2389548fbb8dfc5d62b",
+          "family": "Cabin Condensed",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "cairo-Cairo-slnt-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/cairo/Cairo-slnt-wght.ttf",
+          "size": 599548,
+          "sha256": "667c987182391c91f4e57a2f455b1794fb5e3ee6ca4ef3383e86bb690fa9c964",
+          "family": "Cairo",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "cardo-Cardo-Bold.ttf",
+          "cdn": "packs/google-fonts-1/v1/cardo/Cardo-Bold.ttf",
+          "size": 348320,
+          "sha256": "6c9383b1471936ee83b08b67bf79f0ed92bee3d5e8363ec3ba21309d5a272e36",
+          "family": "Cardo",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "cardo-Cardo-Regular.ttf",
+          "cdn": "packs/google-fonts-1/v1/cardo/Cardo-Regular.ttf",
+          "size": 400468,
+          "sha256": "bcb81f376f1c3892c7026dabf2beafbd1a7ee8ae95d132ee7d4ff7d7c3988261",
+          "family": "Cardo",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "catamaran-Catamaran-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/catamaran/Catamaran-wght.ttf",
+          "size": 184276,
+          "sha256": "f6ee331c381f441454225196d7930d4d0a31554d7f1f9c8c58149ca9e122b294",
+          "family": "Catamaran",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "caveat-Caveat-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/caveat/Caveat-wght.ttf",
+          "size": 403648,
+          "sha256": "0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988",
+          "family": "Caveat",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "chivo-Chivo-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/chivo/Chivo-wght.ttf",
+          "size": 160636,
+          "sha256": "801674cbeff749011a0186b2c932dc9158187a8ca4ca6598db2a1f5c7c4342d1",
+          "family": "Chivo",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "comfortaa-Comfortaa-wght.ttf",
+          "cdn": "packs/google-fonts-1/v1/comfortaa/Comfortaa-wght.ttf",
+          "size": 201756,
+          "sha256": "0fc3f45dc48b614db9c39181502544b37217ecbf8bee2fb35886992bc96c5bd3",
+          "family": "Comfortaa",
+          "weight": "100 900",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "google-fonts-2",
+      "kind": "font",
+      "name": "Google Fonts, set 2 (20 families)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Google Fonts, set 2: cormorantgaramond, courierprime, crimsontext, dancingscript, dmsans, dmserifdisplay, domine, dosis, ebgaramond, epilogue, exo, exo2, figtree, firacode, firasans, heebo, hind, ibmplexmono, ibmplexsans, ibmplexserif (SIL Open Font License 1.1). Upright TTF files from github.com/google/fonts, pinned in the cdn repository.",
+      "size": 12628612,
+      "files": [
+        {
+          "name": "cormorantgaramond-CormorantGaramond-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/cormorantgaramond/CormorantGaramond-wght.ttf",
+          "size": 1195560,
+          "sha256": "b20b7d9626dd956b2c5e558692ad328b1f19e3275e2782db4fa07670d83f35e0",
+          "family": "Cormorant Garamond",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "courierprime-CourierPrime-Bold.ttf",
+          "cdn": "packs/google-fonts-2/v1/courierprime/CourierPrime-Bold.ttf",
+          "size": 72856,
+          "sha256": "ff1f38786c849d1c41fa8e447960abdb2bd75fdfb0cfcdeb524fad65a5af3638",
+          "family": "Courier Prime",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "courierprime-CourierPrime-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/courierprime/CourierPrime-Regular.ttf",
+          "size": 71188,
+          "sha256": "72f793376f8e2841656bf21d77a5de010f2929bd6956a22ee848ad0c7eb978af",
+          "family": "Courier Prime",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "crimsontext-CrimsonText-Bold.ttf",
+          "cdn": "packs/google-fonts-2/v1/crimsontext/CrimsonText-Bold.ttf",
+          "size": 112796,
+          "sha256": "a3a0765fc5e8d0b49b540a23aefe0184887dd79f06a0bdf4db7035cea6befa93",
+          "family": "Crimson Text",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "crimsontext-CrimsonText-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/crimsontext/CrimsonText-Regular.ttf",
+          "size": 107200,
+          "sha256": "48e6c5d5ad1d01599d374ecb817e15890d1feb3b8a3a88e527d44c90389e1f06",
+          "family": "Crimson Text",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "crimsontext-CrimsonText-SemiBold.ttf",
+          "cdn": "packs/google-fonts-2/v1/crimsontext/CrimsonText-SemiBold.ttf",
+          "size": 111176,
+          "sha256": "802e84000740fec2a9fbe0ae09b6b6811bd86a78a0173b15d44450a1530e9410",
+          "family": "Crimson Text",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "dancingscript-DancingScript-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/dancingscript/DancingScript-wght.ttf",
+          "size": 133636,
+          "sha256": "21808625578fe8d8cd10cb684be546dca077b27cd03a53a2f1ec11dc743c924c",
+          "family": "Dancing Script",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "dmsans-DMSans-opsz-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/dmsans/DMSans-opsz-wght.ttf",
+          "size": 240164,
+          "sha256": "8cd08d97e89c24d0aa92edd2f0f4c8ee6195eee9b7c9f154865a58b02f0c1c0d",
+          "family": "DMSans",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "dmserifdisplay-DMSerifDisplay-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/dmserifdisplay/DMSerifDisplay-Regular.ttf",
+          "size": 76580,
+          "sha256": "8cc3643535edf039aa5d95440a8542735e9197e4f4b8d9303e980fefbf5ab616",
+          "family": "DMSerif Display",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "domine-Domine-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/domine/Domine-wght.ttf",
+          "size": 101904,
+          "sha256": "c63552cb60c658e90c1da3e83f9e7cf203562c39cdbf5a78ba9df62d8e7a1ed7",
+          "family": "Domine",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "dosis-Dosis-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/dosis/Dosis-wght.ttf",
+          "size": 117280,
+          "sha256": "b2238eef0b3464904fed097ef274c704bc63d21407369b7d7a5be7b0821a0e82",
+          "family": "Dosis",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "ebgaramond-EBGaramond-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/ebgaramond/EBGaramond-wght.ttf",
+          "size": 851176,
+          "sha256": "ef9512f92f6d579e5dc75af59a5a4b1b8b47d2eda89e00b954d44520e5369027",
+          "family": "EBGaramond",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "epilogue-Epilogue-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/epilogue/Epilogue-wght.ttf",
+          "size": 202996,
+          "sha256": "012f651b45f47c10c7714cb7e3f2f7d9ccb7f235a2cc72c6b273ddc735705c67",
+          "family": "Epilogue",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "exo-Exo-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/exo/Exo-wght.ttf",
+          "size": 175092,
+          "sha256": "2f08f818f1135ac5798030c0bca252c0845af5c54dfe172a5c74fbdd68843445",
+          "family": "Exo",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "exo2-Exo2-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/exo2/Exo2-wght.ttf",
+          "size": 303940,
+          "sha256": "205a448676a2586f9c57c25f3d5c58ca8db7e6cf5edf7506783a010c6fe2bfb5",
+          "family": "Exo2",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "figtree-Figtree-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/figtree/Figtree-wght.ttf",
+          "size": 62712,
+          "sha256": "26ad3db9b31ff7dde67a91ff515d022d2f495cd506590699cf264f0bfe6fb714",
+          "family": "Figtree",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "firacode-FiraCode-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/firacode/FiraCode-wght.ttf",
+          "size": 260364,
+          "sha256": "9335b082b3c7850d98a64b584f3417f65355f3471278bb5eeb8c6c0e8657aeeb",
+          "family": "Fira Code",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-Black.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-Black.ttf",
+          "size": 507204,
+          "sha256": "0ab27e9178d7f74898dd26e3a5f10eb7922bb2a88a2903e00796c4f7c7e08cc0",
+          "family": "Fira Sans",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-Bold.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-Bold.ttf",
+          "size": 489720,
+          "sha256": "a4d8e149ecdd4874a0726eb0af894488b3b31c423d6b0017c8f415ed1b795b45",
+          "family": "Fira Sans",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-ExtraBold.ttf",
+          "size": 497028,
+          "sha256": "0a26cff904d790f7ade2bffaf227b5fecdbeffdac1695fdbd640e086fe4e7152",
+          "family": "Fira Sans",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-ExtraLight.ttf",
+          "size": 447324,
+          "sha256": "f575442d8b863086599208c9b69d0e345a0936f3ec27b12b3fbc41526b56e838",
+          "family": "Fira Sans",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-Light.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-Light.ttf",
+          "size": 449660,
+          "sha256": "e2172f4a23e9be22f977c34de3897d890401bbc5e9c47df968dfa2c01fb32235",
+          "family": "Fira Sans",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-Medium.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-Medium.ttf",
+          "size": 457248,
+          "sha256": "cbc1842cbed8c1d1146ba7c9db97d8f28c9bedfd25f41c5b0e1259ca48622328",
+          "family": "Fira Sans",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-Regular.ttf",
+          "size": 456996,
+          "sha256": "c29556a2719bf613ef3d5e070e40d903a8965d9c081beca1375dc1e6e0f93c23",
+          "family": "Fira Sans",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-SemiBold.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-SemiBold.ttf",
+          "size": 489028,
+          "sha256": "db0321f83eb3e9f527b8af384a1b3fefdc1039cf2b06fd39b3f61492bda9561c",
+          "family": "Fira Sans",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "firasans-FiraSans-Thin.ttf",
+          "cdn": "packs/google-fonts-2/v1/firasans/FiraSans-Thin.ttf",
+          "size": 442852,
+          "sha256": "cd9d582ffae151bc616b26cf84b3c4912d04363b9c5e1b3e599b66e0e7d532a4",
+          "family": "Fira Sans",
+          "weight": "100",
+          "style": "normal"
+        },
+        {
+          "name": "heebo-Heebo-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/heebo/Heebo-wght.ttf",
+          "size": 122012,
+          "sha256": "18f930b583fa8fe6b40b2f8263b7ac6afbac07adc91a12467874e7467d3ace30",
+          "family": "Heebo",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "hind-Hind-Bold.ttf",
+          "cdn": "packs/google-fonts-2/v1/hind/Hind-Bold.ttf",
+          "size": 286604,
+          "sha256": "330c54396bc27628c32e69b88654e41065722182c6f33b936a2a46d72c9d6774",
+          "family": "Hind",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "hind-Hind-Light.ttf",
+          "cdn": "packs/google-fonts-2/v1/hind/Hind-Light.ttf",
+          "size": 287484,
+          "sha256": "c31b8b6073b14f89187586fb1fa38710d8adae3429ef41e1a398dacbfe839e51",
+          "family": "Hind",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "hind-Hind-Medium.ttf",
+          "cdn": "packs/google-fonts-2/v1/hind/Hind-Medium.ttf",
+          "size": 277300,
+          "sha256": "70f9c1158390d0c93a8bc24b35b4be4b2439653372bbce7381a32c686fb91a98",
+          "family": "Hind",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "hind-Hind-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/hind/Hind-Regular.ttf",
+          "size": 299532,
+          "sha256": "01de158022f53077b52303e46de3b0ab5fb245222a7ffe25a2a57fdd9e969162",
+          "family": "Hind",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "hind-Hind-SemiBold.ttf",
+          "cdn": "packs/google-fonts-2/v1/hind/Hind-SemiBold.ttf",
+          "size": 281940,
+          "sha256": "1742a1b0aba97b49da1d3ee3af568fa997c59a3cfe73829f7bec293f416d25dd",
+          "family": "Hind",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-Bold.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-Bold.ttf",
+          "size": 137784,
+          "sha256": "ac27abd6450a64dd94467580a02fe6235156d5b92f2926ebbc8e7489df64e0be",
+          "family": "IBMPlex Mono",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-ExtraLight.ttf",
+          "size": 135980,
+          "sha256": "826b765bd5173b97d521053330a66277edc224f8cc5f1e0035df1d995d5f003c",
+          "family": "IBMPlex Mono",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-Light.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-Light.ttf",
+          "size": 135216,
+          "sha256": "780bcf65509d72a35ec114b57bcbe220dc6b77d8ea2e9b25e294be3c570c5025",
+          "family": "IBMPlex Mono",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-Medium.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-Medium.ttf",
+          "size": 136704,
+          "sha256": "a9b4c49bb299e05b5f6c481e7fb5e78943d2793249a0c8874ab574a2d1ea6755",
+          "family": "IBMPlex Mono",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-Regular.ttf",
+          "size": 135580,
+          "sha256": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+          "family": "IBMPlex Mono",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-SemiBold.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-SemiBold.ttf",
+          "size": 140216,
+          "sha256": "d3c38e55c78f5b0f28009fddba4834ec503278936a5986032424c9bd2d23aa46",
+          "family": "IBMPlex Mono",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexmono-IBMPlexMono-Thin.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexmono/IBMPlexMono-Thin.ttf",
+          "size": 137900,
+          "sha256": "c44c820c14b4f1b818344e5f5dc189cee98b1d5e56b4e80055496c228f3cc7ea",
+          "family": "IBMPlex Mono",
+          "weight": "100",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexsans-IBMPlexSans-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexsans/IBMPlexSans-wdth-wght.ttf",
+          "size": 537244,
+          "sha256": "3b031aa4216174205bd8471f88a49b91f093169e9e87bd5262242bc5967fe2e3",
+          "family": "IBMPlex Sans",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-Bold.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-Bold.ttf",
+          "size": 163800,
+          "sha256": "534c02c295999dd86e770457ece1d43db0de9256dd98bf741426f63ae904209e",
+          "family": "IBMPlex Serif",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-ExtraLight.ttf",
+          "size": 163956,
+          "sha256": "e70801926e16dd77c41f4a7c1099f6bab7140f489f03fb80856ec678820be60d",
+          "family": "IBMPlex Serif",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-Light.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-Light.ttf",
+          "size": 162748,
+          "sha256": "698bad1d5e52004cb1d504249bd704cf0aed03740d7ef22d7a533db2bc020f69",
+          "family": "IBMPlex Serif",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-Medium.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-Medium.ttf",
+          "size": 164104,
+          "sha256": "32925e73e5b4a441df9d23e847f2b8c4046c1fc3db094e90bad8883157811509",
+          "family": "IBMPlex Serif",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-Regular.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-Regular.ttf",
+          "size": 163068,
+          "sha256": "e882efa9c41949a528ac2369079ec5ef050c1c996bbd0bacce3c3326d44cf80d",
+          "family": "IBMPlex Serif",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-SemiBold.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-SemiBold.ttf",
+          "size": 164528,
+          "sha256": "27ce4d105591b48f666b228e1e399838a704594efea22b730000951bea700a60",
+          "family": "IBMPlex Serif",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "ibmplexserif-IBMPlexSerif-Thin.ttf",
+          "cdn": "packs/google-fonts-2/v1/ibmplexserif/IBMPlexSerif-Thin.ttf",
+          "size": 161232,
+          "sha256": "1b4df73116dad2432f2d13337ae347fff71a03b8c1ba2b3e1c06cc98aadba72b",
+          "family": "IBMPlex Serif",
+          "weight": "100",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "google-fonts-3",
+      "kind": "font",
+      "name": "Google Fonts, set 3 (20 families)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Google Fonts, set 3: inconsolata, inter, jetbrainsmono, josefinsans, kanit, karla, lato, lexend, librebaskerville, lobster, lobstertwo, lora, manrope, merriweather, montserrat, mukta, notoserif, nunito, nunitosans, opensans (SIL Open Font License 1.1). Upright TTF files from github.com/google/fonts, pinned in the cdn repository.",
+      "size": 22111880,
+      "files": [
+        {
+          "name": "inconsolata-Inconsolata-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/inconsolata/Inconsolata-wdth-wght.ttf",
+          "size": 347180,
+          "sha256": "23ded25b447074d00659392bf9b1123d89df55cb07b0ad9bfef3366d199b5fcb",
+          "family": "Inconsolata",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "inter-Inter-opsz-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/inter/Inter-opsz-wght.ttf",
+          "size": 876576,
+          "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+          "family": "Inter",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "jetbrainsmono-JetBrainsMono-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/jetbrainsmono/JetBrainsMono-wght.ttf",
+          "size": 187208,
+          "sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+          "family": "Jet Brains Mono",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "josefinsans-JosefinSans-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/josefinsans/JosefinSans-wght.ttf",
+          "size": 118588,
+          "sha256": "9255abdb5f393bc51e101abbd07a716a977fd3e15472b1b84b260f426a342bfd",
+          "family": "Josefin Sans",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-Black.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-Black.ttf",
+          "size": 176856,
+          "sha256": "5d290c2cc9926764bd782aa6abc47a8f55bd64641d0afb56e115ee522698ee7e",
+          "family": "Kanit",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-Bold.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-Bold.ttf",
+          "size": 176136,
+          "sha256": "5dec5b080dab13de9d2295437c0ff3ec05c9e75587dfc31358c005eb4efa5e70",
+          "family": "Kanit",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-ExtraBold.ttf",
+          "size": 177836,
+          "sha256": "70082870d1f5bb6ae9faa708572b2c36de3c076caae187edae753f709d0de984",
+          "family": "Kanit",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-ExtraLight.ttf",
+          "size": 164140,
+          "sha256": "f90e440b41170f2f75f2930d3273dbe9ed7a5ac49f7dbdc375ba5f8d2e224745",
+          "family": "Kanit",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-Light.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-Light.ttf",
+          "size": 171384,
+          "sha256": "7c04b0be6011782fcc4c032f4033ef6f6ba1fef99b135ba1ee68b800c53017ec",
+          "family": "Kanit",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-Medium.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-Medium.ttf",
+          "size": 174628,
+          "sha256": "50a237034244026a7c63fe55e24e0b4298babe363cde043e032075b764c545a2",
+          "family": "Kanit",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-Regular.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-Regular.ttf",
+          "size": 173148,
+          "sha256": "27170c049660b2f962d3ed28441fd20f4c743503ca031fec9c2b4542d6c52736",
+          "family": "Kanit",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-SemiBold.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-SemiBold.ttf",
+          "size": 174796,
+          "sha256": "67e64baf1a7e6e076435518ff0e6bf25c4d74b98143cd1a2688db906c0abce11",
+          "family": "Kanit",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "kanit-Kanit-Thin.ttf",
+          "cdn": "packs/google-fonts-3/v1/kanit/Kanit-Thin.ttf",
+          "size": 160460,
+          "sha256": "740d8a4d92ddae394d13a3caea845c048b6d62b58f9fb92ed4ac0118ed38c083",
+          "family": "Kanit",
+          "weight": "100",
+          "style": "normal"
+        },
+        {
+          "name": "karla-Karla-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/karla/Karla-wght.ttf",
+          "size": 94016,
+          "sha256": "ed3ca4cd9bdd899c543927c30bf5ff50706b24b3f2b7328e64b25f7d2a9d23dc",
+          "family": "Karla",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-Black.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-Black.ttf",
+          "size": 664748,
+          "sha256": "808c62839c62dbce7de689af7603666fc7f8b81e0df537d8a5212c87580d4337",
+          "family": "Lato",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-Bold.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-Bold.ttf",
+          "size": 656544,
+          "sha256": "8a0aace75d33794eece4b28187bfc1df0bbd2888b5d8a56e01788c8d65d16be1",
+          "family": "Lato",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-ExtraBold.ttf",
+          "size": 613920,
+          "sha256": "61018de62bdaf90d4ac80b1d53c5c130756c8e9219aea3d2773fc9bd5869af97",
+          "family": "Lato",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-ExtraLight.ttf",
+          "size": 626624,
+          "sha256": "989989b481db5df0827d90c51fd08d024fe7bc4e367046e2584a0d3b0487936d",
+          "family": "Lato",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-Light.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-Light.ttf",
+          "size": 643884,
+          "sha256": "cf2a774503baf418d584f49967bd160e1e03f087c13b25602f28024ec7788f08",
+          "family": "Lato",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-Medium.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-Medium.ttf",
+          "size": 636396,
+          "sha256": "d3ac182a6833e005745dd75679fbad081c0b12535df4e93ad8ed57817a31a338",
+          "family": "Lato",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-Regular.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-Regular.ttf",
+          "size": 656568,
+          "sha256": "d636e4683231f931eda222d588e944d082bfd3bdba02f928bee461c0f185b251",
+          "family": "Lato",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-SemiBold.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-SemiBold.ttf",
+          "size": 668548,
+          "sha256": "71b8b7decbe75a881ed267be539d402bd1e9420b799658aada4e0d1bd5af803c",
+          "family": "Lato",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "lato-Lato-Thin.ttf",
+          "cdn": "packs/google-fonts-3/v1/lato/Lato-Thin.ttf",
+          "size": 584056,
+          "sha256": "663c55bfe9a38270fff44da273bf4d792eafc3e7e1201f62c3064cad80c5d5e7",
+          "family": "Lato",
+          "weight": "100",
+          "style": "normal"
+        },
+        {
+          "name": "lexend-Lexend-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/lexend/Lexend-wght.ttf",
+          "size": 175756,
+          "sha256": "3add53e641fbc81da64da4bb254285e2831b52b029527bc0714e2b9610832ee6",
+          "family": "Lexend",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "librebaskerville-LibreBaskerville-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/librebaskerville/LibreBaskerville-wght.ttf",
+          "size": 171900,
+          "sha256": "05a95421961341c5b2556285e8415df9db27dab4f4abe22b446b3c6a8b916c5d",
+          "family": "Libre Baskerville",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "lobster-Lobster-Regular.ttf",
+          "cdn": "packs/google-fonts-3/v1/lobster/Lobster-Regular.ttf",
+          "size": 406076,
+          "sha256": "d6568e697fd50cedc0be04d8aae4127fe95add607e7bff954ca88604be80c205",
+          "family": "Lobster",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "lobstertwo-LobsterTwo-Bold.ttf",
+          "cdn": "packs/google-fonts-3/v1/lobstertwo/LobsterTwo-Bold.ttf",
+          "size": 241104,
+          "sha256": "5255b383fc8aa432e4e7e5f8005210477c0983370adc6ad6205c9bd2cd1ceb76",
+          "family": "Lobster Two",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "lobstertwo-LobsterTwo-Regular.ttf",
+          "cdn": "packs/google-fonts-3/v1/lobstertwo/LobsterTwo-Regular.ttf",
+          "size": 254332,
+          "sha256": "be3d8ce18188bc559de37e4355f5f902b4960a7b65a99efb78c03bb65bb782e6",
+          "family": "Lobster Two",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "lora-Lora-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/lora/Lora-wght.ttf",
+          "size": 212196,
+          "sha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7",
+          "family": "Lora",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "manrope-Manrope-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/manrope/Manrope-wght.ttf",
+          "size": 164700,
+          "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+          "family": "Manrope",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "merriweather-Merriweather-opsz-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/merriweather/Merriweather-opsz-wdth-wght.ttf",
+          "size": 4628080,
+          "sha256": "d0ed0e359e396af7ad05e73dffd11a3a4c326ea0d0283c56bd9361cb2cc86a96",
+          "family": "Merriweather",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "montserrat-Montserrat-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/montserrat/Montserrat-wght.ttf",
+          "size": 744936,
+          "sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+          "family": "Montserrat",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-Bold.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-Bold.ttf",
+          "size": 418416,
+          "sha256": "7d22891cd57507b04af95a67ffaf59b7073b3595a27d1cfbbcefb418de820a12",
+          "family": "Mukta",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-ExtraBold.ttf",
+          "size": 423168,
+          "sha256": "328eeebffe06fac60d60b46fe60c3995a908d2347e9c285f1eef1a0c9d73e004",
+          "family": "Mukta",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-ExtraLight.ttf",
+          "size": 410644,
+          "sha256": "ff3260e6fd667797b0beb80430b0da318ccdac73c0f90fe828c2dd5a093265a1",
+          "family": "Mukta",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-Light.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-Light.ttf",
+          "size": 405188,
+          "sha256": "161f2f22d33a1c75d9fb37d74ea99e8dbbe119cd5c102c83146fb032a552e8f2",
+          "family": "Mukta",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-Medium.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-Medium.ttf",
+          "size": 419736,
+          "sha256": "4db18bd8f19582607e8a6af0c4bf158b4b3378b426e42ad39d444d216c70074c",
+          "family": "Mukta",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-Regular.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-Regular.ttf",
+          "size": 432248,
+          "sha256": "2958e4af564507df2a856164df6f9978dacb03f999a4f34a0c269dc8a4de9688",
+          "family": "Mukta",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "mukta-Mukta-SemiBold.ttf",
+          "cdn": "packs/google-fonts-3/v1/mukta/Mukta-SemiBold.ttf",
+          "size": 411160,
+          "sha256": "f437fb098f8f29acb8628617cb2682f0780ef22fa8b0443de1f66090c36e510a",
+          "family": "Mukta",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "notoserif-NotoSerif-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/notoserif/NotoSerif-wdth-wght.ttf",
+          "size": 1887192,
+          "sha256": "4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713",
+          "family": "Noto Serif",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "nunito-Nunito-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/nunito/Nunito-wght.ttf",
+          "size": 276932,
+          "sha256": "bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207",
+          "family": "Nunito",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "nunitosans-NunitoSans-YTLC-opsz-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/nunitosans/NunitoSans-YTLC-opsz-wdth-wght.ttf",
+          "size": 571240,
+          "sha256": "f934d7142fb4784bf828da485b7dcbd90c0c80d514e9d49a5da0ed3a1ae2491d",
+          "family": "Nunito Sans",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "opensans-OpenSans-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-3/v1/opensans/OpenSans-wdth-wght.ttf",
+          "size": 532636,
+          "sha256": "36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878",
+          "family": "Open Sans",
+          "weight": "100 900",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "google-fonts-4",
+      "kind": "font",
+      "name": "Google Fonts, set 4 (20 families)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Google Fonts, set 4: oswald, outfit, oxygen, pacifico, playfairdisplay, plusjakartasans, poppins, ptsans, ptserif, questrial, quicksand, raleway, redhatdisplay, righteous, roboto, robotomono, rubik, sora, sourcecodepro, sourcesans3 (SIL Open Font License 1.1). Upright TTF files from github.com/google/fonts, pinned in the cdn repository.",
+      "size": 7036728,
+      "files": [
+        {
+          "name": "oswald-Oswald-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/oswald/Oswald-wght.ttf",
+          "size": 172088,
+          "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+          "family": "Oswald",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "outfit-Outfit-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/outfit/Outfit-wght.ttf",
+          "size": 110884,
+          "sha256": "fc7287273e66929776e2ba54f144fe699080bec29f61bf649d70d871468aeade",
+          "family": "Outfit",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "oxygen-Oxygen-Bold.ttf",
+          "cdn": "packs/google-fonts-4/v1/oxygen/Oxygen-Bold.ttf",
+          "size": 48708,
+          "sha256": "d86d9a11ad1aa242dbf50d2a2a3295baab2a11349dcf6db5bd28e36036b7f6c0",
+          "family": "Oxygen",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "oxygen-Oxygen-Light.ttf",
+          "cdn": "packs/google-fonts-4/v1/oxygen/Oxygen-Light.ttf",
+          "size": 43788,
+          "sha256": "014b444c3073bcf433577cca0aaa177b35ab1b9a46ada562710006cb35128409",
+          "family": "Oxygen",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "oxygen-Oxygen-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/oxygen/Oxygen-Regular.ttf",
+          "size": 47988,
+          "sha256": "a328b8fa366bdd94f507ad02e2721ac49cb4257a9ef1e49560b230079386010e",
+          "family": "Oxygen",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "pacifico-Pacifico-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/pacifico/Pacifico-Regular.ttf",
+          "size": 329380,
+          "sha256": "5b6c0d5334a7bf77dea52b975c5a0c408878c0f7115ed5b6fb151f634b7bf701",
+          "family": "Pacifico",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "playfairdisplay-PlayfairDisplay-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/playfairdisplay/PlayfairDisplay-wght.ttf",
+          "size": 300724,
+          "sha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+          "family": "Playfair Display",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "plusjakartasans-PlusJakartaSans-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/plusjakartasans/PlusJakartaSans-wght.ttf",
+          "size": 176288,
+          "sha256": "89b3fb38aa0d275d7a731d0d817a4f1622b316b4d7fbdedcf02ee9099ff68bc8",
+          "family": "Plus Jakarta Sans",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-Black.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-Black.ttf",
+          "size": 153440,
+          "sha256": "d82aaaf98a9283f9a8edd24e51173337d8eaf09e25cd3d98831f8ec8461748a1",
+          "family": "Poppins",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-Bold.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-Bold.ttf",
+          "size": 155996,
+          "sha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+          "family": "Poppins",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-ExtraBold.ttf",
+          "size": 154836,
+          "sha256": "f2ab17c1a63a0ecc12c2461848fc8a469395e3cd2d641803e889c643d9f958e1",
+          "family": "Poppins",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-ExtraLight.ttf",
+          "size": 163568,
+          "sha256": "55c03314cc754e26f741f97890e5e9cbe3b3278fe3abcecfecafd60111b2643d",
+          "family": "Poppins",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-Light.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-Light.ttf",
+          "size": 161936,
+          "sha256": "650ba57fa99d12ec40c31ccfb680be656be4497fbe14164617d67e32ffe9cd46",
+          "family": "Poppins",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-Medium.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-Medium.ttf",
+          "size": 158576,
+          "sha256": "90373e7d838d32468438fc3e152dca0bdb12edcab99ea639f158790b1ba1fd05",
+          "family": "Poppins",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-Regular.ttf",
+          "size": 160316,
+          "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+          "family": "Poppins",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-SemiBold.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-SemiBold.ttf",
+          "size": 157312,
+          "sha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286",
+          "family": "Poppins",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "poppins-Poppins-Thin.ttf",
+          "cdn": "packs/google-fonts-4/v1/poppins/Poppins-Thin.ttf",
+          "size": 163672,
+          "sha256": "6d8e5d9d29140cc93e321745fa1243c67889e6bc3639ec34db64f3da7a496352",
+          "family": "Poppins",
+          "weight": "100",
+          "style": "normal"
+        },
+        {
+          "name": "ptsans-PT_Sans-Web-Bold.ttf",
+          "cdn": "packs/google-fonts-4/v1/ptsans/PT_Sans-Web-Bold.ttf",
+          "size": 470240,
+          "sha256": "3128bd5ecf01816e59a23d54c57a7a6b14615b07db53ff277c77376010265b05",
+          "family": "PT Sans",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "ptsans-PT_Sans-Web-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/ptsans/PT_Sans-Web-Regular.ttf",
+          "size": 442960,
+          "sha256": "9cc831490532009bae2b3ce0d39c62adfc889060beb421593bfd9d2396d0f10a",
+          "family": "PT Sans",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "ptserif-PT_Serif-Web-Bold.ttf",
+          "cdn": "packs/google-fonts-4/v1/ptserif/PT_Serif-Web-Bold.ttf",
+          "size": 339996,
+          "sha256": "038ba7336bd7ea14f12ad155bed51a4345cac5153275d521dec3ba04021c526e",
+          "family": "PT Serif",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "ptserif-PT_Serif-Web-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/ptserif/PT_Serif-Web-Regular.ttf",
+          "size": 359048,
+          "sha256": "a4951fade06ff8f09b7673aa81ffb65a8cd409e24d3289a6dc670bc4dda2557a",
+          "family": "PT Serif",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "questrial-Questrial-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/questrial/Questrial-Regular.ttf",
+          "size": 184176,
+          "sha256": "0ee7f2debabb13773fd38468b31820e11fca202a8f98c4d80b6ffcb796899b6f",
+          "family": "Questrial",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "quicksand-Quicksand-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/quicksand/Quicksand-wght.ttf",
+          "size": 124824,
+          "sha256": "39c9b64223561f56aaff6062a6f04063c4fc86809ad6768722c06614d977e1cc",
+          "family": "Quicksand",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "raleway-Raleway-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/raleway/Raleway-wght.ttf",
+          "size": 312352,
+          "sha256": "8bbcc3eb8275c388f4bcd998832f8a4b943eadbaf6a595205312774b5951aefb",
+          "family": "Raleway",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "redhatdisplay-RedHatDisplay-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/redhatdisplay/RedHatDisplay-wght.ttf",
+          "size": 98360,
+          "sha256": "46c9d4c4a2415e7e72020b318f5cda2bcbc9018d78b1a67e480a76d8d6e4b379",
+          "family": "Red Hat Display",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "righteous-Righteous-Regular.ttf",
+          "cdn": "packs/google-fonts-4/v1/righteous/Righteous-Regular.ttf",
+          "size": 43104,
+          "sha256": "2ffb3fe5c27d7e6571210b800448c4e234e651b46c6b4426c1bb567e5341348a",
+          "family": "Righteous",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "roboto-Roboto-wdth-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/roboto/Roboto-wdth-wght.ttf",
+          "size": 488584,
+          "sha256": "d7598e12c5dbef095ff8272cfc55da0250bd07fbdecbac8a530b9b277872a134",
+          "family": "Roboto",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "robotomono-RobotoMono-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/robotomono/RobotoMono-wght.ttf",
+          "size": 183700,
+          "sha256": "66a80e79d17e4c7cabd162e2916578a4cc08fd19eef6e2a643305eae9c567b2b",
+          "family": "Roboto Mono",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "rubik-Rubik-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/rubik/Rubik-wght.ttf",
+          "size": 359804,
+          "sha256": "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88",
+          "family": "Rubik",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "sora-Sora-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/sora/Sora-wght.ttf",
+          "size": 111400,
+          "sha256": "84ff7096ae3ec6c8be47d906d1a0ba4de7f2ce78c615275c77301964a316e16c",
+          "family": "Sora",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "sourcecodepro-SourceCodePro-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/sourcecodepro/SourceCodePro-wght.ttf",
+          "size": 212340,
+          "sha256": "b400fc584e10aff25d0e775ce181b4fc1c5ea1b5dc37b81aeb2084375b945790",
+          "family": "Source Code Pro",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "sourcesans3-SourceSans3-wght.ttf",
+          "cdn": "packs/google-fonts-4/v1/sourcesans3/SourceSans3-wght.ttf",
+          "size": 646340,
+          "sha256": "042fe2cc0b933e328410d7acbd0aa6a1873dca5aef81875f4bc214b08825c7b9",
+          "family": "Source Sans3",
+          "weight": "100 900",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "google-fonts-5",
+      "kind": "font",
+      "name": "Google Fonts, set 5 (13 families)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "description": "Google Fonts, set 5: spacegrotesk, spacemono, spectral, syne, tajawal, titilliumweb, unbounded, urbanist, varela, varelaround, vollkorn, worksans, zillaslab (SIL Open Font License 1.1). Upright TTF files from github.com/google/fonts, pinned in the cdn repository.",
+      "size": 6587712,
+      "files": [
+        {
+          "name": "spacegrotesk-SpaceGrotesk-wght.ttf",
+          "cdn": "packs/google-fonts-5/v1/spacegrotesk/SpaceGrotesk-wght.ttf",
+          "size": 136676,
+          "sha256": "acad6de1fc93436f5c0f1f4137751ef04f1aea3063e7036535970ffcfbd79f72",
+          "family": "Space Grotesk",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "spacemono-SpaceMono-Bold.ttf",
+          "cdn": "packs/google-fonts-5/v1/spacemono/SpaceMono-Bold.ttf",
+          "size": 98232,
+          "sha256": "405e73d41afb7e5906efce206a326af5c956f38e255f35421c260e861e599c59",
+          "family": "Space Mono",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "spacemono-SpaceMono-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/spacemono/SpaceMono-Regular.ttf",
+          "size": 99356,
+          "sha256": "95837e182baeeada83368f7748db28357f0a1b75c6b84ff7065b5edf933c8e18",
+          "family": "Space Mono",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-Bold.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-Bold.ttf",
+          "size": 273220,
+          "sha256": "70ddb1ec6ae3b0b8d0c79231f670de786978f19baeba2130757526e407aebf9b",
+          "family": "Spectral",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-ExtraBold.ttf",
+          "size": 260528,
+          "sha256": "af3f8513db8d047ebecb1682b5e04dfc12ec7e6b51b71654d4d348f12a5e6b5a",
+          "family": "Spectral",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-ExtraLight.ttf",
+          "size": 244808,
+          "sha256": "5d852db897fd7ad5ce640a6e88f1cd70eac75777c541d02d86749af8d4797ff1",
+          "family": "Spectral",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-Light.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-Light.ttf",
+          "size": 269312,
+          "sha256": "a2a530303d326473b69ab7863b879e9203ec747e51d5fa7c7b19e0e975e00740",
+          "family": "Spectral",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-Medium.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-Medium.ttf",
+          "size": 272920,
+          "sha256": "f385bc588599c879112272711d4acecc126674009d747a27284f59e93a240e83",
+          "family": "Spectral",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-Regular.ttf",
+          "size": 261088,
+          "sha256": "c89021dc20720c8d0dcf40b0b2f6e00c13665fa8041717f581396f51b8c78f5d",
+          "family": "Spectral",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "spectral-Spectral-SemiBold.ttf",
+          "cdn": "packs/google-fonts-5/v1/spectral/Spectral-SemiBold.ttf",
+          "size": 273068,
+          "sha256": "5f86915a744832ecf6e4a17ab04bea091b9fa992ef5164ff65ae34c1da2fe94b",
+          "family": "Spectral",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "syne-Syne-wght.ttf",
+          "cdn": "packs/google-fonts-5/v1/syne/Syne-wght.ttf",
+          "size": 146980,
+          "sha256": "ce5ac77142a65cab2248a1a2ebb740b1d4d9c20b52488877d3ff664d1356104a",
+          "family": "Syne",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-Black.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-Black.ttf",
+          "size": 59028,
+          "sha256": "da582a579d3200869535dc994d2349608a8582042f8776b3679b157015db287c",
+          "family": "Tajawal",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-Bold.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-Bold.ttf",
+          "size": 59988,
+          "sha256": "0342ab6b74b6bd1b4b5bf7beda45a9734a2b3147a31e8a3a45b6a3417a52d9d7",
+          "family": "Tajawal",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-ExtraBold.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-ExtraBold.ttf",
+          "size": 59648,
+          "sha256": "3d1298b747c22579f9e1bdeb0d4165064cb17f7e66145e2f43f9deb12ad7a2cf",
+          "family": "Tajawal",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-ExtraLight.ttf",
+          "size": 55784,
+          "sha256": "a12ffbfaaec30ab8142edc60fa4727b104a90eb54c6a200a76988a1ec2ec11dc",
+          "family": "Tajawal",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-Light.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-Light.ttf",
+          "size": 61864,
+          "sha256": "ab26ed3e0c5af2c71b469b5780decff8088d290ab91aa29b07321580136e813a",
+          "family": "Tajawal",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-Medium.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-Medium.ttf",
+          "size": 62280,
+          "sha256": "1ff8bd943a261c9dd7906bdb1993cab87b6d925a7fb5f848cdb51ed301531090",
+          "family": "Tajawal",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "tajawal-Tajawal-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/tajawal/Tajawal-Regular.ttf",
+          "size": 60364,
+          "sha256": "6882892da3e03527d5db2bbab3b48bde6ef2e878a43f522d1a4eebda90010a19",
+          "family": "Tajawal",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "titilliumweb-TitilliumWeb-Black.ttf",
+          "cdn": "packs/google-fonts-5/v1/titilliumweb/TitilliumWeb-Black.ttf",
+          "size": 49328,
+          "sha256": "6e064771c29aee4c79c9aebbd560db79faa71f4c1944ea27f12d82be8a04b1cb",
+          "family": "Titillium Web",
+          "weight": "900",
+          "style": "normal"
+        },
+        {
+          "name": "titilliumweb-TitilliumWeb-Bold.ttf",
+          "cdn": "packs/google-fonts-5/v1/titilliumweb/TitilliumWeb-Bold.ttf",
+          "size": 59884,
+          "sha256": "e2e8e1812041e2c5868f1d03ac24994312052c5381cca2e80748f08cb7e13093",
+          "family": "Titillium Web",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "titilliumweb-TitilliumWeb-ExtraLight.ttf",
+          "cdn": "packs/google-fonts-5/v1/titilliumweb/TitilliumWeb-ExtraLight.ttf",
+          "size": 63172,
+          "sha256": "38d310af66c015016c39455b0fde799d83980b844fd1f5d4c45ef558e6d700a2",
+          "family": "Titillium Web",
+          "weight": "200",
+          "style": "normal"
+        },
+        {
+          "name": "titilliumweb-TitilliumWeb-Light.ttf",
+          "cdn": "packs/google-fonts-5/v1/titilliumweb/TitilliumWeb-Light.ttf",
+          "size": 64004,
+          "sha256": "c9bbaf3fdb9cfcfa4a1b4e860f2c5ee32158e80b6b0f1160b40dda2c98037d10",
+          "family": "Titillium Web",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "titilliumweb-TitilliumWeb-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/titilliumweb/TitilliumWeb-Regular.ttf",
+          "size": 63660,
+          "sha256": "7b6b4452c65cc8b8522e92e7d4d4c2e6d7675341ceafd041bb6bd30297517ea5",
+          "family": "Titillium Web",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "titilliumweb-TitilliumWeb-SemiBold.ttf",
+          "cdn": "packs/google-fonts-5/v1/titilliumweb/TitilliumWeb-SemiBold.ttf",
+          "size": 63008,
+          "sha256": "7c92f15302d7ac1836015cb9cf4068796406667b304a061b75df8e11f1648c81",
+          "family": "Titillium Web",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "name": "unbounded-Unbounded-wght.ttf",
+          "cdn": "packs/google-fonts-5/v1/unbounded/Unbounded-wght.ttf",
+          "size": 778272,
+          "sha256": "323b511be380c8d474ef030686b71aedde501f8d9cd46da558b7c40454372c3f",
+          "family": "Unbounded",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "urbanist-Urbanist-wght.ttf",
+          "cdn": "packs/google-fonts-5/v1/urbanist/Urbanist-wght.ttf",
+          "size": 84840,
+          "sha256": "748362d51eb276840e9f0023cd2d98299bf709a95fb3a5ae4ffcb624c638ebb9",
+          "family": "Urbanist",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "varela-Varela-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/varela/Varela-Regular.ttf",
+          "size": 188240,
+          "sha256": "87cf0ddd50cd297cd6facfaac8bf59bf8d0b1a3b8b6619957ba08e72043d1896",
+          "family": "Varela",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "varelaround-VarelaRound-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/varelaround/VarelaRound-Regular.ttf",
+          "size": 132748,
+          "sha256": "e1e47eb66dbc2ddc106661338e712d9176c9e83c669a82fde155324823d03aa2",
+          "family": "Varela Round",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "vollkorn-Vollkorn-wght.ttf",
+          "cdn": "packs/google-fonts-5/v1/vollkorn/Vollkorn-wght.ttf",
+          "size": 577864,
+          "sha256": "4ebef434f76f80286204840354a84db79a0dc3c87deeeb791e015b70b2ade49d",
+          "family": "Vollkorn",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "worksans-WorkSans-wght.ttf",
+          "cdn": "packs/google-fonts-5/v1/worksans/WorkSans-wght.ttf",
+          "size": 361072,
+          "sha256": "f50f61f2ba738e239442d40bf1069adb195c224b6a5a73a581fc2f3ed62a9f63",
+          "family": "Work Sans",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "name": "zillaslab-ZillaSlab-Bold.ttf",
+          "cdn": "packs/google-fonts-5/v1/zillaslab/ZillaSlab-Bold.ttf",
+          "size": 273044,
+          "sha256": "4ec3a04a4eef37074b42ef542e4d874e13646668cfe65256e0bf100441cf8719",
+          "family": "Zilla Slab",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "zillaslab-ZillaSlab-Light.ttf",
+          "cdn": "packs/google-fonts-5/v1/zillaslab/ZillaSlab-Light.ttf",
+          "size": 265056,
+          "sha256": "4c3dfcd4a5bb71ee28b6c2ec8e8bfec720f619bc00e12a13a88f0f233af7f851",
+          "family": "Zilla Slab",
+          "weight": "300",
+          "style": "normal"
+        },
+        {
+          "name": "zillaslab-ZillaSlab-Medium.ttf",
+          "cdn": "packs/google-fonts-5/v1/zillaslab/ZillaSlab-Medium.ttf",
+          "size": 268184,
+          "sha256": "d344b0f60cd5fb2d34c4168d2811ba684163e5665e20cccbcfb6ac822d84a500",
+          "family": "Zilla Slab",
+          "weight": "500",
+          "style": "normal"
+        },
+        {
+          "name": "zillaslab-ZillaSlab-Regular.ttf",
+          "cdn": "packs/google-fonts-5/v1/zillaslab/ZillaSlab-Regular.ttf",
+          "size": 270104,
+          "sha256": "41a4626844da9216b031308d4423045c765fe4231d99862d85d7d74509d37703",
+          "family": "Zilla Slab",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "name": "zillaslab-ZillaSlab-SemiBold.ttf",
+          "cdn": "packs/google-fonts-5/v1/zillaslab/ZillaSlab-SemiBold.ttf",
+          "size": 270088,
+          "sha256": "aafcb295b88d520357db1ecf9a1c3167055e87e9ddf5f63e560cbd139ec2805e",
+          "family": "Zilla Slab",
+          "weight": "600",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-sans",
+      "name": "Latin, Greek and Cyrillic (Noto Sans)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Latin, Greek and Cyrillic (Noto Sans) for Russian, Ukrainian, Greek, Vietnamese, Polish, Turkish and other Latin, Greek and Cyrillic languages. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 1253056,
+      "files": [
+        {
+          "name": "NotoSans-Bold.ttf",
+          "cdn": "packs/noto-sans/v1/NotoSans-Bold.ttf",
+          "size": 631484,
+          "sha256": "1df075a380fc7cb898acf64c1f7b3b4dd780de3caa860178bf929de35817a913",
+          "family": "Noto Sans",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSans-Regular.ttf",
+          "cdn": "packs/noto-sans/v1/NotoSans-Regular.ttf",
+          "size": 621572,
+          "sha256": "478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823",
+          "family": "Noto Sans",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-arabic",
+      "name": "Arabic (Noto Sans Arabic)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Arabic (Noto Sans Arabic) for Arabic, Persian, Urdu and other languages written in Arabic script. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 496352,
+      "files": [
+        {
+          "name": "NotoSansArabic-Bold.ttf",
+          "cdn": "packs/noto-arabic/v1/NotoSansArabic-Bold.ttf",
+          "size": 261460,
+          "sha256": "4e5462d2e8be880317b9f49b5b2da109ddb6a3563d91cc604b67f3535832a555",
+          "family": "Noto Sans Arabic",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansArabic-Regular.ttf",
+          "cdn": "packs/noto-arabic/v1/NotoSansArabic-Regular.ttf",
+          "size": 234892,
+          "sha256": "bdff3e5659d67e67def05b33f749683b9376ae819d65d3dd62ac4640b3aaef48",
+          "family": "Noto Sans Arabic",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-hebrew",
+      "name": "Hebrew (Noto Sans Hebrew)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Hebrew (Noto Sans Hebrew) for Hebrew and Yiddish. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 53720,
+      "files": [
+        {
+          "name": "NotoSansHebrew-Bold.ttf",
+          "cdn": "packs/noto-hebrew/v1/NotoSansHebrew-Bold.ttf",
+          "size": 26860,
+          "sha256": "da9226e886c245a7e11673c24dec82bded64d8574c1e1f03983bf89297d2aaa8",
+          "family": "Noto Sans Hebrew",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansHebrew-Regular.ttf",
+          "cdn": "packs/noto-hebrew/v1/NotoSansHebrew-Regular.ttf",
+          "size": 26860,
+          "sha256": "cdefaf8efd47045f6820928eba84db5bed7557539328952b5f828315485e02ee",
+          "family": "Noto Sans Hebrew",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-devanagari",
+      "name": "Devanagari (Noto Sans Devanagari)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Devanagari (Noto Sans Devanagari) for Hindi, Marathi, Nepali and Sanskrit. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 493696,
+      "files": [
+        {
+          "name": "NotoSansDevanagari-Bold.ttf",
+          "cdn": "packs/noto-devanagari/v1/NotoSansDevanagari-Bold.ttf",
+          "size": 250176,
+          "sha256": "6a09c8d797cfc803d32cdc731e809424d74cbaff59f503de34ade421a08e5bc2",
+          "family": "Noto Sans Devanagari",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansDevanagari-Regular.ttf",
+          "cdn": "packs/noto-devanagari/v1/NotoSansDevanagari-Regular.ttf",
+          "size": 243520,
+          "sha256": "4e3c66638958c3e2ab5d37f47a8deb89fffeb7be9985c665a519bbc7ba762313",
+          "family": "Noto Sans Devanagari",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-bengali",
+      "name": "Bengali (Noto Sans Bengali)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Bengali (Noto Sans Bengali) for Bengali and Assamese. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 287900,
+      "files": [
+        {
+          "name": "NotoSansBengali-Bold.ttf",
+          "cdn": "packs/noto-bengali/v1/NotoSansBengali-Bold.ttf",
+          "size": 144828,
+          "sha256": "923c6a4c2eb618a57ed83f4bca855b4f5287b87906a4d9df40a2ffa8ebd8c2e8",
+          "family": "Noto Sans Bengali",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansBengali-Regular.ttf",
+          "cdn": "packs/noto-bengali/v1/NotoSansBengali-Regular.ttf",
+          "size": 143072,
+          "sha256": "b55c62ee531e3214da6c0701daecea89a52ba42db7d8206b92e6b51f397a3193",
+          "family": "Noto Sans Bengali",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-tamil",
+      "name": "Tamil (Noto Sans Tamil)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Tamil (Noto Sans Tamil) for Tamil. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 151168,
+      "files": [
+        {
+          "name": "NotoSansTamil-Bold.ttf",
+          "cdn": "packs/noto-tamil/v1/NotoSansTamil-Bold.ttf",
+          "size": 77176,
+          "sha256": "683682d585698b8b44da066d4903762d8aaa471bdffb919ac869753689ba3950",
+          "family": "Noto Sans Tamil",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansTamil-Regular.ttf",
+          "cdn": "packs/noto-tamil/v1/NotoSansTamil-Regular.ttf",
+          "size": 73992,
+          "sha256": "3c0a186feb3c63c7f6d63e1511dcdc144e745ae09b98e217c83f3e317974f6f9",
+          "family": "Noto Sans Tamil",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-telugu",
+      "name": "Telugu (Noto Sans Telugu)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Telugu (Noto Sans Telugu) for Telugu. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 478588,
+      "files": [
+        {
+          "name": "NotoSansTelugu-Bold.ttf",
+          "cdn": "packs/noto-telugu/v1/NotoSansTelugu-Bold.ttf",
+          "size": 243412,
+          "sha256": "ec98c4f82abfe52ebe00be298d39c469deb86cf027929987759ba1eab361fbb4",
+          "family": "Noto Sans Telugu",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansTelugu-Regular.ttf",
+          "cdn": "packs/noto-telugu/v1/NotoSansTelugu-Regular.ttf",
+          "size": 235176,
+          "sha256": "b274780b69d1d23fe84b55e809a152cb2ac5306d33864b1f87622f6971871aae",
+          "family": "Noto Sans Telugu",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-kannada",
+      "name": "Kannada (Noto Sans Kannada)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Kannada (Noto Sans Kannada) for Kannada. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 369624,
+      "files": [
+        {
+          "name": "NotoSansKannada-Bold.ttf",
+          "cdn": "packs/noto-kannada/v1/NotoSansKannada-Bold.ttf",
+          "size": 187208,
+          "sha256": "3db1507b3f856185fc7c00dc0addfd4797a8ea6955b86d1d21fa659cc9d5e849",
+          "family": "Noto Sans Kannada",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansKannada-Regular.ttf",
+          "cdn": "packs/noto-kannada/v1/NotoSansKannada-Regular.ttf",
+          "size": 182416,
+          "sha256": "9ad74dc64838c6855b96f671fc08e425a58921b9d0c71712ea79c328a27e6e38",
+          "family": "Noto Sans Kannada",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-malayalam",
+      "name": "Malayalam (Noto Sans Malayalam)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Malayalam (Noto Sans Malayalam) for Malayalam. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 231416,
+      "files": [
+        {
+          "name": "NotoSansMalayalam-Bold.ttf",
+          "cdn": "packs/noto-malayalam/v1/NotoSansMalayalam-Bold.ttf",
+          "size": 118480,
+          "sha256": "d5c52d4fdf019feb21cdb748573308fa5fdd94a81d5bc71c603c076207039590",
+          "family": "Noto Sans Malayalam",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansMalayalam-Regular.ttf",
+          "cdn": "packs/noto-malayalam/v1/NotoSansMalayalam-Regular.ttf",
+          "size": 112936,
+          "sha256": "c08de7fa8d032a5d6a4d120fb82c78cec60b362a4e73fa26360d89759ff2a7f9",
+          "family": "Noto Sans Malayalam",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-gujarati",
+      "name": "Gujarati (Noto Sans Gujarati)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Gujarati (Noto Sans Gujarati) for Gujarati. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 401736,
+      "files": [
+        {
+          "name": "NotoSansGujarati-Bold.ttf",
+          "cdn": "packs/noto-gujarati/v1/NotoSansGujarati-Bold.ttf",
+          "size": 201032,
+          "sha256": "7c1da9cad53f83804a330bad413b015987f4b6520da54263b0e39b7b8736525b",
+          "family": "Noto Sans Gujarati",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansGujarati-Regular.ttf",
+          "cdn": "packs/noto-gujarati/v1/NotoSansGujarati-Regular.ttf",
+          "size": 200704,
+          "sha256": "9b5a7aaeeb649a2e75a49d8b006a1f87db1b61c0df3b001609f4e0725d88dbf6",
+          "family": "Noto Sans Gujarati",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-gurmukhi",
+      "name": "Gurmukhi (Noto Sans Gurmukhi)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Gurmukhi (Noto Sans Gurmukhi) for Punjabi. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 110260,
+      "files": [
+        {
+          "name": "NotoSansGurmukhi-Bold.ttf",
+          "cdn": "packs/noto-gurmukhi/v1/NotoSansGurmukhi-Bold.ttf",
+          "size": 55088,
+          "sha256": "4f1bb4b1a05a0ebe1520678132a9448fce8f1741552c5292d7df7a7786d2c956",
+          "family": "Noto Sans Gurmukhi",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansGurmukhi-Regular.ttf",
+          "cdn": "packs/noto-gurmukhi/v1/NotoSansGurmukhi-Regular.ttf",
+          "size": 55172,
+          "sha256": "658d0207da305a1411c539a8b0bbeda64d4146e54fb4827facddb890b6b90d74",
+          "family": "Noto Sans Gurmukhi",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-oriya",
+      "name": "Odia (Noto Sans Oriya)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Odia (Noto Sans Oriya) for Odia. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 261320,
+      "files": [
+        {
+          "name": "NotoSansOriya-Bold.ttf",
+          "cdn": "packs/noto-oriya/v1/NotoSansOriya-Bold.ttf",
+          "size": 130104,
+          "sha256": "1c575e8aba40d6baf200e8abac534e9517f431d38cc8131715643037eec149da",
+          "family": "Noto Sans Oriya",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansOriya-Regular.ttf",
+          "cdn": "packs/noto-oriya/v1/NotoSansOriya-Regular.ttf",
+          "size": 131216,
+          "sha256": "a16645d056017927406546aa78e4ce15e782fd8783467267b75450453d007415",
+          "family": "Noto Sans Oriya",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-sinhala",
+      "name": "Sinhala (Noto Sans Sinhala)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Sinhala (Noto Sans Sinhala) for Sinhala. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 347888,
+      "files": [
+        {
+          "name": "NotoSansSinhala-Bold.ttf",
+          "cdn": "packs/noto-sinhala/v1/NotoSansSinhala-Bold.ttf",
+          "size": 192976,
+          "sha256": "e1f8867effb18940b02173a120641e526e5aaa8efc176870e62b2d49b1e6fd3f",
+          "family": "Noto Sans Sinhala",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansSinhala-Regular.ttf",
+          "cdn": "packs/noto-sinhala/v1/NotoSansSinhala-Regular.ttf",
+          "size": 154912,
+          "sha256": "9e32612d47004552f3125e78648a9e2e7899a216ccd3cefbb93a9b5f4c809feb",
+          "family": "Noto Sans Sinhala",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-thai",
+      "name": "Thai (Noto Sans Thai)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Thai (Noto Sans Thai) for Thai. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 75604,
+      "files": [
+        {
+          "name": "NotoSansThai-Bold.ttf",
+          "cdn": "packs/noto-thai/v1/NotoSansThai-Bold.ttf",
+          "size": 37824,
+          "sha256": "2ac6c6e8a478e23b15f76e4894af1fa2210f8f350e4e6e54aad530bec03efbfb",
+          "family": "Noto Sans Thai",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansThai-Regular.ttf",
+          "cdn": "packs/noto-thai/v1/NotoSansThai-Regular.ttf",
+          "size": 37780,
+          "sha256": "61cf814eec46b294d6ea4401ac295d0cecd5207bd2331dcc5a15e7301d30ee44",
+          "family": "Noto Sans Thai",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-lao",
+      "name": "Lao (Noto Sans Lao)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Lao (Noto Sans Lao) for Lao. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 73136,
+      "files": [
+        {
+          "name": "NotoSansLao-Bold.ttf",
+          "cdn": "packs/noto-lao/v1/NotoSansLao-Bold.ttf",
+          "size": 37252,
+          "sha256": "18e3bf1443320fa807f9b85a9971d2bc3efe28b41bb96f75fde2096acb316709",
+          "family": "Noto Sans Lao",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansLao-Regular.ttf",
+          "cdn": "packs/noto-lao/v1/NotoSansLao-Regular.ttf",
+          "size": 35884,
+          "sha256": "0a86e5e1ccfe34ca78c43fac6829dc751b42bcc469272a9a55325aae587bfbe7",
+          "family": "Noto Sans Lao",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-khmer",
+      "name": "Khmer (Noto Sans Khmer)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Khmer (Noto Sans Khmer) for Khmer. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 228316,
+      "files": [
+        {
+          "name": "NotoSansKhmer-Bold.ttf",
+          "cdn": "packs/noto-khmer/v1/NotoSansKhmer-Bold.ttf",
+          "size": 113740,
+          "sha256": "17e5bb518c0ea3d998d42bf920d0771a79dc6f3c12c5d9f3c122c7e6c8ce3076",
+          "family": "Noto Sans Khmer",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansKhmer-Regular.ttf",
+          "cdn": "packs/noto-khmer/v1/NotoSansKhmer-Regular.ttf",
+          "size": 114576,
+          "sha256": "e66675f2082788f0511a714bef5a1748928294b38c8e286a96ea73a864b5e605",
+          "family": "Noto Sans Khmer",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-myanmar",
+      "name": "Myanmar (Noto Sans Myanmar)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Myanmar (Noto Sans Myanmar) for Burmese. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 403848,
+      "files": [
+        {
+          "name": "NotoSansMyanmar-Bold.ttf",
+          "cdn": "packs/noto-myanmar/v1/NotoSansMyanmar-Bold.ttf",
+          "size": 208760,
+          "sha256": "99a8c6768416747653232ded39292e789ca579f4272adfb2886f6aa219d20302",
+          "family": "Noto Sans Myanmar",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansMyanmar-Regular.ttf",
+          "cdn": "packs/noto-myanmar/v1/NotoSansMyanmar-Regular.ttf",
+          "size": 195088,
+          "sha256": "fafce4db400bc0b214907ccdbfb0ad2f18a57bfefd08c8a571830b84088cf2fc",
+          "family": "Noto Sans Myanmar",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-georgian",
+      "name": "Georgian (Noto Sans Georgian)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Georgian (Noto Sans Georgian) for Georgian. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 107636,
+      "files": [
+        {
+          "name": "NotoSansGeorgian-Bold.ttf",
+          "cdn": "packs/noto-georgian/v1/NotoSansGeorgian-Bold.ttf",
+          "size": 54748,
+          "sha256": "a7f6bc365b7c33372e9ff0b0422f35dad52df501a8fcd4e8766cefa430508693",
+          "family": "Noto Sans Georgian",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansGeorgian-Regular.ttf",
+          "cdn": "packs/noto-georgian/v1/NotoSansGeorgian-Regular.ttf",
+          "size": 52888,
+          "sha256": "d3e33254b09e7bb2c5cf0f17e554b80462056c5a107097f258d495168c3a9346",
+          "family": "Noto Sans Georgian",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-armenian",
+      "name": "Armenian (Noto Sans Armenian)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Armenian (Noto Sans Armenian) for Armenian. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 61536,
+      "files": [
+        {
+          "name": "NotoSansArmenian-Bold.ttf",
+          "cdn": "packs/noto-armenian/v1/NotoSansArmenian-Bold.ttf",
+          "size": 30784,
+          "sha256": "58e4529f7f44d1fcfbd5d81d446b656f1230267ebfa96f8006956f18fbe4bbe2",
+          "family": "Noto Sans Armenian",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansArmenian-Regular.ttf",
+          "cdn": "packs/noto-armenian/v1/NotoSansArmenian-Regular.ttf",
+          "size": 30752,
+          "sha256": "720df88c332417a235b4d6209d14ec2e2bf4bfe2a954b7453d869ea593bfce1e",
+          "family": "Noto Sans Armenian",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-ethiopic",
+      "name": "Ethiopic (Noto Sans Ethiopic)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Ethiopic (Noto Sans Ethiopic) for Amharic and Tigrinya. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 751976,
+      "files": [
+        {
+          "name": "NotoSansEthiopic-Bold.ttf",
+          "cdn": "packs/noto-ethiopic/v1/NotoSansEthiopic-Bold.ttf",
+          "size": 375172,
+          "sha256": "b45f16db963a94ccb6590b65d3b0e48f55cde011f7c0d4f3c00531e6b8500d6f",
+          "family": "Noto Sans Ethiopic",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansEthiopic-Regular.ttf",
+          "cdn": "packs/noto-ethiopic/v1/NotoSansEthiopic-Regular.ttf",
+          "size": 376804,
+          "sha256": "f6f7fc379db9438959a2b0527e7a2cf36ea9c84626d56ec444fff37fc24c3c10",
+          "family": "Noto Sans Ethiopic",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-tibetan",
+      "name": "Tibetan (Noto Serif Tibetan)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Tibetan (Noto Serif Tibetan) for Tibetan and Dzongkha. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 1212056,
+      "files": [
+        {
+          "name": "NotoSerifTibetan-Bold.ttf",
+          "cdn": "packs/noto-tibetan/v1/NotoSerifTibetan-Bold.ttf",
+          "size": 602368,
+          "sha256": "1e8ca12dff8bf6adee21f5b0a6ba827fc2f9b3c515655983438371d1275e1d53",
+          "family": "Noto Serif Tibetan",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSerifTibetan-Regular.ttf",
+          "cdn": "packs/noto-tibetan/v1/NotoSerifTibetan-Regular.ttf",
+          "size": 609688,
+          "sha256": "ee97bf3dc56e813651db734c9f35f8f1d41e7e31acf5f7d893e64ad22b292446",
+          "family": "Noto Serif Tibetan",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-thaana",
+      "name": "Thaana (Noto Sans Thaana)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Thaana (Noto Sans Thaana) for Dhivehi. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 54308,
+      "files": [
+        {
+          "name": "NotoSansThaana-Bold.ttf",
+          "cdn": "packs/noto-thaana/v1/NotoSansThaana-Bold.ttf",
+          "size": 27000,
+          "sha256": "476597290f449013cb07477b1089219db333c6af9ec0e436a74139ea9b2c8536",
+          "family": "Noto Sans Thaana",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansThaana-Regular.ttf",
+          "cdn": "packs/noto-thaana/v1/NotoSansThaana-Regular.ttf",
+          "size": 27308,
+          "sha256": "7543935bdcef770c9d3dd54222651b29040e5ec82f3bc58542392b2c7a9cbd3c",
+          "family": "Noto Sans Thaana",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-mongolian",
+      "name": "Mongolian (Noto Sans Mongolian)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Mongolian (Noto Sans Mongolian) for Mongolian in traditional script. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 360756,
+      "files": [
+        {
+          "name": "NotoSansMongolian-Regular.ttf",
+          "cdn": "packs/noto-mongolian/v1/NotoSansMongolian-Regular.ttf",
+          "size": 360756,
+          "sha256": "10f9066fe5cedcaa41c17d471bcadc7fb22880ce81ff2c06578671768ff44fbb",
+          "family": "Noto Sans Mongolian",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-cherokee",
+      "name": "Cherokee (Noto Sans Cherokee)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Cherokee (Noto Sans Cherokee) for Cherokee. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 203280,
+      "files": [
+        {
+          "name": "NotoSansCherokee-Bold.ttf",
+          "cdn": "packs/noto-cherokee/v1/NotoSansCherokee-Bold.ttf",
+          "size": 108548,
+          "sha256": "5d60c5479b6e9af2f9fa6ede6ebeba471dd8c391333bcca91c2f9d0903279c6c",
+          "family": "Noto Sans Cherokee",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansCherokee-Regular.ttf",
+          "cdn": "packs/noto-cherokee/v1/NotoSansCherokee-Regular.ttf",
+          "size": 94732,
+          "sha256": "c052352137ae8d283840a0e2991a675d47859d8fdbae5726d373d4f0d97a8c87",
+          "family": "Noto Sans Cherokee",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-sc",
+      "name": "Chinese, simplified (Noto Sans SC)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Chinese, simplified (Noto Sans SC) for Simplified Chinese. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 16874504,
+      "files": [
+        {
+          "name": "NotoSansSC-Bold.otf",
+          "cdn": "packs/noto-sc/v1/NotoSansSC-Bold.otf",
+          "size": 8543168,
+          "sha256": "c6cb5a93abaa9edc8ee7463b7ebb7f42d618d40e6ed2f7a5371c97b0b64767c0",
+          "family": "Noto Sans SC",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansSC-Regular.otf",
+          "cdn": "packs/noto-sc/v1/NotoSansSC-Regular.otf",
+          "size": 8331336,
+          "sha256": "faa6c9df652116dde789d351359f3d7e5d2285a2b2a1f04a2d7244df706d5ea9",
+          "family": "Noto Sans SC",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-tc",
+      "name": "Chinese, traditional (Noto Sans TC)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Chinese, traditional (Noto Sans TC) for Traditional Chinese. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 11523340,
+      "files": [
+        {
+          "name": "NotoSansTC-Bold.otf",
+          "cdn": "packs/noto-tc/v1/NotoSansTC-Bold.otf",
+          "size": 5839972,
+          "sha256": "55420b259eb119bf5f2a0aadba10cf9d736c12d64ab93e78546d69ef5f43558b",
+          "family": "Noto Sans TC",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansTC-Regular.otf",
+          "cdn": "packs/noto-tc/v1/NotoSansTC-Regular.otf",
+          "size": 5683368,
+          "sha256": "5bab0cb3c1cf89dde07c4a95a4054b195afbcfe784d69d75c340780712237537",
+          "family": "Noto Sans TC",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-jp",
+      "name": "Japanese (Noto Sans JP)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Japanese (Noto Sans JP) for Japanese. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 9189476,
+      "files": [
+        {
+          "name": "NotoSansJP-Bold.otf",
+          "cdn": "packs/noto-jp/v1/NotoSansJP-Bold.otf",
+          "size": 4656448,
+          "sha256": "1b0edfb500b73a4fa8a4fcaae1bbbd403994e08e73e3e0da37e70d3853f42c5f",
+          "family": "Noto Sans JP",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansJP-Regular.otf",
+          "cdn": "packs/noto-jp/v1/NotoSansJP-Regular.otf",
+          "size": 4533028,
+          "sha256": "dff723ba59d57d136764a04b9b2d03205544f7cd785a711442d6d2d085ac5073",
+          "family": "Noto Sans JP",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    },
+    {
+      "id": "noto-kr",
+      "name": "Korean (Noto Sans KR)",
+      "licence": "OFL-1.1",
+      "licenceUrl": "https://openfontlicense.org",
+      "group": "language",
+      "description": "Korean (Noto Sans KR) for Korean. From the Noto project (SIL Open Font License 1.1). Used to write this script in PDFs and other files.",
+      "size": 9460792,
+      "files": [
+        {
+          "name": "NotoSansKR-Bold.otf",
+          "cdn": "packs/noto-kr/v1/NotoSansKR-Bold.otf",
+          "size": 4816044,
+          "sha256": "5a6ceb287ed2fc6cfc6213144ebea68cbd94b20fc9eb873d8486493bf02d9bda",
+          "family": "Noto Sans KR",
+          "weight": "700",
+          "style": "normal"
+        },
+        {
+          "name": "NotoSansKR-Regular.otf",
+          "cdn": "packs/noto-kr/v1/NotoSansKR-Regular.otf",
+          "size": 4644748,
+          "sha256": "69975a0ac8472717870aefeab0a4d52739308d90856b9955313b2ad5e0148d68",
+          "family": "Noto Sans KR",
+          "weight": "400",
+          "style": "normal"
+        }
+      ]
+    }
+  ]
+}

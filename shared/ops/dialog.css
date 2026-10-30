@@ -1,0 +1,17 @@
+/* The workflow dialog (shared/ops/dialog.js): a SlopUI dialog sized for Slop Workflows' tool (workflows/css/tool.css and
+ * steps.css, every rule under .wf-tool), which takes the dialog's colours (the app's theme, through the --s-* tokens SlopUI
+ * sets) instead of the page's. Large on wide screens, the whole screen on phones. */
+.sui-dlg.sl-wf-dlg { width: min(1080px, 100%); height: min(820px, calc(100vh - 32px)); max-height: calc(100dvh - 32px); }
+.sl-wf-dlg .sui-body { flex: 1; min-height: 0; padding: 0; overflow: auto; overscroll-behavior: contain; }
+.sl-wf { display: flex; flex-direction: column; min-height: 100%; }
+.sl-wf-host { flex: 1 1 auto; display: flex; min-height: 0; }
+.sl-wf-host > .wf-tool { flex: 1 1 auto; }
+.sui-dlg.sl-wf-dlg .wf-tool { --wf-bg: var(--s-bg, #111); --wf-surface: var(--s-bg2, #1a1a1d); --wf-text: var(--s-fg, #eee); --wf-line: var(--s-line, #555);
+  --wf-accent: var(--s-accent, #d4ff3a); --wf-on-accent: var(--s-accent-ink, #000); font: 14px/1.45 var(--s-font, system-ui, sans-serif); }
+.sl-wf-from { margin: 12px 16px 0; padding: 8px 12px; font: 600 13px/1.4 var(--s-font, system-ui); color: var(--s-fg); background: var(--s-sel, transparent);
+  border: 1px solid var(--s-line); border-radius: 8px; overflow-wrap: anywhere; }
+.sl-wf-from[hidden] { display: none; }
+.sl-wf-foot { margin: 0; padding: 6px 16px 10px; font: 12px/1.4 var(--s-font, system-ui); color: var(--s-dim, #999); }
+@media (max-width: 640px) {
+  .sui-dlg.sl-wf-dlg { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+}

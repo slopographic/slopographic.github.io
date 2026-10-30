@@ -1,0 +1,35 @@
+/* Slop PDF — comments (popups and the Comments list), watermark layers and callouts. New styles use --sl-* tokens with fallbacks. */
+.note-pop { position: absolute; z-index: 5; width: 260px; max-width: 70vw; pointer-events: auto; box-sizing: border-box; padding: 10px; border-radius: 8px;
+  background: var(--sl-surface, #fff); color: var(--sl-text, #111); border: 1px solid var(--sl-border, #8a8a8a); box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+  font: 13px/1.4 var(--sl-font, system-ui, sans-serif); text-align: left; }
+.note-pop.np-preview { pointer-events: none; width: 220px; }
+.np-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.np-head b { font-weight: 600; }
+.np-head time { color: var(--sl-muted, #666); font-size: 11px; }
+.np-badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--sl-accent-soft, #e6f4d7); }
+.np-x { margin-left: auto; border: 0; background: none; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.np-text { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.np-replies { list-style: none; margin: 0 0 6px; padding: 6px 0 0; border-top: 1px solid var(--sl-border, #ddd); max-height: 160px; overflow: auto; }
+.np-replies li { margin-bottom: 6px; }
+.np-replies p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.np-replies time { color: var(--sl-muted, #666); font-size: 11px; }
+.np-field { display: flex; flex-direction: column; gap: 2px; font-size: 11px; margin-bottom: 6px; }
+.np-input { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: var(--sl-input, #fff); border: 1px solid var(--sl-border, #999); border-radius: 6px; padding: 5px 7px; margin-bottom: 6px; }
+.np-input[rows] { resize: vertical; }
+.np-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.cm-filter { margin-bottom: 8px; }
+.cm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cm-item { width: 100%; text-align: left; font: inherit; color: inherit; background: transparent; border: 1px solid var(--sl-border, #bbb); border-radius: 8px; padding: 7px 9px; cursor: pointer; }
+.cm-item.is-resolved { opacity: .6; }
+.cm-item b { font-weight: 600; }
+.cm-item span { display: block; font-size: 12px; color: var(--sl-muted, #666); }
+.cm-item p { margin: 3px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.wm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.wm-row { display: flex; align-items: center; gap: 6px; }
+.wm-row.hidden-layer .wm-item { opacity: .5; }
+.wm-item { flex: 1; min-width: 0; text-align: left; font: inherit; color: inherit; background: transparent; border: 1px solid var(--sl-border, #bbb); border-radius: 6px; padding: 5px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-item.on { border-color: var(--sl-accent, #6a4cff); box-shadow: inset 0 0 0 1px var(--sl-accent, #6a4cff); }
+.wm-meta { font-size: 11px; color: var(--sl-muted, #666); white-space: nowrap; }
+.wm-empty { font-size: 12px; color: var(--sl-muted, #666); }
+.wm-anchor { margin: 4px 0; }
+.wm-stack { margin-top: 8px; }

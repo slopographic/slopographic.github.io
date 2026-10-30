@@ -1,0 +1,20 @@
+/* Slop AI shared words, Korean: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'ui.ai.cloud.or_signin': '{name}(으)로 로그인',
+  'ui.ai.cloud.or_note': '아직 키가 없나요? 로그인하면 {name}에서 이 브라우저용 키를 만들어 주며, 요금은 본인의 {name} 크레딧에서 나갑니다. {link}에서 한도를 정하거나 취소할 수 있습니다.',
+  'ui.ai.cloud.or_privacy': '로그인은 이 브라우저에서 {name}(으)로 바로 이루어지며, {brand} 서버를 거치지 않습니다.',
+  'ui.ai.cloud.or_manage': '로그인이나 직접 만든 {name} 키는 {link}에서 한도를 정하거나 취소할 수 있습니다. 키 지우기는 이 브라우저에서만 키를 없앱니다.',
+  'ui.ai.cloud.or_going': '{name} 여는 중…',
+  'ui.ai.cloud.or_finishing': '{name} 로그인 마무리 중…',
+  'ui.ai.cloud.or_done': '{name}(으)로 로그인했습니다. 이 브라우저용 키는 붙여 넣은 키와 똑같이 저장되었습니다.',
+  'ui.ai.cloud.or_denied': '{name}에서 접근을 허용하지 않아 아무것도 연결되지 않았습니다. {name}(으)로 로그인을 눌러 다시 시도하거나 키를 붙여 넣으세요.',
+  'ui.ai.cloud.or_state': '이 로그인은 이 탭에서 시작되지 않아 계정 보호를 위해 거부되었습니다. {name}(으)로 로그인을 눌러 처음부터 다시 시작하세요.',
+  'ui.ai.cloud.or_used': '이 로그인 코드는 이미 사용되었거나 만료되었습니다(코드는 10분간 유효). {name}(으)로 로그인을 눌러 처음부터 다시 시작하세요.',
+  'ui.ai.cloud.or_failed': '{name}에서 키를 받지 못했습니다({why}). {name}(으)로 로그인을 눌러 다시 시도하거나 키를 붙여 넣으세요.',
+  'ui.ai.cloud.or_offline': '브라우저가 오프라인이라 로그인을 마치지 못했습니다. 인터넷에 연결한 뒤 {name}(으)로 로그인을 다시 누르세요.',
+  'ui.ai.cloud.or_network': '로그인을 마치려 했지만 {name}에 연결할 수 없었습니다. 연결을 확인한 뒤 {name}(으)로 로그인을 다시 누르세요.',
+  'ui.ai.cloud.or_no_crypto': '이 브라우저는 여기서 {name}(으)로 로그인할 수 없습니다(https 페이지의 Web Crypto가 필요). 대신 키를 붙여 넣으세요.',
+  'ui.ai.cloud.or_key_label': '이 브라우저의 {brand}',
+  'ui.ai.cloud.or_badge': '로그인',
+  'ui.ai.cloud.or_badge_t': '복사할 키가 없어도 됩니다: {name} 계정으로 로그인하면 이 브라우저용 키가 만들어집니다.',
+});

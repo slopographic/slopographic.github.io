@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business · getting started (SlopBiz.setup): the steps from the shared data</title>
+  <!-- Covers: shared/biz/setup.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../shared/biz/setup.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const B = window.SlopBiz.setup, S = window.SlopData;
+  const doneIds = (list) => list.filter((x) => x.done).map((x) => x.id);
+
+  describe('getting started', () => {
+    it('steps: nothing done at first; each count ticks its step; a quote or an invoice both count as selling', () => {
+      expect(doneIds(B.steps({}, {}))).toEqual([]);
+      expect(doneIds(B.steps({ companyName: '  ' }, {}))).toEqual([]);
+      expect(doneIds(B.steps({ companyName: 'Acme' }, { customers: 1, quotes: 1 }))).toEqual(['company', 'customer', 'sell']);
+      expect(doneIds(B.steps({}, { invoices: 2, products: 1, expenses: 3 }))).toEqual(['product', 'sell', 'spend']);
+      expect(B.steps({}, {}).map((x) => x.href)).toEqual(['admin/#company', 'crm/', 'inventory/#products', 'invoices/#new', 'expenses/#new']);
+    });
+    it('load: reads the shared data; a supplier is not a customer', async () => {
+      await S.store.erase(); await S.store.ready();
+      let r = await B.load();
+      expect([r.value.done, r.value.total]).toEqual([0, 5]);
+      await S.store.put('customers', { name: 'Parts Co', stage: 'customer', supplier: true });
+      r = await B.load();
+      expect(r.value.done).toBe(0);
+      await S.store.put('customers', { name: 'Ada', stage: 'customer' });
+      r = await B.load();
+      expect(doneIds(r.value.steps)).toEqual(['customer']);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF · workspace tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; } #app2 { width: 640px; height: 400px; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; tests drive window.SP inside it. The Slop PDF specs are split over four
+       pages (pdf, pdf-view, pdf-text, pdf-workspace) so they run in parallel; this one: split view, steps, paste, layers, drop, sidebar, Drive, fonts dialog, Office, routes. -->
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <!-- the specs of this page expect the app booted, as the specs before them did when they shared one page -->
+  <script>SlopTest.describe('setup', () => SlopTest.it('boots the app', () => PT.boot(), { timeout: 60000 }));</script>
+  <script src="pdf.spec-panes.js"></script>
+  <script src="pdf.spec-step.js"></script>
+  <script src="pdf.spec-paste-image.js"></script>
+  <script src="pdf.spec-layers-scope.js"></script>
+  <script src="pdf.spec-drop.js"></script>
+  <script src="pdf.spec-layers.js"></script>
+  <script src="pdf.spec-lock-text.js"></script>
+  <script src="pdf.spec-sidebar.js"></script>
+  <script src="pdf.spec-drive-docs.js"></script>
+  <script src="pdf.spec-fonts-dialog.js"></script>
+  <script src="pdf.spec-office.js"></script>
+  <script src="pdf.spec-route.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF · workspace' });</script>
+</body>
+</html>

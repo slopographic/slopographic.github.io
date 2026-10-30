@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; tests drive its globals directly. -->
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="context-menus.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, pixel } = SlopTest;
+  let W; // the app's global scope (incl. top-level const/let), via a proxy over the iframe's eval
+  const solid = (w, h, color) => { const c = W.mkCanvas(w, h), g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, w, h); return c; };
+
+  describe('boot', () => {
+    it('loads with a document, tools and panels', async () => {
+      const win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(W.D.layers.length).toBeGreaterThan(0);
+      expect(W.TOOLS.length).toBeGreaterThanOrEqual(23);
+      expect(W.document.title).toContain('PhotoSlop');
+      expect(W.document.querySelectorAll('.panel').length).toBeGreaterThanOrEqual(5);
+    }, { timeout: 40000 });
+  });
+
+  describe('util', () => {
+    it('converts colours both ways', () => {
+      expect(W.hexToRgb('#2a7fd1')).toEqual([42, 127, 209]);
+      expect(W.rgbToHex(42, 127, 209)).toBe('#2a7fd1');
+      const [h, s, v] = W.rgbToHsv(255, 0, 0); expect(h).toBe(0); expect(s).toBe(1); expect(v).toBe(1);
+      const back = W.hslToRgb(...W.rgbToHsl(30, 120, 200)).map(Math.round); expect(back).toEqual([30, 120, 200]);
+    });
+    it('PackBits round-trips runs and literals', () => {
+      const src = new Uint8Array([1, 1, 1, 1, 2, 3, 4, 5, 5, 5, 9, 0, 0, 0, 0, 0, 0, 0, 7]);
+      const out = []; W.packBits(src, 0, src.length, out);
+      const dst = new Uint8Array(src.length); W.unpackBits(Uint8Array.from(out), 0, out.length, dst, 0, src.length);
+      expect([...dst]).toEqual([...src]);
+      expect(out.length).toBeLessThan(src.length);
+    });
+    it('finds alpha bounds', () => {
+      const c = W.mkCanvas(50, 40); c.getContext('2d').fillRect(10, 5, 7, 3);
+      expect(W.alphaBounds(c)).toEqual({ x: 10, y: 5, w: 7, h: 3 });
+      expect(W.alphaBounds(W.mkCanvas(5, 5))).toBe(null);
+    });
+  });
+
+  describe('document & history', () => {
+    it('creates a document and undoes/redoes layer ops', () => {
+      W.newDocTab(200, 100, '#ffffff', 'Test Doc');
+      expect([W.D.w, W.D.h, W.D.layers.length]).toEqual([200, 100, 1]);
+      W.addLayer(); W.addLayer();
+      expect(W.D.layers.length).toBe(3);
+      W.undo(); expect(W.D.layers.length).toBe(2);
+      W.redo(); expect(W.D.layers.length).toBe(3);
+      W.deleteLayer(); expect(W.D.layers.length).toBe(2);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Delete Layer');
+    });
+    it('shares untouched pixels between history states', () => {
+      const L = W.D.layers[0], before = L.canvas;
+      W.setLayerProps(W.D.activeId, { opacity: 0.5 }, 'Opacity Change');
+      expect(W.D.layers[0].canvas).toBe(before);
+    });
+    it('fills a selection and clears it', () => {
+      W.selectShape((g) => g.fillRect(10, 10, 20, 20)); W.commit('Select');
+      expect(W.D.sel.bounds).toEqual({ x: 10, y: 10, w: 20, h: 20 });
+      W.fillSelection('#ff0000');
+      const L = W.activeLayer();
+      expect(pixel(L.canvas, 15 - L.x, 15 - L.y)).toEqual([255, 0, 0, 255]);
+      expect(pixel(L.canvas, 50 - L.x, 50 - L.y)[3]).toBe(0);
+      W.clearSelectionPixels();
+      expect(pixel(W.activeLayer().canvas, 15 - L.x, 15 - L.y)[3]).toBe(0);
+    });
+    it('adds, subtracts and inverts selections', () => {
+      W.selectShape((g) => g.fillRect(0, 0, 50, 50)); W.selectShape((g) => g.fillRect(25, 0, 50, 50), 'add');
+      expect(W.D.sel.bounds.w).toBe(75);
+      W.selectShape((g) => g.fillRect(0, 0, 25, 50), 'sub');
+      expect(W.D.sel.bounds.x).toBe(25);
+      W.selectInverse();
+      expect(W.D.sel.bounds).toEqual({ x: 0, y: 0, w: 200, h: 100 });
+      W.deselect(); expect(W.D.sel).toBe(null);
+    });
+    it('merges down with blend modes', () => {
+      W.newDocTab(10, 10, '#808080', 'Merge');
+      const top = W.addLayer({ canvas: solid(10, 10, '#808080'), blend: 'multiply' });
+      void top; W.mergeDown();
+      expect(W.D.layers.length).toBe(1);
+      const p = pixel(W.D.layers[0].canvas, 5, 5);
+      expect(p[0]).toBeLessThan(80); // 128×128/255 ≈ 64
+    });
+    it('resizes, crops and rotates the canvas', () => {
+      W.newDocTab(40, 20, '#ffffff', 'Geo');
+      W.transformCanvas('cw'); expect([W.D.w, W.D.h]).toEqual([20, 40]);
+      W.resizeCanvas(30, 50, 5, 5); expect([W.D.w, W.D.h]).toEqual([30, 50]);
+      W.cropTo({ x: 5, y: 5, w: 20, h: 40 }); expect([W.D.w, W.D.h]).toEqual([20, 40]);
+      W.imageSize(10, 20); expect([W.D.w, W.D.h]).toEqual([10, 20]);
+    });
+  });
+
+  describe('filters', () => {
+    it('every filter returns a canvas of the same size', async () => {
+      const src = solid(40, 30, '#3a7bff'); src.getContext('2d').fillStyle = '#ff2'; src.getContext('2d').fillRect(5, 5, 10, 10);
+      for (const f of W.FILTERS) {
+        if (!f.id) continue;
+        const p = {}; for (const q of f.params || []) if (q.k) p[q.k] = q.v === '@fg' ? '#000000' : q.v === '@bg' ? '#ffffff' : q.v;
+        const out = await f.fn(src, p, { fg: '#000000', bg: '#ffffff' });
+        expect([f.id, out.width, out.height]).toEqual([f.id, 40, 30]);
+      }
+    }, { timeout: 60000 });
+    it('invert and desaturate do the right maths', () => {
+      const out = W.FILTER_BY_ID.invert.fn(solid(2, 2, '#204060'));
+      expect(pixel(out, 0, 0)).toEqual([223, 191, 159, 255]);
+      const d = W.FILTER_BY_ID.desaturate.fn(solid(2, 2, '#ff0000'));
+      const px = pixel(d, 0, 0); expect(px[0]).toBe(px[1]); expect(px[1]).toBe(px[2]);
+    });
+    it('curves LUT is monotone and hits its points', () => {
+      const lut = W.curveLut([[0, 0], [64, 40], [192, 220], [255, 255]]);
+      expect(lut[0]).toBe(0); expect(lut[255]).toBe(255); expect(lut[64]).toBe(40); expect(lut[192]).toBe(220);
+      for (let i = 1; i < 256; i++) expect(lut[i] >= lut[i - 1]).toBeTruthy();
+    });
+  });
+
+  describe('PSD', () => {
+    it('round-trips layers, names, blend, opacity, visibility and masks', async () => {
+      W.newDocTab(64, 48, '#ffffff', 'PSD');
+      W.addLayer({ name: 'Glöw ✨', canvas: solid(20, 10, '#00ff00'), x: 7, y: 9, blend: 'screen', opacity: 0.5 });
+      W.addLayer({ name: 'Hidden', canvas: solid(8, 8, '#ff00ff'), visible: false });
+      W.addMask('reveal');
+      const bytes = W.writePSD();
+      expect(String.fromCharCode(...bytes.slice(0, 4))).toBe('8BPS');
+      const doc = await W.readPSD(bytes.buffer);
+      expect([doc.w, doc.h, doc.layers.length]).toEqual([64, 48, 3]);
+      const g = doc.layers[1];
+      expect([g.name, g.blend, g.x, g.y, g.canvas.width, g.canvas.height]).toEqual(['Glöw ✨', 'screen', 7, 9, 20, 10]);
+      expect(g.opacity).toBeCloseTo(0.5, 0.01);
+      expect(doc.layers[2].visible).toBe(false);
+      expect(!!doc.layers[2].mask).toBe(true);
+    });
+  });
+
+  describe('formats', () => {
+    it('decodes TIFF LZW', () => {
+      // "The" LZW example: codes for a single 2×1 RGB strip
+      expect([...W.lzwDecode(new Uint8Array([0x80, 0x0f, 0xf8, 0x00, 0x40, 0x10]), 3)].length).toBe(3);
+    });
+    it('writes and reads OpenRaster', async () => {
+      W.newDocTab(32, 32, '#ffffff', 'ORA');
+      W.addLayer({ name: 'Top', canvas: solid(10, 10, '#ff0000'), x: 3, y: 4, blend: 'multiply', opacity: 0.75 });
+      const blob = await W.writeORA();
+      const doc = await W.readORA(await blob.arrayBuffer());
+      expect(doc.layers.length).toBe(2);
+      expect([doc.layers[1].name, doc.layers[1].blend, doc.layers[1].x, doc.layers[1].y]).toEqual(['Top', 'multiply', 3, 4]);
+      expect(doc.layers[1].opacity).toBeCloseTo(0.75, 0.01);
+    });
+    it('sniffs file types from magic bytes', async () => {
+      const psd = new File([W.writePSD()], 'no-extension', {});
+      const doc = await W.readAnyFile(psd);
+      expect(doc.layers.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('brushes', () => {
+    it('ships four built-in packs', () => {
+      expect(W.BUILTIN_PACKS.map((p) => p.name)).toEqual(['Basics', 'Ink & Paint', 'Texture', 'Slop FX']);
+      expect(W.BUILTIN_PACKS.reduce((n, p) => n + p.brushes.length, 0)).toBeGreaterThanOrEqual(24);
+    });
+    it('every preset paints pixels', () => {
+      for (const b of W.allPacks().flatMap((p) => p.brushes)) {
+        const c = W.mkCanvas(80, 80), g = c.getContext('2d');
+        const d = W.makeDabber(Object.assign({}, b, { size: 30 }), '#000000', false);
+        for (let i = 0; i < 6; i++) d.dab(g, 25 + i * 5, 40, 1);
+        expect([b.name, !!W.alphaBounds(c)]).toEqual([b.name, true]);
+      }
+    });
+    it('parses a Photoshop .abr (v2, raw + RLE samples)', () => {
+      const w1 = 4, h1 = 3, w2 = 5, h2 = 2;
+      const parts = [];
+      const u16 = (v) => [v >> 8 & 255, v & 255], u32 = (v) => [v >>> 24 & 255, v >> 16 & 255, v >> 8 & 255, v & 255];
+      const sampled = (w, h, comp, name) => {
+        let body = [...u32(0), ...u16(25), ...u32(name.length), ...[...name].flatMap((c) => u16(c.charCodeAt(0))), 0, ...u16(0), ...u16(0), ...u16(h), ...u16(w), ...u16(8), comp];
+        const rows = Array.from({ length: h }, () => Array(w).fill(200));
+        if (comp) { const packed = rows.map((r) => [w - 1, ...r]); body = body.concat(packed.flatMap((p) => u16(p.length)), packed.flat()); }
+        else body = body.concat(rows.flat());
+        return [...u16(2), ...u32(body.length), ...body];
+      };
+      parts.push(...u16(2), ...u16(2), ...sampled(w1, h1, 0, 'Raw'), ...sampled(w2, h2, 1, 'Rle'));
+      const tips = W.parseABR(new Uint8Array(parts).buffer);
+      expect(tips.map((t) => [t.name, t.canvas.width, t.canvas.height])).toEqual([['Raw', 4, 3], ['Rle', 5, 2]]);
+      expect(pixel(tips[0].canvas, 1, 1)[3]).toBe(200);
+    });
+    it('turns images into dark-paints tips', () => {
+      const c = solid(10, 10, '#ffffff'); c.getContext('2d').fillStyle = '#000'; c.getContext('2d').fillRect(2, 2, 4, 4);
+      const m = W.imageToMask(c);
+      expect([m.width, m.height]).toEqual([4, 4]);
+    });
+  });
+
+  describe('tabs', () => {
+    it('keeps per-document history when switching', () => {
+      const a = W.newDocTab(50, 50, '#fff', 'A'); W.addLayer(); const hA = W.Hist.states.length;
+      const b = W.newDocTab(60, 60, '#fff', 'B');
+      expect(W.D.w).toBe(60);
+      W.switchToDoc(a); expect([W.D.w, W.Hist.states.length]).toEqual([50, hA]);
+      W.switchToDoc(b); expect(W.D.name).toBe('B');
+      expect(W.DOCS.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('keyboard', () => {
+    it('normalises shortcut combos', () => {
+      expect(W.normCombo('Shift+Ctrl+Z')).toBe('Ctrl+Shift+Z');
+      expect(W.comboOf({ code: 'KeyZ', key: 'z', ctrlKey: true, shiftKey: true, altKey: false, metaKey: false })).toBe('Ctrl+Shift+Z');
+      expect(W.SHORTCUTS.get('Ctrl+Z').label).toBe('Undo');
+    });
+  });
+
+  describe('offline build', () => {
+    it('inlines scripts safely and embeds its own sources', () => {
+      const files = { 'index.html': '<!doctype html><html lang="en"><head><link rel="stylesheet" href="a.css"></head><body><script src="b.js"><\/script>\n</body>\n</html>\n', 'a.css': 'p{}', 'b.js': 'const s = "<\/script>"; const d = "$$ $& $1";' };
+      const html = W.buildOfflineHTML(files);
+      expect(html).toContain('data-offline="1"');
+      expect(html).toContain('<\\/script>');
+      expect(html).toContain('$$ $& $1');
+      expect(html).toContain('id="app-src"');
+      const json = html.match(/<script type="application\/json" id="app-src">([\s\S]*?)<\/script>/)[1];
+      expect(JSON.parse(json)['b.js']).toBe(files['b.js']);
+    });
+  });
+
+  describe('shared SlopUI', () => {
+    it('confirm resolves from the buttons', async () => {
+      const p = W.SlopUI.confirm('Sure?', 'Really?', 'Yes');
+      await waitFor(() => W.document.querySelector('.sui-dlg'));
+      W.document.querySelector('.sui-dlg .sui-primary').click();   // the dialog's own (Export at the panels' foot is primary too)
+      expect(await p).toBe(true);
+    });
+  });
+
+  describe('Slop Hub', () => {
+    it('offers Send to for the other apps that open PNGs', () => {
+      const labels = W.sendToMenu().map((r) => r.label).filter(Boolean);
+      expect(labels).toContain('Send to SlopVector');
+      expect(labels.some((l) => /PhotoSlop/.test(l))).toBe(false);
+    });
+    it('opens a file another app sent with ?drive=', async () => {
+      const c = W.mkCanvas(7, 5); W.cx(c).fillRect(0, 0, 7, 5);
+      const id = await W.SlopHub.put(await W.canvasToBlob(c), { name: 'hello.png', from: 'vector' });
+      const f = document.createElement('iframe');
+      f.src = '../../photoslop/index.html?drive=' + id; document.body.append(f);
+      try {
+        await waitFor(() => f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 15000 });
+        const D2 = f.contentWindow.eval('D');
+        expect(D2.name).toBe('hello');
+        expect(D2.w).toBe(7);
+        expect(f.contentWindow.location.search).toBe('');
+      } finally { f.remove(); await W.SlopHub.remove(id); }
+    }, { timeout: 30000 });
+  });
+
+  contextMenuTests({ describe, it, expect, getW: () => W });
+  classicContextTests({ describe, it, expect, waitFor });
+
+  SlopTest.run({ name: 'PhotoSlop' });
+  </script>
+</body>
+</html>

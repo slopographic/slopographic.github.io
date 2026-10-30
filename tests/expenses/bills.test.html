@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Expenses: bills to pay later (a due date, To pay and Overdue in the list, Mark as paid)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: expenses/js/ui/pay.js, expenses/js/ui/editor.js, expenses/js/ui/list.js, expenses/js/core/expenses.js, expenses/index.html, shared/data/expenses.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const set = (id, v) => { const e = $(id); e.value = v; e.dispatchEvent(new W.Event('input', { bubbles: true })); e.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const rows = () => [...D.querySelectorAll('#xRows .sl-row')];
+
+  describe('Bills to pay later', () => {
+    it('Not paid yet asks for a due date (the payment terms from the bill date) and records a bill owed', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../expenses/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopExpenses && f.contentWindow.SlopExpenses.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+      W = f.contentWindow; D = W.document;
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      W.SlopExpenses.app.go('new');
+      await waitFor(() => !$('eForm').hidden && $('eAccount').options.length > 1);
+      const L = W.SlopData.ledger, billDate = L.addDays(L.today(), -60), due = L.addDays(billDate, 30);
+      window.__due = due;
+      set('eDate', billDate); set('eSupplier', 'Paper Co'); set('eAmount', '120.00'); set('eRate', '0');
+      expect($('eDueRow').hidden).toBe(true);
+      set('eMethod', 'later');
+      await waitFor(() => !$('eDueRow').hidden && $('eDue').value === due);   // 30 days of payment terms
+      $('eRecord').click();
+      await waitFor(() => W.location.hash.startsWith('#e/'));
+      await waitFor(() => !$('ePay').hidden);
+      expect($('eView').textContent).toContain(`Owed to the supplier, due ${due}`);
+      const e = (await W.SlopData.store.list('expenses')).value[0];
+      expect([e.status, e.dueDate]).toEqual(['owed', due]);
+    });
+    it('the list marks it Overdue once the due date has passed, shows what is to pay, and filters To pay', async () => {
+      W.SlopExpenses.app.go('list');
+      await waitFor(() => rows().length === 1);
+      expect(rows()[0].textContent).toContain(`Overdue · due ${window.__due}`);   // due 30 days ago
+      expect($('xTotal').textContent).toBe('Total $120.00 · to pay $120.00');
+      set('xStatus', 'posted');
+      await waitFor(() => rows().length === 0);
+      set('xStatus', 'owed');
+      await waitFor(() => rows().length === 1);
+    });
+    it('Mark as paid… pays it: Recorded in the books, paid on the date, nothing left to pay', async () => {
+      W.SlopExpenses.app.go(`e/${(await W.SlopData.store.list('expenses')).value[0].id}`);
+      await waitFor(() => !$('ePay').hidden);
+      $('ePay').click();
+      await waitFor(() => D.querySelector('.sui-dlg'));
+      const paid = W.SlopData.ledger.addDays(window.__due, 3);
+      const date = D.querySelector('.sui-dlg input[type="date"]'); date.value = paid;
+      [...D.querySelectorAll('.sui-dlg button')].find((b) => b.textContent === 'Mark as paid').click();
+      await waitFor(() => $('ePay').hidden && $('eView').textContent.includes(`paid ${paid}`));
+      const tb = (await W.SlopData.ledger.trialBalance()).value.rows;
+      expect(tb.find((r) => r.code === '2000').balance).toBe(0);
+      expect(tb.find((r) => r.code === '1010').balance).toBe(-12000);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

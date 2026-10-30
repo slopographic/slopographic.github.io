@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF passwords: open a protected file, the notice, protect on download, the command</title>
+  <!-- Covers: pdf/js/io/decrypt.js, pdf/js/ui/protect.js, pdf/js/ui/exports.js, pdf/js/core/pdfjs.js, pdf/js/tools/organize-panel.js, pdf/js/ui/actions.js, pdf/js/ui/commands.js, pdf/js/ui/menus.js, pdf/js/ui/export-menu.js, pdf/js/redact/panel.js, pdf/js/io/session.js, pdf/js/io/doc-state.js, shared/offline/manifest.js -->
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="pdf.spec-protect.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF passwords' });</script>
+</body>
+</html>

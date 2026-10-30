@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: unsaved changes</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, text, H, view, doc, textOf, typeText, key, rec, tabNames, dialog, dialogButtons, clickButton, waitFor, sleep } = CT;
+  let w, id;
+
+  describe('Slop Code: a file with unsaved changes asks before closing', () => {
+    it('opens a file and makes an unsaved change', async () => {
+      id = await H().put(text('original\n'), { name: 'notes.txt', from: 'test' });
+      w = await frame('../../code/?drive=' + id);
+      await waitFor(() => doc(w) && doc(w).id === id, { timeout: 8000 });
+      await typeText(w, 'changed\n');
+      expect(doc(w).dirty).toBe(true);
+      expect(w.document.querySelector('.cd-dirty')).toBeTruthy();
+    });
+
+    it('Ctrl+Alt+W asks with a SlopUI dialog (never a browser dialog), and Cancel keeps the tab', async () => {
+      let browserDialog = false;
+      w.alert = w.confirm = () => { browserDialog = true; };
+      key(w, 'w', { ctrl: true, alt: true });
+      await waitFor(() => dialog(w) && dialog(w).querySelector('.sui-title').textContent === 'Unsaved changes', { timeout: 5000 });
+      expect(dialogButtons(w).map((b) => b.textContent.trim())).toEqual(['Cancel', 'Discard', 'Save']);
+      clickButton(w, 'Cancel');
+      await sleep(250);
+      expect(dialog(w)).toBe(null);
+      expect(tabNames(w)).toEqual(['notes.txt']);
+      expect(browserDialog).toBe(false);
+      expect(await H().get(id).then((r) => r.blob.text())).toBe('original\n');
+    });
+
+    it('Discard closes the tab, drops the unsaved text, and leaves the Drive file as it was', async () => {
+      w.document.querySelector('.cd-tab-x').click();
+      await waitFor(() => dialog(w), { timeout: 5000 });
+      clickButton(w, 'Discard');
+      await waitFor(() => tabNames(w).length === 0, { timeout: 5000 });
+      expect(await H().get(id).then((r) => r.blob.text())).toBe('original\n');
+    });
+
+    it('Save in the dialog writes the text to Drive and then closes the tab', async () => {
+      await w.SlopCode.openRecord(await rec(id));
+      await waitFor(() => doc(w) && doc(w).id === id, { timeout: 8000 });
+      await typeText(w, 'kept\n');
+      w.document.querySelector('.cd-tab-x').click();
+      await waitFor(() => dialog(w), { timeout: 5000 });
+      clickButton(w, 'Save');
+      await waitFor(() => tabNames(w).length === 0, { timeout: 8000 });
+      expect(await H().get(id).then((r) => r.blob.text())).toBe('original\nkept\n');
+    });
+
+    it('a saved file closes without asking', async () => {
+      await w.SlopCode.openRecord(await rec(id));
+      await waitFor(() => doc(w) && doc(w).id === id, { timeout: 8000 });
+      expect(doc(w).dirty).toBe(false);
+      w.document.querySelector('.cd-tab-x').click();
+      await waitFor(() => tabNames(w).length === 0, { timeout: 5000 });
+      expect(dialog(w)).toBe(null);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: unsaved changes' });
+  </script>
+</body>
+</html>

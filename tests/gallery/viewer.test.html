@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery tests: the viewer</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real gallery runs in a same-origin iframe with its own test database, so the viewer is the app's own. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script src="spec-viewer.js"></script>
+  <script>SlopTest.run({ name: 'Slop Gallery · viewer' });</script>
+</body>
+</html>

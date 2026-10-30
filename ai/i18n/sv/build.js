@@ -1,0 +1,33 @@
+/* Slop AI, svenska: Build a mini-app (the builder chat, the preview and the templates). The templates' prompts and
+ * their HTML stay English (the prompt is what the model is asked). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'ai.build.new': 'Ny miniapp',
+  'ai.build.hello': 'Bygg en miniapp',
+  'ai.build.hello_lead': 'Beskriv en app, ett spel eller en sida. Modellen skriver en HTML-fil som körs direkt här, i en sandlåda. Eller börja från en mall:',
+  'ai.build.placeholder': 'Beskriv din app, eller vad som ska ändras',
+  'ai.build.none_yet': 'Inga miniappar än',
+  'ai.build.delete_q': 'Ta bort miniappen?',
+  'ai.build.delete_body': 'Dess chatt och kod tas bort.',
+  'ai.build.no_html': 'Svaret innehöll ingen komplett HTML-fil. Fråga igen, eller skriv ”skicka hela filen”.',
+  'ai.build.starter_reply': 'Startmall. Berätta vad du vill ändra.',
+  'ai.build.from_chat': 'Miniapp från chatt',
+  'ai.build.tpl_tip': 'Börja från mallen {name}',
+  'ai.build.preview': 'Förhandsgranska',
+  'ai.build.code': 'Kod',
+  'ai.build.modes': 'Förhandsgranskning eller kod',
+  'ai.build.back_chat': '← Chatt',
+  'ai.build.preview_title': 'Förhandsgranskning av miniappen (sandlåda)',
+  'ai.build.sandboxed': '🔒 sandlåda',
+  'ai.build.sandbox_tip': 'sandbox="allow-scripts", inget same-origin, inget nätverk',
+  'ai.build.restart': 'Starta om appen',
+  'ai.build.download_tip': 'Ladda ned .html',
+  'ai.build.nothing': 'Inget att förhandsgranska än',
+  'ai.build.nothing_lead': 'Appen visas här så snart modellen skickar en komplett HTML-fil.',
+
+  'ai.tpl.game': 'Spel',
+  'ai.tpl.game_blurb': 'Fånga sörjan som faller',
+  'ai.tpl.calculator': 'Miniräknare',
+  'ai.tpl.calculator_blurb': 'En snygg miniräknare',
+  'ai.tpl.landing': 'Landningssida',
+  'ai.tpl.landing_blurb': 'En webbplats på en sida',
+});

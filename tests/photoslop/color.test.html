@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop colour tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  /** Client point for a document point (the viewport is at 100 % for these small documents). */
+  const scr = (x, y) => { const r = W.V.el.getBoundingClientRect(); return { x: r.left + W.V.ox + x * W.V.zoom, y: r.top + W.V.oy + y * W.V.zoom }; };
+  function ptr(type, x, y, opts = {}) {
+    W.V.el.dispatchEvent(new win.PointerEvent(type, Object.assign({ clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 9, pointerType: 'mouse', bubbles: true, cancelable: true }, opts)));
+  }
+  /** Pixel [r,g,b,a] of the active layer at a document point. */
+  const pix = (x, y) => { const L = W.activeLayer(); return [...L.canvas.getContext('2d', { willReadFrequently: true }).getImageData(x - L.x, y - L.y, 1, 1).data]; };
+  /** A new document whose active layer is `paint(g)` on a fresh canvas. */
+  function scene(name, w, h, paint, bg = '#ffffff') {
+    W.newDocTab(w, h, bg, name); W.actualPixels(); W.selectTool('move');
+    const c = W.mkCanvas(w, h), g = W.cx(c); paint(g, c);
+    W.addLayer({ name: 'Scene', canvas: c }, 'Add Scene');
+    return W.activeLayer();
+  }
+  /** Client point at fractions of an element's box. */
+  const at = (el, fx, fy) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * fx, y: r.top + r.height * fy }; };
+  const fire = (el, type, p, extra = {}) => el.dispatchEvent(new win.PointerEvent(type, Object.assign({ clientX: p.x, clientY: p.y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 11, pointerType: 'mouse', bubbles: true, cancelable: true }, extra)));
+  const dlg = () => [...win.document.querySelectorAll('.sui-dlg')].pop();
+  const dlgButton = (label) => [...dlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+  const key = (k, code, extra = {}) => win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', Object.assign({ key: k, code, bubbles: true, cancelable: true }, extra)));
+  const bgOf = (sel) => win.document.querySelector(sel).style.background;
+
+  describe('Colour model (shared/color)', () => {
+    it('boots', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.SlopColorPicker.create).toBe('function');
+    }, { timeout: 40000 });
+
+    it('parses and writes hex with optional alpha', () => {
+      expect(W.SlopColor.toHex(255, 136, 0)).toBe('#ff8800');
+      expect(W.SlopColor.toHex(255, 136, 0, 0.5)).toBe('#ff880080');
+      expect(W.SlopColor.parse('#f80').r).toBe(255);
+      expect(W.SlopColor.parse('#ff880080').a).toBeCloseTo(128 / 255, 3);
+      expect(W.SlopColor.withAlpha('#102030', 1)).toBe('#102030');
+    });
+
+    it('HSB round trips and keeps the hue of a grey', () => {
+      const [h, s, v] = W.SlopColor.rgbToHsb(0, 255, 255);
+      expect(h).toBe(180); expect(s).toBe(1); expect(v).toBe(1);
+      const back = W.SlopColor.hsbToRgb(h, s, v).map(Math.round);
+      expect(back).toEqual([0, 255, 255]);
+    });
+
+    it('recent list puts the newest first, without duplicates, at most max', () => {
+      let list = [];
+      for (const c of ['#111111', '#222222', '#111111']) list = W.SlopColor.recentAdd(list, c, 2);
+      expect(list).toEqual(['#111111', '#222222']);
+    });
+
+    it('a 3x3 box near the corner is clipped, not wrapped', () => {
+      expect(W.SlopColor.boxAround(0, 0, 3, 10, 10)).toEqual({ x0: 0, y0: 0, bw: 2, bh: 2 });
+      expect(W.SlopColor.boxAround(5, 5, 5, 10, 10)).toEqual({ x0: 3, y0: 3, bw: 5, bh: 5 });
+    });
+  });
+
+  describe('PhotoSlop colour picker and eyedropper', () => {
+    it('Alt+click with the brush sets the foreground to the pixel under the pointer and paints nothing', async () => {
+      scene('Alt sample', 120, 100, (g) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, 120, 100); g.fillStyle = 'rgb(200,30,90)'; g.fillRect(40, 40, 1, 1); });
+      W.selectTool('brush'); W.setColor('fg', '#000000'); W.setColor('bg', '#ffffff');
+      const before = W.Hist.idx, s = scr(40.5, 40.5);
+      ptr('pointerdown', s.x, s.y, { altKey: true }); ptr('pointerup', s.x, s.y, { altKey: true });
+      expect(W.C.fg).toBe('#c81e5a');
+      expect(W.Hist.idx).toBe(before);
+      expect(pix(40, 40)).toEqual([200, 30, 90, 255]);
+    });
+
+    it('Alt+Shift+click with the brush sets the background', async () => {
+      W.setColor('bg', '#ffffff');
+      const s = scr(40.5, 40.5);
+      ptr('pointerdown', s.x, s.y, { altKey: true, shiftKey: true }); ptr('pointerup', s.x, s.y, { altKey: true, shiftKey: true });
+      expect(W.C.bg).toBe('#c81e5a');
+    });
+
+    it('the eyedropper point sample matches the pixel (layer mode)', async () => {
+      scene('Point', 100, 100, (g) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, 100, 100); g.fillStyle = 'rgb(12,34,56)'; g.fillRect(20, 30, 1, 1); });
+      W.T.eyedrop.all = false; W.T.eyedrop.size = 1; W.selectTool('eyedropper'); W.setColor('fg', '#000000');
+      const s = scr(20.5, 30.5);
+      ptr('pointerdown', s.x, s.y); ptr('pointerup', s.x, s.y);
+      expect(W.C.fg).toBe('#0c2238');
+    });
+
+    it('the 3x3 average is the mean of the nine pixels', async () => {
+      scene('Average', 100, 100, (g) => {
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, 100, 100);
+        for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { g.fillStyle = `rgb(${10 * (3 * j + i)},0,255)`; g.fillRect(60 + i, 60 + j, 1, 1); }
+      });
+      W.T.eyedrop.all = false; W.T.eyedrop.size = 3; W.selectTool('eyedropper');
+      const s = scr(61.5, 61.5);
+      ptr('pointerdown', s.x, s.y); ptr('pointerup', s.x, s.y);
+      expect(W.C.fg).toBe('#2800ff'); // mean red = (0 + 10 + ... + 80) / 9 = 40
+      W.T.eyedrop.size = 1;
+    });
+
+    it('Sample Layer ignores the background and Sample Composite sees it', async () => {
+      W.newDocTab(100, 100, '#ff0000', 'Layer vs composite'); W.actualPixels();
+      const c = W.mkCanvas(100, 100); W.cx(c).fillStyle = '#000000'; W.cx(c).fillRect(10, 10, 1, 1);
+      W.addLayer({ name: 'Ink', canvas: c }, 'Add Ink');
+      W.selectTool('eyedropper'); W.setColor('fg', '#123456'); W.T.eyedrop.size = 1;
+      W.T.eyedrop.all = false;
+      let s = scr(50.5, 50.5); ptr('pointerdown', s.x, s.y); ptr('pointerup', s.x, s.y);
+      expect(W.C.fg).toBe('#123456'); // transparent in the layer: colour unchanged
+      W.T.eyedrop.all = true;
+      ptr('pointerdown', s.x, s.y); ptr('pointerup', s.x, s.y);
+      expect(W.C.fg).toBe('#ff0000');
+      W.T.eyedrop.all = true;
+    });
+
+    it('the loupe draws without an error and records the sampled pixel', async () => {
+      scene('Loupe', 100, 100, (g) => { g.fillStyle = 'rgb(9,8,7)'; g.fillRect(0, 0, 100, 100); });
+      W.selectTool('eyedropper'); W.V.cursor = { x: 50, y: 50 }; W.V.cursorIn = true;
+      const c = W.mkCanvas(400, 400); W.drawLoupe(W.cx(c));
+      expect(!!W.EYE.canvas).toBeTruthy();
+      W.V.cursorIn = false;
+    });
+
+    it('the hex field and the hue bar update the swatch, and OK keeps the colour', async () => {
+      W.setColor('fg', '#000000');
+      win.document.querySelector('.sw-fg').click();
+      await waitFor(() => dlg() && dlg().querySelector('.scp-hex'), { timeout: 5000 });
+      const hex = dlg().querySelector('.scp-hex');
+      hex.value = 'ff8800'; hex.dispatchEvent(new win.Event('input', { bubbles: true }));
+      expect(W.C.fg).toBe('#ff8800');
+      expect(bgOf('.sw-fg')).toMatch(/255,\s*136,\s*0/);
+      const hue = dlg().querySelector('.scp-hue');
+      fire(hue, 'pointerdown', at(hue, 0.5, 0.5)); fire(hue, 'pointerup', at(hue, 0.5, 0.5));
+      expect(W.C.fg).toBe('#00ffff'); // hue 180 keeps saturation and brightness
+      expect(bgOf('.sw-fg')).toMatch(/0,\s*255,\s*255/);
+      dlgButton('OK').click();
+      await waitFor(() => !dlg() || !dlg().querySelector('.scp-hex'), { timeout: 5000 });
+      await sleep(250);
+      expect(W.C.fg).toBe('#00ffff');
+    });
+
+    it('Cancel restores the colour the dialog started with', async () => {
+      W.setColor('bg', '#334455');
+      win.document.querySelector('.sw-bg').click();
+      await waitFor(() => dlg() && dlg().querySelector('.scp-hex'), { timeout: 5000 });
+      const hex = dlg().querySelector('.scp-hex');
+      hex.value = 'abcdef'; hex.dispatchEvent(new win.Event('input', { bubbles: true }));
+      expect(W.C.bg).toBe('#abcdef');
+      dlgButton('Cancel').click();
+      await sleep(300);
+      expect(W.C.bg).toBe('#334455');
+    });
+
+    it('the alpha field writes an alpha colour to the foreground, and Cancel restores the old colour', async () => {
+      W.setColor('fg', '#102030');
+      win.document.querySelector('.sw-fg').click();
+      await waitFor(() => dlg() && dlg().querySelector('.scp-hex'), { timeout: 5000 });
+      const a = [...dlg().querySelectorAll('input')].find((i) => i.getAttribute('aria-label') === 'Alpha');
+      a.value = '50'; a.dispatchEvent(new win.Event('input', { bubbles: true }));
+      expect(W.C.fg).toBe('#10203080');
+      dlgButton('Cancel').click();
+      await sleep(300);
+      expect(W.C.fg).toBe('#102030');
+    });
+
+    it('X swaps the swatch colours, D restores the defaults', async () => {
+      W.setColor('fg', '#112233'); W.setColor('bg', '#445566');
+      key('x', 'KeyX');
+      expect(W.C.fg).toBe('#445566'); expect(W.C.bg).toBe('#112233');
+      key('d', 'KeyD');
+      expect(W.C.fg).toBe('#000000'); expect(W.C.bg).toBe('#ffffff');
+    });
+
+    it('the recent colours row keeps the colours used', async () => {
+      win.eval('store.set("recentColors", [])');
+      for (const c of ['#aa0011', '#00aa22']) {
+        win.document.querySelector('.sw-fg').click();
+        await waitFor(() => dlg() && dlg().querySelector('.scp-hex'), { timeout: 5000 });
+        const hex = dlg().querySelector('.scp-hex');
+        hex.value = c.slice(1); hex.dispatchEvent(new win.Event('input', { bubbles: true }));
+        dlgButton('OK').click();
+        await sleep(300);
+      }
+      expect(W.RECENTS.list()).toEqual(['#00aa22', '#aa0011']);
+      win.document.querySelector('.sw-fg').click();
+      await waitFor(() => dlg() && dlg().querySelector('.scp-recent'), { timeout: 5000 });
+      const titles = [...dlg().querySelectorAll('.scp-recent')].map((b) => b.title);
+      expect(titles).toEqual(['#00aa22', '#aa0011']);
+      [...dlg().querySelectorAll('.scp-recent')][1].click();
+      expect(W.C.fg).toBe('#aa0011');
+      dlgButton('Cancel').click();
+      await sleep(300);
+    });
+
+    it('right-click on the foreground swatch opens the picker, and Window has the picker entries', async () => {
+      const sw = win.document.querySelector('.sw-fg');
+      sw.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+      await waitFor(() => dlg() && dlg().querySelector('.scp-hex'), { timeout: 5000 });
+      expect(dlg().textContent).toMatch(/Foreground/);
+      dlgButton('Cancel').click();
+      await sleep(300);
+      const labels = W.windowMenuItems().map((i) => i.label);
+      expect(labels).toContain('Foreground Colour…');
+      expect(labels).toContain('Background Colour…');
+    });
+
+    it('the options bar offers Sample Composite and Sample Layer', async () => {
+      W.selectTool('eyedropper');
+      const sel = [...win.document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.textContent === 'Sample Layer'));
+      expect(!!sel).toBeTruthy();
+      sel.value = 'layer'; sel.dispatchEvent(new win.Event('change', { bubbles: true }));
+      expect(W.T.eyedrop.all).toBe(false);
+      sel.value = 'composite'; sel.dispatchEvent(new win.Event('change', { bubbles: true }));
+      expect(W.T.eyedrop.all).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop colour' });
+  </script>
+</body>
+</html>

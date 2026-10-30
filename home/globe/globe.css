@@ -1,0 +1,115 @@
+/* The app globe (home/globe/globe.js): its layer over the hero, the icons, their name chips and the keyboard list.
+ * Depth comes from globe.js: data-depth far2 / far1 (the back, blurred), mid, near (the front, with a soft accent glow).
+ * The filters change only when an icon crosses a depth band, never every frame. */
+.gx-layer { position: absolute; inset: 0; z-index: 1; pointer-events: none; contain: strict; }
+.gx-lines { position: absolute; left: 0; top: 0; pointer-events: none; }
+.gx-hit { position: absolute; border-radius: 50%; pointer-events: auto; cursor: grab; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
+.gx-hit:active { cursor: grabbing; }
+.gx-i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--gx-size, 56px) * var(--gx-k, 1));    /* --gx-k: 1.7 for the registry's heavier apps (globe.js) */
+  height: calc(var(--gx-size, 56px) * var(--gx-k, 1));
+  opacity: 0;
+  pointer-events: none;
+  touch-action: pan-y;
+  will-change: transform, opacity;
+  -webkit-tap-highlight-color: transparent;
+}
+.gx-i.is-live { pointer-events: auto; cursor: pointer; }
+.gx-svg { display: block; width: 100%; height: 100%; }
+.gx-i[data-depth="far1"] .gx-svg { filter: blur(1px); }
+.gx-i[data-depth="far2"] .gx-svg { filter: blur(2.2px); }
+.gx-i[data-depth="mid"] .gx-svg { filter: drop-shadow(0 6px 10px rgb(0 0 0 / .14)); }
+.gx-i[data-depth="near"] .gx-svg { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--slop) 40%, transparent)) drop-shadow(0 8px 14px rgb(0 0 0 / .16)); }
+.gx-name {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  translate: -50% 0;
+  padding: 6px 10px;
+  background: var(--bone);
+  color: var(--ink);
+  font: 600 11px/1.2 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;   /* not there at all until shown, for screen readers and the contrast audit alike */
+  pointer-events: none;
+  transition: opacity .15s, visibility .15s;
+}
+.gx-i.is-hot { z-index: 120 !important; }
+.gx-i.is-hot .gx-name, .gx-i.is-pick .gx-name { opacity: 1; visibility: visible; }
+.gx-i.is-pick { z-index: 110 !important; }
+/* The finder found nothing: a short note at the globe's centre (globe.js places it). */
+.gx-hint {
+  position: absolute;
+  z-index: 130;
+  margin: 0;
+  translate: -50% -50%;
+  padding: 8px 14px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  color: var(--bone);
+  font: 600 12px/1.2 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.gx-hint[hidden] { display: none; }
+.gx-i.is-hot .gx-svg { filter: drop-shadow(0 0 18px color-mix(in srgb, var(--slop) 70%, transparent)); }
+/* The front-most icons' names, and a search's matches (home/globe/labels.js places them with a transform; it shows one by
+ * the class, so the fade is a transition the contrast sweep can finish, and visibility keeps a faded one out entirely). */
+.gx-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 105;
+  padding: 5px 9px;
+  background: var(--bone);
+  color: var(--ink);
+  font: 600 11px/1.2 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  will-change: transform, opacity;
+  transition: opacity .25s, visibility .25s;
+}
+.gx-tag.is-on { opacity: 1; visibility: visible; }
+.gx-narrow .gx-tag { max-width: 180px; overflow: hidden; text-overflow: ellipsis; padding: 4px 7px; font-size: 10px; }   /* labels.js NARROW_MAX */
+/* searching: the matches' names and icons carry the accent */
+.gx-tag.is-match { outline: 2px solid var(--slop); outline-offset: 0; }
+.gx-layer.is-searching .gx-i.is-match .gx-svg { outline: 2px solid var(--slop); outline-offset: 3px; border-radius: 22%; }
+
+/* The keyboard way in: every app in a list, visually hidden until a link has focus; the focused one shows as a chip
+ * at the top of the copy while its icon comes round to the front (one tab stop, the arrow keys move). */
+.gx-list { list-style: none; margin: 0; padding: 0; }
+.gx-list a { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; color: var(--bone); }
+.gx-list a .gx-svg { width: 28px; height: 28px; flex: none; }
+.gx-list a:focus {
+  left: 0;
+  top: -52px;
+  z-index: 5;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 8px;
+  background: var(--ink-2);
+  border: 1px solid var(--bone);
+  color: var(--bone);
+  font: 600 13px/1.2 var(--mono);
+  text-decoration: none;
+}
+@media (max-width: 899px) { .gx-list a:focus { left: 50%; translate: -50% 0; } }
+/* The lite globe (phones, small devices): no filters at all, depth is size and opacity alone. */
+.gx-layer.gx-lite .gx-svg { filter: none !important; }
+@media (prefers-reduced-motion: reduce) { .gx-name, .gx-tag { transition: none; } }

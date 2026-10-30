@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Paint Classic touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Paint Classic with a finger (shared/input, loaded by the page itself: it has no shell).
+       Covers: photoslop/classic/paint/14-pointer.js, photoslop/classic/paint/07-colors.js, photoslop/classic/paint/18-dialogs.js, photoslop/classic/paint/19-dialogs-colors.js -->
+  <iframe id="app" src="../../photoslop/classic/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let w, doc;
+  const dark = (c) => { const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 100 && d[i + 3] > 0) n++; return n; };
+  const wrapAt = (x, y) => ({ el: doc.getElementById('wrap'), x, y });
+
+  describe('Paint Classic on touch', () => {
+    it('loads with the touch layer, the canvas a touch surface', async () => {
+      w = document.getElementById('app').contentWindow;
+      await waitFor(() => w.document.readyState === 'complete' && w.slopPaint && w.slopPaint.cmd && w.SlopTouch && w.SlopTouch.ready && w.document.querySelector('#palette .sw'), { timeout: 30000 });
+      doc = w.document;
+      const consent = doc.getElementById('slopc-banner'); if (consent) consent.remove(); // it covers the palette on a short screen
+      const wrap = doc.getElementById('wrap');
+      expect(wrap.hasAttribute('data-touch-surface')).toBe(true);
+      expect(w.getComputedStyle(wrap).touchAction).toBe('none');
+      expect(typeof wrap.touchSurface.zoom).toBe('function');
+      await sleep(300);
+    }, { timeout: 40000 });
+
+    it('a finger draws with the pencil', async () => {
+      w.slopPaint.cmd.setTool('pencil');
+      const before = dark(w.slopPaint.canvas);
+      await TouchKit.drag(wrapAt(40, 40), 120, 60, 10);
+      await sleep(100);
+      expect(dark(w.slopPaint.canvas)).toBeGreaterThan(before + 50);
+    });
+
+    it('a pinch steps the zoom up, and the page stays at scale 1', async () => {
+      expect(w.slopPaint.state.zoom).toBe(1);
+      await TouchKit.pinch(wrapAt(150, 120), 1.8, 10);
+      await waitFor(() => w.slopPaint.state.zoom > 1, { timeout: 3000 });
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+
+    it('two fingers pan the workspace', async () => {
+      const ws = doc.getElementById('ws'), x0 = ws.scrollLeft, y0 = ws.scrollTop;
+      await TouchKit.pan2(wrapAt(200, 150), -80, -60, 10);
+      await waitFor(() => ws.scrollLeft !== x0 || ws.scrollTop !== y0, { timeout: 3000 });
+    });
+
+    it('the canvas resize grips get a 44 px grab area under a coarse pointer', () => {
+      const hd = doc.querySelector('.hdl.se'), b = w.getComputedStyle(hd, '::before');
+      if (w.matchMedia('(pointer: coarse)').matches) expect(hd.getBoundingClientRect().width + 2 * -parseFloat(b.left)).toBeGreaterThanOrEqual(43);
+      else expect(parseFloat(b.left)).toBeGreaterThan(-10);
+    });
+
+    it('a long press on a palette swatch opens its menu (as a right-click) and keeps the primary colour', async () => {
+      doc.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+      const prim = w.slopPaint.state.primary;
+      await TouchKit.longPress(doc.querySelectorAll('#palette .sw')[3]);
+      await waitFor(() => doc.querySelector('.sui-menu'), { timeout: 3000 });
+      expect(w.slopPaint.state.primary).toBe(prim);
+      expect([...doc.querySelectorAll('.sui-menu .sui-lbl')].map((x) => x.textContent)).toContain('Set as Secondary Color');
+      doc.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+    });
+  });
+  SlopTest.run({ name: 'Paint Classic touch' });
+  </script>
+</body>
+</html>

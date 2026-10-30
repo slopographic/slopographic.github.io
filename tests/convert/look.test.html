@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: the look (one header with the home icon and the app name, shared buttons at the right)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: convert/index.html -->
+  <!-- Covers: convert/css/convert.css -->
+  <!-- Covers: convert/base64-decode/index.html -->
+  <!-- Covers: convert/base64-encode/index.html -->
+  <!-- Covers: convert/bmp-to-png/index.html -->
+  <!-- Covers: convert/csv-to-json/index.html -->
+  <!-- Covers: convert/csv-to-vcf/index.html -->
+  <!-- Covers: convert/csv-to-xlsx/index.html -->
+  <!-- Covers: convert/gif-to-png/index.html -->
+  <!-- Covers: convert/html-to-text/index.html -->
+  <!-- Covers: convert/jpg-to-pdf/index.html -->
+  <!-- Covers: convert/jpg-to-png/index.html -->
+  <!-- Covers: convert/json-to-csv/index.html -->
+  <!-- Covers: convert/line-endings/index.html -->
+  <!-- Covers: convert/markdown-to-html/index.html -->
+  <!-- Covers: convert/merge-pdf/index.html -->
+  <!-- Covers: convert/mov-to-mp4/index.html -->
+  <!-- Covers: convert/pdf-to-jpg/index.html -->
+  <!-- Covers: convert/pdf-to-png/index.html -->
+  <!-- Covers: convert/png-to-bmp/index.html -->
+  <!-- Covers: convert/png-to-ico/index.html -->
+  <!-- Covers: convert/png-to-jpg/index.html -->
+  <!-- Covers: convert/png-to-pdf/index.html -->
+  <!-- Covers: convert/png-to-webp/index.html -->
+  <!-- Covers: convert/split-pdf/index.html -->
+  <!-- Covers: convert/svg-to-png/index.html -->
+  <!-- Covers: convert/url-decode/index.html -->
+  <!-- Covers: convert/url-encode/index.html -->
+  <!-- Covers: convert/vcf-to-csv/index.html -->
+  <!-- Covers: convert/vcf-to-json/index.html -->
+  <!-- Covers: convert/vcf-to-xlsx/index.html -->
+  <!-- Covers: convert/video-to-gif/index.html -->
+  <!-- Covers: convert/video-to-jpg/index.html -->
+  <!-- Covers: convert/video-to-mp3/index.html -->
+  <!-- Covers: convert/video-to-png/index.html -->
+  <!-- Covers: convert/video-to-wav/index.html -->
+  <!-- Covers: convert/video-to-webm/index.html -->
+  <!-- Covers: convert/video-to-webp/index.html -->
+  <!-- Covers: convert/webp-to-jpg/index.html -->
+  <!-- Covers: convert/webp-to-png/index.html -->
+  <!-- Covers: convert/xlsx-to-vcf/index.html -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The page in a fresh iframe of this width, once it and the shell's header buttons are in. */
+  async function open(width, src = '../../convert/index.html') {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = src;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-hdr .slop-hbtn') && D.querySelector('.cv-tool *'); }, { timeout: 30000 });
+    await sleep(400);   // the header fit (shared/ui/hbtn.js) runs on the next frame
+    return f.contentDocument;
+  }
+  const box = (n) => n.getBoundingClientRect();
+  const shown = (n) => !!n && box(n).width > 0 && box(n).height > 0;
+  /** Every header on screen (the menu bar is a header too). */
+  const headers = (D) => [...D.querySelectorAll('header')].filter((n) => shown(n) && !n.parentElement.closest('header'));
+  /** The heights of the shared header buttons on screen. */
+  const hbtnHeights = (D) => [...D.querySelectorAll('header .slop-hbtn')].filter(shown).map((n) => Math.round(box(n).height));
+  /** The page's own buttons (selectors) are as tall as the shared ones. */
+  function sameHeight(D, sels) {
+    const hs = hbtnHeights(D);
+    expect(hs.length).toBeGreaterThan(2);
+    for (const h of hs) expect(h).toBe(hs[0]);
+    for (const sel of sels) {
+      const n = D.querySelector(sel);
+      if (!shown(n)) continue;
+      expect(sel + ' ' + Math.round(box(n).height)).toBe(sel + ' ' + hs[0]);
+    }
+  }
+  const noSideScroll = (D) => expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(D.defaultView.innerWidth);
+
+  describe('File convert: the look', () => {
+    it('the hub: one header, a home link, the name, and the shared buttons together at the right; no corner pills', async () => {
+      const D = await open(1440);
+      expect(headers(D).length).toBe(1);
+      const brand = D.querySelector('header a.brand');
+      expect(new URL(brand.href).pathname.replace(/index\.html$/, '')).toBe(new URL('../../', location.href).pathname);
+      expect(D.querySelector('.cv-app').textContent).toBe('File convert');
+      sameHeight(D, []);
+      const hb = [...D.querySelectorAll('header .slop-hbtn')].filter(shown).map((n) => box(n).right);
+      expect(Math.max(...hb)).toBeGreaterThan(1440 - 40);
+      expect(Math.min(...[...D.querySelectorAll('header .slop-hbtn')].filter(shown).map((n) => box(n).left))).toBeGreaterThan(1440 / 2);
+      expect(shown(D.querySelector('.sps-dock'))).toBe(false);
+    }, { timeout: 40000 });
+
+    it('every converter page has the same header: the home icon and the name, which links to the hub', async () => {
+      const pages = [
+      'base64-decode',
+      'base64-encode',
+      'bmp-to-png',
+      'csv-to-json',
+      'csv-to-vcf',
+      'csv-to-xlsx',
+      'gif-to-png',
+      'html-to-text',
+      'jpg-to-pdf',
+      'jpg-to-png',
+      'json-to-csv',
+      'line-endings',
+      'markdown-to-html',
+      'merge-pdf',
+      'mov-to-mp4',
+      'pdf-to-jpg',
+      'pdf-to-png',
+      'png-to-bmp',
+      'png-to-ico',
+      'png-to-jpg',
+      'png-to-pdf',
+      'png-to-webp',
+      'split-pdf',
+      'svg-to-png',
+      'url-decode',
+      'url-encode',
+      'vcf-to-csv',
+      'vcf-to-json',
+      'vcf-to-xlsx',
+      'video-to-gif',
+      'video-to-jpg',
+      'video-to-mp3',
+      'video-to-png',
+      'video-to-wav',
+      'video-to-webm',
+      'video-to-webp',
+      'webp-to-jpg',
+      'webp-to-png',
+      'xlsx-to-vcf',
+      ];
+      for (const p of pages) {
+        const html = await (await fetch('../../convert/' + p + '/index.html')).text();
+        expect(p + ' ' + html.includes('<a class="cv-brand brand" href="../../"')).toBe(p + ' true');
+        expect(p + ' ' + html.includes('<a class="cv-app" href="../../convert/">File convert</a>')).toBe(p + ' true');
+      }
+    });
+
+    it('a converter page: the same header; at 390px one row and nothing scrolls sideways', async () => {
+      const D = await open(390, '../../convert/png-to-jpg/index.html');
+      expect(headers(D).length).toBe(1);
+      expect(D.querySelector('.cv-app').getAttribute('href')).toBe('../../convert/');
+      noSideScroll(D);
+      expect(box(headers(D)[0]).height).toBeLessThan(64);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'File convert: the look' });
+  </script>
+</body>
+</html>

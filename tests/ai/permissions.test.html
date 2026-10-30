@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: permissions (ask, allow for this request, always allow, modes) and Undo all</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: shared/ai/permissions.js, shared/ai/permissions-ui.js, shared/ai/panel.js, shared/ai/panel-run.js, shared/ai/tools.js,
+  //   shared/ai/cmdtools.js
+  // A local (fake) model drives the panel here: the same permission module serves local and own-key models.
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let P, eng;
+  const q = (s) => P.document.querySelector(s), qa = (s) => [...P.document.querySelectorAll(s)];
+  const dialog = () => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const call = (name, args) => `<tool_call>{"name": "${name}", "arguments": ${JSON.stringify(args)}}</tool_call>`;
+  const run = (id) => call('run_command', { id });
+  async function answer(label) {
+    const d = await waitFor(dialog);
+    const b = [...d.querySelectorAll('button')].find((x) => x.textContent === label);
+    if (!b) throw new Error('no button ' + label + ' in ' + d.textContent);
+    const text = d.textContent;
+    b.click(); await waitFor(() => !dialog());
+    return text;
+  }
+  /** Sends with scripted replies; answers each question with the next label in turn. */
+  async function send(text, replies, labels = []) {
+    eng.replies.push(...replies);
+    const done = P.SlopAIPanel.send(text), seen = [];
+    for (const l of labels) seen.push(await answer(l));
+    await done;
+    await sleep(30);
+    expect(dialog()).toBe(null);
+    return seen;
+  }
+
+  describe('the question names the action and offers the scopes', () => {
+    it('opens on a destructive command: action, app, kind, step; five choices; "for this request" covers the rest of the reply only', async () => {
+      for (const k of Object.keys(localStorage)) if (/^slop-ai\.permissions/.test(k)) localStorage.removeItem(k);
+      for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.permissions/.test(k)) sessionStorage.removeItem(k);
+      P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width: 900, height: 760 });
+      P.SlopCmd.list = () => [{ id: 'demo.bold', title: 'Bold' }, { id: 'demo.clear', title: 'Clear canvas' }, { id: 'demo.crop', title: 'Crop to selection' }];
+      eng = new P.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0 }); await eng.load('fake');
+      await P.SlopAIPanel.use(eng);
+      const seen = await send('clear twice', [run('demo.clear') + run('demo.clear'), 'Cleared twice.'], ['Allow for this request']);
+      expect(seen.length).toBe(1);
+      expect(seen[0]).toContain('Allow this in PhotoSlop?'); expect(seen[0]).toContain('Clear canvas');
+      expect(seen[0]).toContain('Kind of action: deleting or clearing. Step 1 of this request.');
+      expect(seen[0]).toContain('Allow once'); expect(seen[0]).toContain('Allow deleting or clearing for this visit');
+      expect(seen[0]).toContain('Always allow deleting or clearing in PhotoSlop'); expect(seen[0]).toContain('Deny');
+      expect(P.ran).toEqual(['demo.clear', 'demo.clear']);
+      // the next request asks again; Deny stops that one action
+      await send('clear again', [run('demo.clear'), 'You said no.'], ['Deny']);
+      expect(P.ran.length).toBe(2);
+      expect(qa('.sap-step').pop().textContent).toMatch(/✗Clear canvas.*said no/);
+      // a crop is an app change: its own kind
+      const crop = await send('crop', [run('demo.crop'), 'Cropped.'], ['Allow once']);
+      expect(crop[0]).toContain('Kind of action: app changes');
+    }, { timeout: 40000 });
+
+    it('Always allow is remembered, listed in AI permissions, and Remove brings the question back', async () => {
+      await send('clear', [run('demo.clear'), 'ok'], ['Always allow deleting or clearing in PhotoSlop']);
+      await send('clear again', [run('demo.clear'), 'ok'], []);
+      expect(P.ran.filter((x) => x === 'demo.clear').length).toBe(4);
+      q('.sap-gear').click();
+      await waitFor(() => q('.sap-perm'));
+      expect(q('.sap-perm-rules').textContent).toContain('Deleting or clearing in PhotoSlop');
+      q('.sap-perm-remove').click();
+      await waitFor(() => q('.sap-perm-none'));
+      expect(P.SlopAIPermissions.rules()).toEqual([]);
+      q('.sap-back').click();
+      await send('clear once more', [run('demo.clear'), 'ok'], ['Allow once']);
+    }, { timeout: 30000 });
+  });
+
+  describe('modes', () => {
+    it('Allow app changes: crop runs, clearing still asks; Allow everything warns and asks nothing; back to Ask', async () => {
+      q('.sap-gear').click();
+      const radio = (id) => q(`.sap-perm-mode[value="${id}"]`);
+      await waitFor(() => radio('ask'));
+      expect(radio('ask').checked).toBe(true);
+      radio('changes').click();
+      expect(P.SlopAIPermissions.mode()).toBe('changes');
+      q('.sap-back').click();
+      const n = P.ran.length;
+      await send('crop and clear', [run('demo.crop') + run('demo.clear'), 'ok'], ['Allow once']);
+      expect(P.ran.slice(n)).toEqual(['demo.crop', 'demo.clear']);
+      q('.sap-gear').click();
+      await waitFor(() => radio('all'));
+      radio('all').click();
+      await waitFor(() => q('.sap-perm-warn'));
+      expect(q('.sap-perm-warn').textContent).toContain('send copies of your files to the AI provider and spend on image generation without asking');
+      q('.sap-back').click();
+      await send('clear', [run('demo.clear'), 'ok'], []);
+      q('.sap-gear').click(); await waitFor(() => radio('ask')); radio('ask').click(); q('.sap-back').click();
+      expect(JSON.parse(localStorage.getItem('slop-ai.permissions')).mode).toBe('ask');
+    }, { timeout: 30000 });
+  });
+
+  describe('Undo all AI changes', () => {
+    it('after Undo all the button is gone and does not come back with a stale count', async () => {
+      let undone = 0;
+      P.SlopCmd.checkpoint = () => () => { undone++; return true; };
+      P.SlopCmd.list = () => [{ id: 'demo.bold', title: 'Bold', args: [] }, { id: 'demo.italic', title: 'Italic', args: [] }];
+      P.SlopCmd.exec = async (id) => { P.ran.push(id); return { ok: true, args: {}, notes: [] }; };
+      await send('bold and italic', [call('bold', {}) + call('italic', {}), 'Done.'], []);
+      const btn = q('.sap-undo');
+      expect(btn.hidden).toBe(false); expect(btn.textContent).toContain('(2)');
+      btn.click();
+      expect(undone).toBe(1);
+      expect(btn.hidden).toBe(true); expect(P.getComputedStyle(btn).display).toBe('none');
+      expect(btn.textContent).not.toContain('(2)');
+      // other views and a re-render keep it hidden
+      q('.sap-gear').click(); await sleep(20); q('.sap-back').click(); await sleep(20);
+      expect(P.getComputedStyle(btn).display).toBe('none');
+      expect(q('.sap-list').textContent).toContain('Undid every change from the last request.');
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop AI: permissions' });
+  </script>
+</body>
+</html>

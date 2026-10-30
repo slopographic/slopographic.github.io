@@ -1,0 +1,53 @@
+/* Slop Reminders: tokens, the timeline in three groups, the add form. The colours come from the shared Slop theme
+ * (--sl-*, set by shared/theme/theme.js); 390 px stacks each row. */
+:root {
+  --bg: var(--sl-background, #0e0e10); --panel: var(--sl-surface, #17171b); --ink: var(--sl-text, #f1ede4);
+  --panel-2: color-mix(in srgb, var(--panel) 88%, var(--ink)); --chip: color-mix(in srgb, var(--panel) 90%, var(--ink));
+  --mute: color-mix(in srgb, var(--ink) 68%, transparent); --line: var(--sl-border, #2b2b33);
+  --accent: var(--sl-accent, #d4ff3a); --accent-ink: var(--sl-on-accent, #0e0e10); --danger: #c81e44; --focus: var(--accent);
+}
+/* The status red is lighter on the dark surfaces. */
+:root[data-slop-theme="dark"], :root[data-slop-theme="lime"] { --danger: #ff4f6e; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, sans-serif; }
+body { min-height: 100vh; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.note { color: var(--mute); font-size: 13px; margin: 4px 0 10px; }
+.empty { color: var(--mute); padding: 12px 0; }
+.msg { color: var(--danger); }
+.side-n { color: var(--mute); font-size: 13px; font-weight: 400; margin-left: 8px; }
+.btn, .tb-btn, .snooze { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; font: inherit; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.small { padding: 4px 8px; font-size: 13px; }
+/* The header is the shared menu bar (shared/menubar); the buttons and fields of the page are as tall as its buttons
+ * (shared/ui/hbtn.css, 32 px). */
+.perm .btn, .add .btn, .field input { height: 32px; padding-top: 0; padding-bottom: 0; font-size: 14px; }
+.main { padding: 16px 20px 40px; max-width: 900px; }
+.perm, .add { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+.perm { align-items: center; font-size: 13px; color: var(--mute); }
+.check { display: inline-flex; gap: 6px; align-items: center; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--mute); }
+.field input { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; }
+.add .field:first-child { flex: 1 1 220px; }
+.add .field input { width: 100%; }
+.rm-group { margin-top: 18px; }
+.rm-h { font-size: 14px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 6px; }
+.rm-group .empty { margin: 0; padding: 2px 0 0; font-size: 14px; }
+.rm-list { list-style: none; padding: 0; margin: 0; }
+.rm-row { display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+.rm-row.src-custom { border-left: 4px solid var(--accent); }
+.rm-row.src-task { border-left: 4px solid var(--danger); }
+.rm-when { font-size: 13px; }
+.rm-zone { display: block; font-size: 11px; color: var(--mute); }
+.rm-main b { display: block; overflow-wrap: anywhere; }
+.rm-sub { font-size: 12px; color: var(--mute); }
+.rm-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.snooze { font-size: 13px; padding: 5px 8px; }
+@media (max-width: 640px) {
+  .main { padding: 12px 10px 30px; }
+  .rm-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .rm-acts { justify-content: flex-start; }
+  .add .field:first-child { flex-basis: 100%; }
+  .add .field:not(:first-child) { flex: 1 1 130px; min-width: 0; }
+}

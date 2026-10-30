@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Panel names follow a live switch to Swedish</title>
+  <meta name="slop-test-limit" content="600">
+  <!-- Covers: tests/i18n/live-switch.js, shared/frame/frame.js, convert/js/ui/frame.js, gallery/js/ui/panel.js -->
+  <!-- Covers: transcribe/js/frame.js, ocr/js/frame.js, hex/js/panel.js -->
+  <!-- Covers: calendar/js/ui/panel.js, serials/js/frame.js, signature/js/layout.js, aitools/frame.js, eml/js/main.js -->
+  <!-- Covers: reports/js/layout.js, sheetview/js/panel.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="live-switch.js"></script>
+  <script>
+  // The side panel's name (SlopFrame panelLabel: its show/hide button, its sheet and its resize grip) is given as a key:
+  // an app opened in English names it in Swedish after SlopI18n.set('sv'), not in the English it had at load. (Diff,
+  // Font Creator, Colors, Checksum and Recorder name it only in the phone's sheet, so they are not here.)
+  const ready = (doc, w) => !!w.SlopFrame;
+  [['Convert', 'convert', 'convert.frame.panel'], ['Gallery', 'gallery', 'gallery.side.library'],
+    ['Transcribe', 'transcribe', 'transcribe.app.options'], ['OCR', 'ocr', 'ocr.app.options'],
+    ['Hex', 'hex', 'hex.app.inspector'],
+    ['Calendar', 'calendar', 'calendar.panel.day'], ['Serials', 'serials', 'serials.app.options'], ['Signature', 'signature', 'signature.lay.details'],
+    ['AI Tools OCR', 'aitools/ocr', 'aitools.frame.settings'], ['EML', 'eml', 'eml.app.actions'],
+    ['Reports', 'reports', 'reports.page.report'], ['Sheet viewer', 'sheetview', 'sheetview.app.sheet'],
+  ].forEach(([name, dir, key]) => LiveSwitch.spec({ name, path: '../../' + dir + '/index.html', ready, checks: [], labels: [key] }));
+  SlopTest.run({ name: document.title });
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Ledger presets from a task page's link: ?view=bank opens the Bank tab</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px" src="../../ledger/index.html?view=bank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: ledger/js/ui/app.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const W = () => document.getElementById('app').contentWindow;
+  describe('Slop Ledger presets', () => {
+    it('opens the tab named in the address', async () => {
+      await waitFor(() => W().SlopLedger && W().SlopLedger.state && W().document.getElementById('boot').hidden && W().SlopLedger.state.view === 'bank', { timeout: 20000 });
+      expect(W().location.hash).toBe('#bank');
+      expect(W().document.getElementById('view-bank').hidden).toBe(false);
+      expect(W().document.getElementById('view-journal').hidden).toBe(true);
+    });
+    it('presetOf: known tabs only', async () => {
+      const P = W().SlopLedger.presetOf;
+      expect(P('?view=fin')).toEqual({ view: 'fin' });
+      expect(P('?view=trial&x=1')).toEqual({ view: 'trial' });
+      expect(P('?view=<b>')).toEqual({});
+      expect(P('?view=constructor')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+  });
+  SlopTest.run({ name: 'Slop Ledger presets' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+/* SlopList (shared/ui/list.js): one row per record. Uses the SlopUI tokens (slopui.css) with each app's own as fallback. */
+.sl-list { display: block; min-width: 0; }
+.sl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 12px; min-width: 0;
+  border-top: 1px solid var(--sui-line, var(--line, rgba(127, 127, 127, .25))); cursor: pointer; outline: none; }
+.sl-row:first-child { border-top: 0; }
+.sl-row:hover, .sl-row:focus-visible { background: var(--sui-hover, var(--panel-2, rgba(127, 127, 127, .12))); }
+.sl-row:focus-visible { box-shadow: inset 3px 0 0 var(--sui-accent, var(--accent, #d4ff3a)); }
+.sl-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sl-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; font-size: 12.5px; color: var(--sui-mute, var(--mute, #8a8a8a)); }
+.sl-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+  background: var(--sui-chip, var(--chip, rgba(127, 127, 127, .18))); }
+.sl-chip.good { color: var(--sui-ok, var(--ok, #3fa34d)); }
+.sl-chip.warn { color: var(--sui-warn, var(--warn, #c08a00)); }
+.sl-chip.bad { color: var(--sui-danger, var(--danger, #e5484d)); font-weight: 600; }
+.sl-row.is-overdue { box-shadow: inset 3px 0 0 var(--sui-danger, var(--danger, #e5484d)); }
+.sl-chip.void { color: var(--sui-mute, var(--mute, #8a8a8a)); text-decoration: line-through; }
+.sl-row.is-void .sl-title, .sl-row.is-void .sl-amount { color: var(--sui-mute, var(--mute, #8a8a8a)); text-decoration: line-through; }
+.sl-row.is-selected { background: color-mix(in srgb, var(--sui-accent, var(--accent, #d4ff3a)) 14%, transparent); box-shadow: inset 3px 0 0 var(--sui-accent, var(--accent, #d4ff3a)); }
+.sl-list.is-static .sl-row { cursor: default; }
+.sl-empty { margin: 24px 12px; color: var(--sui-mute, var(--mute, #8a8a8a)); }

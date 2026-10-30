@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows: the commands with arguments (AI panel, WebMCP, macros) build, change, save and export a workflow</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  // Covers: workflows/js/ui/ai-commands.js, workflows/js/ui/commands.js, workflows/js/ui/library.js, shared/ai/cmdtools.js
+  const { describe, it, expect, run } = SlopTest;
+  const A = () => WFT.A;
+  let C;
+  const ids = () => A().S.doc.steps.map((s) => s.id);
+  const exec = async (id, args) => { const r = await C.exec('workflows.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const loadKit = (W) => new Promise((res, rej) => { const s = W.document.createElement('script'); s.src = '../shared/ai/cmdtools.js'; s.onload = res; s.onerror = rej; W.document.head.append(s); });
+
+  describe('Slop Workflows commands with arguments', () => {
+    it('registers the tools with args and descriptions; the menus keep their commands', async () => {
+      await WFT.boot('', { fresh: true });
+      C = WFT.W.SlopCmd;
+      await loadKit(WFT.W);
+      const names = WFT.W.SlopAIKit.cmdTools.specs(C).map((t) => t.name);
+      for (const n of ['app_state', 'new_workflow', 'add_step', 'set_option', 'set_step', 'remove_step', 'move_step', 'open_template', 'rename_workflow', 'run_workflow', 'save_workflow', 'export_workflow'])
+        if (!names.includes(n)) throw new Error('no tool ' + n + ' in ' + names.join(', '));
+      for (const c of C.list().filter((x) => x.id.startsWith('workflows.') && x.args)) if (!c.description) throw new Error(c.id + ' has no description');
+      for (const id of ['new', 'save', 'export', 'add-step', 'template', 'run', 'import', 'zip']) expect(!!C.get('workflows.' + id)).toBe(true, id);
+      expect(WFT.W.SlopAIKit.cmdTools.isDestructive(C.get('workflows.remove-step'))).toBe(true);
+    });
+
+    it('new_workflow starts a named workflow with steps, or from a template; a wrong op changes nothing', async () => {
+      let r = await exec('new', { name: 'Shop pictures', steps: '[{"op": "resize.image", "options": {"width": 800}}, {"op": "to-webp"}]' });
+      expect(A().S.doc.name).toBe('Shop pictures');
+      expect(ids()).toEqual(['resize.image', 'to-webp']);
+      expect(A().S.doc.steps[0].options.width).toBe(800);
+      expect(r.value).toContain('2 steps');
+      const before = JSON.stringify(A().S.doc);
+      const bad = await C.exec('workflows.new', { steps: '[{"op": "no-such-op"}]' });
+      expect(bad.ok).toBe(false);
+      expect(bad.error).toContain('no-such-op');
+      expect(JSON.stringify(A().S.doc)).toBe(before);
+      await exec('new', { template: 'web-photos' });
+      expect(ids()).toEqual(['clean.metadata', 'resize.image', 'to-webp']);
+      expect(A().S.doc.name).toBe('Photos for the web');
+    });
+
+    it('add_step, set_step (several options, keep), move_step and remove_step change the workflow; Undo goes back', async () => {
+      await exec('new', { name: 'Edit me' });
+      await exec('add-step', { op: 'resize.image', options: '{"width": 640}' });
+      await exec('add-step', { op: 'to-jpg' });
+      let r = await exec('set-step', { step: 1, options: '{"format": "png", "quality": 70}', keep: true });
+      const s1 = A().S.doc.steps[0];
+      expect(s1.options.width).toBe(640);
+      expect(s1.options.format).toBe('png');
+      expect(s1.keep).toBe(true);
+      expect(r.value).toContain('files kept');
+      await exec('set-step', { step: 1, options: '{"width": 300}', replace: true });
+      expect(A().S.doc.steps[0].options).toEqual({ width: 300 });
+      expect((await C.exec('workflows.set-step', { step: 1 })).error).toContain('Nothing to change');
+      await exec('move-step', { step: 2, to: 1 });
+      expect(ids()).toEqual(['to-jpg', 'resize.image']);
+      await exec('remove-step', { step: 1 });
+      expect(ids()).toEqual(['resize.image']);
+      expect((await C.exec('workflows.remove-step', { step: 5 })).error).toContain('There is no step 5');
+      await A().undo();
+      expect(ids()).toEqual(['to-jpg', 'resize.image']);
+      await exec('rename', { name: 'Renamed flow' });
+      expect(C.state().workflow).toBe('Renamed flow');
+      expect(C.state().steps.map((s) => s.id)).toEqual(['to-jpg', 'resize.image']);
+    });
+
+    it('save_workflow keeps it in this browser; export_workflow saves the .slopflow file to Slop Drive and downloads it', async () => {
+      let r = await exec('save', { name: 'Kept flow' });
+      expect(A().S.id).toBeTruthy();
+      expect(r.value).toContain('Kept flow');
+      r = await exec('export', { to: 'both' });
+      const id = String(r.value).match(/id ([^)]+)\)/)[1];
+      const rec = await WFT.W.SlopHub.get(id);
+      expect(rec.name).toBe('Kept flow.slopflow');
+      const back = WFT.W.SlopFlowDoc.fromText(await rec.blob.text()).doc;
+      expect(back.name).toBe('Kept flow');
+      expect(back.steps.map((s) => s.id)).toEqual(['to-jpg', 'resize.image']);
+      expect(r.value).toContain('downloaded Kept flow.slopflow');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

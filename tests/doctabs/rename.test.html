@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopDocTabs: rename and original name tests</title>
+  <link rel="stylesheet" href="../../shared/doctabs/doctabs.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui, sans-serif; } #strip { margin: 16px; } </style>
+</head>
+<body>
+  <div id="strip"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/doctabs/tabs.js"></script>
+  <script src="../../shared/doctabs/drive.js"></script>
+  <script src="../../shared/doctabs/session.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { describe, it, expect, beforeEach, afterEach } = SlopTest;
+
+    /* A fake app (the adapter is the whole contract, see HANDOFF.md). */
+    let APP = 'rename', toasts = [], calls = [], driveFail = false, host = null, api = null;
+    const adapter = () => ({
+      newDoc() { return { title: 'Untitled ' + (++adapter.n), text: '', edited: false }; },
+      serialize: (doc) => ({ title: doc.title, text: doc.text, edited: doc.edited }),
+      restore(s) { if (!s || typeof s.title !== 'string') throw new Error('bad state'); return { title: s.title, text: s.text, edited: s.edited }; },
+      title: (doc) => doc.title,
+      dirty: (doc) => doc.edited,
+      activate() {},
+      deactivate() {},
+      saved: (doc) => { doc.edited = false; },
+      drive: { ext: '.txt', mime: 'text/plain' },
+    });
+    adapter.n = 0;
+    const doc = (title, text = 'text of ' + title) => ({ title, text, edited: false });
+
+    /** A fresh strip in #strip. Toasts are collected in toasts. */
+    function strip(width = 640) {
+      if (api) api.destroy();
+      host = document.getElementById('strip');
+      host.replaceChildren();
+      host.style.width = width + 'px';
+      toasts = []; calls = [];
+      api = SlopDocTabs.mount(host, adapter(), { appId: APP, toast: (m) => toasts.push(m), confirm: () => Promise.resolve(true) });
+      return api;
+    }
+    const press = (key) => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    const keyOn = (el, key) => el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    const tabEl = (id) => host.querySelector('.sl-doctab[data-id="' + id + '"]');
+    const input = () => host.querySelector('input.sl-doctab-edit');
+    const dbl = (id) => tabEl(id).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    const nameOf = (id) => tabEl(id).querySelector('.sl-doctab-name').textContent;
+    const storeKey = () => 'slop.doctabs.' + APP + '.v1';
+
+    describe('rename in place', () => {
+      beforeEach(() => { APP = 'rn-' + Math.random().toString(36).slice(2, 8); strip(); });
+      afterEach(() => { if (api) api.destroy(); api = null; });
+
+      it('double-click opens the name with its text selected; Enter saves the new name', () => {
+        const A = doc('Alpha'); api.openDoc(A);
+        const id = api.tabOf(A);
+        dbl(id);
+        const inp = input();
+        expect(!!inp).toBe(true);
+        expect(inp.value).toBe('Alpha');
+        expect(inp.selectionStart).toBe(0);
+        expect(inp.selectionEnd).toBe(5);
+        inp.value = 'Beta';
+        inp.dispatchEvent(new Event('input'));
+        keyOn(inp, 'Enter');
+        expect(input()).toBe(null);
+        expect(nameOf(id)).toBe('Beta');
+        expect(api.nameOf(A)).toBe('Beta');
+        expect(api.tabs()[0].title).toBe('Beta');
+        expect(A.title).toBe('Alpha'); // the app's own title is not changed by a rename
+      });
+
+      it('F2 on the active tab edits its name, and blur saves', () => {
+        const A = doc('A'); api.openDoc(A);
+        press('F2');
+        const inp = input();
+        expect(!!inp).toBe(true);
+        inp.value = 'Renamed';
+        inp.dispatchEvent(new Event('input'));
+        inp.dispatchEvent(new Event('blur'));
+        expect(input()).toBe(null);
+        expect(api.nameOf(A)).toBe('Renamed');
+      });
+
+      it('Escape cancels and keeps the old name', () => {
+        const A = doc('Keep'); api.openDoc(A);
+        dbl(api.tabOf(A));
+        const inp = input();
+        inp.value = 'Nope';
+        inp.dispatchEvent(new Event('input'));
+        keyOn(inp, 'Escape');
+        expect(input()).toBe(null);
+        expect(api.nameOf(A)).toBe('Keep');
+        expect(nameOf(api.tabOf(A))).toBe('Keep');
+      });
+
+      it('an empty name is refused: the old name is kept and a toast says so', () => {
+        const A = doc('Old'); api.openDoc(A);
+        dbl(api.tabOf(A));
+        const inp = input();
+        inp.value = '   ';
+        inp.dispatchEvent(new Event('input'));
+        keyOn(inp, 'Enter');
+        expect(api.nameOf(A)).toBe('Old');
+        expect(toasts.length).toBe(1);
+        expect(toasts[0]).toContain('old name was kept');
+        dbl(api.tabOf(A));
+        input().value = '';
+        input().dispatchEvent(new Event('blur'));
+        expect(api.nameOf(A)).toBe('Old');
+      });
+
+      it('names are trimmed and limited to 120 characters', async () => {
+        const A = doc('A'); api.openDoc(A);
+        expect(await api.rename(A, '  ' + 'x'.repeat(200) + '  ')).toBe(true);
+        expect(api.nameOf(A)).toBe('x'.repeat(120));
+      });
+
+      it('SlopDocTabs.rename(tabId, name) renames from code; null means the active tab', async () => {
+        const A = doc('A'), B = doc('B'); api.openDoc(A); api.openDoc(B);
+        expect(await SlopDocTabs.rename(api.tabOf(A), 'A2')).toBe(true);
+        expect(api.nameOf(A)).toBe('A2');
+        expect(await SlopDocTabs.rename(null, 'B2')).toBe(true);
+        expect(api.nameOf(B)).toBe('B2');
+        expect(await SlopDocTabs.rename('no-such-tab', 'X')).toBe(false);
+      });
+
+      it('SlopDocTabs.rename(null) with no name edits the active tab in place', async () => {
+        const A = doc('Edit me'); api.openDoc(A);
+        await SlopDocTabs.rename(null);
+        expect(!!input()).toBe(true);
+        keyOn(input(), 'Escape');
+        expect(api.nameOf(A)).toBe('Edit me');
+      });
+    });
+
+    describe('rename and the Slop Drive file (SlopHub stubbed)', () => {
+      beforeEach(() => {
+        APP = 'rn-drive-' + Math.random().toString(36).slice(2, 8);
+        driveFail = false;
+        window.SlopHub = {
+          saveToDrive: async (blob, name) => { calls.push(['saveToDrive', name]); return 'drive-1'; },
+          update: async (id, patch) => { calls.push(['update', id, patch.name]); if (driveFail) throw new Error('offline'); return { id }; },
+          pickFromDrive: async () => ({ id: 'drive-9', name: 'Other.txt', blob: new Blob([JSON.stringify({ title: 'Other', text: 'x', edited: false })]) }),
+        };
+        strip();
+      });
+      afterEach(() => { if (api) api.destroy(); api = null; delete window.SlopHub; });
+
+      it('renaming a Drive-linked tab renames the Drive file and keeps its extension', async () => {
+        const A = doc('Notes'); api.openDoc(A, { driveId: 'drive-1' });
+        expect(await api.rename(A, 'Plan')).toBe(true);
+        expect(calls).toEqual([['update', 'drive-1', 'Plan.txt']]);
+        expect(api.driveIdOf(A)).toBe('drive-1');
+        expect(toasts.length).toBe(0);
+      });
+
+      it('a failed Drive rename keeps the new tab name and says the Drive copy still has the old name', async () => {
+        driveFail = true;
+        const A = doc('Notes'); api.openDoc(A, { driveId: 'drive-1' });
+        await api.rename(A, 'Plan');
+        expect(api.nameOf(A)).toBe('Plan');
+        expect(toasts.length).toBe(1);
+        expect(toasts[0]).toContain('The Drive copy still has the old name');
+      });
+
+      it('a tab with no Drive link does not call Drive', async () => {
+        const A = doc('Local'); api.openDoc(A);
+        await api.rename(A, 'Renamed');
+        expect(calls.length).toBe(0);
+      });
+
+      it('the original name is kept by a rename and by a save to Drive; the tooltip shows it', async () => {
+        const A = doc('invoice-2026'); api.openDoc(A, { origName: 'invoice-2026.pdf', driveId: 'drive-1' });
+        expect(api.originalNameOf(A)).toBe('invoice-2026.pdf');
+        expect(api.tabs()[0].original).toBe('invoice-2026.pdf');
+        expect(tabEl(api.tabOf(A)).getAttribute('title')).toContain('Original name: invoice-2026.pdf');
+        await api.rename(A, 'Q1 invoice');
+        expect(calls[0]).toEqual(['update', 'drive-1', 'Q1 invoice.txt']);
+        expect(api.originalNameOf(A)).toBe('invoice-2026.pdf');
+        await api.saveToDrive(A);
+        expect(api.originalNameOf(A)).toBe('invoice-2026.pdf');
+        expect(api.nameOf(A)).toBe('Q1 invoice');
+      });
+
+      it('a file opened from Slop Drive records its original name; a new blank document has none', async () => {
+        // what an app's intake reader does with a file from Slop Drive (SlopIntake.fromDrive): a tab linked to it
+        const rec = await SlopHub.pickFromDrive(), opened = api.adapter.restore(JSON.parse(await rec.blob.text()));
+        api.openDoc(opened, { driveId: rec.id, origName: rec.name });
+        expect(api.originalNameOf(opened)).toBe('Other.txt');
+        api.newTab();
+        const blank = api.current();
+        expect(api.originalNameOf(blank)).toBe(null);
+        expect(tabEl(api.tabOf(blank)).getAttribute('title')).not.toContain('Original name');
+      });
+
+      it('the new name and the original name both survive a reload', async () => {
+        const sess = SlopDocTabs.session(APP, api, { notice: () => {} });
+        const A = doc('Draft'); api.openDoc(A, { origName: 'draft.docx' });
+        await api.rename(A, 'Final');
+        await sess.flush();
+        api.destroy(); api = null;
+        strip();
+        const sess2 = SlopDocTabs.session(APP, api, { notice: () => {} });
+        await sess2.restore();
+        const t = api.tabs()[0];
+        expect(t.title).toBe('Final');
+        expect(t.original).toBe('draft.docx');
+        expect(JSON.parse(localStorage.getItem(storeKey())).data.tabs[0].name).toBe('Final');
+      });
+    });
+  })();
+  </script>
+  <script>SlopTest.run({ name: 'SlopDocTabs: rename and original name' });</script>
+</body>
+</html>

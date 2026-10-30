@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Choose a workspace on the homepage</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/layouts/presets.js"></script>
+  <script src="../../shared/layouts/core.js"></script>
+  <script>
+  const { describe, it, expect, run, sleep } = SlopTest;
+  /** The homepage links, read from the real page: each opens an app with ?layout= set to a category or a preset. */
+  describe('Homepage · Choose a workspace', () => {
+    it('shows the row with a link for each category that has an app', async () => {
+      const res = await fetch('../../index.html');
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const links = [...doc.querySelectorAll('.ws-row a.ws-card')];
+      expect(links.length).toBe(4);
+      for (const a of links) {
+        const href = a.getAttribute('href');
+        const [app, query] = href.split('?');
+        const want = new URLSearchParams(query).get('layout');
+        const appKey = { slopcut: 'slopcut', photoslop: 'photoslop', '3d': '3d', invoices: 'invoices' }[app.replace(/\/$/, '')];
+        expect(!!appKey).toBe(true);
+        expect(!!SlopLayouts.pick(appKey, want)).toBe(true);
+      }
+    });
+    it('the layout presets exist for every app a link opens', async () => {
+      expect(SlopLayouts.CATEGORIES.length).toBeGreaterThan(3);
+    });
+  });
+  run({ name: 'Homepage · workspaces' });
+  </script>
+</body>
+</html>

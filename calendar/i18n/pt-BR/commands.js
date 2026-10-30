@@ -1,0 +1,22 @@
+/* Slop Calendar, Brazilian Portuguese: a paleta de comandos. Rules: shared/i18n/APPS-HOWTO.md, shared/i18n/glossary-pt-BR.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'calendar.cmd.g_cal': 'Calendário',
+  'calendar.cmd.g_goto': 'Ir para',
+  'calendar.cmd.prev': 'Calendário: período anterior',
+  'calendar.cmd.next': 'Calendário: próximo período',
+  'calendar.cmd.today': 'Calendário: ir para hoje',
+  'calendar.cmd.year': 'Calendário: visualização anual',
+  'calendar.cmd.month': 'Calendário: visualização mensal',
+  'calendar.cmd.split': 'Calendário: visualização dividida',
+  'calendar.cmd.undo': 'Calendário: desfazer a última mudança',
+  'calendar.cmd.week': 'Calendário: visualização semanal',
+  'calendar.cmd.day': 'Calendário: visualização diária',
+  'calendar.cmd.agenda': 'Calendário: agenda',
+  'calendar.cmd.new': 'Calendário: novo evento',
+  'calendar.cmd.tasks': 'Calendário: mostrar ou ocultar tarefas',
+  'calendar.cmd.import': 'Calendário: importar .ics',
+  'calendar.cmd.export': 'Calendário: exportar .ics',
+  'calendar.cmd.todo': 'Ir para o Slop To-do',
+  'calendar.cmd.reminders': 'Ir para o Slop Reminders',
+  'calendar.cmd.crm': 'Ir para o Slop CRM',
+});

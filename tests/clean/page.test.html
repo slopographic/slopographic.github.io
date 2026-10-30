@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Clean page: launch, choices, view</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="../../clean/js/core/bytes.js"></script>
+  <script src="../../clean/js/core/tags.js"></script>
+  <script src="../../clean/js/core/xmp.js"></script>
+  <script src="../../clean/js/core/tiff.js"></script>
+  <script src="../../clean/js/core/jpeg.js"></script>
+  <script src="../../clean/js/core/png.js"></script>
+  <script src="../../clean/js/core/webp.js"></script>
+  <script src="../../clean/js/core/index.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, H, id, cards = () => [...W.document.querySelectorAll('.cl-card')];
+  const rowsOf = (card) => [...card.querySelectorAll('.cl-row')].map((r) => ({ k: r.querySelector('.cl-k').textContent, pill: r.querySelector('.cl-pill').textContent }));
+  const choice = (name) => [...W.document.querySelectorAll('.cl-choice')].find((l) => l.textContent.startsWith(name));
+
+  describe('Slop Clean page', () => {
+    it('opens a picture from Slop Drive (?drive=<id>) and lists what it holds', async () => {
+      const F = window.CleanFixtures;
+      H = window.SlopHub;
+      await H.clear();
+      const c = document.createElement('canvas'); c.width = 64; c.height = 48;
+      const g = c.getContext('2d'); g.fillStyle = '#d4ff3a'; g.fillRect(0, 0, 64, 48); g.fillStyle = '#1a3a6e'; g.fillRect(20, 12, 24, 24);
+      const jpeg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
+      const bytes = F.cat(jpeg.subarray(0, 2), F.seg(0xe1, F.exifOf(F.buildTiff({ entries: F.SAMPLE_ENTRIES }))), jpeg.subarray(2));
+      id = await H.put(new Blob([bytes], { type: 'image/jpeg' }), { name: 'beach.jpg', from: 'upload' });
+      W = await DT.frame('../../clean/?drive=' + id, (w) => w.document.querySelector('.cl-card') && w.document.querySelector('.cl-card .cl-acts button'));
+      expect(cards().length).toBe(1);
+      expect(W.document.querySelector('.cl-name').textContent).toBe('beach.jpg');
+      const rows = rowsOf(cards()[0]);
+      expect(rows.find((r) => r.k === 'GPS position').pill).toBe('Removed');
+      expect(rows.find((r) => r.k === 'Camera model').pill).toBe('Removed');
+    });
+
+    it('the Drive record stays as it was: opening in Slop Clean does not write to Slop Drive', async () => {
+      const r = await H.get(id);
+      expect(r.name).toBe('beach.jpg');
+      expect(r.size).toBeGreaterThan(0);
+    });
+
+    it('unticking "Location (GPS)" keeps the GPS line in the report, and ticking it again removes it', async () => {
+      const cb = choice('Location (GPS)').querySelector('input');
+      cb.checked = false; cb.dispatchEvent(new W.Event('change'));
+      await waitFor(() => rowsOf(cards()[0]).find((r) => r.k === 'GPS position').pill === 'Kept', { timeout: 8000 });
+      expect(rowsOf(cards()[0]).find((r) => r.k === 'Camera model').pill).toBe('Removed');
+      cb.checked = true; cb.dispatchEvent(new W.Event('change'));
+      await waitFor(() => rowsOf(cards()[0]).find((r) => r.k === 'GPS position').pill === 'Removed', { timeout: 8000 });
+    });
+
+    it('"Remove all" restores the default choices', async () => {
+      const cb = choice('Location (GPS)').querySelector('input');
+      cb.checked = false; cb.dispatchEvent(new W.Event('change'));
+      await waitFor(() => rowsOf(cards()[0]).find((r) => r.k === 'GPS position').pill === 'Kept', { timeout: 8000 });
+      W.document.getElementById('cl-remove-all').click();
+      await waitFor(() => rowsOf(cards()[0]).find((r) => r.k === 'GPS position').pill === 'Removed', { timeout: 8000 });
+      expect(choice('Location (GPS)').querySelector('input').checked).toBe(true);
+      expect(choice('Colour profile').querySelector('input').checked).toBe(false);
+    });
+
+    it('View metadata opens the picture with every field it holds', async () => {
+      const btn = [...cards()[0].querySelectorAll('button')].find((b) => b.textContent === 'View metadata');
+      btn.click();
+      await waitFor(() => W.document.querySelector('.cl-view'), { timeout: 5000 });
+      const text = W.document.querySelector('.cl-view .cl-table').textContent;
+      expect(text).toContain('Acme Z9');
+      expect(text).toContain('Camera serial number');
+      W.document.querySelector('.cl-view .sui-btn.sui-primary').click();
+    });
+
+    it('a file that is not a supported picture gets a plain error, not a crash', async () => {
+      const heic = new Uint8Array(24); heic.set([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]);
+      await W.CL.app.addFiles([new W.File([heic], 'iphone.heic', { type: 'image/heic' })]);
+      await waitFor(() => cards().some((c) => c.classList.contains('is-error')), { timeout: 5000 });
+      const err = cards().find((c) => c.classList.contains('is-error'));
+      expect(err.querySelector('.cl-sum').textContent).toContain('HEIC files are not supported');
+    });
+
+    it('Download appears once a picture is cleaned, and the stat line counts what was removed', async () => {
+      const dl = W.document.getElementById('cl-all');
+      expect(dl.disabled).toBe(false);
+      expect(W.document.getElementById('cl-stat').textContent).toContain('picture');
+    });
+    it('Save to Slop Drive writes a "(clean)" copy and leaves the original record alone', async () => {
+      const before = (await H.list({ trashed: 'any' })).length;
+      W.SlopHub.pickFolder = async () => null;
+      [...W.document.querySelectorAll('.cl-card .cl-acts button')].find((b) => b.textContent.startsWith('Save to Slop Drive')).click();
+      await waitFor(async () => (await H.list({ trashed: 'any' })).length === before + 1, { timeout: 8000 });
+      const copy = (await H.list({ trashed: 'any' })).find((r) => r.name === 'beach (clean).jpg');
+      expect(!!copy).toBe(true);
+      expect(copy.from).toBe('clean');
+      expect((await H.get(id)).name).toBe('beach.jpg');
+    });
+
+    it('Replace original overwrites the Drive file only after the confirmation', async () => {
+      const before = (await H.get(id)).size;
+      W.SlopUI.confirm = async () => false;
+      [...W.document.querySelectorAll('.cl-card .cl-acts button')].find((b) => b.textContent === 'Replace original…').click();
+      await new Promise((r) => setTimeout(r, 60));
+      expect((await H.get(id)).size).toBe(before);
+      W.SlopUI.confirm = async () => true;
+      [...W.document.querySelectorAll('.cl-card .cl-acts button')].find((b) => b.textContent === 'Replace original…').click();
+      await waitFor(async () => (await H.get(id)).size !== before, { timeout: 8000 });
+      expect(await H.get(id).then(async (r) => r.size)).toBeLessThan(before);
+    });
+
+  });
+  SlopTest.run({ name: 'Slop Clean page' });
+  </script>
+</body>
+</html>

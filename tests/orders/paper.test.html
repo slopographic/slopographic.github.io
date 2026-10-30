@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Orders · edit on the page and export the PDF</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../orders/index.html#new" title="Slop Orders"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const W = () => frame.contentWindow;
+  const $ = (sel) => frame.contentDocument.querySelector(sel);
+  const $$ = (sel) => [...frame.contentDocument.querySelectorAll(sel)];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  const button = (text) => $$('button').find((b) => b.textContent.trim() === text);
+  const enter = (el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  /** Clicks a field on the page, types into the input it opens, and presses Enter. */
+  async function editOnPage(sel, text) {
+    (await until(() => $(sel), sel)).click();
+    const input = await until(() => $('#ePage .pe-input'), 'the input for ' + sel);
+    input.value = text;
+    enter(input);
+    await sleep(60);
+  }
+
+  describe('Slop Orders: edit on the page', () => {
+    it('opens a new order as a page, with the layout note and the form as a fallback', async () => {
+      await until(() => W().SlopData && $('#ePage .paper'), 'the paper view');
+      expect($('#ePage .paper .pe[data-edit="description"]')).toBeTruthy();
+      expect($('#eLayout').textContent).toMatch(/Layout: /);
+      expect(button('Form')).toBeTruthy();
+    });
+
+    it('clicking the customer and the description on the page edits them; the form follows', async () => {
+      const c = (await W().SlopData.store.put('customers', { name: 'Acme Ltd', email: 'ap@acme.test', stage: 'customer' })).value;
+      await W().SlopOrders.views.edit.onShow(null);
+      await until(() => $('#ePage .pe[data-edit="customer"]'), 'the customer on the page');
+      $('#ePage .pe[data-edit="customer"]').click();
+      const sel = await until(() => $('#ePage select.pe-input'), 'the customer select');
+      sel.value = c.id;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(60);
+      expect($('#ePage .pp-name').textContent).toBe('Acme Ltd');
+      await editOnPage('#ePage .pe[data-edit="description"][data-index="0"]', 'Gadget');
+      expect($('#eLines [data-f="description"]').value).toBe('Gadget');
+      await editOnPage('#ePage .pe[data-edit="unitPrice"][data-index="0"]', '3.33');
+      expect($('#eLines [data-f="unitPrice"]').value).toBe('3.33');
+      expect($('#ePage').textContent).toContain('$3.33');
+    });
+
+    it('a wrong date on the page gets the form\'s message', async () => {
+      await editOnPage('#ePage .pe[data-edit="date"]', '11/10/2026');
+      expect($('#eMsg').textContent).toContain('Enter the order date.');
+      await editOnPage('#ePage .pe[data-edit="date"]', '2026-10-11');
+      expect($('#eDate').value).toBe('2026-10-11');
+    });
+
+    it('Save draft stores the edits; Export PDF downloads a real PDF of the page', async () => {
+      button('Save draft').click();
+      const saved = await until(async () => (await W().SlopData.store.list('orders')).value.find((r) => r.lines && r.lines[0] && r.lines[0].description === 'Gadget'), 'the saved order');
+      expect(saved.lines[0].unitPrice).toBe(333);
+      expect(Number.isInteger(saved.pdfSeed)).toBeTruthy();
+      await until(() => !W().SlopOrders.editor.isDirty() && W().SlopOrders.editor.id() && button('Export PDF'), 'the saved order');
+      const blobs = [];
+      const make = W().URL.createObjectURL;
+      W().URL.createObjectURL = (b) => { blobs.push(b); return make.call(W().URL, b); };
+      try {
+        button('Export PDF').click();
+        const blob = await until(() => blobs[0], 'the PDF download');
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+        expect(blob.type).toBe('application/pdf');
+      } finally {
+        W().URL.createObjectURL = make;
+      }
+    });
+
+    it('Export PDF clicked while a save is in flight waits for the save, then downloads a PDF of the saved order', async () => {
+      const NSO = W().SlopOrders;
+      await until(() => !NSO.editor.isDirty() && NSO.editor.id() && button('Export PDF'), 'the saved order');
+      await editOnPage('#ePage .pe[data-edit="description"][data-index="0"]', 'Gizmo');
+      expect(NSO.editor.isDirty()).toBeTruthy();
+      const realSave = NSO.orders.save;
+      let saves = 0;
+      NSO.orders.save = async (form) => { saves++; await sleep(900); return realSave(form); };   // a slow save in flight
+      const blobs = [];
+      const make = W().URL.createObjectURL;
+      W().URL.createObjectURL = (b) => { blobs.push(b); return make.call(W().URL, b); };
+      try {
+        button('Save').click();
+        await until(() => $('#eMsg').textContent === 'Saving…', 'the saving status');
+        button('Export PDF').click();
+        await until(() => $('#eMsg').textContent.includes('Waiting for the save'), 'the waiting status');
+        expect(blobs.length).toBe(0);                       // nothing downloads before the save is done
+        const blob = await until(() => blobs[0], 'the PDF download', 15000);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+        expect(saves).toBe(1);                              // the export did not start a second save
+        const stored = (await W().SlopData.store.list('orders')).value.find((r) => r.id === NSO.editor.id());
+        expect(stored.lines[0].description).toBe('Gizmo');  // the PDF is of the saved order
+        expect(NSO.editor.isDirty()).toBeFalsy();
+        await until(() => $('#eMsg').textContent === 'PDF downloaded.', 'the done status');
+      } finally {
+        NSO.orders.save = realSave;
+        W().URL.createObjectURL = make;
+      }
+    });
+  });
+
+  run({ name: 'Slop Orders · paper' });
+  </script>
+</body>
+</html>

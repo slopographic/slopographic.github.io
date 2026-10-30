@@ -1,0 +1,24 @@
+/* Slop package: the seed, the three files and their previews. Colours come from the site theme variables. */
+:root { --bg: var(--sl-background, #0e0e10); --panel: var(--sl-surface, #17171b); --ink: var(--sl-text, #f1ede4);
+  --mute: color-mix(in srgb, var(--ink) 68%, transparent); --line: var(--sl-border, #2b2b33); --accent: var(--sl-accent, #d4ff3a); --on: var(--sl-on-accent, #0e0e10); }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 1.6rem; margin: .2rem 0 .4rem; }
+.lead { color: var(--mute); margin: 0 0 16px; }
+.seedbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.seedbar label { color: var(--mute); font-size: 13px; }
+input#seed { flex: 1 1 260px; min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 14px ui-monospace, Menlo, Consolas, monospace; }
+button { min-height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--on); border-color: transparent; font-weight: 600; }
+#summary { margin: 0 0 14px; font-weight: 600; }
+.files { display: grid; gap: 14px; }
+.file { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--panel); }
+.file header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.file h2 { font-size: 1.05rem; margin: 0; }
+.file p.note { color: var(--mute); font-size: 13px; margin: 6px 0 0; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th:nth-child(n+2), td:nth-child(n+2) { text-align: right; }
+pre { white-space: pre-wrap; margin: 0; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: var(--ink); }
+.wrap-x { overflow-x: auto; }

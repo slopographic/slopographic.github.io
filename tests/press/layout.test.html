@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · layout tests</title></head>
+<body>
+  <!-- the app's English words (press/i18n), which the core reads through PR.util.t -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../press/i18n/index.js"></script>
+  <script src="../../press/js/core/util.js"></script>
+  <script src="../../press/js/core/model.js"></script>
+  <script src="../../press/js/core/pages.js"></script>
+  <script src="../../press/js/core/items.js"></script>
+  <script src="../../press/js/core/story.js"></script>
+  <script src="../../press/js/core/styles.js"></script>
+  <script src="../../press/js/core/state.js"></script>
+  <script src="../../press/js/core/layers.js"></script>
+  <script src="../../press/js/text/fonts.js"></script>
+  <script src="../../press/js/text/hyphen.js"></script>
+  <script src="../../press/js/text/breaker.js"></script>
+  <script src="../../press/js/text/wrap.js"></script>
+  <script src="../../press/js/text/para.js"></script>
+  <script src="../../press/js/text/layout.js"></script>
+  <script src="../../press/js/text/engine.js"></script>
+  <script src="layout-helpers.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const M = PR.model, B = PR.breaker, E = PR.engine;
+
+  describe('line breaking', () => {
+    it('greedy breaks never exceed the measure and keep every character', async () => {
+      await fontsReady();
+      const glyphs = fixedGlyphs('the quick brown fox jumps over the lazy dog again and again');
+      const El = B.elements(glyphs, {});
+      let i = 0, lines = [];
+      while (i < El.length) { const b = B.next(El, i, 100); const ln = B.line(El, i, b); lines.push(ln); i = B.after(El, b); if (b >= El.length - 1) break; }
+      lines.forEach((ln) => expect(ln.nat).toBeLessThanOrEqual(100.001));
+      const text = lines.map((ln) => ln.g.filter((g) => !g.syn).map((g) => g.c).join('')).join('');
+      expect(text).toBe('the quick brown fox jumps over the lazy dog again and again');
+      expect(lines.length).toBe(Math.ceil(lines.length));
+      expect(lines.length).toBeGreaterThan(5);
+    });
+    it('splits a word longer than the measure instead of looping', () => {
+      const El = B.elements(fixedGlyphs('supercalifragilistic'), {});
+      const b = B.next(El, 0, 50);
+      const ln = B.line(El, 0, b);
+      expect(ln.g.length).toBe(5); // 5 glyphs × 10pt
+    });
+    it('Knuth–Plass finds breaks with lower total badness than greedy', () => {
+      const text = 'aaa bb cc ddddd aaa bb cc ddddd aaa bb cc ddddd aaa bb cc ddddd aaa bb cc ddddd';
+      const W = 130, kp = B.kp(B.elements(fixedGlyphs(text), {}), () => W, 10);
+      expect(Array.isArray(kp)).toBe(true);
+      const sq = (breaks, El) => { let i = 0, sum = 0; breaks.forEach((b, n) => { const ln = B.line(El, i, b); if (n < breaks.length - 1) sum += Math.pow(W - ln.nat, 2); i = B.after(El, b); }); return sum; };
+      const Ek = B.elements(fixedGlyphs(text), {});
+      const Eg = B.elements(fixedGlyphs(text), {}); const gb = []; let i = 0;
+      for (;;) { const b = B.next(Eg, i, W); gb.push(b); if (b >= Eg.length - 1) break; i = B.after(Eg, b); }
+      expect(sq(kp, Ek)).toBeLessThanOrEqual(sq(gb, Eg));
+    });
+    it('hyphenates English words with patterns', () => {
+      expect(PR.hyphen.hyphenate('information')).toBe('in-for-ma-tion');
+      expect(PR.hyphen.hyphenate('wonderful')).toBe('won-der-ful');
+      expect(PR.hyphen.hyphenate('frames')).toBe('frames');
+      expect(PR.hyphen.points('cat')).toEqual([]);
+    });
+    it('justified lines fill the measure exactly (except the last)', async () => {
+      const { doc, frame } = await textDoc({ text: LOREM, align: 'justify', w: 200, h: 400 });
+      const lines = E.frame(frame).lines;
+      expect(lines.length).toBeGreaterThan(4);
+      lines.slice(0, -1).forEach((l) => { if (!l.hy || true) expect(Math.abs(l.right - (l.x + l.w))).toBeLessThan(0.6); });
+      const last = lines[lines.length - 1];
+      expect(last.right).toBeLessThan(last.x + last.w);
+      void doc;
+    });
+    it('uses hyphens in narrow justified columns', async () => {
+      const { frame } = await textDoc({ text: LOREM + ' ' + LOREM, align: 'justify', w: 110, h: 2000, composer: 'greedy' });
+      expect(E.frame(frame).lines.some((l) => l.hy)).toBe(true);
+    });
+  });
+
+  describe('threads and overset', () => {
+    it('flows overflow into the next linked frame and flags overset at the end', async () => {
+      const { doc, frame, page } = await textDoc({ text: LOREM + '\n' + LOREM + '\n' + LOREM, w: 150, h: 80 });
+      expect(E.overset(frame)).toBe(true);
+      const f2 = M.item('text', 300, 40, 150, 400); f2.layer = doc.layers[0].id; page.items.push(f2);
+      expect(PR.items.link(doc, frame.id, f2.id)).toBe(true);
+      PR.touch();
+      expect(E.frame(f2).lines.length).toBeGreaterThan(0);
+      const l1 = E.frame(frame).lines, l2 = E.frame(f2).lines;
+      expect(l2[0].o0).toBe(l1[l1.length - 1].o1);
+      expect(E.overset(frame)).toBe(false);
+    });
+    it('columns inside a frame fill left to right', async () => {
+      const { frame } = await textDoc({ text: LOREM + ' ' + LOREM, w: 300, h: 120, cols: 2, gutter: 12 });
+      const lines = E.frame(frame).lines, xs = [...new Set(lines.map((l) => Math.round(l.si)))];
+      expect(xs.length).toBe(2);
+      expect(lines.filter((l) => l.si === 1)[0].x).toBeGreaterThan(150);
+    });
+    it('text wraps around a box object', async () => {
+      const { doc, frame, page } = await textDoc({ text: LOREM + ' ' + LOREM, w: 300, h: 400 });
+      const r = M.item('rect', 40 + 0, 40 + 60, 120, 80, { wrap: { type: 'box', off: 6 } }); r.layer = doc.layers[0].id; page.items.push(r);
+      PR.touch();
+      const beside = E.frame(frame).lines.filter((l) => l.y > 70 && l.y - l.asc < 146);
+      expect(beside.length).toBeGreaterThan(0);
+      beside.forEach((l) => expect(l.x).toBeGreaterThanOrEqual(126 - 0.01));
+    });
+    it('autoflow adds threaded pages until the story fits', async () => {
+      const { doc, frame } = await textDoc({ text: Array(12).fill(LOREM).join('\n'), w: 200, h: 200 });
+      const before = doc.pages.length, added = E.autoflow(frame.story);
+      expect(added).toBeGreaterThan(0);
+      expect(doc.pages.length).toBe(before + added);
+      expect(E.overset(frame)).toBe(false);
+    });
+  });
+  describe('keep options', () => {
+    it('keep all lines together moves a short paragraph instead of splitting it', async () => {
+      const { doc, frame, page } = await textDoc({ text: 'One.\n' + LOREM, w: 200, h: 60, composer: 'greedy' });
+      const f2 = M.item('text', 300, 40, 200, 400); f2.layer = doc.layers[0].id; page.items.push(f2);
+      PR.items.link(doc, frame.id, f2.id);
+      doc.stories[frame.story].paras[1].ov = { keepLines: true };
+      PR.styles.invalidate(); PR.touch();
+      expect(E.frame(frame).lines.every((l) => l.k === 0)).toBe(true);
+      expect(E.frame(f2).lines[0].k).toBe(1);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

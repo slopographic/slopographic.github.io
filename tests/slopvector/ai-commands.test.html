@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · assistant commands</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  // Covers: slopvector/js/ui/ai-commands.js, slopvector/js/ui/ai-io.js, slopvector/js/ui/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let C;
+  const S = () => SV.state;
+  const run = async (id, args) => { const r = await C.exec('sv.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const obj = (name) => { let hit = null; SV.walk((o) => { if (o.name === name) { hit = o; return false; } }); return hit; };
+  const objs = () => S().doc.layers.flatMap((L) => L.children);
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect x="0" y="0" width="60" height="50" fill="#ff0000"/><circle cx="80" cy="25" r="20" fill="#0000ff"/></svg>';
+
+  describe('SlopVector assistant commands', () => {
+    it('prepare() loads them; schemas; only new_document and delete_object are destructive', async () => {
+      C = W.SlopCmd;
+      expect(C.get('sv.ai.add-shape')).toBe(null);
+      await C.prepare();
+      const ids = ['new-document', 'add-svg', 'add-shape', 'add-text', 'set-style', 'transform', 'select-objects', 'align', 'distribute', 'pathfinder', 'group', 'ungroup', 'arrange', 'delete-object', 'export', 'undo'];
+      for (const id of ids) expect(!!C.get('sv.ai.' + id)).toBe(true);
+      expect(C.list().filter((c) => /^sv\.ai\./.test(c.id) && c.destructive).map((c) => c.id).sort()).toEqual(['sv.ai.delete-object', 'sv.ai.new-document']);
+      expect(C.get('sv.ai.add-shape').tool).toBe('add_shape');
+    }, { timeout: 30000 });
+
+    it('new_document with a background, then shapes, text and the bounds warning', async () => {
+      await run('new-document', { width: 400, height: 300, background: '#ffffff', name: 'Card' });
+      expect([S().doc.width, S().doc.height, S().doc.name]).toEqual([400, 300, 'Card']);
+      expect(obj('Background').style.fill).toBe('#ffffff');
+      const h0 = S().hIdx;
+      let r = await run('add-shape', { kind: 'rect', x: 10, y: 20, width: 100, height: 50, fill: 'red', stroke: '#000000', stroke_width: 3, name: 'Box' });
+      expect(S().hIdx).toBe(h0 + 1);
+      expect(r.value).toMatch(/100 × 50 at 10, 20/);
+      const box = obj('Box');
+      expect([box.type, box.style.fill, box.style.stroke, box.style.sw]).toEqual(['rect', '#ff0000', '#000000', 3]);
+      await run('add-shape', { kind: 'star', x: 200, y: 100, width: 80, height: 80, sides: 5, fill: '#00ff00', name: 'Star' });
+      expect(obj('Star').points).toBe(5);
+      await run('add-shape', { kind: 'path', d: 'M0 0 L50 0 L25 40 Z', fill: '#0000ff', name: 'Tri' });
+      expect(obj('Tri').type).toBe('path');
+      r = await run('add-shape', { kind: 'ellipse', x: -50, y: 0, width: 500, height: 100, name: 'Wide' });
+      expect(r.value).toMatch(/Warning: It is 500 px wide, wider than the 400 px artboard/);
+      r = await run('add-shape', { kind: 'ellipse', x: -50, y: 0, width: 500, height: 100, name: 'Fits', fit: true });
+      expect(r.value).not.toMatch(/Warning/);
+      const fb = SV.objBBox(obj('Fits'));
+      expect(fb.x >= -0.5 && fb.x + fb.w <= 400.5).toBe(true);
+      r = await run('add-text', { text: 'Hello', size: 40, color: '#123456', name: 'Hi' });
+      expect(obj('Hi').text).toBe('Hello');
+      expect(obj('Hi').style.fill).toBe('#123456');
+      expect((await C.exec('sv.ai.add-shape', { fill: 'notacolour' })).ok).toBe(false);
+    });
+
+    it('set_style, transform, arrange, group and ungroup, delete_object, undo', async () => {
+      await run('set-style', { object: 'Box', fill: '#00ffff', opacity: 50 });
+      expect([obj('Box').style.fill, obj('Box').style.opacity]).toEqual(['#00ffff', 0.5]);
+      const b0 = SV.objBBox(obj('Box'));
+      await run('transform', { object: 'Box', move_x: 30, scale: 200 });
+      const b1 = SV.objBBox(obj('Box'));
+      expect(Math.round(b1.w)).toBe(Math.round(b0.w * 2));
+      expect(Math.round(b1.x + b1.w / 2)).toBe(Math.round(b0.x + b0.w / 2 + 30));
+      await run('arrange', { object: 'Box', how: 'back' });
+      expect(S().doc.layers[0].children[0].name).toBe('Box');
+      await run('group', { objects: ['Star', 'Tri'], name: 'Pair' });
+      expect(obj('Pair').type).toBe('group');
+      expect(obj('Pair').children.length).toBe(2);
+      await run('ungroup', { object: 'Pair' });
+      expect(obj('Pair')).toBe(null);
+      await run('delete-object', { object: 'Tri' });
+      expect(obj('Tri')).toBe(null);
+      await run('undo', {});
+      expect(!!obj('Tri')).toBe(true);
+      expect((await C.exec('sv.ai.set-style', { object: 'Nope', fill: 'red' })).ok).toBe(false);
+    });
+
+    it('align to the artboard, distribute and pathfinder union', async () => {
+      await run('align', { objects: ['Hi'], how: 'hcenter', to: 'artboard' });
+      const hb = SV.objBBox(obj('Hi'));
+      expect(Math.abs(hb.x + hb.w / 2 - 200) < 1).toBe(true);
+      await run('add-shape', { kind: 'rect', x: 0, y: 200, width: 40, height: 40, name: 'A' });
+      await run('add-shape', { kind: 'rect', x: 20, y: 200, width: 40, height: 40, name: 'B' });
+      const n = objs().length;
+      const r = await run('pathfinder', { objects: ['A', 'B'], op: 'union' });
+      expect(objs().length).toBe(n - 1);
+      expect(r.value).toMatch(/60 × 40/);
+    });
+
+    it('add_svg imports editable objects; unsafe SVG is refused', async () => {
+      const n = objs().length;
+      const r = await run('add-svg', { svg: SVG, x: 200, y: 150, name: 'Art' });
+      expect(r.value).toMatch(/2 in a group/);
+      expect(objs().length).toBe(n + 1);
+      expect(obj('Art').children.map((c) => c.type).sort()).toEqual(['ellipse', 'rect']);
+      for (const bad of ['<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)<\/script></svg>', '<svg xmlns="http://www.w3.org/2000/svg" onload="x()"><rect width="9" height="9"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/a.png" width="9" height="9"/></svg>', '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject/></svg>', 'nope']) {
+        expect((await C.exec('sv.ai.add-svg', { svg: bad })).ok).toBe(false);
+      }
+      expect(objs().length).toBe(n + 1);
+    });
+
+    it('export SVG to Slop Drive (read back) and PNG (pixels)', async () => {
+      const r = await run('export', { format: 'svg', name: 'card' });
+      const id = /id ([^)\s]+)\)/.exec(r.value)[1];
+      const rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('card.svg');
+      const text = await rec.blob.text();
+      expect(text).toContain('#00ffff');
+      expect(text).toContain('Hello');
+      await run('new-document', { width: 50, height: 50, background: 'none' });
+      await run('add-shape', { kind: 'rect', x: 0, y: 0, width: 50, height: 25, fill: '#ff0000', stroke: 'none' });
+      const p = await run('export', { format: 'png', name: 'half' });
+      const prec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(p.value)[1]);
+      const bmp = await createImageBitmap(prec.blob), c = document.createElement('canvas');
+      c.width = bmp.width; c.height = bmp.height;
+      const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+      expect([...g.getImageData(25, 10, 1, 1).data]).toEqual([255, 0, 0, 255]);
+      expect(g.getImageData(25, 40, 1, 1).data[3]).toBe(0);
+    }, { timeout: 30000 });
+
+    it('state() lists the objects; the checkpoint undoes every change since', async () => {
+      const st = C.state();
+      expect(st.app).toBe('SlopVector');
+      expect(st.objects.length).toBe(1);
+      const back = C.checkpoint();
+      await run('add-shape', { kind: 'ellipse', x: 5, y: 5, width: 10, height: 10 });
+      await run('add-shape', { kind: 'rect', x: 5, y: 5, width: 10, height: 10 });
+      expect(objs().length).toBe(3);
+      expect(back()).toBe(true);
+      expect(objs().length).toBe(1);
+    });
+  });
+  SlopTest.run({ name: 'SlopVector assistant commands' });
+  </script>
+</body>
+</html>

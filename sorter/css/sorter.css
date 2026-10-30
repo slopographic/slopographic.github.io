@@ -1,0 +1,44 @@
+/* Slop Photo Sorter: the page around the deck (shared/deck/deck.css draws the deck). Colours from the page theme (--sl-*). */
+:root { --so-bg: var(--sl-background, #f3f1ec); --so-card: var(--sl-surface, #fff); --so-fg: var(--sl-text, #111); --so-line: var(--sl-border, #c9c5bb);
+  --so-accent: var(--sl-accent, #4f6c00); --so-on: var(--sl-on-accent, #fff); --so-mute: color-mix(in srgb, var(--so-fg) 62%, transparent); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--so-bg); color: var(--so-fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.so-app [hidden] { display: none !important; }
+/* The page: the title, then SlopFrame's View · Panel (shared/frame): the photos in the middle, Start sorting and the
+   downloads in the panel on the right (a bottom sheet on a phone). */
+main.so-app { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.so-intro { padding: 18px 20px 12px; }
+.so-frame { flex: 1 1 auto; min-height: 360px; border-top: 1px solid var(--so-line); }
+.so-view { padding: 14px 20px 28px; }
+.so-side .sf-acts .so-btn { width: 100%; }
+.so-side .sf-foot-acts .so-btn { min-height: 40px; }
+.so-intro h1 { margin: 0 0 4px; font-size: 26px; }
+.so-lede { margin: 0; color: var(--so-mute); max-width: 70ch; }
+.so-add { margin: 18px 0 6px; display: grid; gap: 10px; }
+.so-drop { display: grid; place-items: center; min-height: 110px; padding: 14px; border: 2px dashed var(--so-line); border-radius: 12px; background: var(--so-card); text-align: center; }
+.so-or { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.so-keys { color: var(--so-mute); font-size: 13px; }
+.so-btn { font: inherit; min-height: 36px; padding: 6px 14px; border: 1px solid var(--so-line); border-radius: 8px; background: var(--so-card); color: var(--so-fg); cursor: pointer; }
+.so-btn:hover:not(:disabled) { border-color: var(--so-mute); }
+.so-btn.primary { background: var(--so-accent); color: var(--so-on); border-color: var(--so-accent); font-weight: 600; }
+.so-btn:disabled { opacity: .5; cursor: default; }
+.so-btn:focus-visible, .so-filter:focus-visible, .so-thumb:focus-visible { outline: 2px solid var(--so-accent); outline-offset: 2px; }
+.so-msg { min-height: 1.4em; margin: 0 0 8px; color: var(--so-mute); font-size: 14px; }
+.so-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 12px; }
+.so-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.so-filter { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--so-line); background: var(--so-card); color: var(--so-fg); cursor: pointer; }
+.so-filter[aria-pressed="true"] { background: var(--so-fg); color: var(--so-bg); border-color: var(--so-fg); }
+.so-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.so-card { position: relative; display: grid; gap: 4px; min-width: 0; }
+.so-thumb { display: block; padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--so-fg) 8%, var(--so-card)); aspect-ratio: 1; cursor: pointer; }
+.so-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.so-card.is-liked .so-thumb { border-color: #2e9d58; }
+.so-card.is-disliked .so-thumb { border-color: #d64560; }
+.so-card.is-disliked img { opacity: .55; }
+.so-badge { position: absolute; top: 6px; right: 6px; min-width: 26px; height: 26px; display: grid; place-items: center; border-radius: 13px; font-weight: 700; color: #fff; pointer-events: none; }
+.so-badge:empty { display: none; }
+.so-card.is-liked .so-badge { background: #2e9d58; } .so-card.is-disliked .so-badge { background: #d64560; }
+.so-name { font-size: 12px; color: var(--so-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-none { color: var(--so-mute); }
+@media (max-width: 560px) { .so-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); } .so-intro h1 { font-size: 22px; } }

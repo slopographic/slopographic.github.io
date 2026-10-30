@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cutout sample</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- End to end: open the sample, segment it with the real model, check the result is on screen. -->
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="app.spec-sample.js"></script>
+  <script>SlopTest.run({ name: 'Slop Cutout sample' });</script>
+</body>
+</html>

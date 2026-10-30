@@ -1,0 +1,50 @@
+/* Slop Serial counter: colours come from the site's aitools tokens (--bg, --fg, --card, --line, --accent, --muted, --bad). */
+/* The page: the title, then (once a model is in) SlopFrame's View · Panel (shared/frame) filling the rest of the window. */
+body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+main.sr-app { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; box-sizing: border-box; }
+.sr-app > h1, .sr-lede, .sr-gate { padding-inline: 20px; }
+.sr-app > h1 { padding-top: 18px; }
+.sr-ui { flex: 1 1 auto; min-height: 360px; border-top: 1px solid var(--line); }
+.sr-main { padding: 16px 20px 32px; }
+.sr-side .sf-acts button, .sr-side .sf-p-foot button { width: 100%; }
+.sr-side .sf-foot-acts .sf-foot-more { width: auto; }
+.sr-app .sr-side h2.sf-p-h { margin: 0; font-size: 15px; }
+.sr-app h1 { margin: 0 0 4px; font-size: 1.6rem; }
+.sr-app h2 { font-size: 1.05rem; margin: 28px 0 8px; }
+.sr-lede { color: var(--muted); margin: 0 0 16px; }
+.sr-gate:empty { display: none; }
+.sr-drop { font: inherit; width: 100%; display: block; border: 2px dashed var(--line); border-radius: 12px; padding: 32px 16px; text-align: center; color: var(--muted); cursor: pointer; background: var(--card); }
+.sr-drop.over { border-color: var(--accent); color: var(--fg); }
+.sr-drop u { color: var(--fg); text-decoration: underline; }
+.sr-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 16px; }
+.sr-pattern { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.sr-pattern input { font: 14px ui-monospace, Menlo, Consolas, monospace; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
+.sr-pattern input.bad { border-color: var(--bad); }
+.sr-app button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+.sr-app button:disabled { opacity: .45; cursor: default; }
+.sr-app button[type="submit"], .sr-app #read { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+#prog { width: 140px; }
+.sr-msg { min-height: 1.4em; color: var(--muted); margin: 10px 0 0; }
+.sr-photos { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.sr-photo { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.sr-photo-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sr-name { font-weight: 600; overflow-wrap: anywhere; }
+.sr-status { color: var(--muted); font-size: 13px; }
+.sr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.sr-chip { display: inline-flex; align-items: center; gap: 4px; font: 13px ui-monospace, Menlo, Consolas, monospace; padding: 3px 4px 3px 9px; border-radius: 99px; border: 1px solid var(--line); }
+.sr-chip-x { border: 0; background: none; padding: 0 4px; line-height: 1; font-size: 15px; color: var(--muted); }
+.sr-none { color: var(--muted); font-size: 13px; margin: 0; }
+.sr-add { display: flex; gap: 6px; }
+.sr-add input { flex: 1; min-width: 0; font: 13px ui-monospace, Menlo, Consolas, monospace; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); text-transform: uppercase; }
+.sr-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.sr-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sr-table th, .sr-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.sr-table th { font-size: 12px; color: var(--muted); font-weight: 600; }
+.sr-table td:nth-child(2) { font-variant-numeric: tabular-nums; }
+.sr-mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.sr-totals { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.sr-totals dt { color: var(--muted); }
+.sr-totals dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+@media (max-width: 520px) { .sr-add { flex-direction: column; } }
+body:has(#ui[hidden]) .sf-toggle { display: none; }   /* no panel to show while the model prompt is up */

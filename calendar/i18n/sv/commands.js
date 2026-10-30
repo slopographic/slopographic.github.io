@@ -1,0 +1,22 @@
+/* Slop Calendar, Swedish: the palette. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-sv.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'calendar.cmd.g_cal': 'Kalender',
+  'calendar.cmd.g_goto': 'Gå till',
+  'calendar.cmd.prev': 'Kalender: föregående period',
+  'calendar.cmd.next': 'Kalender: nästa period',
+  'calendar.cmd.today': 'Kalender: gå till i dag',
+  'calendar.cmd.year': 'Kalender: årsvy',
+  'calendar.cmd.month': 'Kalender: månadsvy',
+  'calendar.cmd.split': 'Kalender: delad vy',
+  'calendar.cmd.undo': 'Kalender: ångra senaste flytt',
+  'calendar.cmd.week': 'Kalender: veckovy',
+  'calendar.cmd.day': 'Kalender: dagsvy',
+  'calendar.cmd.agenda': 'Kalender: agenda',
+  'calendar.cmd.new': 'Kalender: ny händelse',
+  'calendar.cmd.tasks': 'Kalender: visa eller dölj att göra',
+  'calendar.cmd.import': 'Kalender: importera .ics',
+  'calendar.cmd.export': 'Kalender: exportera .ics',
+  'calendar.cmd.todo': 'Gå till Slop To-do',
+  'calendar.cmd.reminders': 'Gå till Slop Reminders',
+  'calendar.cmd.crm': 'Gå till Slop CRM',
+});

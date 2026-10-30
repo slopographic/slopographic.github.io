@@ -1,0 +1,20 @@
+/* PhotoSlop, Russian: the guided tour (shared/tour/tours/photoslop.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'photoslop.tour.title': 'Обзор PhotoSlop',
+  'photoslop.tour.new_title': 'Создание файла',
+  'photoslop.tour.new_text': '«Создать» задаёт размер, пресет и фон документа (в меню «Ещё ▾» на узком экране); «Открыть» загружает PSD, ORA или изображение. Каждый файл открывается на своей вкладке.',
+  'photoslop.tour.menus_title': 'Строка меню',
+  'photoslop.tour.menus_text': 'Здесь находятся меню «Файл», «Правка», «Изображение», «Слой», «Выделение» и «Фильтр». В каждом меню свои команды.',
+  'photoslop.tour.tools_title': 'Инструменты',
+  'photoslop.tour.tools_text': 'Кисти, выделение, текст и кадрирование находятся на панели инструментов. Выберите нужный, затем настройте его на панели параметров.',
+  'photoslop.tour.options_title': 'Параметры инструмента',
+  'photoslop.tour.options_text': 'Панель параметров меняется вместе с активным инструментом: размер, непрозрачность, режим наложения и многое другое.',
+  'photoslop.tour.canvas_title': 'Холст',
+  'photoslop.tour.canvas_text': 'Рисуйте, выделяйте и трансформируйте на холсте. В строке состояния показаны масштаб и размер.',
+  'photoslop.tour.panels_title': 'Слои и панели',
+  'photoslop.tour.panels_text': 'Слои, история и свойства находятся в этой колонке. На телефоне их открывает кнопка «Слои».',
+  'photoslop.tour.export_title': 'Экспорт',
+  'photoslop.tour.export_text': 'Экспортируйте в PNG, JPEG, WebP или PSD. Файл создаётся на вашем устройстве; ничего не отправляется.',
+  'photoslop.tour.theme_title': 'Тема',
+  'photoslop.tour.theme_text': 'Переключайтесь между Pro, Light и Paint ’98.',
+});

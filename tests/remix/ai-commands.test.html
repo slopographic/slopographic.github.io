@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Reel Remix AI commands</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1280px; height: 900px; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../remix/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../slopcut/ai.helpers.js"></script>
+  <script>
+  // Reel Remix's operations as commands with arguments (the AI's tools): a whole reel from a spec (Slop Drive sources,
+  // options, seed), the same spec gives the same edit, single edits on the plan, a destructive command flagged, and the
+  // export through SlopCut's hidden copy into Slop Drive.
+  // Covers: remix/js/ai-commands.js, remix/js/ai-spec.js, shared/commands/argform.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const win = () => document.getElementById('app').contentWindow;
+  const RM = () => win().RM, C = () => win().SlopCmd;
+  const ok = async (id, args) => { const r = await C().exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r.value; };
+  async function still(i) {
+    const c = win().document.createElement('canvas'); c.width = 320; c.height = 180;
+    const g = c.getContext('2d'); g.fillStyle = 'hsl(' + i * 70 + ' 70% 45%)'; g.fillRect(0, 0, 320, 180);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    return win().SlopHub.put(blob, { name: 'still-' + i + '.png', from: 'test' });
+  }
+  let ids = [];
+  describe('Reel Remix AI commands', () => {
+    it('lists every operation as a command with arguments; destructive ones are flagged', async () => {
+      await waitFor(() => win() && win().RM && win().RM.ready, { timeout: 20000 });
+      for (const id of ['remix.ai.new', 'remix.ai.state', 'remix.ai.add', 'remix.ai.remove', 'remix.ai.options', 'remix.ai.remix', 'remix.ai.fill', 'remix.ai.replace', 'remix.ai.swap', 'remix.ai.moveCut', 'remix.ai.lock', 'remix.ai.reset', 'remix.ai.export', 'remix.ai.send', 'remix.ai.spec']) {
+        const c = C().list().find((x) => x.id === id); if (!c || !c.args || c.hidden) throw new Error('missing ' + id);
+      }
+      expect(C().list().find((x) => x.id === 'remix.ai.remove').destructive).toBe(true);
+      expect(C().list().find((x) => x.id === 'remix.ai.reset').destructive).toBe(true);
+      expect(C().list().find((x) => x.id === 'remix.ai.new').destructive).toBe(true);
+    }, { timeout: 30000 });
+    it('remix_from_spec: Drive sources, options and a seed; the same spec gives the same edit', async () => {
+      for (let i = 1; i <= 4; i++) ids.push(await still(i));
+      const spec = { sources: ids, target: 4, pace: 'fast', aspect: 'phone', layout: 'none', switches: false, seed: '1a2b3c4d' };
+      const a = await ok('remix.ai.spec', { spec });
+      expect(a.seed).toBe('1a2b3c4d'); expect(Math.abs(a.total - 4)).toBeLessThan(0.05);
+      expect(RM().state.items.length).toBe(4);
+      const cuts = JSON.stringify(C().state().plan.cuts.map((c) => c.slots.map((s) => RM().state.items.find((m) => m.id === s.clip).name)));
+      await ok('remix.ai.spec', { spec: JSON.stringify(spec) });
+      expect(RM().state.items.length).toBe(4, 'the bin is replaced, not added to');
+      expect(JSON.stringify(C().state().plan.cuts.map((c) => c.slots.map((s) => RM().state.items.find((m) => m.id === s.clip).name)))).toBe(cuts);
+      const bad = await C().exec('remix.ai.spec', { spec: { sources: ids, pace: 'warp' } });
+      expect(bad.ok).toBe(false); expect(bad.error).toContain('pace');
+    }, { timeout: 40000 });
+    it('edits the plan: options, a cut\'s fill, a slot\'s clip, a lock; the state shows it', async () => {
+      const r = await ok('remix.ai.options', { target: 6, layout: 'grid-1x2' });
+      expect(r).toContain('Planned');
+      const st = C().state();
+      expect(Math.abs(st.plan.total - 6)).toBeLessThan(0.05);
+      expect(st.plan.cuts[0].slots.length).toBe(2);
+      await ok('remix.ai.fill', { cut: 0, fill: 'fit' });
+      expect(C().state().plan.cuts[0].slots[0].fill).toBe('fit');
+      const other = RM().state.items[3].id;
+      await ok('remix.ai.replace', { cut: 1, slot: 0, clip: other });
+      expect(C().state().plan.cuts[1].slots[0].clip).toBe(other);
+      await ok('remix.ai.lock', { cut: 1 });
+      expect(RM().state.locks.length).toBeGreaterThan(0);
+      expect((await C().exec('remix.ai.fill', { cut: 999, fill: 'fit' })).error).toContain('no cut 999');
+    }, { timeout: 20000 });
+    it('new_reel empties the bin, resets the options and draws a new seed, then plans from Drive sources', async () => {
+      const seed = RM().state.seed;
+      const bad = await C().exec('remix.ai.new', { sources: [ids[0], 'no-such-clip.png'] });
+      expect(bad.ok).toBe(false);
+      expect(RM().state.items.length).toBe(4, 'a missing source changes nothing');
+      const r = await ok('remix.ai.new', { sources: ids.slice(0, 2), target: 3, pace: 'fast' });
+      expect(r).toContain('New reel with 2 clip(s), planned');
+      const st = RM().state;
+      expect(st.items.map((m) => m.name)).toEqual(['still-1.png', 'still-2.png']);
+      expect([st.base, st.locks.length, st.target]).toEqual(['none', 0, 3]);
+      expect(st.seed === seed).toBe(false);
+      expect(Math.abs(C().state().plan.total - 3)).toBeLessThan(0.05);
+      expect(await ok('remix.ai.new', {})).toContain('the bin is empty');
+      expect([RM().state.items.length, RM().state.plan, RM().state.target]).toEqual([0, null, 30]);
+    }, { timeout: 30000 });
+    it('exports the reel through SlopCut\'s hidden copy into Slop Drive', async () => {
+      if (typeof win().VideoEncoder !== 'function') return;
+      const r = await ok('remix.ai.spec', { spec: { sources: ids.slice(0, 3), target: 2, pace: 'fast', width: 180, height: 320, layout: 'none', seed: 'cafe0001', export: { engine: 'slopcut', format: 'mp4', name: 'my reel' } } });
+      expect(r.export.saved).toBe('Slop Drive');
+      const rec = await win().SlopHub.get(r.export.file);
+      expect(rec.name).toBe('my reel.mp4');
+      const d = await AIT.decode(rec.blob);
+      expect([d.w, d.h]).toEqual([180, 320]); expect(Math.abs(d.dur - 2)).toBeLessThan(0.25); d.close();
+    }, { timeout: 120000 });
+  });
+  SlopTest.run({ name: 'Reel Remix AI commands' });
+  </script>
+</body>
+</html>

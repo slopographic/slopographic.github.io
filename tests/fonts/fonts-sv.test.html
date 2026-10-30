@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">   <!-- the page chooses Swedish itself: the harness leaves the language alone -->
+  <title>Fonts · the picker, the Fonts panel and the language packs in Swedish</title>
+  <!-- Covers: shared/fonts/picker.js, shared/fonts/panel.js, shared/fonts/missing.js, shared/fonts/catalog.js, shared/fonts/scripts.js, shared/i18n/ui/en/fonts.js, shared/i18n/ui/sv/fonts.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="mock.js"></script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script src="../../shared/fonts/missing.js"></script>
+  <script src="../../shared/fonts/scripts.js"></script>
+  <script>
+  // The picker's buttons and groups, the Fonts panel's rows and buttons, the missing-font check's title and notes, the
+  // catalogue's refusals and the language packs' names were English in every language. They are ui.fonts.* keys now.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n;
+  const panel = () => document.querySelector('.sf-ov');
+  const rowOf = (name) => panel() && panel().querySelector(`.sf-row[data-family="${name}"]`);
+  const KEY = /\bui\.fonts\.[a-z_]+/;
+  describe('fonts in Swedish', () => {
+    it('the picker: Hämta fler…, Teckensnitt… and the group names', async () => {
+      await I.ready();
+      expect(I.get()).toBe('sv');
+      const sel = document.createElement('select');
+      document.body.append(sel);
+      const pick = SlopFonts.attach(sel, { value: 'Inter', legacy: ['Georgia'] });
+      expect(pick.button.textContent).toBe('Hämta fler…');
+      expect(pick.fontsButton.textContent).toBe('Teckensnitt…');
+      expect(sel.querySelector('optgroup').label).toBe('Standard');
+      await waitFor(() => sel.querySelector('optgroup[label="Inbyggda (offline)"]'), { timeout: 10000 });
+      sel.remove();
+    });
+    it('the missing-font check: its title, notes and rows in Swedish, no key shown', async () => {
+      FontTest.closeAll();
+      const asked = SlopFontCheck.ask([{ family: 'Barlow' }]);
+      await waitFor(() => rowOf('Barlow'), { timeout: 10000 });
+      const text = panel().textContent;
+      expect(text).toContain('Teckensnitt som dokumentet använder är inte installerade');
+      expect(text).toContain('Dokumentet använder: Barlow.');
+      expect(rowOf('Barlow').textContent).toContain('Barlow · Saknas.');
+      expect(text).toContain('Använd närmaste teckensnitt i stället');
+      expect(text).toContain('Avbryt redigering');
+      expect(KEY.test(text)).toBe(false);
+      [...panel().querySelectorAll('button')].find((b) => b.textContent === 'Avbryt redigering').click();
+      expect(await asked).toBe(null);
+    });
+    it('the catalogue refuses a WOFF file in Swedish, naming the app and the format', async () => {
+      let err = null;
+      try { await SlopFontCatalog.readFontFile(new File([new Uint8Array([1, 2, 3, 4])], 'Gill.woff'), 'Slop Docs'); } catch (e) { err = e; }
+      expect(err && err.message).toBe('WOFF-teckensnitt kan inte användas i Slop Docs än. Använd teckensnittets TTF- eller OTF-fil.');
+    });
+    it('a language pack is named in the chosen language, and back in English after a switch', async () => {
+      expect(SlopScripts.PACKS['noto-arabic'].label).toBe('Arabiska');
+      expect(SlopScripts.PACKS['noto-sc'].label).toBe('Kinesiska (förenklad)');
+      I.set('en');
+      await waitFor(() => SlopScripts.PACKS['noto-arabic'].label === 'Arabic');
+      I.set('sv');
+      await waitFor(() => SlopScripts.PACKS['noto-arabic'].label === 'Arabiska');
+    });
+  });
+  run({ name: 'Fonts in Swedish' });
+  </script>
+</body>
+</html>

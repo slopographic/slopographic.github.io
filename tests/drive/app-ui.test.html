@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: views and interaction</title><!-- Covers: drive/js/core/pdf.js (PDF thumbnails, pdf.js through shared/compat/pdfjs.js) --><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, H, D;
+  const q = (s) => D.querySelector(s), qa = (s) => [...D.querySelectorAll(s)];
+  const file = (n) => [...DR.S.files.values()].find((x) => x.name === n);
+  const folder = (n) => [...DR.S.folders.values()].find((x) => x.name === n);
+  const node = (key) => q(`#pane [data-key="${key}"]`);
+  const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  const ptr = (target, type, x, y, extra = {}) => target.dispatchEvent(new W.PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 7, pointerType: 'mouse', isPrimary: true }, extra)));
+  const click = (el, opts = {}) => el.dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, opts)));
+  const key = (k, opts) => D.body.dispatchEvent(DT.key(k, opts));
+
+  describe('setup', () => {
+    it('boots with sample files', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; D = W.document;
+      await H.clear();
+      const pics = await H.createFolder('Pictures'), docs = await H.createFolder('Docs'), inner = await H.createFolder('Inner', pics);
+      const img = await DT.png('#5cc8ff', 120, 90);
+      await H.put(img, { name: 'one.png', from: 'photoslop', folderId: pics });
+      await H.put(img, { name: 'one copy.png', from: 'upload', folderId: pics });
+      await H.put(await DT.png('#ff8fb8', 60, 60), { name: 'two.png', from: 'vector', folderId: pics });
+      await H.put(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>'], { type: 'image/svg+xml' }), { name: 'logo.svg', folderId: inner });
+      await H.put(DT.text('line one\nline two'), { name: 'read me.txt', from: 'upload', folderId: docs });
+      await H.put(new Blob([new Uint8Array(5000)]), { name: 'big.bin', from: 'runner' });
+      await DR.refresh(); DR.setView('grid'); DR.go(null);
+      expect(qa('#pane [data-key]').length).toBe(3);
+    });
+  });
+
+  describe('views', () => {
+    it('grid shows thumbnails for images and SVG', async () => {
+      DR.go(folder('Pictures').id);
+      await waitFor(() => qa('#pane .th img').length >= 3);
+      expect(qa('#pane .card').length).toBe(4);
+    });
+    it('list sorts by clicking the column headers', () => {
+      DR.setView('list');
+      // the default columns: Type replaced Kind, and Location replaced App (see columns.test.html)
+      expect(qa('.lhead .hcol').map((b) => b.textContent.replace(/[▲▼]/, ''))).toEqual(['Name', 'Type', 'Size', 'Modified', 'Location']);
+      DR.S.sort = { key: 'name', dir: 1 }; DR.render();
+      expect(qa('#pane .row .nm').map((n) => n.textContent)).toEqual(['Inner', 'one copy.png', 'one.png', 'two.png']);
+      q('.lhead [data-sort="size"]').click(); // size: biggest first
+      const sizes = qa('#pane .row').slice(1).map((r) => DR.item(r.dataset.key).size);
+      expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
+      q('.lhead [data-sort="name"]').click(); q('.lhead [data-sort="name"]').click();
+      expect(qa('#pane .row .nm').map((n) => n.textContent)[0]).toBe('Inner');
+      expect(qa('#pane .row .nm').map((n) => n.textContent)[1]).toBe('two.png');
+      DR.S.sort = { key: 'name', dir: 1 }; DR.render();
+    });
+    it('compact and the 1–6 keys switch views', () => {
+      key('3'); expect(DR.S.view).toBe('compact'); expect(q('#pane .v-compact')).toBeTruthy();
+      key('1'); expect(DR.S.view).toBe('grid');
+      key('2'); expect(q('#pane .v-list')).toBeTruthy();
+    });
+    it('columns show the path and a preview column for a file', () => {
+      DR.setView('columns'); DR.go(folder('Inner').id);
+      expect(qa('#pane .cols > .col').length).toBe(3);
+      expect(qa('#pane .crow.open .nm').map((n) => n.textContent)).toEqual(['Pictures', 'Inner']);
+      // the details panel is open by default and shows the preview itself: close it, so the column preview shows
+      DR.S.info = false; DR.renderInfo(true);
+      click(q(`#pane .crow[data-key="f:${file('logo.svg').id}"]`));
+      expect(q('#pane .col-pv')).toBeTruthy();
+      click(q(`#pane .crow[data-key="d:${folder('Docs').id}"]`));
+      expect(DR.S.cwd).toBe(folder('Docs').id);
+      expect(qa('#pane .cols > .col').length).toBe(2);
+    });
+    it('nodes: a graph with collapsible folders, zoom and drag-to-move', async () => {
+      DR.setView('nodes'); DR.go(null);
+      const pics = folder('Pictures');
+      expect(q(`#pane .nd[data-key="d:${pics.id}"]`)).toBeTruthy();
+      expect(q(`#pane .nd[data-key="f:${file('logo.svg').id}"]`)).toBeTruthy();
+      q(`#pane [data-toggle="${folder('Inner').id}"]`).dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+      expect(q(`#pane .nd[data-key="f:${file('logo.svg').id}"]`)).toBe(null);
+      const k0 = DR.nodesView.tx.k; DR.nodesView.zoomBy(1.5); expect(DR.nodesView.tx.k).toBeCloseTo(k0 * 1.5, 1e-6);
+      DR.nodesView.fit();
+      // drag big.bin onto Docs
+      const src = q(`#pane .nd[data-key="f:${file('big.bin').id}"]`), dst = q(`#pane .nd[data-key="d:${folder('Docs').id}"]`);
+      const a = center(src), b = center(dst);
+      ptr(src, 'pointerdown', a.x, a.y); ptr(W, 'pointermove', a.x + 20, a.y + 5); ptr(W, 'pointermove', b.x, b.y);
+      expect(dst.classList.contains('drop')).toBe(true);
+      ptr(W, 'pointerup', b.x, b.y);
+      await waitFor(() => file('big.bin').parent === folder('Docs').id);
+      DR.S.collapsed.clear();
+    });
+    it('disk usage: squarified treemap, sunburst, drill in by clicking a folder', async () => {
+      const rects = DR.squarify([{ size: 6 }, { size: 6 }, { size: 4 }, { size: 3 }, { size: 2 }, { size: 2 }, { size: 1 }], 0, 0, 600, 400);
+      expect(rects.length).toBe(7);
+      const area = rects.reduce((n, r) => n + r.w * r.h, 0);
+      expect(area).toBeCloseTo(240000, 1);
+      expect(Math.max(...rects.map((r) => Math.max(r.w / r.h, r.h / r.w)))).toBeLessThan(3.5);
+      DR.setView('usage'); DR.S.usageMode = 'treemap'; DR.go(null);
+      const tree = DR.usageTree(null);
+      expect(tree.size).toBe(DR.liveFiles().reduce((n, r) => n + r.size, 0));
+      const t = q(`#pane .tm[data-key="d:${folder('Pictures').id}"]`);
+      expect(t.dataset.tip).toContain('Pictures');
+      t.querySelector('rect').dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+      expect(DR.S.cwd).toBe(folder('Pictures').id);
+      q('[data-usage="sunburst"]').click();
+      expect(DR.S.usageMode).toBe('sunburst');
+      expect(qa('#pane path.sb').length).toBeGreaterThan(2);
+      q('#pane [data-up]').dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+      expect(DR.S.cwd).toBe(null);
+      DR.S.usageMode = 'treemap'; DR.setView('grid');
+    });
+  });
+
+  describe('selection', () => {
+    it('click, Ctrl+click and Shift+click', async () => {
+      // A click right after a drag ends is swallowed (dnd.js); the nodes test above ends one, so wait that out first.
+      await waitFor(() => !DR.dragJustEnded());
+      DR.setView('list'); DR.go(folder('Pictures').id);
+      const rows = qa('#pane .row');
+      click(rows[1]); expect([...DR.S.sel]).toEqual([rows[1].dataset.key]);
+      click(rows[3], { ctrlKey: true }); expect(DR.S.sel.size).toBe(2);
+      click(rows[3], { ctrlKey: true }); expect(DR.S.sel.size).toBe(1);
+      click(rows[1]); click(rows[3], { shiftKey: true }); expect([...DR.S.sel]).toEqual(rows.slice(1, 4).map((r) => r.dataset.key));
+      expect(q('#selbar').hidden).toBe(false);
+      key('Escape'); expect(DR.S.sel.size).toBe(0);
+      key('a', { ctrlKey: true }); expect(DR.S.sel.size).toBe(4);
+    });
+    it('marquee drag on empty space selects what it touches', () => {
+      DR.setView('grid'); DR.select([]);
+      const pane = q('#pane'), pr = pane.getBoundingClientRect(), cards = qa('#pane .card');
+      const r1 = cards[1].getBoundingClientRect();
+      ptr(pane, 'pointerdown', pr.left + 4, pr.bottom - 10);
+      ptr(pane, 'pointermove', r1.left + 10, r1.top + 10);
+      expect(q('#pane .marquee')).toBeTruthy();
+      ptr(pane, 'pointerup', r1.left + 10, r1.top + 10);
+      expect(DR.S.sel.size).toBe(2);
+      expect(q('#pane .marquee')).toBe(null);
+    });
+    it('arrow keys move the focus; Shift extends', () => {
+      DR.select([qa('#pane .card')[0].dataset.key]);
+      key('ArrowRight'); expect(DR.S.focus).toBe(qa('#pane .card')[1].dataset.key);
+      key('ArrowRight', { shiftKey: true }); expect(DR.S.sel.size).toBe(2);
+      key('Home'); expect(DR.S.focus).toBe(qa('#pane .card')[0].dataset.key);
+    });
+    it('dragging a selection onto a breadcrumb moves it', async () => {
+      const k = 'f:' + file('two.png').id;
+      DR.select([k]);
+      const src = node(k), crumb = q('#crumbs .crumb'), a = center(src), b = center(crumb);
+      ptr(src, 'pointerdown', a.x, a.y); ptr(W, 'pointermove', a.x + 30, a.y); ptr(W, 'pointermove', b.x, b.y);
+      expect(q('.ghost')).toBeTruthy();
+      ptr(W, 'pointerup', b.x, b.y);
+      await waitFor(() => file('two.png').parent === null);
+      expect(q('.ghost')).toBe(null);
+    });
+  });
+
+  describe('keyboard and panels', () => {
+    it('Space opens Quick Look, arrows step, Space closes', async () => {
+      DR.go(folder('Pictures').id);
+      DR.select(['f:' + file('one.png').id]);
+      key(' ');
+      let ql = await waitFor(() => q('.sui-back:not(.sui-out) .ql'));
+      expect(ql.querySelector('.pv-image img')).toBeTruthy();
+      ql.dispatchEvent(DT.key('ArrowRight'));
+      ql = await waitFor(() => { const x = q('.sui-back:not(.sui-out) .ql'); return x && x.dataset.ql !== file('one.png').id && x; });
+      ql.dispatchEvent(DT.key(' '));
+      await waitFor(() => !q('.sui-back:not(.sui-out) .ql'));
+    });
+    it('Quick Look shows text and renders PDF pages', async () => {
+      DR.quickLook(file('read me.txt'));
+      await waitFor(() => /line two/.test((q('.sui-back:not(.sui-out) .ql pre') || {}).textContent || ''));
+      q('.sui-back:not(.sui-out) .ql .sui-x').click();
+      const pdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF';
+      const id = await H.put(new Blob([pdf], { type: 'application/pdf' }), { name: 'doc.pdf', from: 'pdf' });
+      await DR.refresh();
+      expect(await DR.thumb(file('doc.pdf'))).toMatch(/^blob:/);
+      expect(DR.mediaInfo(file('doc.pdf')).pages).toBe(1);
+      DR.quickLook(file('doc.pdf'));
+      await waitFor(() => q('.sui-back:not(.sui-out) .ql .pv-pages canvas'), { timeout: 15000 });
+      await H.remove(id); await DR.refresh();
+      q('.sui-back:not(.sui-out) .ql .sui-x').click();
+    });
+    it('the info panel shows details and dimensions', async () => {
+      DR.toggleInfo(true);
+      DR.select(['f:' + file('one.png').id]);
+      const info = q('#info');
+      expect(info.hidden).toBe(false);
+      expect(info.textContent).toContain('one.png');
+      expect(info.textContent).toContain('PhotoSlop');
+      await waitFor(() => /120 × 90 px/.test(info.textContent));
+      DR.select(['f:' + file('one.png').id, 'f:' + file('one copy.png').id]);
+      expect(info.textContent).toContain('2 items');
+    });
+    it('Delete trashes, S stars, F2 renames, Backspace goes up', async () => {
+      W.SlopUI.prompt = async () => 'renamed.png';
+      DR.select(['f:' + file('one copy.png').id]);
+      key('s'); await waitFor(() => file('one copy.png').starred);
+      key('F2'); await waitFor(() => file('renamed.png'));
+      DR.select(['f:' + file('renamed.png').id]);
+      key('Delete'); await waitFor(() => file('renamed.png').trashedAt);
+      key('Backspace'); expect(DR.S.cwd).toBe(null);
+      key('g'); key('t'); expect(DR.S.section).toBe('trash');
+      key('g'); key('d'); expect(DR.S.section).toBe('folder');
+    });
+    it('the right-click menu matches the selection', () => {
+      DR.go(folder('Pictures').id);
+      const n = node('f:' + file('one.png').id), c = center(n);
+      n.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: c.x, clientY: c.y }));
+      const labels = qa('.sui-menu .sui-lbl').map((x) => x.textContent);
+      expect(labels).toContain('Open in PhotoSlop'); expect(labels).toContain('Open with'); expect(labels).toContain('Move to Trash');
+      W.SlopUI.closeMenu();
+    });
+  });
+
+  describe('duplicates', () => {
+    it('finds identical files and keeps the newest', async () => {
+      await H.update(file('renamed.png').id, { trashedAt: null }); await DR.refresh();
+      const res = await DR.findDupes();
+      expect(res.groups.length).toBe(1);
+      expect(res.groups[0].files.map((r) => r.name).sort()).toEqual(['one.png', 'renamed.png']);
+      expect(res.wasted).toBe(file('one.png').size);
+      await DR.dupesDialog({ near: true });
+      const box = await waitFor(() => q('.sui-back:not(.sui-out) [data-dupes] .dgroup'));
+      // "Keep newest everywhere" opens the list first: the older copy is checked, the newest one is not
+      [...q('.sui-back:not(.sui-out) [data-dupes]').querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Keep newest everywhere').click();
+      const list = await waitFor(() => [...D.querySelectorAll('.sui-back:not(.sui-out) .sr-dlg')].pop());
+      const rows = [...list.querySelectorAll('.sr-row')];
+      expect(rows.length).toBe(2);
+      const checked = rows.filter((r) => r.querySelector('input').checked).map((r) => r.querySelector('b').textContent);
+      const older = res.groups[0].files.slice().sort((a, b) => (a.modified || a.time) - (b.modified || b.time))[0].name;
+      expect(checked).toEqual([older]);
+      expect(list.querySelector('.sui-foot .sui-primary').textContent).toBe('Trash 1 file');
+      list.querySelector('.sui-foot .sui-primary').click();
+      await waitFor(() => DR.liveFiles().filter((r) => /one|renamed/.test(r.name)).length === 1);
+      expect(DR.hamming(0b1011n, 0b0001n)).toBe(2);
+      q('.sui-back:not(.sui-out) [data-dupes]').querySelector('.sui-x').click();
+    });
+    it('cancelling the list trashes nothing', async () => {
+      // the first test trashed one of the pair: bring it back so there is a duplicate to list
+      for (const r of [...DR.S.files.values()].filter((x) => /one|renamed/.test(x.name) && x.trashedAt)) await H.update(r.id, { trashedAt: null });
+      await DR.refresh();
+      const before = DR.liveFiles().length;
+      await DR.dupesDialog({ near: false });
+      await waitFor(() => q('.sui-back:not(.sui-out) [data-dupes] .dgroup'));
+      q('.sui-back:not(.sui-out) [data-dupes] .dgroup .sui-btn').click();
+      const list = await waitFor(() => [...D.querySelectorAll('.sui-back:not(.sui-out) .sr-dlg')].pop());
+      list.querySelector('.sui-x').click();
+      await sleep(200);
+      expect(DR.liveFiles().length).toBe(before);
+      q('.sui-back:not(.sui-out) [data-dupes]').querySelector('.sui-x').click();
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: views and interaction' });
+  </script>
+</body>
+</html>

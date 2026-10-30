@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopPaneTabs</title>
+<link rel="stylesheet" href="../../shared/doctabs/pane-tabs.css">
+</head>
+<body>
+<div id="host" style="width:600px;height:200px"></div>
+<script src="../harness.js"></script>
+<script src="../../shared/doctabs/pane-tabs.js"></script>
+<script>
+  const { describe, it, expect, run } = SlopTest;
+  const host = () => document.getElementById('host');
+  const names = (bar) => [...bar.querySelectorAll('.spt-name')];
+  describe('SlopPaneTabs', () => {
+    it('draws one tab per item, and marks the one the pane shows', () => {
+      host().replaceChildren();
+      const items = [{ id: 'a', title: 'a.pdf', active: true }, { id: 'b', title: 'b.pdf', active: false }];
+      const bar = SlopPaneTabs.mount(host(), { items: () => items });
+      expect(bar.el.parentNode === host()).toBe(true);
+      expect(names(bar.el).map((n) => n.textContent)).toEqual(['a.pdf', 'b.pdf']);
+      expect(names(bar.el)[0].getAttribute('aria-selected')).toBe('true');
+      expect(names(bar.el)[1].getAttribute('aria-selected')).toBe('false');
+      bar.destroy();
+    });
+
+    it('a pick and a close report the item id, and a close does not also pick', () => {
+      host().replaceChildren();
+      const log = [];
+      const bar = SlopPaneTabs.mount(host(), {
+        items: () => [{ id: 'a', title: 'a.pdf' }, { id: 'b', title: 'b.pdf' }],
+        pick: (id) => log.push('pick ' + id),
+        close: (id) => log.push('close ' + id),
+      });
+      names(bar.el)[1].click();
+      bar.el.querySelectorAll('.spt-x')[0].click();
+      expect(log).toEqual(['pick b', 'close a']);
+      bar.destroy();
+    });
+
+    it('render follows the app: a changed list is drawn, and destroy removes the strip', () => {
+      host().replaceChildren();
+      let items = [{ id: 'a', title: 'a.pdf' }];
+      const bar = SlopPaneTabs.mount(host(), { items: () => items });
+      items = [{ id: 'a', title: 'a.pdf' }, { id: 'c', title: 'c.pdf', active: true }];
+      bar.render();
+      expect(names(bar.el).length).toBe(2);
+      expect(names(bar.el)[1].getAttribute('aria-selected')).toBe('true');
+      bar.destroy();
+      expect(host().querySelector('.spt-tabs')).toBe(null);
+    });
+    it('the + button is there only when the app gives an add, and calls it', () => {
+      host().replaceChildren();
+      let adds = 0;
+      const plain = SlopPaneTabs.mount(host(), { items: () => [] });
+      expect(plain.el.querySelector('.spt-add')).toBe(null);
+      plain.destroy();
+      const bar = SlopPaneTabs.mount(host(), { items: () => [{ id: 'a', title: 'a.pdf' }], add: () => { adds++; } });
+      bar.el.querySelector('.spt-add').click();
+      expect(adds).toBe(1);
+      expect(bar.el.lastElementChild.classList.contains('spt-add')).toBe(true);
+      bar.destroy();
+    });
+  });
+  run({ name: 'SlopPaneTabs' });
+</script>
+</body>
+</html>

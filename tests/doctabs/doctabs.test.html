@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopDocTabs: tab strip, session and Drive tests</title>
+  <link rel="stylesheet" href="../../shared/doctabs/doctabs.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui, sans-serif; } #strip { margin: 16px; } </style>
+</head>
+<body>
+  <div id="strip"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/doctabs/tabs.js"></script>
+  <script src="../../shared/doctabs/drive.js"></script>
+  <script src="../../shared/doctabs/session.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { describe, it, expect, beforeEach, afterEach, waitFor } = SlopTest;
+
+    /* A fake app: documents are plain objects, the adapter is the whole contract (see HANDOFF.md). */
+    let APP = 'test';
+    let log = [], asked = [], answer = false, notes = [];
+    const adapter = () => ({
+      newDoc() { return { title: 'Untitled ' + (++adapter.n), text: '', edited: false }; },
+      serialize: (doc) => ({ title: doc.title, text: doc.text, edited: doc.edited }),
+      restore(s) { if (!s || typeof s.title !== 'string') throw new Error('bad state'); return { title: s.title, text: s.text, edited: s.edited }; },
+      title: (doc) => doc.title,
+      dirty: (doc) => doc.edited,
+      activate: (doc) => log.push('activate:' + doc.title),
+      deactivate: (doc) => log.push('deactivate:' + doc.title),
+      saved: (doc) => { doc.edited = false; },
+      drive: { ext: '.txt', mime: 'text/plain' },
+    });
+    adapter.n = 0;
+    const doc = (title, text = 'text of ' + title) => ({ title, text, edited: false });
+    let host = null, api = null;
+    const storeKey = () => 'slop.doctabs.' + APP + '.v1';
+
+    /** A fresh strip in #strip, with the fake confirm (answer is what the person says). */
+    function strip(width = 640) {
+      if (api) api.destroy();
+      host = document.getElementById('strip');
+      host.replaceChildren();
+      host.style.width = width + 'px';
+      log = []; asked = []; notes = [];
+      api = SlopDocTabs.mount(host, adapter(), {
+        appId: APP,
+        toast() {},
+        confirm: (title, msg) => { asked.push(msg); return Promise.resolve(answer); },
+      });
+      return api;
+    }
+    const press = (key, mods = {}) => document.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key, bubbles: true, cancelable: true }, mods)));
+    const tabEl = (id) => host.querySelector('.sl-doctab[data-id="' + id + '"]');
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+
+    /** Reads one stored record straight from IndexedDB (not through the module). */
+    function idbRead(key) {
+      return new Promise((res, rej) => {
+        const r = indexedDB.open('slop-doctabs', 1);
+        r.onsuccess = () => {
+          const conn = r.result;
+          try {
+            const q = conn.transaction('docs', 'readonly').objectStore('docs').get(key);
+            q.onsuccess = () => { conn.close(); res(q.result); };
+            q.onerror = () => { conn.close(); rej(q.error); };
+          } catch (e) { conn.close(); rej(e); }
+        };
+        r.onerror = () => rej(r.error);
+      });
+    }
+    const storedEnv = () => JSON.parse(localStorage.getItem(storeKey()));
+
+    describe('tab strip', () => {
+      beforeEach(() => { APP = 'strip-' + Math.random().toString(36).slice(2, 8); strip(); });
+      afterEach(() => { if (api) api.destroy(); api = null; });
+
+      it('opens tabs and switches, calling deactivate on the old tab and activate on the new', () => {
+        const A = doc('A'), B = doc('B');
+        api.openDoc(A); api.openDoc(B);
+        expect(api.current()).toBe(B);
+        expect(log).toEqual(['activate:A', 'deactivate:A', 'activate:B']);
+        api.activate(A);
+        expect(log.slice(3)).toEqual(['deactivate:B', 'activate:A']);
+        expect(host.querySelectorAll('.sl-doctab').length).toBe(2);
+        expect(host.querySelector('.sl-doctab.active .sl-doctab-name').textContent).toBe('A');
+      });
+
+      it('Ctrl+Tab and Ctrl+Shift+Tab cycle through the tabs', () => {
+        api.openDoc(doc('A')); api.openDoc(doc('B')); api.openDoc(doc('C'));
+        expect(api.current().title).toBe('C');
+        press('Tab', { ctrlKey: true });
+        expect(api.current().title).toBe('A');
+        press('Tab', { ctrlKey: true, shiftKey: true });
+        expect(api.current().title).toBe('C');
+      });
+
+      it('close checks for unsaved changes: No keeps the tab, Yes closes it', async () => {
+        const A = doc('A'), B = doc('B');
+        api.openDoc(A); api.openDoc(B);
+        B.edited = true; api.changed(B);
+        answer = false;
+        expect(await api.close(B)).toBe(false);
+        expect(api.tabs().length).toBe(2);
+        expect(asked[0]).toContain('B');
+        answer = true;
+        expect(await api.close(B)).toBe(true);
+        expect(api.tabs().length).toBe(1);
+        expect(api.current()).toBe(A);
+      });
+
+      it('Ctrl+W closes the active tab and Ctrl+T opens a blank document', async () => {
+        api.openDoc(doc('A')); api.openDoc(doc('B'));
+        press('t', { ctrlKey: true });
+        expect(api.current().title).toMatch(/^Untitled/);
+        expect(api.tabs().length).toBe(3);
+        press('w', { ctrlKey: true });
+        await tick();
+        expect(api.tabs().length).toBe(2);
+        expect(api.current().title).toBe('B');
+      });
+
+      it('middle-click closes a tab', async () => {
+        const A = doc('A'), B = doc('B');
+        api.openDoc(A); api.openDoc(B);
+        tabEl(api.tabOf(A)).dispatchEvent(new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }));
+        await tick();
+        expect(api.tabs().map((t) => t.title)).toEqual(['B']);
+      });
+
+      it('drag a tab onto the right half of another to reorder', () => {
+        const A = doc('A'), B = doc('B'), C = doc('C');
+        api.openDoc(A); api.openDoc(B); api.openDoc(C);
+        const dt = new DataTransfer();
+        tabEl(api.tabOf(A)).dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        const target = tabEl(api.tabOf(C)), r = target.getBoundingClientRect();
+        target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.right - 2 }));
+        expect(api.tabs().map((t) => t.title)).toEqual(['B', 'C', 'A']);
+      });
+
+      it('shows the unsaved dot, and changed() redraws it', () => {
+        const A = doc('A');
+        api.openDoc(A);
+        expect(host.querySelector('.sl-doctab-dot')).toBe(null);
+        A.edited = true; api.changed(A);
+        expect(host.querySelector('.sl-doctab-dot')).toBeTruthy();
+      });
+
+      it('a full strip shows the overflow menu, which lists every tab', () => {
+        strip(260);
+        const names = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'];
+        for (const n of names) api.openDoc(doc(n));
+        expect(api.overflowVisible()).toBe(true);
+        host.querySelector('.sl-doctabs-more').click();
+        const items = host.querySelectorAll('.sl-doctabs-item');
+        expect(items.length).toBe(8);
+        items[1].click();
+        expect(api.current().title).toBe('Two');
+      });
+
+      it('destroy removes what the strip added to the host', () => {
+        api.openDoc(doc('A'));
+        api.destroy();
+        expect(host.querySelector('.sl-doctab')).toBe(null);
+        expect(host.children.length).toBe(0);
+        api = null;
+      });
+    });
+
+    describe('session (localStorage ids and titles, IndexedDB content)', () => {
+      beforeEach(() => { APP = 'sess-' + Math.random().toString(36).slice(2, 8); localStorage.removeItem(storeKey()); strip(); });
+      afterEach(() => { if (api) api.destroy(); api = null; });
+
+      it('saves the tabs, the active one and the content, and brings them back after a reload', async () => {
+        const sess = SlopDocTabs.session(APP, api, { notice: (m) => notes.push(m) });
+        const A = doc('Alpha'), B = doc('Beta'), C = doc('Gamma');
+        api.openDoc(A); api.openDoc(B); api.openDoc(C);
+        B.text = 'edited beta'; B.edited = true; api.changed(B);
+        api.activate(B);
+        await sess.flush();
+
+        const env = storedEnv();
+        expect(env.v).toBe(1);
+        expect(env.data.tabs.map((t) => t.title)).toEqual(['Alpha', 'Beta', 'Gamma']);
+        expect(env.data.active).toBe(api.tabOf(B));
+        expect(JSON.stringify(env).includes('edited beta')).toBe(false); // content is not in localStorage
+
+        api.destroy(); api = null;
+        strip();
+        const sess2 = SlopDocTabs.session(APP, api, { notice: (m) => notes.push(m) });
+        const count = await sess2.restore();
+        expect(count).toBe(3);
+        expect(api.tabs().map((t) => t.title)).toEqual(['Alpha', 'Beta', 'Gamma']);
+        expect(api.current().title).toBe('Beta');
+        expect(api.current().text).toBe('edited beta');
+        expect(api.current().edited).toBe(true);
+        expect(notes.length).toBe(0);
+      });
+
+      it('a tab whose content is missing comes back blank, with a notice', async () => {
+        const sess = SlopDocTabs.session(APP, api, { notice: (m) => notes.push(m) });
+        api.openDoc(doc('Alpha'));
+        await sess.flush();
+        const env = storedEnv();
+        env.data.tabs.push({ id: 'ghost-' + APP, title: 'Lost' });
+        localStorage.setItem(storeKey(), JSON.stringify(env));
+        api.destroy(); api = null;
+        strip();
+        const sess2 = SlopDocTabs.session(APP, api, { notice: (m) => notes.push(m) });
+        expect(await sess2.restore()).toBe(1);
+        expect(api.tabs().length).toBe(2);
+        expect(api.tabs()[1].title).toMatch(/^Untitled/);
+        expect(notes.length).toBe(1);
+        expect(notes[0]).toContain('no saved content');
+      });
+
+      it('closing a tab deletes its stored content', async () => {
+        const sess = SlopDocTabs.session(APP, api, { notice: () => {} });
+        const A = doc('Keep'), B = doc('Drop');
+        api.openDoc(A); api.openDoc(B);
+        await sess.flush();
+        const id = api.tabOf(B);
+        expect(await idbRead(id)).toBeTruthy();
+        await api.close(B);
+        await sess.flush();
+        expect(await idbRead(id)).toBe(undefined);
+        expect(storedEnv().data.tabs.map((t) => t.title)).toEqual(['Keep']);
+      });
+    });
+
+    describe('blocked storage', () => {
+      it('with localStorage and IndexedDB throwing, the strip still works and nothing throws', async () => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'width:700px;height:120px;border:0';
+        f.src = 'blocked-storage.frame.html';
+        document.body.append(f);
+        try {
+          await waitFor(() => f.contentWindow && f.contentWindow.__DOCTABS_FRAME && f.contentWindow.__DOCTABS_FRAME.done, { timeout: 10000 });
+          const r = f.contentWindow.__DOCTABS_FRAME;
+          expect(r.error).toBe('');
+          expect(r.restored).toBe(0);      // nothing readable: one blank tab
+          expect(r.tabs).toBe(3);          // blank + two opened by the test
+          expect(r.strip).toBe(3);
+          expect(r.flushed).toBe(false);   // saving is off, reported as false, not thrown
+          expect(r.notices).toBe(0);
+        } finally {
+          f.remove();
+        }
+      });
+    });
+
+    describe('Slop Drive (SlopHub stubbed)', () => {
+      let calls = [];
+      beforeEach(() => {
+        APP = 'drive-' + Math.random().toString(36).slice(2, 8);
+        localStorage.removeItem(storeKey());
+        calls = [];
+        window.SlopHub = {
+          saveToDrive: async (blob, name, opts) => { calls.push(['saveToDrive', name]); return 'drive-1'; },
+          update: async (id, patch) => { calls.push(['update', id, patch.name]); return { id }; },
+          pickFromDrive: async () => ({ id: 'drive-9', name: 'Other.txt', blob: new Blob([JSON.stringify({ title: 'Other', text: 'from drive', edited: false })]) }),
+        };
+        strip();
+      });
+      afterEach(() => { if (api) api.destroy(); api = null; delete window.SlopHub; });
+
+      it('the first save asks Drive for a place, and later saves write the same file', async () => {
+        const A = doc('Notes');
+        api.openDoc(A);
+        expect(await api.saveToDrive(A)).toBe('drive-1');
+        expect(calls[0]).toEqual(['saveToDrive', 'Notes.txt']);
+        expect(api.driveIdOf(A)).toBe('drive-1');
+        expect(A.edited).toBe(false);
+        expect(await api.saveToDrive(A)).toBe('drive-1');
+        expect(calls[1]).toEqual(['update', 'drive-1', 'Notes.txt']);
+        expect(calls.length).toBe(2);
+      });
+
+      it('Open from Drive opens a linked tab, and the link comes back after a reload', async () => {
+        const sess = SlopDocTabs.session(APP, api, { notice: () => {} });
+        // what an app's intake reader does with a file from Slop Drive (SlopIntake.fromDrive): a tab linked to it
+        const rec = await SlopHub.pickFromDrive(), opened = api.adapter.restore(JSON.parse(await rec.blob.text()));
+        api.openDoc(opened, { driveId: rec.id, origName: rec.name });
+        expect(opened.title).toBe('Other');
+        expect(api.current().text).toBe('from drive');
+        expect(api.driveIdOf(opened)).toBe('drive-9');
+        await sess.flush();
+        api.destroy(); api = null;
+        strip();
+        const sess2 = SlopDocTabs.session(APP, api, { notice: () => {} });
+        await sess2.restore();
+        expect(api.current().title).toBe('Other');
+        expect(api.driveIdOf(api.current())).toBe('drive-9');
+      });
+    });
+  })();
+  </script>
+  <script>SlopTest.run({ name: 'SlopDocTabs: tab strip, session, Drive' });</script>
+</body>
+</html>

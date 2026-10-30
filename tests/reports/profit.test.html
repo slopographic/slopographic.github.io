@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Reports: profit by month and expenses by category</title>
+  <!-- Covers: shared/data/schema-defs.js, reports/js/enrich.js, reports/js/defs.js, reports/js/engine.js, reports/js/data.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../reports/js/enrich.js"></script>
+  <script src="../../reports/js/defs.js"></script>
+  <script src="../../reports/js/engine.js"></script>
+  <script src="../../reports/js/data.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const R = window.SlopReports;
+  const E = R.engine;
+  const def = (id) => R.BUILTIN.find((d) => d.id === id);
+  const ACCOUNTS = [{ code: '1010', name: 'Bank', type: 'asset' }, { code: '1200', name: 'Receivables', type: 'asset' },
+    { code: '2100', name: 'Tax payable', type: 'liability' }, { code: '4000', name: 'Sales', type: 'revenue' },
+    { code: '5000', name: 'Office', type: 'expense' }, { code: '5010', name: 'Travel', type: 'expense' }];
+  const J = (id, date, lines) => ({ id, date, source: id, lines: lines.map(([account, debit, credit]) => ({ account, debit, credit })) });
+  const DATA = {
+    accounts: ACCOUNTS,
+    journal: [
+      J('inv1', '2026-09-03', [['1200', 12000, 0], ['4000', 0, 10000], ['2100', 0, 2000]]),
+      J('exp1', '2026-09-10', [['5000', 1500, 0], ['2100', 375, 0], ['1010', 0, 1875]]),
+      J('pay1', '2026-09-20', [['1010', 12000, 0], ['1200', 0, 12000]]),
+      J('exp2', '2026-10-02', [['5010', 4000, 0], ['1010', 0, 4000]]),
+      J('exp2v', '2026-10-05', [['1010', 4000, 0], ['5010', 0, 4000]]),
+      J('exp3', '2026-10-07', [['5000', 800, 0], ['1010', 0, 800]]),
+    ],
+    expenses: [
+      { id: 'e1', date: '2026-09-10', account: '5000', amount: 1875, tax: 375, currency: 'USD', status: 'posted' },
+      { id: 'e2', date: '2026-10-02', account: '5010', amount: 4000, tax: 0, currency: 'USD', status: 'void' },
+      { id: 'e3', date: '2026-10-07', account: '5000', amount: 800, tax: 0, currency: 'USD', status: 'posted' },
+      { id: 'e4', date: '2026-10-08', account: '5010', amount: 9000, tax: 0, currency: 'EUR', status: 'posted' },
+    ],
+  };
+
+  describe('Profit by month', () => {
+    it('is a valid built-in report over the journal', () => {
+      expect(E.validate(def('profit-by-month'))).toEqual([]);
+    });
+    it('sums income from revenue accounts and expense from expense accounts, newest month first', () => {
+      const res = E.run(def('profit-by-month'), DATA);
+      expect(res.ok).toBe(true);
+      expect(res.rows.map((r) => [r.month, r.sum_income, r.sum_expense, r.sum_profit])).toEqual([
+        ['2026-10', 0, 800, -800],
+        ['2026-09', 10000, 1500, 8500],
+      ]);
+    });
+    it('leaves out entries that touch no revenue or expense account (a payment)', () => {
+      const rows = R.enrich.profit(DATA.journal, DATA);
+      expect(rows.some((r) => r.id === 'pay1')).toBe(false);
+      expect(rows.find((r) => r.id === 'exp2v').expense).toBe(-4000);
+    });
+    it('shows its money in the base currency', () => {
+      const res = E.run(def('profit-by-month'), DATA);
+      const col = res.columns.find((c) => c.field === 'sum_profit');
+      expect(E.cellText(res.rows[1], col, { baseCurrency: 'USD', locale: 'en-US' })).toBe('$85.00');
+    });
+  });
+
+  describe('Expenses by category', () => {
+    it('groups posted expenses by account and currency with the account name, largest first', () => {
+      const res = E.run(def('expenses-by-category'), DATA);
+      expect(res.ok).toBe(true);
+      expect(res.rows.map((r) => [r.account, r.account_name, r.currency, r.count, r.sum_amount, r.sum_tax])).toEqual([
+        ['5010', 'Travel', 'EUR', 1, 9000, 0],
+        ['5000', 'Office', 'USD', 2, 2675, 375],
+      ]);
+    });
+    it('month adds the YYYY-MM of a date', () => {
+      expect(R.enrich.month([{ date: '2026-10-08' }, {}]).map((r) => r.month)).toEqual(['2026-10', undefined]);
+    });
+  });
+
+  describe('Cash flow by month', () => {
+    it('money into and out of cash and the bank by month; a move between them and entries without either are left out', () => {
+      const data = { journal: [
+        ...DATA.journal,
+        J('xfer', '2026-10-09', [['1000', 5000, 0], ['1010', 0, 5000]]),
+        J('cashsale', '2026-10-11', [['1000', 2000, 0], ['4000', 0, 2000]]),
+      ] };
+      const res = E.run(def('cash-flow'), data);
+      expect(res.ok).toBe(true);
+      expect(res.rows.map((r) => [r.month, r.sum_cashIn, r.sum_cashOut, r.sum_net, r.count])).toEqual([
+        ['2026-10', 6000, 4800, 1200, 4],
+        ['2026-09', 12000, 1875, 10125, 2],
+      ]);
+    });
+  });
+
+  describe('Sales tax by quarter', () => {
+    it('tax collected on sales less tax reclaimed on costs, by quarter; a void comes off its own side', () => {
+      const data = { journal: [
+        J('inv1', '2026-09-03', [['1200', 12000, 0], ['4000', 0, 10000], ['2100', 0, 2000]]),
+        J('exp1', '2026-09-10', [['5000', 1500, 0], ['2100', 375, 0], ['1010', 0, 1875]]),
+        J('inv2', '2026-10-02', [['1200', 6000, 0], ['4000', 0, 5000], ['2100', 0, 1000]]),
+        { ...J('inv2v', '2026-10-04', [['4000', 5000, 0], ['2100', 1000, 0], ['1200', 0, 6000]]), reverses: 'inv2' },
+        J('exp2', '2026-11-20', [['5000', 800, 0], ['2100', 200, 0], ['1010', 0, 1000]]),
+        J('pay', '2026-11-21', [['1010', 12000, 0], ['1200', 0, 12000]]),
+        J('credit:cn1', '2026-11-25', [['4000', 2500, 0], ['2100', 500, 0], ['1200', 0, 3000]]),   // a credit note: collected tax comes back off
+      ] };
+      const res = E.run(def('sales-tax'), data);
+      expect(res.ok).toBe(true);
+      expect(res.rows.map((r) => [r.quarter, r.sum_collected, r.sum_reclaimed, r.sum_due])).toEqual([
+        ['2026-Q4', -500, 200, -700],
+        ['2026-Q3', 2000, 375, 1625],
+      ]);
+    });
+  });
+
+  describe('Spend by supplier', () => {
+    it('sums posted expenses by supplier and currency, largest first', () => {
+      const data = { expenses: [
+        { supplier: 'Acme', amount: 6300, tax: 800, currency: 'USD', status: 'posted' },
+        { supplier: 'Acme', amount: 700, tax: 0, currency: 'USD', status: 'posted' },
+        { supplier: 'Acme', amount: 9999, tax: 0, currency: 'USD', status: 'void' },
+        { supplier: 'Taxi', amount: 2400, tax: 400, currency: 'USD', status: 'posted' },
+      ] };
+      const res = E.run(def('spend-by-supplier'), data);
+      expect(res.rows.map((r) => [r.supplier, r.count, r.sum_amount, r.sum_tax])).toEqual([['Acme', 2, 7000, 800], ['Taxi', 1, 2400, 400]]);
+    });
+  });
+
+  describe('Loader', () => {
+    it('counts expenses and journal entries as data to report on', () => {
+      expect(R.hasData({ expenses: 1 })).toBe(true);
+      expect(R.hasData({ journal: 2 })).toBe(true);
+      expect(R.hasData({ accounts: 9 })).toBe(false);
+    });
+    it('reads the expenses, accounts and journal stores (missing stores read as empty)', async () => {
+      const name = 'slop-data-test-profit';
+      await new Promise((ok) => { const d = indexedDB.deleteDatabase(name); d.onsuccess = d.onerror = () => ok(); });
+      await new Promise((ok, no) => {
+        const q = indexedDB.open(name, 1);
+        q.onupgradeneeded = () => { q.result.createObjectStore('expenses', { keyPath: 'id' }); q.result.createObjectStore('settings', { keyPath: 'id' }); };
+        q.onsuccess = () => { const tx = q.result.transaction('expenses', 'readwrite'); tx.objectStore('expenses').put(DATA.expenses[0]); tx.oncomplete = () => { q.result.close(); ok(); }; };
+        q.onerror = () => no(q.error);
+      });
+      const loaded = await R.loadData(name);
+      expect(loaded.counts.expenses).toBe(1);
+      expect(loaded.data.journal).toEqual([]);
+      expect(R.hasData(loaded.counts)).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

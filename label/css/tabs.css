@@ -1,0 +1,14 @@
+/* SlopLabel: the label tab strip's place, the Configs list and the Presets gallery. Colours are the shared --sl-* tokens. */
+.lb-tabs { grid-area: tabs; min-width: 0; }
+.lb-tabs:empty { display: none; }
+.cfg-list { display: grid; gap: 8px; }
+.cfg-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--sl-border, #3a3a35); border-radius: 8px; background: var(--sl-surface, #2a2a27); }
+.cfg-main { display: grid; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.cfg-main small { opacity: 0.7; font-size: 11px; }
+.cfg-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.pst-group { display: grid; gap: 8px; margin-top: 12px; }
+.pst-group h4 { margin: 0; }
+.pst small { display: block; }
+.tpl .tp svg { max-width: 92%; max-height: 108px; background: #fff; box-shadow: 0 1px 5px rgb(0 0 0 / 0.35); }
+.pv-page { fill: none; stroke: var(--sl-text, #888); stroke-dasharray: 2 2; stroke-width: 0.8; }
+.pv-label { fill: #fff; stroke: #666; stroke-width: 0.6; }

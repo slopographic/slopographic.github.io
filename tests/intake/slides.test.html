@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake in Slop Slides: every way in is the same path</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../slides/frame.js"></script>
+  <script>
+  // Covers: slides/js/ui/file-drop.js, slides/js/ui/files.js, slides/js/ui/main.js, slides/js/ui/ops.js, slides/js/ui/templates-dialog.js, slides/js/ui/sorter-drag.js
+  // Slop Slides on the one intake: Open a file from this computer, a drop on the editor, Open from Slop Drive (linked),
+  // Import a picture from Slop Drive, Insert picture, a pasted picture (on the slide) and ?drive=<id> (launch) reach the
+  // same reader with the same events. A template is a part of its own.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let w, seen = [], events = [];
+  const dtOf = (files) => { const dt = new w.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const deckFile = (name) => new w.File([w.SS.native.toBlob(w.SS.app.deck)], name, { type: w.SS.native.MIME });
+  async function pngFile(name) { return new w.File([await ST.png(w, '#ff4f6e', 200)], name, { type: 'image/png' }); }
+  async function through(source, mode, start, app = 'slides') {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'slides') expect(seen).toEqual([[source, mode]]);
+    expect(events.map((e) => e[0])).toEqual(['before', 'file', 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+  const tabs = () => w.SS.tabs.api().tabs().length;
+  const pictures = () => w.SS.app.slide().objects.filter((o) => o.type === 'image').length;
+
+  describe('Slop Slides: one way in', () => {
+    it('Open a file from this computer (a new, unlinked tab)', async () => {
+      w = await ST.open('../../slides/');
+      const s = w.SlopIntake.spec('slides'), reader = s.process;
+      s.process = (f, ctx) => { seen.push([ctx.source, ctx.mode || 'open']); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) w.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      const n = tabs(), f = deckFile('Mine.sslide');
+      w.SlopUI.pickFiles = async () => [f];
+      await through('picker', 'open', () => w.SS.fileDrop.choose());
+      expect(tabs()).toBe(n + 1);
+    }, { timeout: 40000 });
+    it('a drop on the editor', async () => {
+      const n = tabs();
+      await through('drop', 'open', () => w.document.getElementById('app').dispatchEvent(new w.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([deckFile('Dropped.sslide')]) })));
+      expect(tabs()).toBe(n + 1);
+    });
+    it('Open from Slop Drive links the tab to the file', async () => {
+      const blob = w.SS.native.toBlob(w.SS.app.deck);
+      w.SlopHub.pickFromDrive = async () => ({ id: 'd1', name: 'Linked.sslide', type: w.SS.native.MIME, blob });
+      await through('drive', 'open', () => w.SS.files.openDrive());
+      expect(w.SS.tabs.api().driveIdOf(w.SS.tabs.current())).toBe('d1');
+    });
+    it('Import a picture from Slop Drive (a one-slide deck, no link)', async () => {
+      const blob = await pngFile('pic.png');
+      w.SlopHub.pickFromDrive = async () => ({ id: 'd2', name: 'pic.png', type: 'image/png', blob });
+      await through('drive', 'open', () => w.SS.files.importDrive());
+    });
+    it('Insert picture… and a pasted picture go on the slide', async () => {
+      const before = pictures(), f = await pngFile('ins.png');
+      w.SlopUI.pickFiles = async () => [f];
+      await through('picker', 'image', () => w.SS.ops.addImage());
+      expect(pictures()).toBe(before + 1);
+      await through('paste', 'image', async () => w.document.body.dispatchEvent(new w.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await pngFile('pasted.png')]) })));
+      expect(pictures()).toBe(before + 2);
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      const blob = w.SS.native.toBlob(w.SS.app.deck);
+      w.SlopHub.consumeLaunch = async () => ({ id: 'd3', name: 'Sent.sslide', type: w.SS.native.MIME, blob });
+      await through('launch', 'open', () => w.SlopIntake.launch({ to: 'slides' }));
+      expect(w.SS.tabs.api().driveIdOf(w.SS.tabs.current())).toBe('d3');
+    });
+    it('Import a template is a part of its own', async () => {
+      const TF = w.SS.templateFile, text = TF.toText(TF.fromDeck(w.SS.app.deck, { name: 'Part test' }));
+      w.SlopUI.pickFiles = async () => [new w.File([text], 'Part test.' + TF.EXT, { type: TF.MIME })];
+      seen = [];
+      await through('picker', null, () => w.SS.templatesUI.importFile(), 'slides.template');
+      expect(seen).toEqual([]);
+    });
+  });
+  SlopTest.run({ name: 'Shared intake: Slop Slides' });
+  </script>
+</body>
+</html>

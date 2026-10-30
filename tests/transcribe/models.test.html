@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Transcribe: start fast, upgrade on request (detection, the model choice, the upgrade offer, redo, remembered choices)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <div id="box"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/speech-models.js"></script>
+  <script type="module">
+  // Covers: transcribe/js/models.js, transcribe/js/queue.js, shared/models/prefs.js, shared/speech/languages.js, transcribe/js/languages.js
+  import { createChoice, suggestionOf, drawSuggestion } from '../../transcribe/js/models.js';
+  import { createQueue } from '../../transcribe/js/queue.js';
+  import { createPrefs } from '../../shared/models/prefs.js';
+  import { filterLanguages, LANGUAGES } from '../../transcribe/js/languages.js';
+  const { describe, it, expect, run } = SlopTest;
+  const C = window.SlopSpeechModels;
+  const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m }; };
+  const file = (name, size = 32000) => new File([new Uint8Array(size)], name, { type: 'audio/mpeg' });
+
+  describe('the language search (shared/speech/languages.js)', () => {
+    it('Detect automatically first; a search matches the start of a name or the code, accents ignored', () => {
+      expect(filterLanguages('')[0]).toEqual({ code: 'auto', name: 'Detect automatically' });
+      expect(filterLanguages('').length).toBe(LANGUAGES.length + 1);
+      expect(filterLanguages('swe').map((l) => l.code)).toEqual(['sv']);
+      expect(filterLanguages('sv').map((l) => l.code)).toEqual(['sv']);
+      expect(filterLanguages('creole').map((l) => l.code)).toEqual(['ht']);
+      expect(filterLanguages('det')[0].code).toBe('auto');
+      expect(filterLanguages('zzz')).toEqual([]);
+    });
+  });
+
+  describe('remembered choices (shared/models/prefs.js)', () => {
+    it('nothing unless asked: a pinned language and a model per language survive; Detect is never pinned', () => {
+      const st = mem(), p = createPrefs('speech', st);
+      expect([p.pinned(), p.preferred('sv')]).toEqual([null, null]);
+      p.pin('sv'); p.prefer('sv', 'kb-whisper-small');
+      const again = createPrefs('speech', st);
+      expect([again.pinned(), again.preferred('sv'), again.preferred('en')]).toEqual(['sv', 'kb-whisper-small', null]);
+      again.pin('auto'); expect(again.pinned()).toBe(null);
+      const broken = createPrefs('speech', { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } });
+      broken.pin('sv'); expect(broken.pinned()).toBe(null);
+    });
+  });
+
+  describe('the model for a file (models.js createChoice)', () => {
+    it('starts on Detect automatically with the quick model; a new file goes back to Detect unless a language is pinned', async () => {
+      const prefs = createPrefs('speech', mem()), ch = createChoice({ prefs, catalog: C, status: async () => 'needs-download' });
+      expect(ch.label()).toBe('Detect automatically · Whisper tiny');
+      expect(await ch.chooseFor('sv')).toBe('whisper-tiny');
+      ch.set({ language: 'sv', model: 'kb-whisper-base', pin: false });
+      expect(ch.label()).toBe('Swedish · KB-Whisper base');
+      expect(await ch.chooseFor('sv')).toBe('kb-whisper-base');
+      expect(await ch.chooseFor('de')).toBe('whisper-tiny');   // KB-Whisper does not fit German
+      ch.newFile(); expect(ch.language).toBe('auto');
+      ch.set({ language: 'sv', model: null, pin: true }); ch.newFile();
+      expect([ch.language, prefs.pinned()]).toEqual(['sv', 'sv']);
+    });
+    it('a model preferred for a language is used once it is installed', async () => {
+      const prefs = createPrefs('speech', mem());
+      prefs.prefer('sv', 'kb-whisper-small');
+      let st = 'needs-download';
+      const ch = createChoice({ prefs, catalog: C, status: async () => st });
+      expect(await ch.chooseFor('sv')).toBe('whisper-tiny');
+      st = 'installed';
+      expect(await ch.chooseFor('sv')).toBe('kb-whisper-small');
+      expect(await ch.chooseFor('en')).toBe('whisper-tiny');
+    });
+  });
+
+  describe('the offer under a transcript (models.js suggestionOf, drawSuggestion)', () => {
+    const done = (over) => ({ id: 1, status: 'done', language: 'sv', model: 'whisper-tiny', detected: [{ code: 'sv', p: 0.92 }, { code: 'no', p: 0.05 }], ...over });
+    it('the detected language and its confidence; the better model is the first of the ranking for that language', () => {
+      for (const lang of ['sv', 'en', 'no', 'de']) {
+        const s = suggestionOf(done({ language: lang, detected: [{ code: lang, p: 0.8 }] }), C);
+        expect(s.better.id).toBe(C.rank(lang)[0].model.id);
+      }
+      const s = suggestionOf(done(), C);
+      expect([s.language, s.p, s.used.id, s.better.id]).toEqual(['sv', 0.92, 'whisper-tiny', 'kb-whisper-small']);
+      expect(suggestionOf(done({ model: 'kb-whisper-small' }), C).better).toBe(null);
+      expect(suggestionOf({ status: 'reading' }, C)).toBe(null);
+    });
+    it('not installed: "Transcribe again in higher quality" with its maker and size; installed: transcribe again, use from now on', () => {
+      const box = document.getElementById('box'), acts = [];
+      const act = (k, it, m) => acts.push([k, m && m.id]);
+      drawSuggestion(box, done(), { catalog: C, installed: () => false, preferred: () => null, act });
+      expect(box.querySelector('.tr-detect').textContent).toContain('Detected Swedish (92%) · read with Whisper tiny.');
+      expect(box.textContent).toContain('For better accuracy: KB-Whisper small (KBLab, National Library of Sweden), 248 MB.');
+      [...box.querySelectorAll('button')].find((b) => b.textContent === 'Transcribe again in higher quality').click();
+      drawSuggestion(box, done(), { catalog: C, installed: (id) => id === 'kb-whisper-small', preferred: () => null, act });
+      [...box.querySelectorAll('button')].find((b) => b.textContent === 'Transcribe again with KB-Whisper small').click();
+      [...box.querySelectorAll('button')].find((b) => b.textContent === 'Use it from now on for Swedish').click();
+      [...box.querySelectorAll('button')].find((b) => b.textContent === 'Choose another model…').click();
+      expect(acts).toEqual([['upgrade', 'kb-whisper-small'], ['redo', 'kb-whisper-small'], ['prefer', 'kb-whisper-small'], ['choose', undefined]]);
+      drawSuggestion(box, done(), { catalog: C, installed: () => true, preferred: () => 'kb-whisper-small', act });
+      expect([...box.querySelectorAll('button')].some((b) => b.textContent.startsWith('Use it from now on'))).toBe(false);
+    });
+  });
+
+  describe('the queue: detect once, pick the model, read again (queue.js)', () => {
+    const engine = (log) => ({
+      prepare: async (s, model) => log.push(['prepare', model || 'quick']),
+      samples: async (f) => new Float32Array(f.size),
+      detect: async () => { log.push(['detect']); return [{ code: 'sv', p: 0.92 }]; },
+      transcribe: async (s, lang, p, model) => { log.push(['transcribe', lang, model]); p({ done: 1, total: 1 }); return { segments: [{ start: 0, end: 1, text: `${model} ${lang}` }], language: lang }; },
+    });
+    it('Detect: the quick model finds the language once per file, choose() picks the model, the item keeps both', async () => {
+      const log = [], q = createQueue({ engine: engine(log) });
+      q.add([file('a.mp3')]);
+      await q.run({ language: 'auto', choose: async (lang) => (lang === 'sv' ? 'whisper-tiny' : 'x') });
+      const it = q.items[0];
+      expect([it.language, it.model, it.detected[0].p, it.segments[0].text]).toEqual(['sv', 'whisper-tiny', 0.92, 'whisper-tiny sv']);
+      expect(log.filter((x) => x[0] === 'detect').length).toBe(1);
+      q.edit(it.id, 'my corrected text');
+      expect(q.redo(it.id, { model: 'kb-whisper-small', language: 'sv' })).toBe(true);
+      expect([q.items[0].status, q.items[0].text]).toEqual(['waiting', null]);
+      await q.run({ language: 'auto', choose: async () => 'whisper-tiny' });
+      expect([q.items[0].model, q.items[0].segments[0].text]).toEqual(['kb-whisper-small', 'kb-whisper-small sv']);
+      expect(log.filter((x) => x[0] === 'detect').length).toBe(1);   // the detection is cached on the item
+      expect(log.some((x) => x[0] === 'prepare' && x[1] === 'kb-whisper-small')).toBe(true);
+    });
+    it('a chosen language skips detection', async () => {
+      const log = [], q = createQueue({ engine: engine(log) });
+      q.add([file('b.mp3')]);
+      await q.run({ language: 'de' });
+      expect(log.some((x) => x[0] === 'detect')).toBe(false);
+      expect(q.items[0].language).toBe('de');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

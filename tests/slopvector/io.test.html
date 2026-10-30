@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · import/export tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  // Covers: slopvector/js/io/svg-open.js, slopvector/js/core/svgout.js, slopvector/js/core/overlay.js, slopvector/index.html
+  const { describe, it, expect, waitFor } = SlopTest;
+
+  describe('SVG export / import', () => {
+    it('saves editable metadata and re-opens the document exactly', () => {
+      SV.loadDoc(SV.sampleDoc(), { fit: false });
+      const before = JSON.stringify(SV.state.doc), svg = IO.exportSVG({ metadata: true });
+      expect(svg).toContain('id="slopvector-document"');
+      expect(new W.DOMParser().parseFromString(svg, 'image/svg+xml').getElementsByTagName('parsererror').length).toBe(0);
+      const r = IO.parseSVG(svg);
+      expect(r.slop).toBe(true); expect(JSON.stringify(r.doc)).toBe(before);
+    });
+    it('escapes CDATA terminators inside the embedded document', () => {
+      SV.state.doc.layers[2].children[0].text = 'evil ]]> text';
+      const r = IO.parseSVG(IO.exportSVG({ metadata: true }));
+      expect(r.doc.layers[2].children[0].text).toBe('evil ]]> text');
+    });
+    it('exports a clean standards SVG with layers as groups and gradients in defs', () => {
+      SV.loadDoc(SV.sampleDoc(), { fit: false });
+      const svg = IO.exportSVG({});
+      expect(svg).not.toContain('slopvector-document');
+      const dom = new W.DOMParser().parseFromString(svg, 'image/svg+xml');
+      expect([...dom.documentElement.children].filter((c) => c.localName === 'g').map((g) => g.getAttribute('data-name'))).toEqual(['Background', 'Sloppo', 'Type']);
+      expect(dom.querySelectorAll('defs radialGradient').length).toBeGreaterThan(2);
+      expect(dom.querySelector('text tspan').textContent).toBe('SLOPOGRAPHIC  Nº 002');
+    });
+    it('imports foreign SVG: CSS classes, viewBox scale, transforms, userSpace gradients, text', () => {
+      const r = IO.parseSVG(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 800 600"><style>.a{fill:#ff3d8b;stroke:#000;stroke-width:4px}</style>
+        <linearGradient id="g" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="blue"/></linearGradient>
+        <rect class="a" x="10" y="10" width="200" height="100"/><circle cx="300" cy="100" r="50" fill="url(#g)"/>
+        <g transform="translate(400 300) rotate(90)"><rect width="10" height="20" fill="green"/></g>
+        <text x="50" y="500" font-family="Georgia" font-size="48" font-weight="bold">Hello <tspan>SVG</tspan></text></svg>`);
+      const [rect, circ, rot, text] = r.layers[0].children;
+      expect([r.width, r.height]).toEqual([400, 300]);
+      expect([rect.x, rect.w, rect.style.fill, rect.style.sw]).toEqual([5, 100, '#ff3d8b', 2]);
+      expect(circ.style.fill.type).toBe('linear'); expect(circ.style.fill.stops[1].c).toBe('#0000ff');
+      expect(SV.objBBox(rot).w).toBeCloseTo(10, 1e-6);
+      expect([text.text, text.font.family, text.font.weight]).toEqual(['Hello SVG', 'Georgia', 700]);
+    });
+    it('a hostile SVG (a SlopVector document with markup in its values) opens without running any script', async () => {
+      W.__svXss = undefined;
+      const doc = SV.sampleDoc(), bad = '"/><image href="x" onerror="parent.__svXss=1"/><path d="';
+      const objs = []; const walk = (o) => { objs.push(o); (o.children || []).forEach(walk); }; doc.layers.forEach((L) => L.children.forEach(walk));
+      doc.layers[0].color = '"><img src=x onerror="parent.__svXss=2">';
+      for (const o of objs) {
+        if (o.style) { o.style.fill = typeof o.style.fill === 'string' ? bad : o.style.fill; o.style.blend = 'multiply;" onmouseover="parent.__svXss=3'; o.style.cap = bad; o.style.stroke = o.style.stroke || '#000'; o.style.sw = o.style.sw || 1; }
+        if (o.style && o.style.fill && o.style.fill.stops) o.style.fill.stops[0].c = bad;
+        if (o.font) o.font.weight = bad;
+        o.id = String(o.id) + bad;
+      }
+      // the file as an attacker would write it: a valid SVG whose embedded document carries the markup
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><metadata id="slopvector-document"><![CDATA[' +
+        JSON.stringify({ app: 'SlopVector', format: 1, doc }) + ']]></metadata><rect width="1" height="1"/></svg>';
+      blank();
+      expect(IO.openSVGText(svg, 'hostile.svg')).not.toBe(false);
+      SV.renderNow(); SV.select && SV.select(objs.slice(0, 2).map((o) => o.id));
+      SV.renderNow();
+      await new Promise((r) => setTimeout(r, 200));
+      expect(W.document.querySelectorAll('[onerror], [onmouseover]').length).toBe(0);
+      expect(W.__svXss).toBe(undefined);
+      expect(SV.state.doc.layers.length).toBe(doc.layers.length);
+      SV.loadDoc(SV.sampleDoc(), { fit: false });   // the later tests (the offline builder) start from the sample
+    });
+    it('an SVG whose entities would expand without limit is refused, and one with a few plain entities opens', () => {
+      const bomb = '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]><svg xmlns="http://www.w3.org/2000/svg"><text>&b;</text></svg>';
+      expect(() => IO.parseSVG(bomb)).toThrow(/expand without limit/);
+      const ai = '<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [<!ENTITY ns_svg "http://www.w3.org/2000/svg">]>' +
+        '<svg xmlns="&ns_svg;" width="10" height="10"><rect width="5" height="5" fill="red"/></svg>';
+      expect(IO.parseSVG(ai, { asLayers: true }).layers.length).toBeGreaterThan(0);
+    });
+    it('rejects files that are not SVG', () => {
+      expect(() => IO.parseSVG('<html><body>nope</body></html>')).toThrow(/valid SVG/);
+    });
+  });
+
+  describe('PDF writer', () => {
+    let bytes;
+    it('writes a PDF 1.4 whose xref points at every object', async () => {
+      SV.loadDoc(SV.sampleDoc(), { fit: false });
+      bytes = new Uint8Array(await (await IO.buildPDF()).arrayBuffer());
+      expect(ascii(bytes, 0, 8)).toBe('%PDF-1.4');
+      const tail = ascii(bytes, bytes.length - 64), xref = +/startxref\n(\d+)/.exec(tail)[1];
+      expect(ascii(bytes, xref, xref + 4)).toBe('xref');
+      const lines = ascii(bytes, xref, Math.min(bytes.length, xref + 4000)).split('\n'), n = +lines[1].split(' ')[1];
+      expect(n).toBeGreaterThan(5);
+      let good = 0;
+      for (let i = 1; i < n; i++) { const off = +lines[2 + i].slice(0, 10); if (ascii(bytes, off, off + String(i).length + 6) === i + ' 0 obj') good++; }
+      expect(good).toBe(n - 1);
+      expect(lines.slice(2, 2 + n).every((l) => l.length === 19)).toBe(true);
+      expect(tail.trimEnd().endsWith('%%EOF')).toBe(true);
+    });
+    it('has balanced objects, exact stream lengths and inflatable content', async () => {
+      const text = ascii(bytes);
+      expect((text.match(/\n\d+ 0 obj\n/g) || []).length).toBe((text.match(/\nendobj\n/g) || []).length);
+      expect(text).toContain('/MediaBox [0 0 1200 800]');
+      expect(text).toContain('/BaseFont /Helvetica-Bold');
+      expect(text).toContain('/S /Luminosity');
+      const re = /\/Length (\d+) >>\nstream\n/g; let m, streams = 0, content = null;
+      while ((m = re.exec(text))) {
+        const start = m.index + m[0].length, len = +m[1];
+        expect(text.slice(start + len, start + len + 10)).toBe('\nendstream');
+        if (content === null && /FlateDecode[^>]*$/.test(text.slice(Math.max(0, m.index - 200), m.index)))
+          content = await new Response(new Blob([bytes.slice(start, start + len)]).stream().pipeThrough(new DecompressionStream('deflate'))).text();
+        streams++;
+      }
+      expect(streams).toBeGreaterThanOrEqual(2);
+      expect(content.startsWith('1 0 0 -1 0 800 cm')).toBe(true);
+      expect(content).toContain('(SLOP) Tj');
+    });
+  });
+
+  describe('offline builder', () => {
+    let built;
+    it('inlines the app, its CSS and the shared SlopUI / apps / hub scripts into one file', async () => {
+      built = await IO.buildOfflineHTML();
+      // parsed, not matched as text: an inlined script may hold the string '<script src=' (shared/i18n/i18n.js writes tags)
+      const parsed = new DOMParser().parseFromString(built, 'text/html');
+      expect(parsed.querySelectorAll('script[src]').length).toBe(0);
+      expect(parsed.querySelectorAll('link[rel~="stylesheet"]').length).toBe(0);
+      ['window.SlopUI = {', 'window.SLOP_APPS = [', 'window.SlopHub = {', '.sui-dlg', 'name="slop-vector-build" content="offline"'].forEach((s) => expect(built).toContain(s));
+      expect(built).not.toContain('shared/fonts/');
+      expect(IO.normalizeHTML(built)).toBe(built);
+    }, { timeout: 30000 });
+    it('the offline copy boots and re-serialises itself byte-identically', async () => {
+      // a same-origin http page with no scripts, rewritten with the built HTML (hub.js needs a hierarchical URL)
+      const f = document.createElement('iframe'); f.src = '../../slopvector/__offline-sandbox__.html'; document.body.append(f);
+      await new Promise((r) => f.addEventListener('load', r, { once: true }));
+      const d = f.contentDocument; d.open(); d.write(built); d.close();
+      await waitFor(() => appReady(f.contentWindow), { timeout: 30000 });
+      expect(f.contentWindow.SV.state.doc.layers.length).toBeGreaterThan(0);
+      expect(f.contentWindow.__SV_PRISTINE === built).toBe(true);
+      expect((await f.contentWindow.SV.io.buildOfflineHTML()) === built).toBe(true);
+      f.remove();
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'SlopVector · import/export' });
+  </script>
+</body>
+</html>

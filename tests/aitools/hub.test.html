@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AI Tools · hub lists five tools; downloads need a click after the licence</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1000px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="hub" title="Slop AI Tools hub"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: aitools/hub.js, aitools/index.html, aitools/speech-models.js, aitools/get-more.js, shared/cdn/assets.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const frame = document.getElementById('hub');
+  const EXPECT = { OCR: 'Needs download', 'Speech to text': 'Needs download', Denoise: 'Ready', 'Auto tags': 'Needs download', 'Portrait blur': 'Ready' };
+  let win = null, calls = [];
+
+  /** Loads the hub in the frame and replaces its fetch with a spy that answers with 10 bytes (a bad model file). */
+  function loadHub() {
+    return new Promise((resolve) => {
+      frame.onload = () => resolve();
+      frame.src = '../../aitools/index.html?t=' + Date.now();
+    }).then(() => waitFor(() => frame.contentDocument.querySelectorAll('.ai-card').length === 5 && frame.contentDocument.querySelectorAll('.ai-model').length === 12, { timeout: 8000 }))
+      .then(() => {
+        win = frame.contentWindow;
+        calls = [];
+        win.fetch = async (url) => { calls.push(String(url)); return new Response(new Uint8Array(10)); };
+        return win;
+      });
+  }
+  const doc = () => frame.contentDocument;
+  const card = (name) => [...doc().querySelectorAll('.ai-card')].find((c) => c.querySelector('h3').textContent === name);
+  const dialog = () => doc().querySelector('.ai-dlg');
+
+  describe('Slop AI Tools hub', () => {
+    it('lists all five tools, each with its status', async () => {
+      await loadHub();
+      const names = [...doc().querySelectorAll('.ai-card h3')].map((h) => h.textContent);
+      expect(names.length).toBe(5);
+      for (const n of Object.keys(EXPECT)) {
+        expect(names).toContain(n);
+        const pill = card(n).querySelector('.ai-pill').textContent;
+        expect(pill).toBe(EXPECT[n]);
+      }
+    });
+
+    it('shows an unsupported tool with the reason, instead of hiding it', async () => {
+      await loadHub();
+      const real = win.SlopAISupport.check;
+      win.SlopAISupport.check = (id) => (id === 'ocr' ? { ok: false, reason: 'This browser has no WebAssembly, which the models need.' } : real(id));
+      await win.SlopAIHub.refresh();
+      await waitFor(() => card('OCR') && card('OCR').querySelector('.ai-pill').textContent === 'Not supported on this device');
+      expect(card('OCR').textContent).toMatch(/no WebAssembly/);
+      expect(card('OCR').querySelector('a.ai-btn')).toBe(null);
+      win.SlopAISupport.check = real;
+    });
+
+    it('starts no download when the hub opens', async () => {
+      await loadHub();
+      await sleep(200);
+      expect(calls).toEqual([]);
+    });
+
+    it('shows the licence and size before any download, and only the Download button fetches', async () => {
+      await loadHub();
+      const getMore = [...doc().querySelectorAll('.ai-model')].find((r) => r.textContent.includes('Whisper tiny')).querySelector('button');
+      getMore.click();
+      await waitFor(() => dialog());
+      const text = dialog().textContent;
+      expect(text).toMatch(/Licence: MIT License \(MIT\)/);
+      expect(text).toMatch(/Download \d+(\.\d)? (KB|MB)/);
+      expect(text).toMatch(/cdn\.jsdelivr\.net/);
+      expect(text).toMatch(/raw\.githubusercontent\.com/);
+      await sleep(150);
+      expect(calls).toEqual([]);
+      dialog().querySelector('footer button').click();
+      await sleep(100);
+      expect(calls).toEqual([]);
+    });
+
+    it('downloads after a click, rejects a file that fails its check, and stores nothing', async () => {
+      await loadHub();
+      const getMore = [...doc().querySelectorAll('.ai-model')].find((r) => r.textContent.includes('Whisper tiny')).querySelector('button');
+      getMore.click();
+      await waitFor(() => dialog());
+      const go = [...dialog().querySelectorAll('button')].find((b) => /^Download /.test(b.textContent));
+      expect(go).toBeTruthy();
+      expect(calls).toEqual([]);
+      go.click();
+      await waitFor(() => calls.length >= 2, { timeout: 5000 });
+      // jsDelivr at the release tag first; its wrong bytes send the download to the GitHub copy, which is refused too
+      const repo = doc().defaultView.SlopCdn.REPO.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');   // the build's file host (here slopographic/cdn)
+      expect(calls[0]).toMatch(new RegExp(`^https://cdn\\.jsdelivr\\.net/gh/${repo}@v\\d+\\.\\d+\\.\\d+/models/whisper/whisper-tiny/encoder_model_quantized\\.onnx$`));
+      expect(calls[1]).toMatch(new RegExp(`^https://raw\\.githubusercontent\\.com/${repo}/v\\d+\\.\\d+\\.\\d+/models/whisper/whisper-tiny/encoder_model_quantized\\.onnx$`));
+      await waitFor(() => /Nothing was stored/.test(dialog().querySelector('[role="status"]').textContent), { timeout: 5000 });
+      expect(dialog().querySelector('[role="status"]').textContent).toMatch(/bytes, expected/);
+      expect(card('Speech to text').querySelector('.ai-pill').textContent).toBe('Needs download');
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

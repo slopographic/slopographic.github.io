@@ -1,0 +1,22 @@
+/* Slop Calendar, Korean: the palette. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'calendar.cmd.g_cal': '캘린더',
+  'calendar.cmd.g_goto': '이동',
+  'calendar.cmd.prev': '캘린더: 이전 기간',
+  'calendar.cmd.next': '캘린더: 다음 기간',
+  'calendar.cmd.today': '캘린더: 오늘로 이동',
+  'calendar.cmd.year': '캘린더: 연간 보기',
+  'calendar.cmd.month': '캘린더: 월간 보기',
+  'calendar.cmd.split': '캘린더: 나누어 보기',
+  'calendar.cmd.undo': '캘린더: 마지막 이동 실행 취소',
+  'calendar.cmd.week': '캘린더: 주간 보기',
+  'calendar.cmd.day': '캘린더: 일간 보기',
+  'calendar.cmd.agenda': '캘린더: 일정 목록',
+  'calendar.cmd.new': '캘린더: 새 일정',
+  'calendar.cmd.tasks': '캘린더: 할 일 표시 또는 숨기기',
+  'calendar.cmd.import': '캘린더: .ics 가져오기',
+  'calendar.cmd.export': '캘린더: .ics 내보내기',
+  'calendar.cmd.todo': 'Slop To-do로 이동',
+  'calendar.cmd.reminders': 'Slop Reminders로 이동',
+  'calendar.cmd.crm': 'Slop CRM으로 이동',
+});

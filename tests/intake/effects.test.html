@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Effects: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: effects/js/app/io.js, effects/js/main.js
+  // Slop Effects on the one intake: Add media (this computer, Slop Drive), a drop on the view, a paste, Relink media
+  // (mode relink), Open project from Slop Drive (linked) and ?drive=<id> (launch, new) reach the same reader.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, A, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 32; c.height = 18; c.getContext('2d').fillRect(0, 0, 32, 18);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const layers = () => A.S.doc.layers.length;
+  async function through(src, start, n = 1) { const k = seen.length; await start(); await waitFor(() => seen.length === k + n, { timeout: 15000 }); expect(seen.slice(k)).toEqual(Array(n).fill(src)); }
+  describe('Slop Effects: one way in', () => {
+    it('Add media from this computer, a drop on the view and a paste', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../effects/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopEffects.app && fr.contentWindow.SlopIntake.spec('effects'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document; A = W.SlopEffects.app;
+      const s = W.SlopIntake.spec('effects'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.mode === 'relink' ? 'relink' : ctx.source); return reader(f, ctx); };
+      const n = layers(), fs = [await png('a.png'), await png('b.png')];
+      W.SlopUI.pickFiles = async () => fs;
+      await through('picker', () => A.io.importFromComputer(), 2);
+      await through('drop', async () => D.getElementById('fx-view').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([await png('c.png')]) })));
+      await through('paste', async () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('d.png')]) })));
+      await waitFor(() => layers() === n + 4);
+    }, { timeout: 40000 });
+    it('Add media from Slop Drive, and Relink media', async () => {
+      const blob = await png('e.png');
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'e.png', type: 'image/png', blob });
+      await through('drive', () => A.io.importFromDrive());
+      W.SlopUI.pickFiles = async () => [new W.File([blob], 'again.png', { type: 'image/png' })];
+      await through('relink', () => A.io.relink('m1'));
+    });
+    it('Open project from Slop Drive links it; ?drive=<id> (launch)', async () => {
+      const text = W.SlopEffects.project.toFile(A.S.doc);
+      W.SlopHub.pickFromDrive = async () => ({ id: 'p1', name: 'Mine.effects.json', type: 'application/json', blob: new W.Blob([text], { type: 'application/json' }) });
+      await through('drive', () => A.io.openDrive());
+      expect(A.S.file.driveId).toBe('p1');
+      const blob = await png('f.png');
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x2', name: 'f.png', type: 'image/png', blob });
+      await through('launch', () => A.io.launch());
+    });
+  });
+  run({ name: 'Shared intake: Slop Effects' });
+</script>
+</body>
+</html>

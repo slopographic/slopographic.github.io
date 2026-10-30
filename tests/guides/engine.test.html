@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopGuides engine tests</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/guides/engine.js"></script>
+  <script src="../../shared/guides/notation.js"></script>
+  <script src="../../shared/guides/presets.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const SG = window.SlopGuides;
+  const R = { x: 0, y: 0, w: 1000, h: 500 };
+  const V = (gs) => gs.filter((g) => g.o === 'v').map((g) => g.pos);
+  const H = (gs) => gs.filter((g) => g.o === 'h').map((g) => g.pos);
+
+  describe('units', () => {
+    it('parses lengths with and without units', () => {
+      expect(SG.parseLen('10px')).toEqual({ v: 10, u: 'px' });
+      expect(SG.parseLen(' 5 % ')).toEqual({ v: 5, u: '%' });
+      expect(SG.parseLen('5%')).toEqual({ v: 5, u: '%' });
+      expect(SG.parseLen('2.5', 'mm')).toEqual({ v: 2.5, u: 'mm' });
+      expect(SG.parseLen('1cm')).toEqual({ v: 10, u: 'mm' });
+      expect(SG.parseLen('')).toBe(null);
+      expect(SG.parseLen('abc')).toBe(null);
+    });
+    it('converts px, %, mm, in and pt', () => {
+      expect(SG.toPx('10px')).toBe(10);
+      expect(SG.toPx('10%', { ref: 1000 })).toBe(100);
+      expect(SG.toPx('1in', { dpi: 300 })).toBe(300);
+      expect(SG.toPx('25.4mm', { dpi: 96 })).toBeCloseTo(96);
+      expect(SG.toPx('12pt')).toBe(12);
+      expect(SG.toPx('12pt', { dpi: 144 })).toBe(24);
+      expect(SG.toPx(3, { unit: 'in', dpi: 100 })).toBe(300);
+      expect(SG.fromPx(300, 'in', { dpi: 300 })).toBe(1);
+      expect(SG.fromPx(250, '%', { ref: 1000 })).toBe(25);
+    });
+  });
+
+  describe('form: columns, rows, margins', () => {
+    it('lays out columns with gutters', () => {
+      expect(V(SG.compute(R, { cols: { count: 3, gutter: 20 } }))).toEqual([0, 320, 340, 660, 680, 1000]);
+    });
+    it('without gutters, shared edges become one guide', () => {
+      expect(V(SG.compute(R, { cols: { count: 4 } }))).toEqual([0, 250, 500, 750, 1000]);
+    });
+    it('fixed column width + count is centred in the area', () => {
+      expect(V(SG.compute(R, { cols: { count: 2, width: 100, gutter: 10 } }))).toEqual([395, 495, 505, 605]);
+    });
+    it('fixed width without a count fits as many columns as possible', () => {
+      expect(V(SG.compute({ x: 0, y: 0, w: 330, h: 10 }, { cols: { width: 100, gutter: 10 } }))).toEqual([0, 100, 110, 210, 220, 320].map((x) => x + 5));
+    });
+    it('rows use the height, and work inside an offset rect', () => {
+      expect(H(SG.compute({ x: 50, y: 100, w: 200, h: 300 }, { rows: { count: 3 } }))).toEqual([100, 200, 300, 400]);
+    });
+    it('margins make guides and inset the columns (% of width / height)', () => {
+      const g = SG.compute(R, { margins: { left: '10%', right: 50, top: 20, bottom: '4%' }, cols: { count: 2 } });
+      expect(V(g)).toEqual([100, 525, 950]);
+      expect(H(g)).toEqual([20, 480]);
+    });
+    it('midpoints, centre lines and outer edges', () => {
+      expect(V(SG.compute(R, { cols: { count: 2 }, colMid: true }))).toEqual([0, 250, 500, 750, 1000]);
+      expect(V(SG.compute(R, { midV: true }))).toEqual([500]);
+      expect(H(SG.compute(R, { midH: true, margins: { top: 100 } }))).toEqual([100, 300]);
+      const e = SG.compute(R, { edges: true });
+      expect([V(e), H(e)]).toEqual([[0, 1000], [0, 500]]);
+    });
+    it('baseline grid from the top margin', () => {
+      expect(H(SG.compute({ x: 0, y: 0, w: 10, h: 100 }, { baseline: { step: 24 }, margins: { top: 10 }, marginGuides: false }))).toEqual([10, 34, 58, 82]);
+    });
+    it('units in mm and in at a given resolution', () => {
+      expect(V(SG.compute({ x: 0, y: 0, w: 3000, h: 10 }, { unit: 'in', dpi: 300, margins: { left: 1, right: 1 } }))).toEqual([300, 2700]);
+      expect(V(SG.compute({ x: 0, y: 0, w: 1000, h: 10 }, { margins: { left: '25.4mm' }, dpi: 100 }))).toEqual([100]);
+    });
+  });
+
+  describe('pixel snapping', () => {
+    it('distribute splits an integer total fairly', () => {
+      expect(SG.distribute(10, 3)).toEqual([3, 3, 4]);
+      expect(SG.distribute(1000, 7).reduce((a, b) => a + b)).toBe(1000);
+      const parts = SG.distribute(1003, 12); expect(Math.max(...parts) - Math.min(...parts)).toBeLessThanOrEqual(1);
+    });
+    it('exact mode keeps fractions, round rounds each guide', () => {
+      expect(V(SG.compute(R, { cols: { count: 3 } }))).toEqual([0, 333.333, 666.667, 1000]);
+      expect(V(SG.compute(R, { cols: { count: 3 }, snap: 'round' }))).toEqual([0, 333, 667, 1000]);
+    });
+    it('fair remainder: whole-pixel columns that differ by at most one pixel and fill the width', () => {
+      const g = V(SG.compute({ x: 0, y: 0, w: 1003, h: 1 }, { cols: { count: 12, gutter: 10 }, snap: 'distribute' }));
+      expect(g.every(Number.isInteger)).toBe(true);
+      expect(g[0]).toBe(0); expect(g[g.length - 1]).toBe(1003);
+      const widths = []; for (let i = 0; i < g.length; i += 2) widths.push(g[i + 1] - g[i]);
+      expect(widths.length).toBe(12);
+      expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+      for (let i = 1; i < g.length - 1; i += 2) expect(g[i + 1] - g[i]).toBe(10);
+    });
+    it('12-column web on a 1600 px canvas', () => {
+      const p = SG.PRESETS.find((x) => x.name === '12-column web');
+      const g = SG.presetGuides(p, { x: 0, y: 0, w: 1600, h: 900 });
+      expect(V(g).length).toBe(24 + 0); // 12 columns × 2 edges (margins coincide with the outer column edges)
+      expect(V(g)[0]).toBe(40); expect(V(g)[23]).toBe(1560);
+    });
+  });
+
+  describe('notation', () => {
+    it('wildcards share the space', () => {
+      expect(V(SG.notation('| ~ | ~ | ~ |', R).guides)).toEqual([0, 333.333, 666.667, 1000]);
+    });
+    it('fixed widths and wildcards', () => {
+      expect(V(SG.notation('|10px|~|10px|', R).guides)).toEqual([0, 10, 990, 1000]);
+      expect(V(SG.notation('10% | ~ | 10%', R).guides)).toEqual([100, 900]);
+    });
+    it('repeats a group', () => {
+      expect(V(SG.notation('(|~|20px|)*4', { x: 0, y: 0, w: 100, h: 1 }).guides)).toEqual([0, 5, 25, 30, 50, 55, 75, 80, 100]);
+      expect(V(SG.notation('|~|*3', { x: 0, y: 0, w: 90, h: 1 }).guides)).toEqual([0, 90]);
+      expect(V(SG.notation('(~|)*3 ~', { x: 0, y: 0, w: 100, h: 1 }).guides)).toEqual([25, 50, 75]);
+    });
+    it('fill groups repeat as many times as fit', () => {
+      expect(V(SG.notation('(|100px)* |', { x: 0, y: 0, w: 350, h: 1 }).guides)).toEqual([0, 100, 200, 300]);
+    });
+    it('variables, rows option, insets and comments', () => {
+      expect(H(SG.notation('$a = |~|\n$a*2 ( h )', R).guides)).toEqual([0, 250, 500]);
+      expect(V(SG.notation('| ~ | ( v, 100px, 100px ) # inset', R).guides)).toEqual([100, 900]);
+      const both = SG.notation('|~|~| (v)\n|~|~| (h)', R).guides;
+      expect([V(both), H(both)]).toEqual([[0, 500, 1000], [0, 250, 500]]);
+    });
+    it('p option: whole pixels with a fair remainder', () => {
+      expect(V(SG.notation('|~|~|~| ( vp )', { x: 0, y: 0, w: 100, h: 1 }).guides)).toEqual([0, 33, 66, 100]);
+    });
+    it('reports errors with line numbers', () => {
+      expect(SG.notation('| ~ ) |', R).errors[0].msg).toMatch(/Unmatched/);
+      expect(SG.notation('|~|\n$x*2', R).errors[0]).toEqual({ line: 2, msg: 'Unknown variable $x' });
+      expect(SG.notation('| ? |', R).errors[0].msg).toMatch(/Unexpected/);
+      expect(SG.notation('(| ~ |)*', R).errors[0].msg).toMatch(/wildcards/);
+      expect(SG.notation('|~| ( q )', R).errors[0].msg).toMatch(/Unknown option/);
+      expect(SG.notation('| ~ |', R).errors).toEqual([]);
+    });
+    it('the form converts to equivalent notation', () => {
+      const f = { cols: { count: 12, gutter: '20px' }, margins: { left: '40px', right: '40px' } };
+      expect(SG.notation(SG.formToNotation(f), R).guides).toEqual(SG.compute(R, f));
+    });
+  });
+
+  describe('intervals and helpers', () => {
+    it('a guide every N px from an origin, both directions', () => {
+      const g = SG.intervals(R, { x: { step: 250 }, y: { step: 100, origin: 50 } });
+      expect(V(g)).toEqual([0, 250, 500, 750, 1000]);
+      expect(H(g)).toEqual([50, 150, 250, 350, 450]);
+      expect(V(SG.intervals({ x: 10, y: 0, w: 100, h: 1 }, { x: { step: '50%' } }))).toEqual([10, 60, 110]);
+      expect(SG.intervals(R, { x: { step: 0 } })).toEqual([]);
+    });
+    it('normalize/merge dedupe and sort; HV conversion round-trips', () => {
+      const m = SG.merge([{ o: 'h', pos: 5 }, { o: 'v', pos: 3 }], [{ o: 'v', pos: 3 }, { o: 'v', pos: 1 }]);
+      expect(m).toEqual([{ o: 'v', pos: 1 }, { o: 'v', pos: 3 }, { o: 'h', pos: 5 }]);
+      expect(SG.toHV(m)).toEqual({ h: [5], v: [1, 3] });
+      expect(SG.fromHV({ h: [5], v: [3, 1] })).toEqual(m);
+      expect(SG.nearest([0, 100, 200], 104, 6)).toEqual({ pos: 100, d: -4 });
+      expect(SG.nearest([0, 100], 50, 6)).toBe(null);
+    });
+  });
+
+  describe('presets', () => {
+    it('built-ins: rule of thirds, golden ratio, centre cross, 8-pt grid', () => {
+      const P = (n) => SG.presetGuides(SG.PRESETS.find((x) => x.name === n), { x: 0, y: 0, w: 900, h: 600 });
+      expect(V(P('Rule of thirds'))).toEqual([0, 300, 600, 900]);
+      expect(V(P('Golden ratio'))[1]).toBeCloseTo(343.773, 0.01);
+      expect(P('Centre cross')).toEqual([{ o: 'v', pos: 450 }, { o: 'h', pos: 300 }]);
+      expect(V(P('8-pt grid')).length).toBe(113);
+    });
+    it('saves, exports and imports custom presets', () => {
+      const key = 'slopguides.test.' + Date.now();
+      SG.addPreset({ name: 'Mine', tab: 'notation', notation: '|~|' }, key);
+      expect(SG.loadCustom(key).map((p) => p.name)).toEqual(['Mine']);
+      const json = SG.exportJSON(key);
+      SG.removePreset('Mine', key); expect(SG.loadCustom(key)).toEqual([]);
+      expect(SG.importJSON(json, key)).toBe(1);
+      expect(SG.presets(key).length).toBe(SG.PRESETS.length + 1);
+      expect(() => SG.importJSON('{"nope":1}', key)).toThrow(/preset file/);
+      expect(() => SG.importJSON('not json', key)).toThrow(/JSON/);
+      localStorage.removeItem(key);
+    });
+  });
+  SlopTest.run({ name: 'SlopGuides engine' });
+  </script>
+</body>
+</html>

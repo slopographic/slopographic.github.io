@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>View modes: OCR</title>
+<style>html, body { margin: 0; height: 100%; } #app { display: block; width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="OCR app"></iframe>
+  <script>window.APP_MODES = { grow: false, name: 'OCR', url: '../../ocr/', workspace: '#work', sidebar: [], panels: ['.ocr-help'],
+    // the tool shows once the model is installed and a page is open; this test is about the layout, so show it as then
+    ready: (w, d) => { const ui = d.getElementById('ui'), work = d.getElementById('work'); if (!ui || !work) return false; ui.hidden = false; work.hidden = false; return true; } };</script>
+  <script src="../harness.js"></script>
+  <script src="app-modes.js"></script>
+</body>
+</html>

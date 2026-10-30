@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopDrop in the apps: drop tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1280px; height: 900px; }</style>
+</head>
+<body>
+  <!-- Each test loads the real app in its own same-origin iframe and drops a picture on it (a simulated DataTransfer
+       drop). The app's own reader adds the file; the tests check the highlight, the progress row, the toast and the item. -->
+  <script>try { localStorage.setItem('slop-firstrun:img3d', '1'); } catch (e) { /* private window */ } try { localStorage.setItem('slop-firstrun:upscale', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { describe, it, expect, waitFor } = SlopTest;
+    const APP = 60000;
+
+    /** Load an app page in a fresh iframe; resolves with its window once ready(win) is true. */
+    async function openApp(src, ready) {
+      const f = document.createElement('iframe');
+      f.src = src;
+      document.body.append(f);
+      await waitFor(() => f.contentWindow && f.contentWindow.document.readyState === 'complete' && ready(f.contentWindow), { timeout: 45000 });
+      return f;
+    }
+    /** A picture the app can decode, as a File of that window's realm. */
+    let seq = 0;
+    async function picture(w, name, size = 320) {
+      const c = document.createElement('canvas');
+      c.width = size; c.height = Math.round(size * 0.6);
+      const g = c.getContext('2d');
+      g.fillStyle = 'hsl(' + ((seq++ * 97) % 360) + ' 70% 45%)'; g.fillRect(0, 0, c.width, c.height);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      return new w.File([blob], name, { type: 'image/png' });
+    }
+    const dataTransfer = (w, files) => { const dt = new w.DataTransfer(); for (const f of files) dt.items.add(f); return dt; };
+    const fire = (w, type, dt, el) => {
+      const r = el.getBoundingClientRect();
+      el.dispatchEvent(new w.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 5, clientY: r.top + 5 }));
+    };
+    /** Drop files on el: dragenter, dragover, drop (what a real drag does). */
+    const drop = (w, files, el) => { const dt = dataTransfer(w, files); fire(w, 'dragenter', dt, el); fire(w, 'dragover', dt, el); fire(w, 'drop', dt, el); };
+    const rowFor = (doc, zoneId, name) => Array.from(doc.querySelectorAll('#' + zoneId + ' .sd-row')).find((r) => r.querySelector('.sd-name').textContent === name);
+    const toastOf = (doc) => { const t = doc.querySelector('.sd-toast'); return t ? t.textContent : ''; };
+    const withApp = async (f, fn) => { try { return await fn(f.contentWindow, f.contentWindow.document); } finally { f.remove(); } };
+
+    describe('Slop Drive: the upload strip', () => {
+      it('a picture dropped on the pane is added to the folder: highlight, progress row, toast, and the file in Drive', () => openApp('../../drive/index.html', (w) => w.DR && w.DR.S && w.document.body.classList.contains('ready')).then((f) => withApp(f, async (w, doc) => {
+        expect(doc.querySelector('#drvDrop .sd-choose').textContent).toBe('Choose files');
+        const pic = await picture(w, 'drive-drop.png');
+        const pane = doc.getElementById('pane');
+        const dt = dataTransfer(w, [pic]);
+        fire(w, 'dragenter', dt, pane);
+        expect(doc.querySelector('.sd-hint b').textContent).toBe('Drop to add 1 file');
+        fire(w, 'dragleave', dt, pane);
+        expect(doc.querySelectorAll('.sd-hint').length).toBe(0);
+        fire(w, 'drop', dt, pane);
+        await waitFor(() => { const r = rowFor(doc, 'drvDrop', 'drive-drop.png'); return r && r.classList.contains('ready'); }, { timeout: 30000 });
+        await waitFor(() => toastOf(doc) === 'Added 1 file', { timeout: 30000 });
+        await waitFor(() => Array.from(w.DR.S.files.values()).some((x) => x.name === 'drive-drop.png'), { timeout: 30000 });
+        expect(doc.querySelectorAll('.sd-hint').length).toBe(0);
+      })), { timeout: APP });
+    });
+
+    describe('Reel Remix: the stage', () => {
+      it('a picture dropped on the stage is added to the bin, with a progress row and a toast', () => openApp('../../remix/index.html', (w) => w.RM && w.RM.ready && w.document.querySelector('#rm-drop .sd-msg')).then((f) => withApp(f, async (w, doc) => {
+        const before = w.RM.state.items.length;
+        drop(w, [await picture(w, 'remix-stage.png')], doc.getElementById('rm-canvas'));
+        await waitFor(() => w.RM.state.items.length === before + 1, { timeout: 30000 });
+        await waitFor(() => { const r = rowFor(doc, 'rm-drop', 'remix-stage.png'); return r && r.classList.contains('ready'); }, { timeout: 30000 });
+        expect(toastOf(doc)).toBe('Added 1 file');
+        expect(doc.querySelector('#rm-bin li[data-id="' + w.RM.state.items[before].id + '"]')).toBeTruthy();
+      })), { timeout: APP });
+    });
+
+    describe('Slop Upscale: the stage', () => {
+      it('a picture dropped on the stage is opened: progress row, toast, and Upscale becomes available', () => openApp('../../upscale/index.html', (w) => w.document.querySelector('#up-drop .sd-msg')).then((f) => withApp(f, async (w, doc) => {
+        expect(doc.getElementById('up-run').disabled).toBe(true);
+        drop(w, [await picture(w, 'upscale-drop.png')], doc.getElementById('up-stage-wrap'));
+        await waitFor(() => !doc.getElementById('up-run').disabled, { timeout: 30000 });
+        await waitFor(() => { const r = rowFor(doc, 'up-drop', 'upscale-drop.png'); return r && r.classList.contains('ready'); }, { timeout: 30000 });
+        expect(toastOf(doc)).toBe('Added 1 file');
+        expect(doc.getElementById('up-stage').hidden).toBe(false);
+      })), { timeout: APP });
+
+      it('two pictures in one drop both join the list (the files column shows from two)', () => openApp('../../upscale/index.html', (w) => w.document.querySelector('#up-drop .sd-msg')).then((f) => withApp(f, async (w, doc) => {
+        drop(w, [await picture(w, 'first.png'), await picture(w, 'second.png')], doc.getElementById('up-stage-wrap'));
+        await waitFor(() => toastOf(doc) !== '', { timeout: 30000 });
+        expect(toastOf(doc)).toBe('Added 2 files');
+        expect(doc.querySelectorAll('#up-rows .up-row').length).toBe(2);
+        expect(doc.getElementById('up-run').textContent).toBe('Upscale 2 pictures');
+      })), { timeout: APP });
+    });
+
+    describe('Slop Resize: the left column', () => {
+      it('a picture dropped on the column is queued (the column is a drop target, so a missing id cannot break the zone)', () => openApp('../../resize/index.html', (w) => w.SlopResize && w.SlopResize.queue && w.document.querySelector('#rs-drop .sd-msg')).then((f) => withApp(f, async (w, doc) => {
+        const before = w.SlopResize.queue.items().length;
+        drop(w, [await picture(w, 'resize-drop.png')], doc.getElementById('rs-left'));
+        await waitFor(() => w.SlopResize.queue.items().length === before + 1, { timeout: 30000 });
+        await waitFor(() => toastOf(doc) === 'Added 1 file', { timeout: 30000 });
+      })), { timeout: APP });
+    });
+  })();
+  </script>
+  <script>SlopTest.run({ name: 'SlopDrop in Drive, Remix, Upscale and Resize' });</script>
+</body>
+</html>

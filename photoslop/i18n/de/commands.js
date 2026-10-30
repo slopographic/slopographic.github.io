@@ -1,0 +1,23 @@
+/* PhotoSlop, German: the keyboard commands and their toasts (colours, brush size, nudging, documents, view). Same keys as photoslop/i18n/en/commands.js. Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-de.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'photoslop.cmd.opacity_toast': 'Deckkraft {pct} %',
+  'photoslop.cmd.cycle_tools': '{tools} durchschalten',
+  'photoslop.cmd.swap_colors': 'Vorder- und Hintergrundfarbe tauschen',
+  'photoslop.cmd.default_colors': 'Standardfarben (Schwarz / Weiß)',
+  'photoslop.cmd.brush_bigger': 'Pinselgröße erhöhen',
+  'photoslop.cmd.brush_smaller': 'Pinselgröße verringern',
+  'photoslop.cmd.brush_harder': 'Pinselhärte erhöhen',
+  'photoslop.cmd.brush_softer': 'Pinselhärte verringern',
+  'photoslop.cmd.tool_opacity': 'Werkzeugdeckkraft {pct} %',
+  'photoslop.cmd.nudge_left': 'Um {n} px nach links verschieben',
+  'photoslop.cmd.nudge_right': 'Um {n} px nach rechts verschieben',
+  'photoslop.cmd.nudge_up': 'Um {n} px nach oben verschieben',
+  'photoslop.cmd.nudge_down': 'Um {n} px nach unten verschieben',
+  'photoslop.cmd.next_doc': 'Nächstes Dokument',
+  'photoslop.cmd.prev_doc': 'Vorheriges Dokument',
+  'photoslop.cmd.go_to_doc': 'Zu Dokument {i} wechseln',
+  'photoslop.cmd.restore_aspect': 'Ursprüngliches Seitenverhältnis wiederherstellen',
+  'photoslop.cmd.guides_panel': 'Bereich Hilfslinien (Hilfslinienlayouts)',
+  'photoslop.cmd.search_key': 'Befehle suchen ({key})',
+  'photoslop.cmd.nav_preset': 'Navigationsvorgabe…',
+});

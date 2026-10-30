@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PhotoSlop on a phone: the panels drawer</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: photoslop/js/app/main.js, photoslop/css/extras.css, photoslop/index.html -->
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  let win, D, S;
+  const esc = () => D.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('390 × 844: the panels are a SlopSheet drawer from the right', () => {
+    it('Layers opens the drawer under the top bar at the right edge; Layers again closes it', async () => {
+      ({ win } = await freshApp()); D = win.document; S = win.PS_SHEET;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const btn = D.getElementById('panelToggle'), p = D.getElementById('panels');
+      expect([S.isPhone(), S.isOpen()]).toEqual([true, false]);
+      btn.click();
+      expect([S.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+      const r = p.getBoundingClientRect();
+      expect([Math.round(r.right), r.top >= D.querySelector('.topbar').getBoundingClientRect().bottom - 1]).toEqual([390, true]);
+      btn.click();
+      expect([S.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([false, 'false']);
+    });
+    it('the × closes it and gives focus back to Layers; Escape closes it; a tap on the picture closes it', () => {
+      const btn = D.getElementById('panelToggle');
+      btn.focus(); btn.click();
+      const x = D.querySelector('#panels > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close panels');
+      x.click();
+      expect([S.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc();
+      expect(S.isOpen()).toBe(false);
+      btn.click();
+      D.getElementById('viewport').dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true }));
+      expect(S.isOpen()).toBe(false);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop: phone panels' });
+  </script>
+</body>
+</html>

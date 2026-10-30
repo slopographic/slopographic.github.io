@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Music in Swedish</title>
+  <!-- Covers: music/index.html, music/i18n/index.js, music/js/ui/library.js, music/js/ui/now.js, music/js/ui/mini.js, music/js/ui/playlists.js, music/js/core/engine.js, music/js/app/main.js, music/js/app/ai-commands.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Music', path: '../../music/index.html', ns: 'music',
+    ready: (doc) => doc.querySelector('#lib-side .mu-h') && doc.querySelector('#lib-preview li'),
+    checks: [
+      ['[data-view="library"]', 'Bibliotek', 'Library'],
+      ['#mu-add', 'Lägg till filer', 'Add files'],
+      ['#lib-search', 'Sök titel', 'Search title', 'placeholder'],
+      ['#lib-side .mu-h', 'Taggar', 'Tags'],
+      ['#now-play', 'Spela', 'Play', 'aria-label'],
+      ['#lib-preview', 'Spela, blanda', 'Play, shuffle'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Music in Swedish' });
+  </script>
+</body>
+</html>

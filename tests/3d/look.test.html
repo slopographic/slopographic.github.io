@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop 3D: the look (top bar at 1440, 1024 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: 3d/css/app.css, 3d/js/app/layout.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's and Drive's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../3d/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.querySelector('#snap option') && D.querySelector('.topbar .sh-switch') && D.querySelector('.topbar .sdl'); }, { timeout: 40000 });
+    await sleep(400);   // shared/ui/hbtn.js settles the labels on the next frame
+    return f;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+  const rows = (D, sel) => new Set(visible(D, sel).map((n) => Math.round(n.getBoundingClientRect().top))).size;
+
+  describe('Slop 3D: the look', () => {
+    it('at 1280px the top bar keeps one row (name, scene actions and shared buttons)', async () => {
+      const f = await open(1280), D = f.contentDocument;
+      expect(D.querySelector('.topbar').getBoundingClientRect().height).toBeLessThan(50);
+      expect(rows(D, '.topbar .slop-hbtn, .actions > .tb-btn, .actions > .btn')).toBe(1);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+      f.remove();
+    }, { timeout: 60000 });
+    for (const w of [1440, 1024, 390]) {
+      it(`at ${w}px the shared buttons are on one row, inside the window, as tall as Open`, async () => {
+        const f = await open(w), D = f.contentDocument;
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(w);
+        const own = D.getElementById('btnOpen').getBoundingClientRect();
+        for (const n of visible(D, '.topbar .slop-hbtn')) {
+          const r = n.getBoundingClientRect();
+          expect(r.right).toBeLessThanOrEqual(w + 0.5);
+          expect(r.height).toBe(own.height);
+        }
+        expect(rows(D, '.topbar .slop-hbtn')).toBe(1);
+        if (w >= 1024) expect(rows(D, '.actions > .tb-btn, .actions > .btn')).toBe(1);   // the scene actions do not wrap
+        f.remove();
+      }, { timeout: 60000 });
+    }
+
+    it('the viewport hint stays one line inside the viewport', async () => {
+      const f = await open(1024), D = f.contentDocument;
+      const hint = D.querySelector('.vp-hint'), vp = D.querySelector('.viewport').getBoundingClientRect();
+      if (hint && hint.getBoundingClientRect().width) {
+        expect(hint.getBoundingClientRect().right).toBeLessThanOrEqual(vp.right + 0.5);
+        expect(hint.getBoundingClientRect().height).toBeLessThan(24);
+      }
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('at 1280px Save sits at the foot of the Properties panel on the right, not in the top bar', async () => {
+      const f = await open(1280), D = f.contentDocument, save = D.getElementById('btnSave'), panel = D.querySelector('.panel-right');
+      expect(D.querySelector('.topbar').contains(save)).toBe(false);
+      expect(save.closest('.sf-p-foot').parentNode).toBe(panel);
+      expect(panel.getBoundingClientRect().left).toBeGreaterThan(D.querySelector('.viewport').getBoundingClientRect().right - 1);
+      expect(Math.round(save.getBoundingClientRect().bottom)).toBeLessThanOrEqual(Math.round(panel.getBoundingClientRect().bottom));
+      expect(save.getBoundingClientRect().bottom).toBeLessThanOrEqual(f.getBoundingClientRect().height);
+      f.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop 3D: the look' });
+  </script>
+</body>
+</html>

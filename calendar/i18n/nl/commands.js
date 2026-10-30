@@ -1,0 +1,22 @@
+/* Slop Calendar, Dutch: the palette. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'calendar.cmd.g_cal': 'Agenda',
+  'calendar.cmd.g_goto': 'Ga naar',
+  'calendar.cmd.prev': 'Agenda: vorige periode',
+  'calendar.cmd.next': 'Agenda: volgende periode',
+  'calendar.cmd.today': 'Agenda: naar vandaag',
+  'calendar.cmd.year': 'Agenda: jaarweergave',
+  'calendar.cmd.month': 'Agenda: maandweergave',
+  'calendar.cmd.split': 'Agenda: gesplitste weergave',
+  'calendar.cmd.undo': 'Agenda: laatste verplaatsing ongedaan maken',
+  'calendar.cmd.week': 'Agenda: weekweergave',
+  'calendar.cmd.day': 'Agenda: dagweergave',
+  'calendar.cmd.agenda': 'Agenda: lijst',
+  'calendar.cmd.new': 'Agenda: nieuwe afspraak',
+  'calendar.cmd.tasks': 'Agenda: taken tonen of verbergen',
+  'calendar.cmd.import': 'Agenda: .ics importeren',
+  'calendar.cmd.export': 'Agenda: .ics exporteren',
+  'calendar.cmd.todo': 'Ga naar Slop To-do',
+  'calendar.cmd.reminders': 'Ga naar Slop Reminders',
+  'calendar.cmd.crm': 'Ga naar Slop CRM',
+});

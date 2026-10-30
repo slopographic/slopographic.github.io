@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slopculator: the look (header and empty result, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: calculator/index.html, calculator/css/calc.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menu bar and the shell's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../calculator/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+
+  describe('Slopculator: the look', () => {
+    it('one header, with the 100% local badge', async () => {
+      const D = await open(1440);
+      expect(visible(D, 'header').length).toBe(1);
+      expect(D.querySelector('.smb-bar .local-badge')).toBeTruthy();
+    }, { timeout: 40000 });
+
+    it('the empty result says what goes there, and the hint goes once there is a result', async () => {
+      const D = await open(1440);
+      const p = D.getElementById('sc-preview');
+      expect(D.defaultView.getComputedStyle(p, '::before').content).toContain('The result shows here');
+      const x = D.getElementById('sc-expr');
+      x.value = '2 + 3';
+      x.dispatchEvent(new D.defaultView.Event('input', { bubbles: true }));
+      await waitFor(() => p.textContent.includes('5'));
+      expect(D.defaultView.getComputedStyle(p, '::before').content).toBe('none');
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slopculator: the look' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File preview, kinds, photo deck and faces in Swedish</title>
+  <!-- Covers: shared/preview/chrome.js, shared/preview/preview.js, shared/kinds/kinds.js, shared/deck/deck.js,
+       shared/faces/copy.js, shared/faces/consent.js, shared/faces/panel.js, shared/faces/view.js, shared/faces/overlay.js,
+       shared/i18n/ui/en/preview.js, shared/i18n/ui/sv/preview.js -->
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/deck/deck.css">
+  <style>.host { width: 520px; height: 320px; }</style>
+</head>
+<body>
+  <div class="host" id="host"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/preview/chrome.js"></script>
+  <script src="../../shared/preview/preview.js"></script>
+  <script src="../../shared/kinds/kinds.js"></script>
+  <script src="../../shared/deck/deck.js"></script>
+  <script src="../../shared/faces/copy.js"></script>
+  <script src="../../shared/faces/consent.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n;
+  const KEY = /\bui\.[a-z_]+\./;
+  async function lang(code) { expect(I.set(code).ok).toBe(true); await I.ready(); }
+  function visible(root) {
+    const out = [root.innerText];
+    for (const el of root.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  // a deck source of two photos, no pictures
+  const photos = { a: { name: 'a.jpg', liked: null, tags: [] }, b: { name: 'b.jpg', liked: null, tags: [] } };
+  const src = { photo: (id) => photos[id] || null, url: async () => null, release() {}, setLiked: async (id, tag) => { photos[id].liked = tag; },
+    addTag: async (id, tag) => { photos[id].tags.push(tag); }, removeTag: async () => {} };
+
+  describe('preview, kinds, deck and faces follow the language', () => {
+    it('a viewer and a deck built in English turn Swedish on a switch, and back, with no key showing', async () => {
+      const host = document.getElementById('host');
+      const v = window.SlopPreview.create({ kind: 'other', title: 'notes.bin', blobUrl: '', actions: [] });
+      host.append(v.el);
+      const deck = window.SlopDeck.create(src);
+      deck.open(['a', 'b']);
+      try {
+        expect(v.el.querySelector('.spv-note').textContent).toBe('No preview for this kind of file.');
+        expect(window.SlopKinds.label('code')).toBe('Code and text');
+        await lang('sv');
+        await waitFor(() => v.el.querySelector('.spv-note').textContent === 'Ingen förhandsgranskning för den här filtypen.');
+        expect(v.el.getAttribute('aria-label')).toBe('Förhandsgranskning av notes.bin');
+        expect([...v.el.querySelectorAll('.spv-bar button')].map((b) => b.textContent)).toEqual(['Öppna i ny flik', 'Ladda ned']);
+        expect(KEY.test(visible(v.el))).toBe(false);
+        expect(window.SlopKinds.label('code')).toBe('Kod och text');
+        expect(window.SlopKinds.CHIPS.map((c) => c.label)).toContain('Foton');
+        const d = deck.element;
+        await waitFor(() => d.querySelector('.s-count').textContent === 'Foto 1 av 2');
+        expect(d.querySelector('[data-act="like"]').textContent).toBe('Gilla');
+        expect(d.querySelector('[data-act="close"]').getAttribute('title')).toBe('Stäng (Esc)');
+        expect(KEY.test(visible(d))).toBe(false);
+        await deck.press('ArrowUp');
+        expect(d.querySelector('.s-status').textContent).toBe('Gillad: a.jpg. Foto 2 av 2.');
+        expect(window.SLOP_FACES_COPY.title).toBe('Hitta ansikten på den här enheten?');
+        await lang('en');
+        await waitFor(() => d.querySelector('.s-count').textContent === 'Photo 2 of 2');
+        expect(d.querySelector('[data-act="like"]').textContent).toBe('Like');
+        expect(v.el.querySelector('.spv-note').textContent).toBe('No preview for this kind of file.');
+        expect(window.SlopKinds.label('code')).toBe('Code and text');
+      } finally { deck.close(); v.close(); localStorage.removeItem('slop-profile'); SlopTest.english(); }
+    });
+  });
+  run({ name: 'File preview, kinds, photo deck and faces in Swedish' });
+  </script>
+</body>
+</html>

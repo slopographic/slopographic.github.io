@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The Authenticator · rules, samples and certificate</title>
+  <link rel="stylesheet" href="../../style/base.css">
+  <link rel="stylesheet" href="../../detector/detector.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Covers: detector/rules.js, detector/samples.js, detector/detector.js, detector/detector.css -->
+  <section id="view-detector"></section>
+  <script src="../harness.js"></script>
+  <script src="../../detector/rules.js"></script>
+  <script src="../../detector/samples.js"></script>
+  <script src="../../detector/detector.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const S = window.SlopDetect;
+  const $ = (s) => document.querySelector(s);
+  let toasts = [];
+  window.SlopUI = { toast: (m) => toasts.push(m), el: () => document.createElement('input'), dialog: () => ({}) };   // the shared kit, stubbed
+  const D = S.mount($('#view-detector'));
+
+  describe('rules (detector/rules.js)', () => {
+    it('scores slop high and humans low, with the same weights as before the move', () => {
+      const r = S.analyze('We delve into the rich tapestry of synergy. Let that sink in. 🚀');
+      expect(r.score).toBe(99);
+      expect(r.tier.name).toBe('Industrial-Grade Slop');
+      expect(r.spans.length).toBeGreaterThan(0);
+      expect(S.analyze('Took the dog to the vet. She ate a sock again.').score).toBeLessThan(30);
+      expect(S.analyze('').score).toBe(0);
+    });
+    it('merges overlapping highlights and counts each tell', () => {
+      const r = S.analyze('Let’s delve into it. Let’s delve into it.');
+      for (let i = 1; i < r.spans.length; i++) expect(r.spans[i].start >= r.spans[i - 1].end).toBe(true);
+      expect(r.tally['“Let’s dive in”']).toBe(2);
+    });
+    it('the serial hash is the old engine’s (certificates keep their numbers)', () => {
+      const W = ['s', 'l', 'o', 'p'].join('');   // a fixed input (spelt so a build's rename leaves it)
+      expect(S.hashString(W)).toBe(1110047775);   // fixed: a certificate keeps its serial number across releases
+      expect(S.hashString(W) === S.hashString('S' + W.slice(1))).toBe(false);
+      expect(typeof S.hashString('') === 'number' && S.hashString('') >= 0).toBe(true);
+    });
+    it('every tier covers its range, up to 100', () => {
+      expect(S.TIERS[S.TIERS.length - 1].max > 100).toBe(true);
+      for (let i = 1; i < S.TIERS.length; i++) expect(S.TIERS[i].max > S.TIERS[i - 1].max).toBe(true);
+    });
+  });
+
+  describe('samples (detector/samples.js)', () => {
+    it('every machine sample is certified genuine slop, every human one a counterfeit', () => {
+      for (const t of S.samples.MACHINE) expect(S.analyze(t).score).toBeGreaterThanOrEqual(55);
+      for (const t of S.samples.HUMAN) expect(S.analyze(t).score).toBeLessThan(30);
+    });
+  });
+
+  describe('certificate (detector/detector.js)', () => {
+    it('fills the view: a heading to perch on, the text box and the three buttons', () => {
+      expect($('#view-detector h1.page-title[data-perch]').textContent).toBe('The ' + 'Authenticator');   // the heading's markup (The <em>Authenticator</em>), which a build keeps
+      expect(D.input).toBe($('#detect-input'));
+      for (const id of ['sample-slop', 'sample-human', 'clear']) expect($('#' + id).type).toBe('button');
+      expect($('#result').hidden).toBe(true);
+    });
+    it('Paste genuine slop: a Genuine Slop stamp, the tells and the marked text', async () => {
+      $('#sample-slop').click();
+      expect($('#result').hidden).toBe(false);
+      expect($('#stamp').textContent).toBe('Genuine Slop');
+      expect($('#tells li').classList.contains('none')).toBe(false);
+      expect($('#annotated mark') != null).toBe(true);
+      expect($('#serial').textContent.startsWith('Nº SLP-')).toBe(true);
+      await waitFor(() => +$('#score').textContent === S.analyze(D.input.value).score, { timeout: 3000 });
+    });
+    it('the next press pastes a different sample', () => {
+      const first = D.input.value;
+      $('#sample-slop').click();
+      expect(D.input.value === first).toBe(false);
+    });
+    it('Paste a counterfeit: stamped human made, no tells', () => {
+      $('#sample-human').click();
+      expect($('#stamp').textContent).toBe('Counterfeit · Human Made');
+      expect($('#tells li.none').textContent).toBe('No tells found. Suspiciously human.');
+    });
+    it('pasted markup stays text in the annotated copy', () => {
+      D.input.value = '<img src=x onerror="window.__xss=1"> Let’s delve into it.';
+      D.run();
+      expect($('#annotated img')).toBe(null);
+      expect($('#annotated').textContent.startsWith('<img src=x')).toBe(true);
+      expect(window.__xss).toBe(undefined);
+    });
+    it('typing re-checks after a pause; Clear hides the certificate', async () => {
+      D.input.value = 'In today’s fast-paced world, it’s important to note this.';
+      D.input.dispatchEvent(new Event('input'));
+      await waitFor(() => $('#tier-name').textContent && +$('#score').textContent > 0, { timeout: 3000 });
+      $('#clear').click();
+      expect($('#result').hidden).toBe(true);
+      expect(document.activeElement).toBe(D.input);
+    });
+    it('Copy verdict copies the verdict line and says so with the shared toast', async () => {
+      let copied = null;
+      const clip = navigator.clipboard;
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { copied = t; } } });
+      try {
+        $('#sample-slop').click();
+        toasts = [];
+        $('#copy-verdict').click();
+        await waitFor(() => toasts.length, { timeout: 3000 });
+        expect(toasts[0]).toBe('Verdict copied.');
+        expect(copied.startsWith('Authenticated by Slopographic: my text is ')).toBe(true);
+      } finally { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clip }); }
+    });
+    it('under reduced motion the score is shown at once and the stamp does not slam', () => {
+      const mm = window.matchMedia;
+      window.matchMedia = (q) => ({ matches: /reduce/.test(q), addEventListener() {}, removeEventListener() {} });
+      try {
+        $('#clear').click();
+        $('#sample-human').click();
+        $('#sample-slop').click();
+        expect(+$('#score').textContent).toBe(S.analyze(D.input.value).score);
+        expect($('#stamp').classList.contains('slam')).toBe(false);
+      } finally { window.matchMedia = mm; }
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

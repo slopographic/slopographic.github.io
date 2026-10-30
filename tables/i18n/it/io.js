@@ -1,0 +1,26 @@
+/* Slop Tables, Italian: opening, importing and saving files, the drop strip and the Config kind.
+ * Same keys as tables/i18n/en/io.js. Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'tables.file.open_failed': 'Impossibile aprire quel file',
+  'tables.file.save_failed': 'Impossibile salvare',
+  'tables.file.left_out': 'Aperto con alcune cose escluse',
+  'tables.file.left_out_body': 'Salva lo mantiene come file di Slop Tables in Slop Drive; File ▸ Scarica ▸ XLSX scrive un nuovo file Excel.',
+  'tables.file.opened': 'Aperto {name}',
+  'tables.file.opened_it': 'File aperto',
+  'tables.file.not_ours': 'Questo non è un file di Slop Tables.',
+  'tables.file.kinds': 'Slop Tables apre file .stab, .xlsx, .ods, .csv e .tsv.',
+  'tables.file.damaged': 'Questo file di Slop Tables è danneggiato ({what}).',
+  'tables.file.newer': 'Questo file di Slop Tables proviene da una versione più recente di Slop Tables.',
+  'tables.import.unknown_fn': '{n} formule usano una funzione che Slop Tables non ha ancora, quindi mostrano #NAME?.',
+  'tables.import.unknown_fn#one': '{n} formula usa una funzione che Slop Tables non ha ancora, quindi mostra #NAME?.',
+  'tables.import.skipped': 'Non importato: {list}.',
+  'tables.import.chart_kind': '{n} grafici {kind} non sono stati importati: Slop Tables disegna grafici a colonne, a barre, a linee e a torta.',
+  'tables.import.chart_kind#one': 'Un grafico {kind} non è stato importato: Slop Tables disegna grafici a colonne, a barre, a linee e a torta.',
+  'tables.import.chart_shape': '{n} grafici non sono stati importati: le loro serie non sono un unico blocco di celle.',
+  'tables.import.chart_shape#one': 'Un grafico non è stato importato: le sue serie non sono un unico blocco di celle.',
+  'tables.drop.label': 'Trascina un foglio di calcolo per aprirlo',
+  'tables.drop.noun': 'un foglio di calcolo',
+  'tables.config.label': 'Cartella di lavoro',
+  'tables.config.desc': 'Fogli e contenuto delle celle; una formula viene scritta come testo che inizia con =',
+  'tables.config.kept': 'la cartella di lavoro aperta è stata conservata',
+});

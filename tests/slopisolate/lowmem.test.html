@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Isolate low memory</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: shared/cutout/cutout.js, shared/cutout/worker.js, shared/cutout/runtime.js, shared/cutout/memory.js, slopisolate/js/io/process.js, slopisolate/js/ui/main.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="lowmem.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop Isolate low memory' });</script>
+</body>
+</html>

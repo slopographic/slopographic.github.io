@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Press in Swedish</title>
+  <!-- Covers: press/index.html, press/i18n/index.js, press/js/core/util.js, press/js/ui/actions.js, press/js/ui/menus.js, press/js/ui/commands.js,
+        press/js/ui/commands2.js, press/js/ui/dialogs.js, shared/i18n/i18n.js -->
+  <!-- Covers (strings): press/js/core/model.js press/js/core/styles.js press/js/edit/clipboard.js press/js/edit/create.js
+        press/js/edit/format.js press/js/edit/select.js press/js/edit/text.js press/js/edit/textkeys.js press/js/io/build.js
+        press/js/io/hub.js press/js/io/intake.js press/js/io/place.js press/js/io/project.js press/js/io/raster.js
+        press/js/render/paint.js press/js/render/rulers.js press/js/ui/ai-commands.js press/js/ui/context.js
+        press/js/ui/export-dialogs.js press/js/ui/help.js press/js/ui/main.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop Press in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../press/index.html?fresh';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.querySelector('#app.ready') && f.contentDocument.querySelector('#menus .menu-btn'), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(press|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menus .menu-btn')].map((b) => b.textContent.trim());
+  async function openMenu(f, id) {
+    const doc = f.contentDocument, b = doc.querySelector('#menus .menu-btn[data-menu="' + id + '"]');
+    b.dispatchEvent(new f.contentWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const m = await waitFor(() => doc.querySelector('.sui-menu'), { timeout: 10000 });
+    return [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+  }
+  const closeMenus = (f) => f.contentWindow.PR.ui.closeMenus();
+
+  describe('Slop Press in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, an open menu, palette titles and dialogs, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc)).toEqual(['Arkiv', 'Redigera', 'Layout', 'Text', 'Objekt', 'Visa', 'Fönster', 'Hjälp']);
+      expect(doc.querySelector('.sb-label').textContent).toBe('Sök kommandon');
+      const items = (await openMenu(f, 'File')).join(' | ');
+      expect(items).toContain('Nytt dokument…');
+      expect(items).toContain('Exportera PDF…');
+      expect(KEY.test(items)).toBe(false);
+      closeMenus(f);
+      const type = (await openMenu(f, 'Type')).join(' | ');
+      expect(type).toContain('Styckeformat');
+      closeMenus(f);
+      // the palette's titles and groups
+      if (W.SlopCmd) {
+        expect(W.SlopCmd.get('tool.select').title).toBe('Markeringsverktyg');
+        expect(W.SlopCmd.get('file.exportPDF').group).toBe('Arkiv');
+        expect(W.SlopCmd.get('style.para.Body').title).toBe('Använd styckeformat: Body');
+      }
+      W.PR.ui.newDocument();
+      const dlg = await waitFor(() => [...doc.querySelectorAll('.sui-dialog, [role="dialog"]')].find((d) => /Nytt dokument/.test(d.textContent)), { timeout: 10000 });
+      expect(dlg.textContent).toContain('Nytt dokument');
+      expect(dlg.textContent).toContain('Skapa');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow, I = W.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && doc.querySelector('.sb-label').textContent === 'Search commands', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect((await openMenu(f, 'File')).join(' | ')).toContain('New Document…');
+      closeMenus(f);
+      if (W.SlopCmd) expect(W.SlopCmd.get('tool.select').title).toBe('Selection Tool');
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv', { timeout: 20000 });
+      if (W.SlopCmd) expect(W.SlopCmd.get('tool.select').title).toBe('Markeringsverktyg');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px Swedish fits with no sideways scroll and no key showing', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Press in Swedish' });
+  </script>
+</body>
+</html>

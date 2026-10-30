@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Compare: the assistant's commands</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style></head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: diff/js/ui/ai-commands.js, diff/js/ui/commands.js, diff/js/core/compare.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W = null, C = null;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r.value; };
+
+  describe('Slop Compare: assistant commands', () => {
+    it('prepare() loads the commands; their schemas come from the one table of options', async () => {
+      f.src = '../../diff/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopCompare && f.contentWindow.SlopCompare.ready && f.contentWindow.SlopCmd.get('diff.compare'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      const names = C.get('diff.ai.set-options').args.map((a) => a.name);
+      for (const n of ['mode', 'view', 'ignoreWs', 'ignoreCase', 'context', 'key', 'threshold', 'imageView', 'pdfView']) expect(names).toContain(n);
+      expect(C.get('diff.ai.new-comparison').destructive).toBe(true);
+      expect(C.get('diff.ai.list-changes').readOnly).toBe(true);
+      expect(C.keyFor('diff.compare')).toBeTruthy();
+    }, { timeout: 30000 });
+
+    it('add_text twice, compare, list_changes, go_to_change, set_options, export_report to Slop Drive', async () => {
+      await run('diff.ai.add-text', { side: 'a', text: 'red\ngreen\nblue\n', name: 'old.txt' });
+      await run('diff.ai.add-text', { side: 'b', text: 'red\nGreen\nblue\nwhite\n', name: 'new.txt' });
+      const r = await run('diff.ai.compare', {});
+      expect(r.changes).toBe(2);
+      expect(r.first[0]).toBe('A line 2: removed "green", added "Green"');
+      const l = await run('diff.ai.list-changes', { limit: 5 });
+      expect(l.changes[1]).toBe('B line 4: added "white"');
+      expect(await run('diff.ai.go-to-change', { index: 2 })).toBe('Showing change 2 of 2.');
+      expect(W.document.getElementById('df-pos').textContent).toBe('2 of 2');
+      await run('diff.ai.set-options', { ignoreCase: true });
+      await waitFor(() => W.SlopCompare.count() === 1);
+      const said = await run('diff.ai.export-report', { format: 'patch', to: 'drive' });
+      const id = /id ([\w-]+)/.exec(said)[1];
+      const rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('compare-old-vs-new.patch');
+      expect(await rec.blob.text()).toContain('+white');
+      const st = C.state();
+      expect(st.a.name).toBe('old.txt');
+      expect(st.result.changes).toBe(1);
+      await run('diff.ai.set-options', { ignoreCase: false });
+    }, { timeout: 30000 });
+
+    it('add_file from Slop Drive; new_comparison clears both', async () => {
+      await W.SlopHub.put(new W.Blob(['{"a":1}'], { type: 'application/json' }), { name: 'one.json', from: 'test' });
+      await W.SlopHub.put(new W.Blob(['{"a":2}'], { type: 'application/json' }), { name: 'two.json', from: 'test' });
+      await run('diff.ai.add-file', { side: 'a', file: 'one.json' });
+      await run('diff.ai.add-file', { side: 'b', file: 'two.json' });
+      const r = await run('diff.ai.compare', {});
+      expect(r.first).toEqual(['changed $.a was 1 is 2']);
+      await run('diff.ai.new-comparison', {});
+      expect(W.SlopCompare.S.sides.a.name).toBe('');
+      const bad = await C.exec('diff.ai.compare', {});
+      expect(bad.ok).toBe(false);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Scan in Swedish</title>
+  <!-- Covers: scan/i18n/index.js, scan/index.html, scan/js/panel.js, scan/js/list.js, scan/js/view.js, scan/js/commands.js, scan/js/main.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor } = SlopTest;
+  const frames = [];
+  function open(lang) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.src = '../../scan/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => { try { const W = f.contentWindow; return W.SlopScan.app && W.document.body.classList.contains('ready') && W.document.getElementById('sc-make'); } catch (e) { return false; } }, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(scan|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-zA-Z0-9_.]*[a-zA-Z0-9_]/;
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+
+  describe('Slop Scan in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('the page, the list, the view and the panel are Swedish, with no key showing', async () => {
+      const f = await open('sv'), doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(doc.getElementById('sc-empty-camera').textContent).toBe('Ta foto');
+      await W.SlopIntake.take(await W.SlopScan.sample(1), { to: 'scan' });
+      await waitFor(() => doc.getElementById('sc-pages').children.length === 1, { timeout: 20000 });
+      expect(doc.getElementById('sc-make').textContent).toBe('Ladda ned PDF (1 sida)');
+      expect(doc.getElementById('sc-style-bw').textContent).toBe('Svartvitt');
+      expect(doc.getElementById('sc-mode-corners').textContent).toBe('Hörn');
+      expect(doc.querySelector('.sc-label').textContent).toBe('Sida 1');
+      const titles = W.SlopCmd.list().filter((c) => c.id.startsWith('scan.') && !c.hidden).map((c) => c.title);
+      expect(titles).toContain('Ladda ned PDF:en');
+      expect(KEY.test(visible(doc))).toBe(false);
+    }, { timeout: 40000 });
+
+    it('switching to English live switches back', async () => {
+      const f = await open('sv'), doc = f.contentDocument, W = f.contentWindow;
+      W.SlopI18n.set('en');
+      await waitFor(() => doc.getElementById('sc-empty-camera').textContent === 'Take photo' && doc.getElementById('sc-style-bw').textContent === 'Black & white', { timeout: 20000 });
+      expect(doc.getElementById('sc-make').textContent).toBe('Download PDF');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Scan in Swedish' });
+  </script>
+</body>
+</html>

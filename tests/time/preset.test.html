@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Time presets from a task page's link: ?tab=meet</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../time/index.html?tab=meet"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: time/js/app.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow, $ = (id) => f.contentDocument.getElementById(id);
+  describe('Slop Time presets', () => {
+    it('opens the tab named in the address', async () => {
+      await waitFor(() => W().SlopTimeApp && W().SlopTimeApp.active === 'meet', { timeout: 20000 });
+      expect($('p-meet').hidden).toBe(false);
+      expect($('p-world').hidden).toBe(true);
+      expect(Object.keys(W().localStorage).filter((k) => k.startsWith('slop.time') && /meet/.test(W().localStorage.getItem(k)))).toEqual([]);   // not stored
+    });
+    it('tabOf: known tabs only', async () => {
+      const T = W().SlopTimeApp.tabOf;
+      expect([T('?tab=conv'), T('?tab=timers'), T('?tab=world')]).toEqual(['conv', 'timers', 'world']);
+      expect([T('?tab=<b>'), T('?tab=Meet'), T('')]).toEqual([null, null, null]);
+    });
+    it('a #hash still wins over the preset', async () => {
+      f.src = '../../time/index.html?tab=meet&again=1#timers';   // a new query, so the frame loads again
+      await waitFor(() => W().location.hash === '#timers' && W().SlopTimeApp && W().SlopTimeApp.active === 'timers', { timeout: 20000 });
+      expect($('p-timers').hidden).toBe(false);
+    });
+  });
+  run({ name: 'Slop Time presets' });
+  </script>
+</body>
+</html>

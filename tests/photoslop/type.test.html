@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop type tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sig = (c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = c.width * 7 + c.height; for (let i = 0; i < d.length; i += 4) s = (s * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11) % 1e9; return s; };
+  async function makeType(str = 'Slop type') {
+    W.newDocTab(600, 300, '#ffffff', 'Type'); W.selectTool('move'); W.setColor('fg', '#000000');
+    Object.assign(W.T.type, { font: 'Archivo', size: 96, bold: true, italic: false, align: 'left', tracking: 0, leading: 120, aa: 'smooth' }); W.selectTool('type');
+    W.startTypeEdit({ x: 20, y: 20 }, null); await sleep(10); W.TE.el.focus();
+    win.document.execCommand('insertText', false, str); await W.endTypeEdit();
+    return W.activeLayer();
+  }
+  /** Saves through PSD and through the autosave record, returns both reopened text records. */
+  async function roundTrips() {
+    const L = W.activeLayer(), i = W.layerIndex(L.id);
+    const psd = await W.readPSD(W.writePSD());
+    await W.autosave();
+    const rec = await W.idbDo('readonly', (st) => st.get('doc:' + W.CUR.id));
+    const saved = await W.docFromSaved(rec);
+    return { psd: psd.layers[i].text, auto: saved[i].text };
+  }
+  const PROPS = [
+    ['font', 'Georgia', (t) => t.font], ['size', 40, (t) => t.size], ['bold', false, (t) => t.bold], ['italic', true, (t) => t.italic],
+    ['color', '#ff0000', (t) => t.color], ['align', 'center', (t) => t.align], ['tracking', 200, (t) => t.tracking], ['leading', 200, (t) => t.leading],
+    ['aa', 'none', (t) => t.aa], ['warp', { style: 'arc', bend: 50 }, (t) => t.warp.style + t.warp.bend],
+  ];
+  const wantOf = (k, v) => (k === 'warp' ? v.style + v.bend : v);
+
+  describe('Type layers: every property updates, undoes in one step and survives saving', () => {
+    it('boots', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.setTypeProps).toBe('function');
+    }, { timeout: 40000 });
+
+    for (const [k, v, get] of PROPS) {
+      it(`whole layer: ${k}`, async () => {
+        const L = await makeType(k === 'leading' || k === 'align' ? 'Wide line\nab' : 'Slop type');
+        const before = sig(L.canvas), n = W.Hist.idx;
+        await W.setTypeProps({ [k]: v });
+        const L2 = W.activeLayer();
+        expect(get(L2.text)).toEqual(wantOf(k, v));
+        expect(sig(L2.canvas)).not.toBe(before);
+        expect(W.Hist.idx).toBe(n + 1);
+        W.undo(); expect(W.activeLayer().canvas).toBe(L.canvas); W.redo();
+        const rt = await roundTrips();
+        expect(get(W.normText(rt.psd))).toEqual(wantOf(k, v));
+        expect(get(W.normText(rt.auto))).toEqual(wantOf(k, v));
+      }, { timeout: 15000 });
+    }
+
+    for (const [k, v, get] of PROPS.filter(([k]) => ['font', 'size', 'bold', 'italic', 'color', 'tracking'].includes(k))) {
+      it(`selected range while editing: ${k}`, async () => {
+        const L = await makeType('abcdef');
+        W.editTypeLayer(L); await sleep(10);
+        W.teSetSel(2, 4); await W.setTypeProps({ [k]: v });
+        expect(W.TE.el.querySelectorAll('span').length).toBe(3);
+        const n = W.Hist.idx; await W.endTypeEdit();
+        expect(W.Hist.idx).toBe(n + 1);
+        const t = W.activeLayer().text;
+        expect(t.runs).toEqual([{ s: 2, e: 4, o: { [k]: v } }]);
+        expect(get(W.styleAt(t, 0))).not.toEqual(v);
+        expect(sig(W.activeLayer().canvas)).not.toBe(sig(L.canvas));
+        W.undo(); expect(W.activeLayer().text.runs).toEqual([]); W.redo();
+        const rt = await roundTrips();
+        expect(rt.psd.runs).toEqual(t.runs); expect(rt.auto.runs).toEqual(t.runs);
+      }, { timeout: 15000 });
+    }
+
+    it('the colour picker recolours the selected type layer (the reported bug) and a drag is one step', async () => {
+      const L = await makeType(); const n = W.Hist.idx;
+      W.setColor('fg', '#123456'); W.setColor('fg', '#2050ff'); W.setColor('fg', '#ff00aa');
+      expect(W.activeLayer().text.color).toBe('#ff00aa');
+      expect(W.activeLayer().canvas).not.toBe(L.canvas);
+      await waitFor(() => W.Hist.idx === n + 1, { timeout: 3000 });
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Text Color');
+      W.undo(); expect(W.activeLayer().text.color).toBe(L.text.color);
+    });
+
+    it('the options bar and the Character panel restyle the layer, and while editing too', async () => {
+      await makeType();
+      const doc = win.document, opt = doc.querySelector('#options');
+      const size = opt.querySelector('[data-k=size]'); size.value = '33'; size.dispatchEvent(new win.Event('change'));
+      await waitFor(() => W.activeLayer().text.size === 33);
+      const font = opt.querySelector('[data-k=font]'); font.value = 'Impact'; font.dispatchEvent(new win.Event('change'));
+      await waitFor(() => W.activeLayer().text.font === 'Impact');
+      const panel = doc.querySelector('#panel-character');
+      const tr = panel.querySelector('[data-k=tracking]'); tr.value = '120'; tr.dispatchEvent(new win.Event('change'));
+      await waitFor(() => W.activeLayer().text.tracking === 120);
+      panel.querySelector('[data-align=right]').click();
+      await waitFor(() => W.activeLayer().text.align === 'right');
+      W.editTypeLayer(); await sleep(10);
+      const st = opt.querySelector('[data-k=style]'); st.value = '2'; st.dispatchEvent(new win.Event('change'));
+      await sleep(20); W.setColor('fg', '#00aa00'); await sleep(20);
+      await W.endTypeEdit();
+      const t = W.activeLayer().text;
+      expect(t.italic).toBe(true); expect(t.bold).toBe(false); expect(t.color).toBe('#00aa00'); expect(t.size).toBe(33);
+    });
+
+    it('size slider previews live and commits one step on release', async () => {
+      await makeType(); const n = W.Hist.idx, r = win.document.querySelector('#options [data-k=size-range]');
+      for (const v of [50, 60, 70]) { r.value = String(v); r.dispatchEvent(new win.Event('input')); await sleep(5); }
+      expect(W.activeLayer().text.size).toBe(70); expect(W.Hist.idx).toBe(n);
+      r.dispatchEvent(new win.Event('change')); await sleep(10);
+      expect(W.Hist.idx).toBe(n + 1);
+    });
+
+    it('Warp Text dialog previews, Cancel restores without a history step', async () => {
+      const L = await makeType(); const n = W.Hist.idx;
+      W.dlgWarpText(); await sleep(30);
+      const dlg = win.document.querySelector('.sui-dlg:last-of-type'), sel = dlg.querySelector('select'), rng = dlg.querySelector('input[type=range]');
+      sel.value = 'wave'; sel.dispatchEvent(new win.Event('change')); rng.value = '60'; rng.dispatchEvent(new win.Event('input')); await sleep(20);
+      expect(W.activeLayer().text.warp).toEqual({ style: 'wave', bend: 60 });
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Cancel').click(); await sleep(30);
+      expect(W.activeLayer()).toBe(L); expect(W.Hist.idx).toBe(n);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop type' });
+  </script>
+</body>
+</html>

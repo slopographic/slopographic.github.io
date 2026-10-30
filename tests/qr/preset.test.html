@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QR SLOP presets from a task page's link: ?type=wifi&tab=logo</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../qr/index.html?type=wifi&tab=logo"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: qr/js/state.js, qr/js/app.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const W = () => document.getElementById('app').contentWindow;
+  describe('QR SLOP presets', () => {
+    it('opens the Wi-Fi form and the Logo tab from the address', async () => {
+      await waitFor(() => W().document && W().document.body && W().document.body.classList.contains('ready') && W().QRApp, { timeout: 30000 });
+      expect([W().QRApp.state().kind, W().QRApp.tab()]).toEqual(['wifi', 'logo']);
+      expect(W().document.getElementById('qr-tab-logo').getAttribute('aria-selected')).toBe('true');
+    }, { timeout: 40000 });
+    it('presetOf: known values only', async () => {
+      const P = W().QRState.presetOf;
+      expect(P('?type=vcard')).toEqual({ kind: 'vcard' });
+      expect(P('?tab=batch')).toEqual({ tab: 'batch' });
+      expect(P('?type=<b>&tab=nope')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+  });
+  SlopTest.run({ name: 'QR SLOP presets' });
+  </script>
+</body>
+</html>

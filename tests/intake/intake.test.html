@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared paste intake</title></head>
+<body>
+<input id="typing" type="text">
+<script src="../harness.js"></script>
+<script src="../../shared/slopui.js"></script>
+<script src="../../shared/intake/rules.js"></script>
+<script src="../../shared/intake/normalize.js"></script>
+<script src="../../shared/intake/pipeline.js"></script>
+<script src="../../shared/intake/intake.js"></script>
+<script src="../../shared/intake/sources.js"></script>
+<script>
+  const { describe, it, expect, sleep, run } = SlopTest;
+  // A paste event with the given files on its clipboard.
+  function paste(target, files) {
+    const dt = new DataTransfer();
+    for (const f of files) dt.items.add(f);
+    const ev = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt });
+    target.dispatchEvent(ev);
+    return ev;
+  }
+  const png = () => new File([new Uint8Array([137, 80, 78, 71])], 'shot.png', { type: 'image/png' });
+  const txt = () => new File(['hello'], 'notes.txt', { type: 'text/plain' });
+  // The dialog is stubbed: each call picks the button whose label starts with `pick`.
+  let picked = null, dialogs = 0;
+  SlopUI.dialog = (o) => {
+    dialogs++;
+    const b = o.buttons.find((x) => x.label.startsWith(picked));
+    if (b && b.act) b.act();
+    o.onClose && o.onClose(b);
+  };
+  function taker(hasOpen) {
+    const log = { add: [], neu: [] };
+    const off = SlopIntake.attach({
+      accept: (f) => f.type.startsWith('image/'),
+      hasOpen: () => hasOpen,
+      openName: () => 'Test doc',
+      onAdd: async (files) => { log.add.push(...files.map((f) => f.name)); },
+      onNew: async (files) => { log.neu.push(...files.map((f) => f.name)); },
+    });
+    log.off = off;
+    return log;
+  }
+
+  describe('shared paste intake', () => {
+    it('with a document open, a pasted image asks, and Add goes into the document', async () => {
+      const log = taker(true);
+      picked = 'Add to'; dialogs = 0;
+      paste(document.body, [png()]);
+      await sleep(30);
+      expect(dialogs).toBe(1);
+      expect(log.add).toEqual(['shot.png']);
+      expect(log.neu.length).toBe(0);
+      log.off();
+    });
+    it('with nothing open, a pasted image goes straight to a new document, with no question', async () => {
+      const log = taker(false);
+      dialogs = 0;
+      paste(document.body, [png()]);
+      await sleep(30);
+      expect(dialogs).toBe(0);
+      expect(log.neu).toEqual(['shot.png']);
+      log.off();
+    });
+    it('New document is the other choice', async () => {
+      const log = taker(true);
+      picked = 'New document'; dialogs = 0;
+      paste(document.body, [png()]);
+      await sleep(30);
+      expect(log.neu).toEqual(['shot.png']);
+      log.off();
+    });
+    it('a paste into a typing field is left to the field', async () => {
+      const log = taker(true);
+      dialogs = 0;
+      const ev = paste(document.getElementById('typing'), [png()]);
+      await sleep(30);
+      expect(dialogs).toBe(0);
+      expect(ev.defaultPrevented).toBe(false);
+      expect(log.add.length + log.neu.length).toBe(0);
+      log.off();
+    });
+    it('a paste with no picture is not taken, so the app can handle it', async () => {
+      const log = taker(true);
+      dialogs = 0;
+      const ev = paste(document.body, [txt()]);
+      await sleep(30);
+      expect(ev.defaultPrevented).toBe(false);
+      expect(dialogs).toBe(0);
+      expect(log.add.length + log.neu.length).toBe(0);
+      log.off();
+    });
+    it('the first app attached gets the paste, unless a later one attaches with first: true', async () => {
+      const a = taker(false), b = taker(false);
+      paste(document.body, [png()]);
+      await sleep(30);
+      expect([a.neu.length, b.neu.length]).toEqual([1, 0]);
+      const got = [];
+      const off = SlopIntake.attach({ first: true, accept: (f) => f.type.startsWith('image/'), onNew: async (files) => { got.push(files.length); } });
+      paste(document.body, [png()]);
+      await sleep(30);
+      expect(got).toEqual([1]);
+      expect(a.neu.length).toBe(1);
+      off(); a.off(); b.off();
+    });
+  });
+  run({ name: 'Shared paste intake' });
+</script>
+</body>
+</html>

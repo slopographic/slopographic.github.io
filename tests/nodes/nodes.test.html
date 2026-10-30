@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopnodes · connect, edit and undo</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../nodes/index.html" title="Slopnodes"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const doc = () => frame.contentDocument;
+  const win = () => frame.contentWindow;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  const boxes = () => [...doc().querySelectorAll('.sn-node')];
+  const box = (name) => boxes().find((b) => b.querySelector('.sn-name').value === name);
+  const wires = () => doc().querySelectorAll('.sn-wire:not(.sn-temp)').length;
+  const ev = (type, el, x, y) => new (win().PointerEvent)(type, { clientX: x, clientY: y, bubbles: true, cancelable: true, pointerId: 3, button: 0, pointerType: 'mouse' });
+  const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  /** Drags from one port to another, the way a person does: press, move, release over the target. */
+  async function drag(from, to) {
+    const a = center(from), b = center(to);
+    from.dispatchEvent(ev('pointerdown', from, a.x, a.y));
+    await sleep(20);
+    win().dispatchEvent(ev('pointermove', from, (a.x + b.x) / 2, (a.y + b.y) / 2));
+    win().dispatchEvent(ev('pointerup', to, b.x, b.y));
+    await sleep(80);
+  }
+
+  describe('Slopnodes: connect, edit and undo', () => {
+    it('the example loads: six nodes (one a note) and five wires, and every result is worked out', async () => {
+      await until(() => boxes().length === 6, 'the example');
+      expect(wires()).toBe(5);
+      expect(box('total').querySelector('.sn-res').textContent.startsWith('64.77')).toBe(true);
+    });
+    it('dragging from one output port to another input port makes a wire, and the result follows', async () => {
+      const before = wires();
+      const qty = box('qty'), known = new Set(boxes());
+      doc().querySelector('#sn-add-formula').click();
+      const made = await until(() => boxes().find((b) => !known.has(b)), 'the new formula');
+      await drag(qty.querySelector('.sn-out'), made.querySelector('.sn-in'));
+      expect(wires()).toBe(before + 1);
+    });
+    it('a wire that would make a loop is refused, and says why', async () => {
+      const before = wires();
+      await drag(box('total').querySelector('.sn-out'), box('subtotal').querySelector('.sn-in'));
+      expect(wires()).toBe(before);
+      expect(doc().querySelector('#sn-status').textContent).toMatch(/loop/);
+    });
+    it('a right-click on a node opens its menu, and Duplicate makes a copy', async () => {
+      const n = boxes().length;
+      const target = box('price');
+      const r = target.getBoundingClientRect();
+      target.dispatchEvent(new (win().MouseEvent)('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 20 }));
+      const dup = await until(() => [...doc().querySelectorAll('.snm-item')].find((b) => b.textContent.startsWith('Duplicate')), 'the node menu');
+      dup.click();
+      await until(() => boxes().length === n + 1, 'the copy');
+    });
+    it('undo brings back what was there before the last change', async () => {
+      const n = boxes().length;
+      doc().querySelector('#sn-add-output').click();
+      await until(() => boxes().length === n + 1, 'the new output');
+      doc().body.dispatchEvent(new (win().KeyboardEvent)('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+      await until(() => boxes().length === n, 'undo');
+    });
+  });
+  run({ name: 'Slopnodes: connect, edit and undo' });
+  </script>
+</body>
+</html>

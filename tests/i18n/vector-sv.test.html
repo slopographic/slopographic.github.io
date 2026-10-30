@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopVector in Swedish</title>
+  <!-- Covers: slopvector/i18n/index.js, slopvector/js/core/state.js, slopvector/js/ui/base.js, slopvector/js/ui/actions.js,
+       slopvector/js/ui/menus.js, slopvector/js/ui/commands.js, slopvector/js/ui/binds.js, slopvector/js/ui/dock.js,
+       slopvector/js/ui/status.js, slopvector/js/ui/ctxmenu.js, shared/i18n/i18n.js -->
+  <!-- Covers (strings): slopvector/js/core/history.js slopvector/js/core/hittest.js slopvector/js/io/buffer.js
+        slopvector/js/io/config.js slopvector/js/io/files.js slopvector/js/io/hub.js slopvector/js/io/intake.js
+        slopvector/js/io/offline.js slopvector/js/io/pdf.js slopvector/js/io/svg-export.js slopvector/js/io/svg-open.js
+        slopvector/js/tools/clipmask.js slopvector/js/tools/commands.js slopvector/js/tools/commands2.js
+        slopvector/js/tools/direct.js slopvector/js/tools/draw.js slopvector/js/tools/eyedrop.js slopvector/js/tools/meta.js
+        slopvector/js/tools/misc.js slopvector/js/tools/pen.js slopvector/js/tools/select.js slopvector/js/ui/ai-commands.js
+        slopvector/js/ui/color.js slopvector/js/ui/controlbar.js slopvector/js/ui/corner-controls.js
+        slopvector/js/ui/ctxmenu-dock.js slopvector/js/ui/dialogs.js slopvector/js/ui/guides.js slopvector/js/ui/init.js
+        slopvector/js/ui/layers.js slopvector/js/ui/nav-adapter.js slopvector/js/ui/paint-panels.js slopvector/js/ui/props.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // SlopVector in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../slopvector/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('#app.ready')
+      && f.contentDocument.querySelector('#menus .menu-btn') && f.contentWindow.SV && f.contentWindow.SV.cmdOn, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(vector|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menus .menu-btn')].map((b) => b.textContent.trim());
+  const tabNames = (doc) => [...doc.querySelectorAll('.dock-tab')].map((b) => b.textContent.trim());
+  const toolTip = (doc, id) => doc.querySelector(`#toolbar .tool[data-tool="${id}"]`).getAttribute('title');
+  function fileMenu(f) {
+    const w = f.contentWindow;
+    return w.SV.ui.menuItems('File').map((i) => i && i.label).filter(Boolean);
+  }
+
+  describe('SlopVector in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, tools, panels, control bar and status bar, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc)).toEqual(['Arkiv', 'Redigera', 'Objekt', 'Text', 'Markera', 'Visa', 'Fönster', 'Hjälp']);
+      expect(tabNames(doc)).toContain('Egenskaper');
+      expect(tabNames(doc)).toContain('Färgrutor');
+      expect(toolTip(doc, 'select')).toBe('Markering (V)');
+      expect(doc.querySelector('[data-i18n="vector.app.drop_hint"]').textContent).toBe('Släpp SVG eller bilder för att montera dem');
+      expect(fileMenu(f)).toContain('Spara som…');
+      w.SV.deselect(); w.SV.renderNow();
+      await waitFor(() => doc.querySelector('#controlbar .cb-label').textContent === 'Ingen markering', { timeout: 10000 });
+      expect(doc.getElementById('sbArt').textContent).toContain('Rityta');
+      const fit = w.SlopCmd.list().find((c) => c.id === 'sv.view.fit');
+      expect(fit.title).toBe('Anpassa rityta i fönstret');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('opens Swedish dialogs and menus with no key in them', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow;
+      w.SV.runAction('help.shortcuts');
+      const dlg = await waitFor(() => doc.querySelector('.sui-dlg'), { timeout: 10000 });
+      expect(dlg.innerText).toContain('Kortkommandon');
+      expect(KEY.test(dlg.innerText)).toBe(false);
+      w.SlopUI.closeDialog ? w.SlopUI.closeDialog() : dlg.querySelector('.sui-foot button:last-child').click();
+      w.SV.selectAll();
+      const m = w.SV.ui.canvasMenu(200, 200);
+      expect(m.innerText).toContain('Gruppera');
+      expect(KEY.test(m.innerText)).toBe(false);
+      w.SlopUI.closeMenu();
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow, I = w.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && tabNames(doc).includes('Properties') && toolTip(doc, 'select') === 'Selection (V)', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(fileMenu(f)).toContain('Save As…');
+      await waitFor(() => w.SlopCmd.list().find((c) => c.id === 'sv.view.fit').title === 'Fit Artboard in Window', { timeout: 10000 });
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv' && tabNames(doc).includes('Egenskaper') && toolTip(doc, 'select') === 'Markering (V)', { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the page has no sideways scroll in Swedish and shows no key', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'SlopVector in Swedish' });
+  </script>
+</body>
+</html>

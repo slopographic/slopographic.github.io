@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: the assistant's new batch, add files and save results</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: resize/js/app/ai-files.js, resize/js/app/commands.js, shared/commands/sources.js
+  // new_batch empties the list, add_files takes Slop Drive files and a picture on this site through SlopIntake, and
+  // save_results puts the resized copies in Slop Drive.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win = null, Cmd = null;
+  const run = async (id, args) => { const r = await Cmd.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  async function png(w, h, color) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, w, h);
+    return new Promise((r) => c.toBlob(r, 'image/png'));
+  }
+
+  describe('Slop Resize: files for the assistant', () => {
+    it('prepare() loads ai-files.js; new_batch is destructive', async () => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'width:1280px;height:800px;border:0';
+      f.src = '../../resize/index.html';
+      document.body.append(f);
+      await new Promise((r) => f.addEventListener('load', r, { once: true }));
+      win = f.contentWindow;
+      await waitFor(() => win.SlopResize && win.SlopResize.app && win.SlopCmd && win.SlopCmd.get('rs.run'));
+      Cmd = win.SlopCmd;
+      await Cmd.prepare();
+      expect(Cmd.get('rs.ai.new-batch').destructive).toBe(true);
+      expect(Cmd.get('rs.ai.add-files').destructive).toBe(false);
+      expect(Cmd.get('rs.ai.save-results').tool).toBe('save_results');
+    }, { timeout: 20000 });
+
+    it('add_files from Slop Drive and this site, resize_all, save_results to Slop Drive, new_batch', async () => {
+      await win.SlopHub.put(await png(800, 400, '#ff0000'), { name: 'red.png', from: 'test' });
+      const r = await run('rs.ai.add-files', { files: ['red.png'], urls: ['/og-share.png'] });
+      expect(r.value).toMatch(/Added 2 files/);
+      await waitFor(() => win.SlopResize.queue.items().length === 2 && win.SlopResize.queue.items().every((i) => i.src));
+      expect((await Cmd.exec('rs.ai.add-files', { files: ['no-such-file.png'] })).ok).toBe(false);
+      expect((await Cmd.exec('rs.ai.save-results', {})).ok).toBe(false);
+      await run('rs.ai.set-size', { mode: 'scale', percent: 50 });
+      await run('rs.ai.resize-all', {});
+      const s = await run('rs.ai.save-results', { to: 'drive' });
+      expect(s.value).toMatch(/saved 2 results/i);
+      for (const it of win.SlopResize.queue.items()) {
+        const rec = await win.SlopHub.get(it.drive);
+        expect(rec.name).toBe(it.outName);
+        const bmp = await createImageBitmap(rec.blob);
+        expect(bmp.width).toBe(Math.round(it.src.w / 2));
+      }
+      const n = await run('rs.ai.new-batch', {});
+      expect(n.value).toMatch(/2 files removed/);
+      expect(win.SlopResize.queue.items().length).toBe(0);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Resize: files for the assistant' });
+  </script>
+</body>
+</html>

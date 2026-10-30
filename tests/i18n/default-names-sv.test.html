@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>App names and default names in Swedish</title>
+  <!-- The header's app name, the Drive link, tab titles and the default names of new layers, sheets and Drive's New
+       menu, in Swedish: each app's name is the app list's (slopAppName, shared/apps.js), so a plain-naming build
+       (the sample-sv profile) shows "Bildredigerare", "PDF-redigerare" and "Filer", and a new layer is "Lager 1".
+       Covers: shared/i18n/i18n.js, shared/drive-link.js, photoslop/js/core/model.js, photoslop/js/core/ops.js,
+       photoslop/js/io/files.js, photoslop/js/io/formats.js, photoslop/js/app/main.js, photoslop/js/tools/fill.js,
+       photoslop/js/ui/panels.js, photoslop/js/ui/menus.js, photoslop/js/ui/popups.js, photoslop/js/io/buffer.js,
+       photoslop/js/io/isolate.js, photoslop/js/io/psd.js, photoslop/js/io/raw.js, photoslop/js/retouch/enhance.js,
+       photoslop/js/retouch/remove.js, photoslop/i18n/sv/core.js, photoslop/i18n/en/core.js,
+       tables/js/engine/workbook.js, tables/js/ui/storage.js, tables/js/ui/chrome.js, tables/i18n/sv/app.js,
+       drive/js/core/store.js, drive/js/core/prov-internal.js, drive/js/ui/sidebar.js, drive/js/ui/newdoc.js,
+       drive/js/ui/commands.js, drive/js/ui/shell.js, drive/js/app/main.js, drive/i18n/sv/menus.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../brand-facts.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  const PLAIN = window.BRAND_FACTS.naming === 'plain';
+  // Each app in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(path, ready, lang = 'sv') {
+    localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    localStorage.setItem('photoslop.tourShown', '1');
+    const f = document.createElement('iframe');
+    f.src = '../../' + path;
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => { try { return f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentWindow.SlopShell && f.contentWindow.SlopShell.currentApp && ready(f.contentDocument, f.contentWindow); } catch (e) { return false; } }, { timeout: 30000 }).then(() => f);
+  }
+  const text = (doc, sel) => (doc.querySelector(sel) || {}).textContent;
+  /** The Drive link in an app's top bar: its visible label and its aria-label. */
+  const driveLink = (doc) => { const a = doc.querySelector('[data-sdl]'); return a && [a.querySelector('.slop-hbtn-txt').textContent, a.getAttribute('aria-label')]; };
+
+  describe('App names in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('the Image Editor header, its Drive link and its tab title use the app list\'s names', async () => {
+      const f = await open('photoslop/index.html', (d) => d.body.classList.contains('ready') && d.querySelector('[data-sdl]'));
+      const doc = f.contentDocument, W = f.contentWindow;
+      await waitFor(() => doc.documentElement.lang === 'sv');
+      const name = W.slopAppName('photoslop'), drive = W.slopAppName('drive');
+      await waitFor(() => text(doc, '.logo-word') === name && driveLink(doc)[0] === drive, { timeout: 10000 });
+      expect(driveLink(doc)).toEqual([drive, drive]);
+      if (PLAIN) {
+        expect(name).toBe('Bildredigerare');
+        expect(drive).toBe('Filer');
+        expect(W.SlopI18n.t('app.photoslop')).toBe(name);   // one source: shared/i18n/sv-apps.js
+      }
+      W.eval("newDocTab(40, 30, '#ffffff', 'x')");
+      await waitFor(() => doc.title.endsWith(' — ' + name), { timeout: 10000 });
+      // a language switch follows live, to English and back
+      W.SlopI18n.set('en');
+      await waitFor(() => doc.documentElement.lang === 'en' && text(doc, '.logo-word') === W.slopAppName('photoslop') && driveLink(doc)[1] === W.slopAppName('drive'), { timeout: 20000 });
+      if (PLAIN) expect(text(doc, '.logo-word')).not.toBe('Bildredigerare');
+      W.SlopI18n.set('sv');
+      await waitFor(() => text(doc, '.logo-word') === name && driveLink(doc)[0] === drive, { timeout: 20000 });
+    });
+
+    it('the PDF editor header and its Drive link use the app list\'s names', async () => {
+      const f = await open('pdf/index.html', (d) => d.querySelector('#menus .menu-b') && d.querySelector('[data-sdl]'));
+      const doc = f.contentDocument, W = f.contentWindow;
+      const name = W.slopAppName('pdf'), drive = W.slopAppName('drive');
+      await waitFor(() => text(doc, '.appname b') === name && driveLink(doc)[0] === drive, { timeout: 10000 });
+      if (PLAIN) { expect(name).toBe('PDF-redigerare'); expect(drive).toBe('Filer'); }
+    });
+  });
+
+  describe('Default names in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('a new Image Editor document and its new layers get Swedish names; a layer keeps its name', async () => {
+      const f = await open('photoslop/index.html', (d) => d.body.classList.contains('ready'));
+      const W = f.contentWindow, names = () => W.eval('D.layers.map((l) => l.name)');
+      W.eval("newDocTab(40, 30, '#ffffff', 'x')");
+      expect(names()).toEqual(['Bakgrund']);
+      W.eval('addLayer()'); W.eval('addLayer()');
+      expect(names()).toEqual(['Bakgrund', 'Lager 1', 'Lager 2']);
+      W.eval('pasteCanvas(mkCanvas(4, 4))');
+      expect(names()[3]).toBe('Inklistrat lager 1');
+      expect(W.eval("nextName('photoslop.layer.shape_star')")).toBe('Stjärna 1');
+      expect(W.eval("nextName('photoslop.layer.color_fill')")).toBe('Färgfyllning 1');
+      expect(W.eval("nextName('Kurva')")).toBe('Kurva 1');   // a plain base is numbered as before
+      W.eval('flattenImage()');
+      expect(names()).toEqual(['Bakgrund']);
+      // an opened picture is one layer, "Bakgrund"
+      const png = await new Promise((res) => { const c = document.createElement('canvas'); c.width = c.height = 2; c.toBlob(res, 'image/png'); });
+      const doc = await W.readAnyFile(new File([png], 'a.png', { type: 'image/png' }));
+      expect(doc.layers.map((l) => l.name)).toEqual(['Bakgrund']);
+      // English now: new layers are English, the Swedish ones stay as they are
+      W.eval('addLayer()');
+      W.SlopI18n.set('en');
+      await waitFor(() => f.contentDocument.documentElement.lang === 'en', { timeout: 20000 });
+      W.eval('addLayer()');
+      expect(names()).toEqual(['Bakgrund', 'Lager 1', 'Layer 1']);
+    });
+
+    it('a new Tables workbook names its sheet "Blad1", and the tab title uses the app list\'s name', async () => {
+      const f = await open('tables/index.html', (d, w) => w.SlopTables && w.SlopTables.ready && d.querySelector('#tabs .tab:not(.tab-add)'));
+      const doc = f.contentDocument, W = f.contentWindow;
+      await waitFor(() => text(doc, '#tabs .tab:not(.tab-add)') === 'Blad1', { timeout: 10000 });
+      await waitFor(() => text(doc, '.appname b') === W.slopAppName('tables'), { timeout: 10000 });
+      await waitFor(() => doc.title.endsWith(' — ' + W.slopAppName('tables')), { timeout: 10000 });
+      if (PLAIN) expect(W.slopAppName('tables')).toBe('Kalkylark');
+    });
+
+    it('Drive calls its root by the app list\'s name and its New menu by Swedish type names', async () => {
+      const f = await open('drive/index.html', (d) => d.body.classList.contains('ready') && d.querySelector('#places .place'));
+      const doc = f.contentDocument, W = f.contentWindow, drive = W.slopAppName('drive');
+      await waitFor(() => text(doc, '#places [data-section="folder"] span') === drive, { timeout: 10000 });
+      expect(W.DR.rootName()).toBe(drive);
+      expect(W.DR.internalProvider.label).toBe(drive);
+      await waitFor(() => text(doc, '.appname b') === drive, { timeout: 10000 });
+      if (PLAIN) expect(drive).toBe('Filer');
+      if (W.DR.creatables().some((c) => c.app.id === 'docs')) expect(W.DR.newItems().map((i) => i.label)).toContain('Dokument (' + W.slopAppName('docs') + ')');
+    });
+  });
+  run({ name: 'App names and default names in Swedish' });
+  </script>
+</body>
+</html>

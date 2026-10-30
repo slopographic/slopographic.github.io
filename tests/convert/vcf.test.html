@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: vCard conversions</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import { CONVERSIONS } from '../../convert/js/core/catalog.js';
+import { rowsToXlsx } from '../../convert/js/core/xlsx.js';
+const { describe, it, expect } = SlopTest;
+const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+const fileOf = (name, text) => ({ name, file: new File([text], name, { type: 'text/csv' }), kind: 'csv' });
+const CSV = 'Name,E-mail,Phone,Company\nAda Lovelace,ada@example.com,+44 1,Analytical Engines\nBo Chen,bo@example.com,,\n';
+
+describe('CSV to vCard', () => {
+  it('writes one BEGIN:VCARD block per row, each with FN and EMAIL', async () => {
+    const [out] = await conv('csv-to-vcf').run([fileOf('people.csv', CSV)], { delimiter: 'auto' });
+    expect(out.name).toBe('people.vcf');
+    const text = await out.blob.text();
+    expect(text.split('BEGIN:VCARD').length - 1).toBe(2);
+    expect(text.split('END:VCARD').length - 1).toBe(2);
+    const blocks = text.split('BEGIN:VCARD').slice(1);
+    for (const b of blocks) {
+      expect(/\r\nFN:/.test(b)).toBeTruthy();
+      expect(/\r\nEMAIL[;:]/.test(b)).toBeTruthy();
+    }
+    expect(text).toContain('FN:Ada Lovelace');
+    expect(text).toContain('EMAIL:ada@example.com');
+    expect(text).toContain('ORG:Analytical Engines');
+  });
+  it('says which columns were recognised, and that the rest were not used', async () => {
+    const csv = 'Full Name,e-mail address,Mobile,Department\nAda Lovelace,ada@example.com,+44 1,Maths\n';
+    const res = await conv('csv-to-vcf').run([fileOf('a.csv', csv)], { delimiter: 'auto' });
+    expect(res.info).toContain('Recognised columns: Name, E-mail, Phone.');
+    expect(res.info).toContain('Not used: Department.');
+  });
+  it('a file with no contacts in it is refused with a plain message', async () => {
+    let msg = '';
+    try { await conv('csv-to-vcf').run([fileOf('x.csv', 'Colour,Size\nred,4\n')], { delimiter: 'auto' }); } catch (e) { msg = e.message; }
+    expect(msg).toContain('No contacts found');
+  });
+});
+
+describe('XLSX to vCard', () => {
+  it('reads the first sheet of a workbook and writes one card per row', async () => {
+    const blob = await rowsToXlsx([['Name', 'E-mail', 'Mobile'], ['Cy Dane', 'cy@example.com', '07700 900123'], ['Di Ng', '', '']]);
+    const file = new File([blob], 'people.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const res = await conv('xlsx-to-vcf').run([{ name: 'people.xlsx', file, kind: 'xlsx' }], {});
+    const text = await res[0].blob.text();
+    expect(res[0].name).toBe('people.vcf');
+    expect(text.split('BEGIN:VCARD').length - 1).toBe(2);
+    expect(text).toContain('FN:Cy Dane');
+    expect(text).toContain('TEL;TYPE=CELL:07700 900123');
+    expect(res.info).toContain('Recognised columns: Name, E-mail, Phone.');
+  });
+});
+
+describe('vCard to CSV', () => {
+  it('turns a written vCard back into a CSV with the same names and e-mails', async () => {
+    const [vcf] = await conv('csv-to-vcf').run([fileOf('people.csv', CSV)], { delimiter: 'auto' });
+    const input = { name: 'people.vcf', file: new File([await vcf.blob.text()], 'people.vcf', { type: 'text/vcard' }), kind: 'vcf' };
+    const [csv] = await conv('vcf-to-csv').run([input], {});
+    const lines = (await csv.blob.text()).trim().split(/\r?\n/);
+    expect(lines[0]).toBe('Name,First name,Last name,Organisation,Job title,E-mail,Phone,Address,Website,Note');
+    expect(lines.length).toBe(3);
+    expect(lines[1]).toContain('Ada Lovelace');
+    expect(lines[1]).toContain('ada@example.com');
+  });
+  it('vCard to JSON has one object per contact and no photo', async () => {
+    const vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ann Lee\r\nEMAIL:ann@example.com\r\nEND:VCARD\r\n';
+    const input = { name: 'ann.vcf', file: new File([vcf], 'ann.vcf', { type: 'text/vcard' }), kind: 'vcf' };
+    const [json] = await conv('vcf-to-json').run([input], {});
+    const data = JSON.parse(await json.blob.text());
+    expect(data.length).toBe(1);
+    expect(data[0].fn).toBe('Ann Lee');
+    expect(data[0].emails[0].value).toBe('ann@example.com');
+    expect('photo' in data[0]).toBe(false);
+  });
+});
+
+SlopTest.run({ name: 'File convert: vCard conversions' });
+</script>
+</body>
+</html>

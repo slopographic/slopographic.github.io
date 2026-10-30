@@ -1,0 +1,143 @@
+/* Slop AI side panel (shared/ai/panel.js). Themes with SlopUI's --s-* tokens (shared/slopui.css). */
+.sap, .sap-fab {
+  /* SlopUI's tokens (shared/slopui.css sets --s-* on .sap too, from the app's --sui-* map), else the page theme (--sl-*). */
+  --p-bg: var(--s-bg, var(--sl-surface, #151518)); --p-bg2: var(--s-bg2, var(--sl-surface, #1d1d22)); --p-input: var(--s-input, var(--sl-background, #0f0f12));
+  --p-line: var(--s-line, var(--sl-border, #33333b)); --p-fg: var(--s-fg, var(--sl-text, #ececef)); --p-dim: var(--s-dim, color-mix(in srgb, var(--sl-text, #ececef) 72%, transparent));
+  --p-accent: var(--s-accent, var(--sl-accent, #d4ff3a)); --p-ink: var(--s-accent-ink, var(--sl-on-accent, #0a0a0a)); --p-radius: var(--sui-radius, 8px);
+  --p-danger: var(--s-danger, color-mix(in srgb, #e5484d 60%, var(--p-fg)));
+  --p-font: var(--sui-font, 'Inter Tight', system-ui, sans-serif); --p-mono: var(--sui-mono, ui-monospace, monospace);
+  font: 13px/1.45 var(--p-font); color: var(--p-fg); box-sizing: border-box;
+}
+/* As a phone sheet (shared/ui/sheet.js) it keeps its own background, the one its text is coloured for (Paint Classic's
+   SlopUI look on a dark page theme), not the page theme's surface. */
+.sap { --slop-sheet-bg: var(--p-bg); }
+.sap *, .sap *::before, .sap *::after { box-sizing: border-box; }
+.sap-fab { position: fixed; right: 16px; bottom: 16px; z-index: 880; width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--p-line); background: var(--p-bg); color: var(--p-dim); display: grid; place-items: center; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); cursor: pointer; }
+.sap-fab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.sap-fab.on { color: var(--p-ink); background: var(--p-accent); border-color: transparent; box-shadow: 0 0 18px rgba(212, 255, 58, .55); }
+body.sap-open .sap-fab { display: none; }
+.sap { position: fixed; top: 0; right: 0; bottom: 0; z-index: 890; width: min(var(--sap-w, 380px), 100vw); display: flex; flex-direction: column; background: var(--p-bg); border-left: 1px solid var(--p-line); box-shadow: -12px 0 40px rgba(0, 0, 0, .35); }
+.sap[hidden] { display: none; }
+.sap header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--p-line); }
+.sap-logo { display: inline-flex; color: var(--p-accent); } .sap-logo svg { width: 16px; height: 16px; fill: currentColor; }
+.sap-status { flex: 1; min-width: 0; color: var(--p-dim); font: 11.5px var(--p-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; background: none; text-align: start; padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+.sap-status:hover, .sap-status:focus-visible { color: var(--p-fg); background: var(--p-bg2); }
+.sap-status.cloud { color: var(--p-fg); }
+.sap-gear { border: 0; background: none; color: var(--p-dim); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.sap-gear:hover, .sap-gear:focus-visible { color: var(--p-fg); background: var(--p-bg2); }
+.sap-x { border: 0; background: none; color: var(--p-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+.sap-list { flex: 1; min-height: 0; overflow: auto; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.sap-empty { color: var(--p-dim); display: grid; gap: 10px; }
+.sap-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.sap-btn { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: var(--p-radius); border: 1px solid var(--p-line); background: var(--p-bg2); color: var(--p-fg); text-decoration: none; cursor: pointer; font: inherit; }
+.sap-msg { padding: 8px 11px; border-radius: 12px; word-break: break-word; }
+.sap-msg.user { justify-self: end; max-width: 88%; background: var(--p-bg2); white-space: pre-wrap; }
+.sap-msg.assistant { padding-left: 2px; }
+.sap-msg p, .sap-msg ul, .sap-msg ol { margin: 0 0 8px; } .sap-msg > :last-child { margin-bottom: 0; }
+.sap-msg ul, .sap-msg ol { padding-left: 20px; }
+.sap-msg code { font: 11.5px var(--p-mono); }
+.sap-msg .md-code { border: 1px solid var(--p-line); border-radius: 6px; overflow: hidden; margin: 0 0 8px; }
+.sap-msg .md-code-h { display: flex; gap: 6px; padding: 3px 8px; background: var(--p-bg2); font: 11px var(--p-mono); color: var(--p-dim); }
+.sap-msg .md-code-h span { flex: 1; } .sap-msg .md-code-h button { display: none; }
+.sap-msg .md-code pre { margin: 0; padding: 8px; overflow: auto; max-height: 240px; background: var(--p-input); }
+.sap-tool { font-size: 11.5px; color: var(--p-dim); border-left: 2px solid var(--p-accent); padding-left: 8px; }
+.sap-tool.bad { border-left-color: #ff5a6e; }
+.sap-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 6px 12px 0; }
+.sap-tools { display: flex; align-items: center; gap: 6px; color: var(--p-dim); font-size: 12px; }
+.sap-undo { height: 28px; font-size: 12px; }
+.sap-btn[hidden], .sap-pbar[hidden] { display: none; }
+.sap-comp { display: flex; gap: 6px; padding: 8px 12px; align-items: flex-end; }
+.sap-comp textarea { flex: 1; resize: none; min-height: 40px; max-height: 140px; padding: 8px; border-radius: var(--p-radius); border: 1px solid var(--p-line); background: var(--p-input); color: var(--p-fg); font: inherit; }
+.sap-send { min-width: 38px; padding: 0 8px; height: 38px; border: 0; border-radius: 10px; background: var(--p-accent); color: var(--p-ink); font: 700 16px var(--p-font); cursor: pointer; }
+.sap-foot { padding: 0 12px 10px; color: var(--p-dim); font-size: 11px; }
+.sap-send.stop { background: #ff5a6e; color: #fff; font-size: 13px; }
+.sap-btn.primary { background: var(--p-accent); color: var(--p-ink); border-color: transparent; font-weight: 600; }
+.sap-btn:disabled { opacity: .55; cursor: default; }
+.sap-msg.bad, .sap-pick-msg.bad, .sap-pick-no, .sap-kit-error { color: var(--p-danger); }
+.sap-kit-error { margin: 0 0 10px; line-height: 1.4; }
+/* each tool call as a step: "Gaussian blur, radius 8 ✓" */
+.sap-live { display: grid; gap: 8px; }
+.sap-step { display: grid; grid-template-columns: 18px 1fr; gap: 2px 6px; align-items: baseline; color: var(--p-fg); font-size: 12.5px; padding: 3px 0 3px 8px; }
+.sap-step-i { font-weight: 700; color: var(--p-accent); text-align: center; }
+.sap-step.bad .sap-step-i { color: #ff5a6e; } .sap-step.run .sap-step-i { animation: sap-pulse 1s ease-in-out infinite; }
+.sap-step-e { grid-column: 2; color: var(--p-danger); font-size: 12px; }
+@keyframes sap-pulse { 50% { opacity: .3; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* the model choice (picker.js) */
+.sap-pick { display: grid; gap: 10px; color: var(--p-fg); }
+.sap-pick p { margin: 0; }
+.sap-dim { color: var(--p-dim); font-size: 12px; }
+.sap-dim a, .sap-pick a { color: inherit; text-decoration: underline; }
+.sap-pick-list { display: grid; gap: 8px; }
+.sap-pick-row { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg2); }
+.sap-pick-row.best { border-color: var(--p-accent); }
+.sap-pick-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sap-badge { font-size: 10.5px; padding: 1px 6px; border-radius: 99px; background: var(--p-accent); color: var(--p-ink); }
+.sap-badge.dim { background: var(--p-line); color: var(--p-fg); }
+.sap-pbar { height: 4px; border-radius: 2px; background: var(--p-line); overflow: hidden; } .sap-pbar i { display: block; height: 100%; width: 0; background: var(--p-accent); }
+/* beside the app on wide screens: the page narrows, so nothing is covered */
+:root.sap-beside body { margin-inline-end: min(var(--sap-w, 380px), 100vw); }
+:root.sap-beside .sap { box-shadow: none; }
+/* phones: a bottom sheet (shared/ui/sheet.js gives it its place, the swipe and the ×) */
+/* full height, the chat scrolling between the header and the composer; with the keyboard up the sheet ends above it and the
+   composer with it (shared/ui/sheet.js and shared/input/keyboard.js); fields at 16 px so iOS does not zoom into them */
+.sap-host.ssh-phone .sap { top: auto; width: auto; height: auto; block-size: calc(100vh - 8px - env(safe-area-inset-top, 0px)); block-size: calc(100dvh - 8px - env(safe-area-inset-top, 0px));
+  max-block-size: none; border-left: 0; background: var(--p-bg); color: var(--p-fg); z-index: 890; padding-block-end: env(safe-area-inset-bottom, 0px); }
+.sap-host.ssh-phone .sap header { padding-inline-end: 52px; }
+.sap-host.ssh-phone .sap-comp textarea, .sap-host.ssh-phone .sap-cloud-f input, .sap-host.ssh-phone .sap-cloud-f select { font-size: 16px; }
+.sap-host.ssh-phone .sap-cloud-f input, .sap-host.ssh-phone .sap-cloud-f select { height: 40px; }
+.sap-host.ssh-phone .sap-x { display: none; }
+.sap-host.ssh-phone .sap > .ssh-x { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; float: none; margin: 0; }
+/* the Sloppo buddy's button (shared/buddy/boot.js) sits bottom right: keep it off the panel's Send button */
+body.sap-open .buddy-toggle { visibility: hidden; }
+:root.sap-beside body.sap-open .buddy-toggle { visibility: visible; right: calc(min(var(--sap-w, 380px), 100vw) + 16px) !important; }
+/* "Use your own AI account" (cloud/connect.js) and the tokens line under a reply */
+.sap-cloud { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg2); color: var(--p-fg); }
+.sap-cloud > summary { cursor: pointer; display: grid; gap: 2px; }
+.sap-cloud p { margin: 0; }
+.sap-cloud-f { display: grid; gap: 4px; font-size: 12px; color: var(--p-dim); }
+.sap-cloud-f[hidden], .sap-cloud-check[hidden], .sap-cloud-local[hidden] { display: none; }
+.sap-cloud-f input, .sap-cloud-f select { height: 32px; padding: 0 8px; border-radius: var(--p-radius); border: 1px solid var(--p-line); background: var(--p-input); color: var(--p-fg); font: 13px var(--p-font); min-width: 0; width: 100%; }
+.sap-cloud-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.sap-cloud-signin { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg2); }
+.sap-cloud-signin[hidden] { display: none; } .sap-cloud-signin .sap-btn { justify-self: start; } .sap-cloud-signin p { margin: 0; }
+.sap-cloud-msg.bad { color: var(--p-danger); }
+.sap-cloud-local summary { cursor: pointer; font-size: 12px; } .sap-cloud-local p { margin: 6px 0 0; word-break: break-word; }
+.sap-pick-cloud:empty { display: none; }
+.sap-back { justify-self: start; }
+.sap-usage { color: var(--p-dim); font-size: 11px; padding-left: 2px; }
+.sap-thumb { grid-column: 2; max-width: 120px; max-height: 90px; border-radius: 6px; border: 1px solid var(--p-line); margin-top: 4px; }
+.sap-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--p-fg); font-size: 12.5px; border-left: 2px solid var(--p-accent); padding-left: 8px; }
+.sap-step-r { grid-column: 2; color: var(--p-dim); font-size: 11.5px; }
+.sap-steps > summary { cursor: pointer; color: var(--p-dim); font-size: 12.5px; padding: 2px 0 2px 8px; border-left: 2px solid var(--p-accent); }
+.sap-steps[open] > summary { margin-bottom: 4px; }
+.sap-gpu { display: grid; gap: 8px; color: var(--p-fg); }
+.sap-gpu p { margin: 0; }
+.sap-gpu-details { margin: 0; padding: 8px; max-height: 140px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 11px var(--p-mono); background: var(--p-input); border: 1px solid var(--p-line); border-radius: 6px; }
+/* quick prompts (quick/ui.js): the button beside the message box, the list above it ("/" filters), the form, the chips */
+.sap-qbtn { flex: none; width: 38px; height: 38px; border: 1px solid var(--p-line); border-radius: 10px; background: var(--p-bg2); color: var(--p-dim); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.sap-qbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.sap-qbtn:hover, .sap-qbtn:focus-visible, .sap-qbtn[aria-expanded="true"] { color: var(--p-fg); border-color: var(--p-accent); }
+.sap-q { margin: 6px 12px 0; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg2); max-height: min(46vh, 360px); overflow: auto; overscroll-behavior: contain; }
+.sap-q[hidden] { display: none; }
+.sap-q-list { padding: 4px; }
+.sap-q-h { padding: 8px 8px 2px; color: var(--p-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.sap-q-o { display: grid; gap: 1px; padding: 7px 8px; border-radius: 6px; cursor: pointer; min-height: 34px; align-content: center; }
+.sap-q-o.on, .sap-q-o:hover { background: color-mix(in srgb, var(--p-accent) 16%, transparent); }
+.sap-q-o[aria-disabled="true"] { cursor: default; color: var(--p-dim); }
+.sap-q-o[aria-disabled="true"]:hover { background: none; }
+.sap-q-w { font-size: 11px; color: var(--p-dim); }
+.sap-q-none { padding: 10px 8px; color: var(--p-dim); }
+.sap-q-foot { position: sticky; bottom: 0; padding: 4px 10px; font-size: 11px; color: var(--p-dim); background: var(--p-bg2); border-top: 1px solid var(--p-line); }
+.sap-qf { display: grid; gap: 8px; padding: 10px; }
+.sap-qf-t { font-weight: 600; }
+.sap-qf-f { display: grid; gap: 3px; }
+.sap-qf-f label { font-size: 11.5px; color: var(--p-dim); }
+.sap-qf-f select, .sap-qf-f input, .sap-qf-f textarea { width: 100%; min-height: 34px; padding: 6px 8px; border-radius: var(--p-radius); border: 1px solid var(--p-line); background: var(--p-input); color: var(--p-fg); font: inherit; resize: vertical; }
+.sap-qf-f [aria-invalid="true"] { border-color: var(--p-danger); }
+.sap-qf-b { display: flex; justify-content: flex-end; gap: 8px; }
+.sap-q-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sap-q-chip { border: 1px solid var(--p-line); border-radius: 999px; background: var(--p-bg2); color: var(--p-fg); font: inherit; font-size: 12.5px; padding: 5px 11px; cursor: pointer; text-align: start; }
+.sap-q-chip:hover, .sap-q-chip:focus-visible { border-color: var(--p-accent); }
+.sap-q-chip.more { color: var(--p-dim); }
+.sap-host.ssh-phone .sap-qf-f select, .sap-host.ssh-phone .sap-qf-f input, .sap-host.ssh-phone .sap-qf-f textarea { font-size: 16px; }

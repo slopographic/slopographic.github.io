@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Store app · what the iPhone and iPad app hides</title>
+  <!-- stands in for the app: the iOS shell's native config (native/config.js) is there before the helper loads -->
+  <script>window.NATIVE_CONFIG = { tag: 'test', start: '/', local: {} };</script>
+  <script src="../../shared/native-app.js"></script>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <button id="pwa-install" class="btn pwa-install">Install</button>
+  <p id="install-help" class="note" data-web-only>On Android, open the browser menu and tap Add to Home screen.</p>
+  <p id="desktop-download" class="settings-note">Download for Windows · Mac · Linux</p>
+  <section id="donate" data-donate><h2>Tip jar</h2></section>
+  <a id="patreon" href="https://example.com/p" data-brand-link="patreon">Patreon</a>
+  <a id="gumroad" href="https://example.com/g" data-brand-link="gumroad">Gumroad</a>
+  <nav class="fnav" id="sitemap"><a href="/apps/pdf/">PDF</a></nav>
+  <ul><li id="li-best"><a href="/best/free-pdf-editors/">Best free PDF editors</a></li><li id="li-app"><a href="/pdf/">Open the PDF app</a></li></ul>
+  <p id="line">See <a id="a-compare" href="../../compare/">the comparison</a> and more.</p>
+  <p id="keep">Works with PDF, DOCX and PNG files.</p>
+  <span id="stage-badge" class="badge beta" data-stage="beta">Beta</span>
+  <ul class="cards"><li id="card"><a href="/pdf/">PDF</a><br><span class="note" id="card-note">In development</span><br id="card-br"><span id="card-tag">Edit PDFs.</span></li></ul>
+  <a id="settings" href="/settings/">Settings</a> <a id="privacy" href="/privacy/">Privacy policy</a>
+  <script src="../../shared/pwa.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const shown = (id) => getComputedStyle(document.getElementById(id)).display !== 'none' && !document.getElementById(id).closest('[hidden]');
+
+  describe('store-app mode', () => {
+    it('knows it runs in the iPhone/iPad app', () => {
+      expect(SlopNative.kind()).toBe('ios');
+      expect(SlopNative.isApp()).toBe(true);
+      expect(SlopNative.isStoreApp()).toBe(true);
+      const c = document.documentElement.classList;
+      expect(c.contains('store-app') && c.contains('native-app') && c.contains('native-ios')).toBe(true);
+    });
+    it('never shows the install button, even when the browser offers an install', () => {
+      expect(SlopPWA.mount({ install: '#pwa-install', register: false })).toBe(false);
+      const ev = new Event('beforeinstallprompt', { cancelable: true });
+      ev.prompt = async () => {};
+      window.dispatchEvent(ev);
+      expect(shown('pwa-install')).toBe(false);
+    });
+    it('hides install help, desktop downloads and other platforms', () => {
+      expect(shown('install-help')).toBe(false);
+      expect(shown('desktop-download')).toBe(false);
+    });
+    it('hides the tip jar and payment links', () => {
+      expect(shown('donate')).toBe(false);
+      expect(shown('patreon')).toBe(false);
+      expect(shown('gumroad')).toBe(false);
+    });
+    it("hides the website's own pages: the site map, comparisons and app pages", async () => {
+      if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
+      expect(shown('sitemap')).toBe(false);
+      expect(shown('li-best')).toBe(false);
+      expect(shown('a-compare')).toBe(false);
+      expect(shown('line')).toBe(true);
+    });
+    it('shows no development stages: badges and the status line of a card list (App Review 2.2)', async () => {
+      if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
+      expect(shown('stage-badge')).toBe(false);
+      expect(shown('card-note')).toBe(false);
+      expect(document.getElementById('card-br').hidden).toBe(true);
+      expect(shown('card-tag')).toBe(true);
+    });
+    it('keeps everything else', () => {
+      for (const id of ['li-app', 'keep', 'settings', 'privacy', 'card']) expect(shown(id)).toBe(true);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+/* PhotoSlop: the camera RAW Develop dialog (js/io/raw.js). Preview on the left, controls on the right; stacked on phones. */
+.dlg-raw { width: min(980px, calc(100vw - 32px)); }
+.raw-dev { display: flex; gap: 16px; align-items: flex-start; }
+.raw-pane { flex: 1 1 60%; min-width: 0; display: flex; justify-content: center; background: var(--pasteboard, #333); border-radius: 4px; padding: 6px; }
+.raw-view { display: block; max-width: 100%; max-height: 56vh; height: auto; }
+.raw-side { flex: 0 0 280px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.raw-side .field input[type=range] { flex: 1; min-width: 0; }
+.raw-status { min-height: 2.6em; color: var(--fg-dim, inherit); }
+@media (max-width: 640px) {
+  .raw-dev { flex-direction: column; }
+  .raw-side { flex: 1 1 auto; width: 100%; }
+  .raw-view { max-height: 36vh; }
+}

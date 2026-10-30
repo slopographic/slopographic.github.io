@@ -1,0 +1,23 @@
+/* PhotoSlop, Spanish: palette titles of the canvas, tool and window commands (app/commands.js). Same keys as photoslop/i18n/en/commands.js. Terms: shared/i18n/glossary-es.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'photoslop.cmd.opacity_toast': 'Opacidad {pct}%',
+  'photoslop.cmd.cycle_tools': 'Cambiar {tools}',
+  'photoslop.cmd.swap_colors': 'Intercambiar color de primer plano y de fondo',
+  'photoslop.cmd.default_colors': 'Colores predeterminados (negro / blanco)',
+  'photoslop.cmd.brush_bigger': 'Aumentar tamaño del pincel',
+  'photoslop.cmd.brush_smaller': 'Reducir tamaño del pincel',
+  'photoslop.cmd.brush_harder': 'Aumentar dureza del pincel',
+  'photoslop.cmd.brush_softer': 'Reducir dureza del pincel',
+  'photoslop.cmd.tool_opacity': 'Opacidad de la herramienta {pct}%',
+  'photoslop.cmd.nudge_left': 'Desplazar {n} px a la izquierda',
+  'photoslop.cmd.nudge_right': 'Desplazar {n} px a la derecha',
+  'photoslop.cmd.nudge_up': 'Desplazar {n} px hacia arriba',
+  'photoslop.cmd.nudge_down': 'Desplazar {n} px hacia abajo',
+  'photoslop.cmd.next_doc': 'Documento siguiente',
+  'photoslop.cmd.prev_doc': 'Documento anterior',
+  'photoslop.cmd.go_to_doc': 'Ir al documento {i}',
+  'photoslop.cmd.restore_aspect': 'Restaurar la proporción original',
+  'photoslop.cmd.guides_panel': 'Panel de guías (diseños de guías)',
+  'photoslop.cmd.search_key': 'Buscar comandos ({key})',
+  'photoslop.cmd.nav_preset': 'Preajuste de navegación…',
+});

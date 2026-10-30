@@ -1,0 +1,81 @@
+/* Slop Workflows: the workflow tool (js/ui/mount.js) wherever it is mounted: the Workflows page (inside the shared frame)
+ * or a dialog. Every rule is under .wf-tool, with the tool's own colour tokens: the theme's --sl-* on a page, the dialog's
+ * --s-* in a dialog (shared/ops/dialog.css). The step cards: steps.css. */
+.wf-tool { --wf-bg: var(--sl-background, #101012); --wf-surface: var(--sl-surface, #18181b); --wf-text: var(--sl-text, #ecebe6);
+  --wf-line: var(--sl-border, #5a5a5e); --wf-accent: var(--sl-accent, #d4ff3a); --wf-on-accent: var(--sl-on-accent, #000);
+  --wf-dim: color-mix(in srgb, var(--wf-text) 66%, transparent); --wf-soft: color-mix(in srgb, var(--wf-text) 6%, var(--wf-surface));
+  --wf-bad: #d64545; --wf-good: #2e9b5f; --sf-list-w: 260px;
+  min-height: 0; min-width: 0; color: var(--wf-text); background: var(--wf-bg); container: wf-tool / inline-size; }
+.wf-tool [hidden] { display: none !important; }
+.wf-tool .wf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wf-tool .sui-btn { min-height: 32px; }
+
+/* The list: saved workflows, then the templates */
+.wf-tool .wf-list { overflow-y: auto; padding: 12px 10px 20px; box-sizing: border-box; }
+.wf-tool .wf-list-top { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.wf-tool .wf-list-top .sui-btn { flex: 1 1 auto; }
+.wf-tool .wf-lh { margin: 14px 6px 6px; font: 700 10.5px/1.2 ui-monospace, Menlo, Consolas, monospace; text-transform: uppercase; letter-spacing: .08em; color: var(--wf-dim); }
+.wf-tool .wf-ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.wf-tool .wf-li { display: flex; align-items: stretch; gap: 2px; border-radius: 8px; }
+.wf-tool .wf-li.wf-cur { background: color-mix(in srgb, var(--wf-accent) 16%, transparent); }
+.wf-tool .wf-li-open { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; border: 0; border-radius: 8px;
+  background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.wf-tool .wf-li-open:hover { background: var(--wf-soft); }
+.wf-tool .wf-li-open:focus-visible, .wf-tool .wf-li-x:focus-visible { outline: 2px solid var(--wf-accent); outline-offset: -2px; }
+.wf-tool .wf-li-name { font-weight: 650; overflow-wrap: anywhere; }
+.wf-tool .wf-li-meta { font-size: 12px; color: var(--wf-dim); overflow-wrap: anywhere; }
+.wf-tool .wf-li-x { flex: none; align-self: center; width: 30px; min-height: 30px !important; padding: 0; border-color: transparent; background: none; }
+.wf-tool .wf-li-empty { padding: 6px 8px; font-size: 12.5px; color: var(--wf-dim); }
+
+/* A compact tool (a dialog): no list and no frame; the run column sits beside the steps, or under them when narrow */
+.wf-tool.wf-compact { display: flex; flex-wrap: wrap; align-items: flex-start; }
+.wf-tool.wf-compact > .wf-main { flex: 1 1 380px; padding: 14px 16px 18px; }
+.wf-tool.wf-compact > .wf-side { flex: 1 0 280px; max-width: 100%; align-self: stretch; border-inline-start: 1px solid var(--wf-line); background: var(--wf-surface); }
+@container wf-tool (max-width: 680px) { .wf-tool.wf-compact > .wf-side { border-inline-start: 0; border-top: 1px solid var(--wf-line); } }
+
+/* The centre */
+.wf-tool .wf-main { display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 40px; box-sizing: border-box; }
+.wf-tool .wf-phonebar { display: none; gap: 8px; justify-content: space-between; }
+.wf-tool .wf-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.wf-tool .wf-name { flex: 1 1 260px; min-width: 0; height: 38px; font-size: 18px; font-weight: 750; padding: 0 10px; border-radius: 8px;
+  background: transparent; border: 1px solid transparent; color: var(--wf-text); }
+.wf-tool .wf-name:hover { border-color: var(--wf-line); }
+.wf-tool .wf-name:focus { border-color: var(--wf-accent); outline: none; background: var(--wf-surface); }
+.wf-tool .wf-count, .wf-tool .wf-state { font-size: 12.5px; color: var(--wf-dim); white-space: nowrap; }
+.wf-tool .wf-head-acts { display: flex; gap: 6px; margin-inline-start: auto; }
+.wf-tool .wf-empty { padding: 18px 20px; border: 1px dashed var(--wf-line); border-radius: 14px; background: var(--wf-surface); }
+.wf-tool .wf-h1 { margin: 0 0 6px; font-size: 21px; letter-spacing: -.01em; color: var(--wf-text); }
+.wf-tool .wf-lead { margin: 0 0 8px; max-width: 640px; color: color-mix(in srgb, var(--wf-text) 80%, transparent); }
+.wf-tool .wf-tpl-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.wf-tool .wf-add-row { display: flex; justify-content: center; }
+.wf-tool .wf-add { min-width: 200px; min-height: 40px !important; border-style: dashed !important; font-weight: 650; }
+
+/* The panel: files in, the progress grid */
+.wf-tool .wf-side .sd-zone, .wf-tool .wf-drop { margin: 0; }
+.wf-tool .wf-files { display: grid; gap: 8px; }
+.wf-tool .wf-file-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.wf-tool .wf-file { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center;
+  padding: 5px 6px; border: 1px solid var(--wf-line); border-radius: 8px; background: var(--wf-bg); }
+.wf-tool .wf-file .sflow-tile { grid-row: 1 / 3; }
+.wf-tool .wf-file-name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-tool .wf-file-meta { grid-column: 2; font-size: 11.5px; color: var(--wf-dim); }
+.wf-tool .wf-file-x { grid-column: 3; grid-row: 1 / 3; width: 28px; min-height: 28px !important; padding: 0; }
+.wf-tool .wf-grid-wrap { overflow-x: auto; }
+.wf-tool .wf-grid { border-collapse: collapse; width: 100%; font-size: 12px; }
+.wf-tool .wf-grid th, .wf-tool .wf-grid td { padding: 3px 5px; border-bottom: 1px solid color-mix(in srgb, var(--wf-line) 50%, transparent); text-align: center; }
+.wf-tool .wf-grid tbody th { text-align: start; font-weight: 500; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-tool .wf-grid thead th { font: 700 10.5px ui-monospace, Menlo, Consolas, monospace; color: var(--wf-dim); }
+.wf-tool .wf-c-done { color: var(--wf-good); font-weight: 800; }
+.wf-tool .wf-c-error { color: var(--wf-bad); font-weight: 800; }
+.wf-tool .wf-c-run { color: var(--wf-accent); font-weight: 700; }
+.wf-tool .wf-c-wait { color: var(--wf-dim); }
+
+/* Phones: the list is the page, a workflow opens over it, the panel is the bottom sheet */
+@media (max-width: 900px) {
+  .wf-tool .wf-main { padding: 10px 16px 32px; }
+  .wf-tool .wf-phonebar { display: flex; }
+  .wf-tool .wf-list { padding: 10px 16px 24px; }
+  .wf-tool .wf-name { font-size: 17px; flex-basis: 100%; }
+  .wf-tool .wf-head-acts { margin-inline-start: 0; }
+  .wf-tool .wf-add { width: 100%; }
+}

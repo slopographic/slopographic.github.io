@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopFrame: List · View · Panel (regions, resize, hide and show remembered, phone sheet, panel sections, keys)</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; height: 700px; }</style>
+</head>
+<body>
+  <!-- Covers: shared/frame/frame.js, shared/frame/panel.js, shared/frame/frame.css, shared/ui/menubutton.js, shared/ui/resize-panel.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const KEY = 'slop-frame:frametest';
+  let f = null;
+  async function open(width, query = '') {
+    if (f) f.remove();
+    f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = 'frame-page.html' + query;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.FR && f.contentWindow.PANEL, { timeout: 10000 });
+    await sleep(30);
+    return f.contentWindow;
+  }
+  const box = (W, id) => W.document.getElementById(id).getBoundingClientRect();
+  const shown = (W, id) => W.getComputedStyle(W.document.getElementById(id)).display !== 'none';
+  const ptr = (el, type, x) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: 100, pointerId: 7, button: 0, isPrimary: true }));
+  const key = (el, k, o = {}) => el.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o)));
+
+  describe('SlopFrame: the layout', () => {
+    it('three regions in order: list, view, panel at its width; a header button names the panel', async () => {
+      localStorage.removeItem(KEY); localStorage.removeItem('slop-profile'); SlopTest.english();
+      const W = await open(1280);
+      expect(box(W, 'list').right).toBeLessThanOrEqual(box(W, 'view').left + 1);
+      expect(box(W, 'view').right).toBeLessThanOrEqual(box(W, 'panel').left + 1);
+      expect(Math.round(box(W, 'panel').width)).toBe(280);
+      const b = W.document.querySelector('#tools .sf-toggle');
+      expect(b.textContent).toBe('Details');
+      expect(b.getAttribute('aria-pressed')).toBe('true');
+      expect(W.document.querySelector('.sf-grip:not(.sf-lgrip)').getAttribute('role')).toBe('separator');
+    });
+
+    it('the panel edge drags wider and narrower, within its limits, and the width is remembered', async () => {
+      const W = await open(1280), g = W.document.querySelector('.sf-grip:not(.sf-lgrip)'), right = box(W, 'root').right;
+      ptr(g, 'pointerdown', right - 280); ptr(g, 'pointermove', right - 400); ptr(g, 'pointerup', right - 400);
+      expect(Math.round(box(W, 'panel').width)).toBe(400);
+      expect(JSON.parse(localStorage.getItem('slop-profile')).data['@panels'].frametest['frame-panel']).toBe(400);   // the site's settings store
+      ptr(g, 'pointerdown', right - 400); ptr(g, 'pointermove', right - 50); ptr(g, 'pointerup', right - 50);
+      expect(W.FR.width()).toBe(240);
+      const W2 = await open(1280);
+      expect(W2.FR.width()).toBe(240);
+    });
+
+    it('keys on the edge: Left widens, Right narrows, Home and End go to the limits', async () => {
+      const W = await open(1280), g = W.document.querySelector('.sf-grip:not(.sf-lgrip)');
+      W.FR.setWidth(300);
+      key(g, 'ArrowLeft'); expect(W.FR.width()).toBe(316);
+      key(g, 'ArrowRight', { shiftKey: true }); expect(W.FR.width()).toBe(252);
+      key(g, 'End'); expect(W.FR.width()).toBe(520);
+      key(g, 'Home'); expect(W.FR.width()).toBe(240);
+      expect(g.getAttribute('aria-valuenow')).toBe('240');
+      W.FR.setWidth(280);
+    });
+
+    it('the header button, the command and Ctrl+Alt+B hide and show the panel; the choice is remembered', async () => {
+      let W = await open(1280);
+      W.document.querySelector('#tools .sf-toggle').click();
+      expect(shown(W, 'panel')).toBe(false);
+      expect(W.document.querySelector('#tools .sf-toggle').getAttribute('aria-pressed')).toBe('false');
+      expect(JSON.parse(localStorage.getItem(KEY)).hidden).toBe(true);
+      W = await open(1280);
+      expect(shown(W, 'panel')).toBe(false);
+      W.SlopCmd.run('frametest.panel');
+      expect(shown(W, 'panel')).toBe(true);
+      key(W.document.body, 'b', { ctrlKey: true, altKey: true, code: 'KeyB' });
+      expect(W.FR.panelShown()).toBe(false);
+      W.FR.setPanel(true);
+    });
+
+    it('without a list (or with setList(false)) the view takes its place', async () => {
+      let W = await open(1280, '?nolist');
+      expect(W.document.getElementById('root').classList.contains('sf-nolist')).toBe(true);
+      W = await open(1280);
+      W.FR.setList(false);
+      expect(shown(W, 'list')).toBe(false);
+      W.FR.setList(true);
+      expect(shown(W, 'list')).toBe(true);
+    });
+  });
+
+  describe('SlopFrame: phones', () => {
+    it('the list is the page; showView puts the item over it, showList goes back', async () => {
+      const W = await open(390);
+      expect(W.FR.isPhone()).toBe(true);
+      expect(shown(W, 'list')).toBe(true);
+      expect(shown(W, 'view')).toBe(false);
+      W.FR.showView();
+      expect(shown(W, 'list')).toBe(false);
+      expect(shown(W, 'view')).toBe(true);
+      expect(W.document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      W.FR.showList();
+      expect(shown(W, 'view')).toBe(false);
+    });
+
+    it('the panel is a bottom sheet: the header button opens it, Escape closes it', async () => {
+      const W = await open(390), p = W.document.getElementById('panel');
+      expect(p.classList.contains('ssh-panel')).toBe(true);
+      W.document.querySelector('#tools .sf-toggle').click();
+      expect(p.classList.contains('ssh-on')).toBe(true);
+      expect(Math.round(p.getBoundingClientRect().width)).toBe(390);
+      key(W.document, 'Escape');
+      expect(p.classList.contains('ssh-on')).toBe(false);
+      expect(JSON.parse(localStorage.getItem(KEY) || '{}').hidden).not.toBe(true);
+    });
+  });
+
+  describe('SlopFrame.panel: the sections', () => {
+    it('rows (empty values skipped), a file list with its buttons, actions with one primary, a note', async () => {
+      const W = await open(1280), ran = [];
+      W.PANEL.render([
+        { title: 'Details', rows: [['From', 'Ann'], ['Cc', ''], ['Size', '2 KB', '2048 bytes']] },
+        { title: 'Files', list: [{ name: 'a.pdf', meta: 'PDF · 1 KB', open: () => ran.push('open a'), actions: [{ label: 'Save', run: () => ran.push('save a') }] }] },
+        { title: 'Actions', actions: [{ label: 'Export', primary: true, id: 'x-exp', run: () => ran.push('export') }, { label: 'Print', run: () => ran.push('print') }, { label: 'Off', disabled: true }] },
+        { title: 'Note', note: 'Nothing is uploaded.' },
+      ]);
+      const D = W.document;
+      expect([...D.querySelectorAll('.sf-h')].map((h) => h.textContent)).toEqual(['Details', 'Files', 'Actions', 'Note']);
+      expect([...D.querySelectorAll('.sf-key')].map((k) => k.textContent)).toEqual(['From', 'Size']);
+      expect(D.querySelectorAll('.sf-val')[1].title).toBe('2048 bytes');
+      D.querySelector('.sf-item-main').click();
+      D.querySelector('.sf-item-acts .sf-btn').click();
+      D.getElementById('x-exp').click();
+      expect(ran).toEqual(['open a', 'save a', 'export']);
+      expect(D.getElementById('x-exp').classList.contains('sui-primary')).toBe(true);
+      expect([...D.querySelectorAll('.sf-acts .sf-btn')].filter((b) => b.disabled).length).toBe(1);
+      expect(D.querySelector('.sf-p-h').textContent).toBe('Item');
+    });
+
+    it('a menu action opens its items under the button; a pick runs it; a redraw keeps the focus', async () => {
+      const W = await open(1280), ran = [];
+      const render = () => W.PANEL.render([{ title: 'Actions', actions: [{ label: 'Export', id: 'x-menu', menu: () => [{ heading: 'Download' }, { label: 'PDF', act: () => ran.push('pdf') }, { label: 'CSV', act: () => ran.push('csv') }] }] }]);
+      render();
+      const D = W.document, b = D.getElementById('x-menu');
+      expect(b.textContent).toBe('Export▾');
+      b.click();
+      await waitFor(() => D.querySelector('.smb-menu[role="menu"]'), { timeout: 2000 });
+      const rowsEl = [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')];
+      expect(rowsEl.map((r) => r.textContent.trim())).toEqual(['PDF', 'CSV']);
+      rowsEl[1].click();
+      expect(ran).toEqual(['csv']);
+      D.getElementById('x-menu').focus();
+      render();
+      expect(D.activeElement.id).toBe('x-menu');
+      expect(W.getComputedStyle(D.querySelector('.sf-p-title')).position).toBe('sticky');
+    });
+
+    it('a tool panel: settings groups keep the app controls; the footer holds the main button at the foot of the panel', async () => {
+      const W = await open(1280), D = W.document, ran = [];
+      const sel = D.createElement('select'); sel.id = 'x-sel'; sel.innerHTML = '<option>2×</option><option>4×</option>';
+      W.PANEL.render([{ title: 'Size', settings: sel }, { title: 'Result', actions: [{ label: 'Download', id: 'x-dl' }] }]);
+      W.PANEL.footer([{ label: 'Run', primary: true, id: 'x-run', run: () => ran.push('run') }], { note: 'Ctrl+Enter runs', more: 'Settings' });
+      expect(D.querySelector('.sf-set').contains(sel)).toBe(true);
+      const foot = D.querySelector('#panel > .sf-p-foot'), p = box(W, 'panel');
+      expect(foot.contains(D.getElementById('x-run'))).toBe(true);
+      expect(Math.round(foot.getBoundingClientRect().bottom)).toBe(Math.round(p.bottom));   // at the foot, even with short settings
+      expect(W.getComputedStyle(foot).position).toBe('sticky');
+      expect(W.getComputedStyle(D.querySelector('.sf-foot-more')).display).toBe('none');   // "Settings" is a phone thing
+      D.getElementById('x-run').click();
+      expect(ran).toEqual(['run']);
+      W.PANEL.render([{ title: 'Size', settings: sel }]);
+      expect(D.getElementById('x-run')).toBeTruthy();   // a redraw of the sections leaves the footer alone
+      W.PANEL.footer([]);
+      expect(D.querySelector('.sf-p-foot')).toBe(null);
+      expect(D.getElementById('panel').classList.contains('sf-has-foot')).toBe(false);
+    });
+
+    it('phones: the closed sheet shows only the footer at the bottom; its Settings button opens the whole sheet', async () => {
+      const W = await open(390), D = W.document, p = D.getElementById('panel');
+      W.PANEL.render([{ title: 'Size', settings: D.createElement('input') }]);
+      W.PANEL.footer([{ label: 'Run', primary: true, id: 'x-run' }], { more: 'Settings' });
+      await sleep(50);
+      expect(Math.round(box(W, 'x-run').bottom)).toBeLessThanOrEqual(700);
+      expect(box(W, 'x-run').height).toBeGreaterThan(30);
+      expect(D.querySelector('#panel .sf-p-body').inert).toBe(true);
+      expect(box(W, 'panel').height).toBeLessThan(140);
+      D.querySelector('.sf-foot-more').click();
+      expect(p.classList.contains('ssh-on')).toBe(true);
+      expect(D.querySelector('#panel .sf-p-body').inert).toBe(false);
+      expect(box(W, 'panel').height).toBeGreaterThan(140);
+      expect(box(W, 'x-run').height).toBeGreaterThan(30);
+      key(D, 'Escape');
+      expect(p.classList.contains('ssh-on')).toBe(false);
+      expect(box(W, 'x-run').height).toBeGreaterThan(30);   // closed again: the footer still shows
+    });
+  });
+  SlopTest.run({ name: 'SlopFrame: List · View · Panel' });
+  </script>
+</body>
+</html>

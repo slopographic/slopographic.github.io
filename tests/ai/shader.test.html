@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: a GPU that cannot compile a model's f16 kernels</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: shared/ai/webllm.js, shared/ai/catalog.js, shared/ai/picker.js, shared/ai/gpu-help.js
+  // No real GPU: the engine's one load step (_reload) is replaced by one that fails the way the owner's driver did.
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const SHADER = '[Invalid ShaderModule (unlabeled)] is invalid due to a previous error. - While validating compute stage ([Invalid ShaderModule (unlabeled)], entryPoint: "index_kernel").';
+  const GPU = { vendor: 'test-vendor', architecture: 'test-arch', description: 'Fake GPU 9000' };
+  const F16 = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', F32 = 'Qwen2.5-1.5B-Instruct-q4f32_1-MLC';
+  let P, K;
+  async function setup() {
+    localStorage.removeItem('slop-ai.f16-broken');
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud/.test(k)) localStorage.removeItem(k);
+    P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width: 900, height: 760 });
+    K = P.SlopAIKit;
+    await P.SlopAIPanel.ready;
+    await K.load(['catalog', 'webllm']);
+  }
+  function engine(failIf) {
+    const e = new K.WebLLMEngine(), calls = [];
+    e._gpu = async () => GPU;
+    e._reload = async (id) => { calls.push(id); if (failIf(id)) throw new Error(SHADER); };
+    return { e, calls };
+  }
+
+  describe('the engine', () => {
+    it('a shader validation error on the f16 build loads the f32 build once, and remembers it for this GPU', async () => {
+      await setup();
+      const m = K.catalog.byId(F16);
+      let x = engine((id) => /q4f16/.test(id));
+      const texts = [];
+      await x.e.load(m, (p) => texts.push(p.text));
+      expect(x.calls).toEqual([F16, F32]); expect(x.e.loaded).toBe(true); expect(x.e.model.loadId).toBe(F32);
+      expect(texts.join(' ')).toContain('Trying the f32 version');
+      expect(K.catalog.f16Broken(GPU)).toBe(true);
+      expect(JSON.parse(localStorage.getItem('slop-ai.f16-broken'))).toEqual(['test-vendor|test-arch|Fake GPU 9000']);
+      x = engine((id) => /q4f16/.test(id));
+      await x.e.load(m);
+      expect(x.calls).toEqual([F32]);   // straight to f32 next time
+      expect(K.catalog.idFor(m, { gpu: Object.assign({ ok: true, f16: true }, GPU) })).toBe(F32);
+      expect(K.catalog.idFor(m, { gpu: { ok: true, f16: true, vendor: 'other' } })).toBe(F16);
+    });
+
+    it('other errors are not retried; when both builds fail, the error says what was tried', async () => {
+      localStorage.removeItem('slop-ai.f16-broken');
+      const m = K.catalog.byId(F16);
+      let x = engine(() => true);
+      x.e._reload = async (id) => { x.calls.push(id); throw new Error('Failed to fetch'); };
+      let err = await x.e.load(m).catch((e) => e);
+      expect(x.calls).toEqual([F16]); expect(err.shader).toBe(false);
+      x = engine(() => true);
+      err = await x.e.load(m).catch((e) => e);
+      expect(x.calls).toEqual([F16, F32]); expect(err.shader).toBe(true); expect(err.tried).toEqual([F16, F32]);
+      expect(x.e.loaded).toBe(false);
+    });
+  });
+
+  describe('the model choice', () => {
+    it('both builds failing: a plain message, the details to copy, a smaller model, or your own AI account', async () => {
+      await setup();
+      K.picker.gpu = async () => ({ ok: true });
+      K.models.status = async (id) => ({ state: id === F16 ? 'ready' : 'none', bytes: 0 });
+      K.WebLLMEngine.prototype._gpu = async () => GPU;
+      K.WebLLMEngine.prototype._reload = async () => { throw new Error(SHADER); };
+      P.SlopAIPanel.open();
+      const use = await waitFor(() => P.document.querySelector(`[data-model="${F16}"]`), { timeout: 15000 });
+      use.click();
+      const box = await waitFor(() => P.document.querySelector('.sap-gpu'), { timeout: 15000 });
+      expect(box.textContent).toContain('This graphics card could not run Qwen2.5 1.5B, in either version (f16 and f32)');
+      const det = box.querySelector('.sap-gpu-details').textContent;
+      expect(det).toContain(`Tried: ${F16}, ${F32}`); expect(det).toContain('entryPoint: "index_kernel"'); expect(det).toMatch(/Browser: .+ on /);
+      expect([...box.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Copy details', 'Try a smaller model', 'Use your own AI account']);
+      await waitFor(() => P.document.querySelector('.sap-cloud'), { timeout: 15000 });   // the own-key section loads after the models
+      box.querySelector('.sap-gpu-cloud').click();
+      expect(P.document.querySelector('.sap-cloud').open).toBe(true);
+      box.querySelector('.sap-gpu-smaller').click();
+      await waitFor(() => P.document.querySelector('[data-model="Qwen2.5-0.5B-Instruct-q4f16_1-MLC"]'));
+      const dlg = await waitFor(() => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop());
+      expect(dlg.textContent).toContain('Qwen2.5 0.5B');
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop AI: GPU kernels that do not compile' });
+  </script>
+</body>
+</html>

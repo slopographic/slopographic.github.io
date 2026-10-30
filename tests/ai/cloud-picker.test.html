@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: the searchable provider picker, fields per provider, models, local servers</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // Covers: shared/ai/cloud/pick.js, shared/ai/cloud/connect.js, shared/ai/cloud/local-ui.js, shared/ai/cloud/local.js,
+  //   shared/ai/cloud/providers.js, shared/ai/cloud/compat.js, shared/ai/picker.js, shared/ai/cloud/catalog/main.js,
+  //   shared/ai/cloud/catalog/open.js, shared/ai/cloud/catalog/cloud.js, shared/ai/cloud/catalog/more.js,
+  //   shared/ai/cloud/catalog/local.js, shared/ai/cloud/catalog/images.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let P, F;
+  const q = (s) => P.document.querySelector(s), qa = (s) => [...P.document.querySelectorAll(s)];
+  const dialog = () => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const row = (id) => q(`.sap-pp-row[data-id="${id}"]`);
+  const shown = (el) => !!el && !el.closest('[hidden]') && el.checkVisibility() && !(el.closest('details:not([open]) > :not(summary)'));
+  async function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.cloud/.test(k)) sessionStorage.removeItem(k);
+  }
+  /** The full model choice: the header's model menu ▸ AI settings… (wip/ai-permissions: the model name is a menu button) */
+  async function settings() {
+    q('.sap-status').click();
+    (await waitFor(() => [...P.document.querySelectorAll('.smb-row')].find((r) => r.textContent === 'AI settings…'))).click();
+  }
+  async function open(provider, width = 900) {
+    if (P && P.__frame) P.__frame.remove();
+    P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width, height: 800 });
+    F = CU.install(P, provider);
+    P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+    if (!q('.sap-cloud')) await settings();
+    const box = await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+    if (!box.open) q('.sap-cloud summary').click();
+    await waitFor(() => q('.sap-pp-btn'));
+  }
+  async function pick(id) {
+    if (q('.sap-pp').hidden) q('.sap-pp-btn').click();
+    const s = q('.sap-pp-q'); s.value = id; s.dispatchEvent(new P.Event('input'));
+    row(id).click(); await sleep(40);
+  }
+  async function send(text, who) {
+    const done = P.SlopAIPanel.send(text);
+    const d = await waitFor(dialog);
+    expect(d.textContent).toContain(who);
+    [...d.querySelectorAll('button')].find((b) => b.textContent === 'Continue').click();
+    await done;
+  }
+
+  describe('the provider picker', () => {
+    it('Main first and open, the other groups collapsed; search "runpod" finds RunPod', async () => {
+      await wipe(); await open('anthropic');
+      expect(q('.sap-cloud-provider').hidden).toBe(true);
+      expect(q('.sap-pp-btn').textContent).toContain('Claude (Anthropic)');
+      q('.sap-pp-btn').click();
+      expect(q('.sap-pp-btn').getAttribute('aria-expanded')).toBe('true');
+      const groups = qa('.sap-pp-g').map((g) => g.dataset.group);
+      expect(groups[0]).toBe('main'); expect(groups).toContain('local'); expect(groups).toContain('images');
+      expect(q('.sap-pp-g[data-group="main"]').open).toBe(true);
+      expect(q('.sap-pp-g[data-group="cloud"]').open).toBe(false);
+      expect(P.document.activeElement).toBe(q('.sap-pp-q'));
+      const s = q('.sap-pp-q'); s.value = 'runpod'; s.dispatchEvent(new P.Event('input'));
+      expect(shown(row('runpod'))).toBe(true);
+      expect(q('.sap-pp-g[data-group="cloud"]').open).toBe(true);
+      expect(shown(row('anthropic'))).toBe(false);
+      expect(q('.sap-pp-g[data-group="main"]').hidden).toBe(true);
+      s.value = 'gpt-oss'; s.dispatchEvent(new P.Event('input'));
+      expect(shown(row('groq'))).toBe(true);
+      s.value = 'qqqzzz'; s.dispatchEvent(new P.Event('input'));
+      expect(shown(q('.sap-pp-none'))).toBe(true);
+    }, { timeout: 30000 });
+
+    it('groups collapse and open again; clearing the search puts them back', async () => {
+      const s = q('.sap-pp-q'); s.value = ''; s.dispatchEvent(new P.Event('input'));
+      const fast = q('.sap-pp-g[data-group="fast"]');
+      expect(fast.open).toBe(false);
+      fast.querySelector('summary').click(); await sleep(20);
+      expect(fast.open).toBe(true); expect(shown(row('groq'))).toBe(true);
+      fast.querySelector('summary').click(); await sleep(20);
+      expect(fast.open).toBe(false); expect(shown(row('groq'))).toBe(false);
+      q('.sap-pp-g[data-group="main"] summary').click(); await sleep(20);
+      expect(q('.sap-pp-g[data-group="main"]').open).toBe(false);
+    }, { timeout: 20000 });
+
+    it('rows carry badges; needs-proxy entries are greyed, say why, and cannot be chosen', async () => {
+      const s = q('.sap-pp-q'); s.value = 'cloudflare'; s.dispatchEvent(new P.Event('input'));
+      const cf = row('cloudflare');
+      expect(cf.classList.contains('off')).toBe(true); expect(cf.getAttribute('aria-disabled')).toBe('true');
+      expect(cf.textContent).toContain('needs a proxy'); expect(cf.textContent).toContain('Can’t be used straight from a browser');
+      cf.click(); await sleep(30);
+      expect(q('.sap-cloud-provider').value).toBe('anthropic');
+      expect([...q('.sap-cloud-provider').options].some((o) => o.value === 'cloudflare')).toBe(false);
+      expect(row('groq').textContent).toContain('browser OK'); expect(row('groq').textContent).toContain('tools');
+      expect(row('ollama').textContent).toContain('on this computer');
+      expect(row('fal').textContent).toContain('images');
+    }, { timeout: 20000 });
+
+    it('picking a provider shows only the fields it needs', async () => {
+      await pick('runpod');
+      expect(q('.sap-pp').hidden).toBe(true); expect(q('.sap-pp-btn').textContent).toContain('RunPod');
+      expect(shown(q('.sap-cloud-field[data-field="endpointId"]'))).toBe(true);
+      expect(shown(q('.sap-cloud-base'))).toBe(false); expect(shown(q('.sap-cloud-key'))).toBe(true); expect(shown(q('.sap-cloud-find'))).toBe(false);
+      await pick('azure-classic');
+      expect(qa('.sap-cloud-field').map((i) => i.dataset.field)).toEqual(['resource', 'deployment', 'apiVersion']);
+      expect(q('.sap-cloud-field[data-field="apiVersion"]').value).toBe('2024-10-21');
+      await pick('ollama');
+      expect(qa('.sap-cloud-field').length).toBe(0);
+      expect(shown(q('.sap-cloud-base'))).toBe(true); expect(shown(q('.sap-cloud-key'))).toBe(false); expect(shown(q('.sap-cloud-find'))).toBe(true);
+      await pick('vllm');
+      expect(shown(q('.sap-cloud-key'))).toBe(true);
+      expect(q('.sap-cloud-base').value).toBe('http://localhost:8000/v1');
+      await pick('fal');
+      expect(q('.sap-cloud-use').textContent).toBe('Save key'); expect(shown(q('.sap-cloud-model'))).toBe(false);
+      await pick('runpod');
+      q('.sap-cloud-key').value = 'rpa_TEST0123456789';
+      q('.sap-cloud-use').click();
+      await waitFor(() => /Fill in: Endpoint ID/.test(q('.sap-cloud-msg').textContent));
+    }, { timeout: 30000 });
+  });
+
+  describe('a chat through one templated and one plain OpenAI-compatible provider (fake fetch)', () => {
+    for (const [id, who, fields, url] of [
+      ['runpod', 'RunPod', { endpointId: 'ep42' }, 'https://api.runpod.ai/v2/ep42/openai/v1/chat/completions'],
+      ['groq', 'Groq', {}, 'https://api.groq.com/openai/v1/chat/completions'],
+    ]) {
+      it(`${who}: test, model, one reply; the key only in the header`, async () => {
+        const KEY = id === 'groq' ? 'gsk_TEST0123456789abcdef' : 'rpa_TEST0123456789abcdef';
+        CU.MODELS[id] = { data: [{ id: 'Qwen/Qwen3-8B' }, { id: 'BAAI/bge-embed-large' }] };
+        await wipe(); await open(id);
+        await pick(id);
+        for (const [k, v] of Object.entries(fields)) q(`.sap-cloud-field[data-field="${k}"]`).value = v;
+        q('.sap-cloud-key').value = KEY;
+        q('.sap-cloud-test').click();
+        await waitFor(() => /^Connected to /.test(q('.sap-cloud-msg').textContent));
+        expect(F.requests[F.requests.length - 1].url).toBe(url.replace('/chat/completions', '/models'));
+        expect([...q('.sap-cloud-model').options].map((o) => o.value)).toEqual(['Qwen/Qwen3-8B']);
+        q('.sap-cloud-use').click();
+        await waitFor(() => q('.sap-status').classList.contains('cloud'));
+        F.replies.push(CU.compat.text(`Hello from ${who}.`));
+        await send('hi', who);
+        const chat = F.requests.filter((r) => r.method === 'POST').pop();
+        expect(chat.url).toBe(url);
+        expect(chat.headers.authorization).toBe('Bearer ' + KEY);
+        expect(JSON.stringify(chat.body).includes(KEY)).toBe(false);
+        expect(q('.sap-list').textContent).toContain(`Hello from ${who}.`);
+        if (fields.endpointId) expect(P.SlopAIKit.cloud.keys.settings().providers.runpod.fields.endpointId).toBe('ep42');
+      }, { timeout: 40000 });
+    }
+  });
+
+  describe('models: search and recently used', () => {
+    it('a long list gets a search box; the model used last comes first next time', async () => {
+      CU.MODELS.openrouter = { data: Array.from({ length: 30 }, (_, i) => ({ id: `vendor${i % 5}/model-${i}`, name: `Model ${i}`, supported_parameters: ['tools'] })) };
+      await wipe(); await open('openrouter');
+      await pick('openrouter');
+      q('.sap-cloud-key').value = 'sk-or-v1-TEST0123456789';
+      q('.sap-cloud-test').click();
+      await waitFor(() => /^Connected to /.test(q('.sap-cloud-msg').textContent));
+      const box = q('.sap-cloud-model-q');
+      expect(shown(box)).toBe(true);
+      box.value = 'model-17'; box.dispatchEvent(new P.Event('input'));
+      const visible = [...q('.sap-cloud-model').options].filter((o) => !o.hidden).map((o) => o.value);
+      expect(visible).toContain('vendor2/model-17'); expect(visible).not.toContain('vendor3/model-18');
+      q('.sap-cloud-model').value = 'vendor2/model-17';
+      q('.sap-cloud-use').click();
+      await waitFor(() => q('.sap-status').classList.contains('cloud'));
+      await settings();
+      await waitFor(() => q('.sap-cloud-test'));
+      if (q('.sap-cloud-provider').value !== 'openrouter') await pick('openrouter');
+      q('.sap-cloud-test').click();
+      await waitFor(() => /^Connected to /.test(q('.sap-cloud-msg').textContent));
+      const first = q('.sap-cloud-model optgroup');
+      expect(first.label).toBe('Recently used'); expect(first.querySelector('option').value).toBe('vendor2/model-17');
+    }, { timeout: 40000 });
+  });
+
+  describe('local servers', () => {
+    it('Find servers asks the usual ports only after the click and offers what answers', async () => {
+      await wipe(); await open('ollama');
+      await pick('ollama');
+      const asked = [];
+      P.fetch = async (url, init = {}) => {
+        url = String(url); asked.push(url);
+        if (url.startsWith('http://localhost:1234/')) return new P.Response(JSON.stringify({ data: [{ id: 'qwen3-4b' }] }), { headers: { 'content-type': 'application/json' } });
+        throw new TypeError('Failed to fetch');
+      };
+      await sleep(50);
+      expect(asked.length).toBe(0);
+      q('.sap-cloud-find').click();
+      await waitFor(() => q('.sap-cloud-found-use'));
+      expect(asked.some((u) => u.startsWith('http://localhost:11434/'))).toBe(true);
+      expect(q('.sap-cloud-found').textContent).toContain('LM Studio at localhost:1234: 1 model');
+      q('.sap-cloud-found-use').click(); await sleep(40);
+      expect(q('.sap-cloud-provider').value).toBe('lmstudio');
+      expect(q('.sap-cloud-base').value).toBe('http://localhost:1234/v1');
+      q('.sap-cloud-test').click();
+      await waitFor(() => /^Connected to LM Studio\. 1 model\./.test(q('.sap-cloud-msg').textContent));
+    }, { timeout: 30000 });
+
+    it('Test connection says CORS when the server answers but refuses this website, with that server’s setting', async () => {
+      P.fetch = async (url, init = {}) => { if (init.mode === 'no-cors') return new P.Response(null); throw new TypeError('Failed to fetch'); };
+      q('.sap-cloud-test').click();
+      await waitFor(() => /does not allow requests from this website/.test(q('.sap-cloud-msg').textContent));
+      expect(q('.sap-cloud-diag').textContent).toContain('Enable CORS');
+    }, { timeout: 20000 });
+  });
+
+  describe('phones', () => {
+    it('at 390 px the open picker fits the bottom sheet', async () => {
+      await wipe(); await open('anthropic', 390);
+      q('.sap-pp-btn').click(); await sleep(200);
+      const sheet = q('.sap').getBoundingClientRect(), pp = q('.sap-pp').getBoundingClientRect();
+      expect(pp.right).toBeLessThan(sheet.right + 1);
+      expect(q('.sap-list').scrollWidth).toBeLessThan(q('.sap-list').clientWidth + 2);
+      expect(P.document.documentElement.scrollWidth).toBeLessThan(392);
+    }, { timeout: 30000 });
+  });
+  describe('in Swedish', () => {
+    it('the form, the picker and the catalog words follow a live switch to Swedish and back, with the provider kept', async () => {
+      await wipe(); await open('anthropic');
+      await pick('groq');
+      const I = P.SlopI18n, key = /\bui\.[a-z_]+\./;
+      try {
+        I.set('sv');
+        await waitFor(() => q('.sap-cloud summary b') && q('.sap-cloud summary b').textContent === 'Använd ditt eget AI-konto', { timeout: 15000 });
+        expect(q('.sap-cloud-provider').value).toBe('groq');
+        expect(q('.sap-cloud-test').textContent).toBe('Testa anslutningen');
+        await waitFor(() => q('.sap-cloud-help').textContent.includes('Gratis'), { timeout: 5000 });   // the help line is filled after the stored key is read
+        q('.sap-pp-btn').click();
+        expect(row('ollama').textContent).toContain('Ollama på den här datorn');
+        expect(q('.sap-pp-g[data-group="main"] summary').textContent).toContain('Huvudval');
+        expect(row('cloudflare').textContent).toContain('Kan inte användas direkt från en webbläsare');
+        expect(key.test(q('.sap-cloud').innerText)).toBe(false);
+        I.set('en');
+        await waitFor(() => q('.sap-cloud summary b').textContent === 'Use your own AI account', { timeout: 15000 });
+        expect(q('.sap-cloud-provider').value).toBe('groq');
+        expect(q('.sap-cloud-test').textContent).toBe('Test connection');
+      } finally { I.set('en'); }
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop AI: provider picker' });
+  </script>
+</body>
+</html>

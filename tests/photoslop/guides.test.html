@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop guides tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  const frame = () => new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(r)));
+  const rect = () => W.V.el.getBoundingClientRect();
+  /** Screen point (client coords) for a document point. */
+  const scr = (x, y) => { const r = rect(); return { x: r.left + W.V.ox + x * W.V.zoom, y: r.top + W.V.oy + y * W.V.zoom }; };
+  function ptr(type, x, y, opts = {}) {
+    W.V.el.dispatchEvent(new win.PointerEvent(type, Object.assign({ clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 7, pointerType: 'mouse', bubbles: true, cancelable: true }, opts)));
+    if (type === 'pointerup') win.dispatchEvent(new win.PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
+  }
+  function drag(a, b, opts) { ptr('pointerdown', a.x, a.y, opts); ptr('pointermove', (a.x + b.x) / 2, (a.y + b.y) / 2, opts); ptr('pointermove', b.x, b.y, opts); ptr('pointerup', b.x, b.y, opts); }
+  const menuItem = (menu, label) => { const m = W.MENUS.find(([n]) => n === menu)[1]; return (typeof m === 'function' ? m() : m).find((it) => it && it.label === label); };
+  const key = (code, mods = {}) => win.dispatchEvent(new win.KeyboardEvent('keydown', Object.assign({ code, key: code === 'Semicolon' ? ';' : code, bubbles: true, cancelable: true }, mods)));
+  const vs = () => W.D.guides.filter((g) => g.o === 'v').map((g) => g.pos);
+  const hs = () => W.D.guides.filter((g) => g.o === 'h').map((g) => g.pos);
+
+  describe('guides', () => {
+    it('boots with rulers and an empty guide list', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      win.localStorage.removeItem('slopshop.guidePanel');
+      W.store.set('rulers', true); W.store.set('guides', true); W.store.set('snap', true); W.store.set('lockGuides', false); W.store.set('grid', false);
+      W.newDocTab(1200, 800, '#ffffff', 'Guides Doc'); W.fitView(); await frame();
+      expect(W.D.guides).toEqual([]);
+      expect(typeof win.SlopGuides.compute).toBe('function');
+    }, { timeout: 40000 });
+
+    it('View ▸ New Guide Layout… opens the panel; 12 columns preview live, apply as one undo step', async () => {
+      menuItem('View', 'New Guide Layout…').act();
+      const P = win.SlopGuides.panel; expect(!!P).toBe(true);
+      expect(win.document.querySelector('.sgd-panel')).toBeTruthy();
+      P.set({ tab: 'form', unit: 'px', snap: 'off', form: { margins: { top: '', right: '', bottom: '', left: '' }, cols: { count: 12, width: '', gutter: '20' }, rows: { count: '' } } });
+      await frame(); await frame();
+      expect(W.V.guidePreview.length).toBe(24);
+      const steps = W.Hist.states.length;
+      win.document.querySelector('.sgd-panel .sgd-primary').click();
+      expect(vs().length).toBe(24);
+      expect(vs()[0]).toBe(0); expect(vs()[23]).toBe(1200);
+      expect(W.Hist.states.length).toBe(steps + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('New Guide Layout');
+      W.undo(); expect(W.D.guides.length).toBe(0);
+      W.redo(); expect(W.D.guides.length).toBe(24);
+      P.close(); expect(W.V.guidePreview).toBe(null);
+    });
+
+    it('Replace and Clear from the panel', async () => {
+      const P = W.openGuidesPanel();
+      P.set({ tab: 'notation', notation: '| ~ | ~ | ( h )' }); await frame(); await frame();
+      [...win.document.querySelectorAll('.sgd-panel .sgd-btn')].find((b) => b.textContent === 'Replace').click();
+      expect(W.D.guides).toEqual([{ o: 'h', pos: 0 }, { o: 'h', pos: 400 }, { o: 'h', pos: 800 }]);
+      [...win.document.querySelectorAll('.sgd-panel .sgd-btn')].find((b) => b.textContent === 'Clear').click();
+      expect(W.D.guides).toEqual([]);
+      W.undo(); expect(W.D.guides.length).toBe(3);
+      P.close(); W.clearGuides();
+    });
+
+    it('drags guides out of the rulers, moves them, and deletes them by dragging back', async () => {
+      const r = rect();
+      drag({ x: r.left + 300, y: r.top + 8 }, scr(500, 200));
+      expect(hs()).toEqual([200]);
+      drag({ x: r.left + 8, y: r.top + 300 }, scr(300, 500));
+      expect(vs()).toEqual([300]);
+      W.selectTool('move');
+      drag(scr(300, 600), scr(450, 600));
+      expect(vs()).toEqual([450]);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Move Guide');
+      drag(scr(450, 600), { x: r.left + 8, y: scr(0, 600).y });
+      expect(vs()).toEqual([]);
+      W.undo(); expect(vs()).toEqual([450]);
+    });
+
+    it('locked guides cannot be dragged', () => {
+      W.store.set('lockGuides', true);
+      drag(scr(450, 600), scr(600, 600));
+      expect(vs()).toEqual([450]);
+      W.store.set('lockGuides', false);
+    });
+
+    it('marquee and move snap to guides with an indicator', async () => {
+      W.selectTool('marquee');
+      const a = scr(450 + 4 / W.V.zoom, 100), b = scr(700, 198);
+      ptr('pointerdown', a.x, a.y); ptr('pointermove', b.x, b.y);
+      expect(W.V.snapInd && W.V.snapInd.y).toBe(200);
+      ptr('pointerup', b.x, b.y);
+      expect(W.D.sel.bounds.x).toBe(450);
+      expect(W.D.sel.bounds.y + W.D.sel.bounds.h).toBe(200);
+      expect(W.V.snapInd).toBe(null);
+      W.deselect();
+      // Move tool: a 100×100 block at (100,100) lands with its left edge on the guide
+      const c = W.mkCanvas(1200, 800); c.getContext('2d').fillRect(100, 100, 100, 100);
+      W.addLayer({ name: 'Block', canvas: c });
+      W.selectTool('move');
+      drag(scr(150, 150), scr(150 + 345 / 1, 150 + 3));
+      const L = W.activeLayer();
+      expect(L.x + 100).toBe(450);
+      expect(L.y).toBe(0);
+    });
+
+    it('snapping can be switched off with Shift+Ctrl+;', () => {
+      key('Semicolon', { ctrlKey: true, shiftKey: true });
+      expect(W.GUIDE_PREFS.snap).toBe(false);
+      expect(W.snapP({ x: 452, y: 5 }, W.TOOL.marquee)).toEqual({ x: 452, y: 5 });
+      key('Semicolon', { ctrlKey: true, shiftKey: true });
+      expect(W.snapP({ x: 452, y: 5 }, W.TOOL.marquee).x).toBe(450);
+      expect(W.snapP({ x: 452, y: 5 }, W.TOOL.brush).x).toBe(452);
+    });
+
+    it('Ctrl+; shows and hides guides', () => {
+      key('Semicolon', { ctrlKey: true }); expect(W.GUIDE_PREFS.show).toBe(false);
+      key('Semicolon', { ctrlKey: true }); expect(W.GUIDE_PREFS.show).toBe(true);
+    });
+
+    it('New Guide… places a guide at an exact position (with units)', async () => {
+      W.dlgNewGuide(-1);
+      await waitFor(() => win.document.querySelector('.sui-dlg input[aria-label=Position]'));
+      const dlg = win.document.querySelector('.sui-dlg');
+      dlg.querySelector('select').value = 'h';
+      dlg.querySelector('input[aria-label=Position]').value = '25%';
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'OK').click();
+      expect(hs()).toContain(200);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('New Guide');
+    });
+
+    it('grid overlay settings feed grid snapping', () => {
+      W.store.set('grid', true); W.store.set('gridSize', 100); W.store.set('gridSub', 4);
+      expect(W.snapCoord('v', 726, 3)).toEqual({ pos: 725, d: -1 });
+      W.store.set('grid', false);
+      expect(W.snapCoord('v', 726, 3)).toBe(null);
+    });
+
+    it('guides follow crops and canvas rotation, survive tab switches and PSD round-trips', async () => {
+      W.setGuides([{ o: 'v', pos: 100 }, { o: 'h', pos: 50 }], 'Set');
+      W.resizeCanvas(1200, 800, 10, 20);
+      expect(W.D.guides).toEqual([{ o: 'v', pos: 110 }, { o: 'h', pos: 70 }]);
+      W.transformCanvas('cw');
+      expect(W.D.guides).toEqual([{ o: 'v', pos: 730 }, { o: 'h', pos: 110 }]);
+      const rec = W.CUR; W.newDocTab(300, 200, '#fff', 'Other'); expect(W.D.guides).toEqual([]);
+      W.switchToDoc(rec); expect(W.D.guides.length).toBe(2);
+      const doc = await W.readPSD(W.writePSD().buffer);
+      expect(doc.guides).toEqual(W.D.guides);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop guides' });
+  </script>
+</body>
+</html>

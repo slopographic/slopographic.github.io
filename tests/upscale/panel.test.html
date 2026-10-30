@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Upscale: the right panel (settings and the Upscale button), the files list, the phone sheet, the keys</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: upscale/js/app/layout.js, upscale/js/app/main.js, upscale/js/app/output.js, upscale/js/app/io.js, upscale/index.html, upscale/css/upscale.css, shared/frame/panel.js, shared/frame/frame.js, shared/frame/frame.css -->
+  <script>try { localStorage.setItem('slop-firstrun:upscale', '1'); localStorage.removeItem('slop-frame:upscale'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let f = null;
+  async function open(width, height = 800) {
+    if (f) f.remove();
+    f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../upscale/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && f.contentWindow.SlopUpscale && f.contentWindow.SlopUpscale.layout && D.querySelector('#up-drop .sd-msg'); }, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  /** A generated picture: a coloured field with a white square. */
+  function picture(W, name, w, h, colour) {
+    const c = W.document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    x.fillStyle = colour; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#fff'; x.fillRect(8, 8, w / 3, h / 3);
+    return new Promise((res) => c.toBlob((b) => res(new W.File([b], name, { type: 'image/png' }))));
+  }
+  const box = (W, sel) => W.document.querySelector(sel).getBoundingClientRect();
+  const run = (W) => W.document.getElementById('up-run');
+  const done = (W) => W.SlopUpscale.app.S.items.every((it) => it.out) && !W.SlopUpscale.app.S.busy;
+
+  describe('Slop Upscale: settings and the Upscale button in the right panel', () => {
+    it('at 1280px the panel is on the right and holds Size, Model, Output, the result actions and the Upscale button', async () => {
+      const W = await open(1280), D = W.document, panel = D.getElementById('up-panel');
+      const p = box(W, '#up-panel'), v = box(W, '#up-stage-wrap');
+      expect(p.left).toBeGreaterThanOrEqual(v.right - 1);
+      expect(Math.round(p.right)).toBe(1280);
+      for (const id of ['up-scale-2', 'up-scale-4', 'up-model', 'up-format', 'up-run', 'up-download', 'up-save', 'up-openin']) expect(panel.contains(D.getElementById(id))).toBe(true);
+      expect([...panel.querySelectorAll('.sf-h')].map((h) => h.textContent)).toEqual(['Size', 'Model', 'Output', 'Result']);
+      expect(D.querySelector('header').contains(run(W))).toBe(false);
+      expect(run(W).closest('.sf-p-foot')).toBeTruthy();
+      expect(run(W).disabled).toBe(true);
+      expect(D.querySelector('#up-list').getBoundingClientRect().width).toBe(0);   // one file or none: no list
+      const r = run(W).getBoundingClientRect();
+      expect(r.bottom).toBeLessThanOrEqual(800);   // the button is stuck to the panel's foot, in the window
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+    }, { timeout: 40000 });
+
+    it('the panel button upscales a generated 100 × 80 picture 2× with the Fast model to 200 × 160, then Download is on', async () => {
+      const W = await open(1280);
+      await W.SlopUpscale.controller.open(await picture(W, 'gen.png', 100, 80, '#c33'));
+      expect(W.document.getElementById('up-model').value).toBe('fast');
+      expect(run(W).disabled).toBe(false);
+      run(W).click();
+      await waitFor(() => done(W) && W.SlopUpscale.app.S.item.out, { timeout: 40000 });
+      const out = W.SlopUpscale.app.S.item.out.canvas;
+      expect([out.width, out.height]).toEqual([200, 160]);
+      expect(W.document.getElementById('up-status').textContent).toContain('Fast (FSRCNN x2)');
+      expect(W.document.getElementById('up-download').disabled).toBe(false);
+    }, { timeout: 60000 });
+
+    it('Lanczos only, 4×: a 30 × 20 picture becomes 120 × 80', async () => {
+      const W = await open(1280), D = W.document;
+      await W.SlopUpscale.controller.open(await picture(W, 'small.png', 30, 20, '#3a6'));
+      D.getElementById('up-scale-4').click();
+      const sel = D.getElementById('up-model');
+      sel.value = 'lanczos'; sel.dispatchEvent(new Event('change'));
+      run(W).click();
+      await waitFor(() => done(W) && W.SlopUpscale.app.S.item.out, { timeout: 40000 });
+      const out = W.SlopUpscale.app.S.item.out.canvas;
+      expect([out.width, out.height]).toEqual([120, 80]);
+    }, { timeout: 60000 });
+
+    it('two files: the list shows on the left, the button says "Upscale 2 pictures" and upscales both, then a ZIP is offered', async () => {
+      const W = await open(1280), D = W.document;
+      await W.SlopUpscale.controller.open(await picture(W, 'a.png', 40, 30, '#c33'));
+      await W.SlopUpscale.controller.open(await picture(W, 'b.png', 20, 20, '#36c'));
+      expect(box(W, '#up-list').right).toBeLessThanOrEqual(box(W, '#up-stage-wrap').left + 1);
+      expect(D.querySelectorAll('#up-rows .up-row').length).toBe(2);
+      expect(run(W).textContent).toBe('Upscale 2 pictures');
+      run(W).click();
+      await waitFor(() => done(W), { timeout: 40000 });
+      expect(W.SlopUpscale.app.S.items.map((it) => [it.out.canvas.width, it.out.canvas.height])).toEqual([[80, 60], [40, 40]]);
+      expect(D.getElementById('up-zip').textContent).toBe('Download all (ZIP, 2)');
+      expect(D.getElementById('up-count').textContent).toBe('2 files, 2 done');
+    }, { timeout: 60000 });
+
+    it('keys: Ctrl+Enter upscales; while it runs the button is Cancel and Esc stops it', async () => {
+      const W = await open(1280), D = W.document;
+      await W.SlopUpscale.controller.open(await picture(W, 'k.png', 40, 40, '#963'));
+      D.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }));
+      await waitFor(() => done(W) && W.SlopUpscale.app.S.item.out, { timeout: 40000 });
+      expect(W.SlopUpscale.app.S.item.out.canvas.width).toBe(80);
+      await W.SlopUpscale.controller.open(await picture(W, 'big.png', 1200, 900, '#246'));
+      run(W).click();
+      await waitFor(() => D.getElementById('up-cancel'), { timeout: 10000 });
+      expect(D.getElementById('up-cancel').closest('.sf-p-foot')).toBeTruthy();
+      D.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await waitFor(() => !W.SlopUpscale.app.S.busy, { timeout: 20000 });
+      expect(D.getElementById('up-status').textContent).toBe('Cancelled.');
+      expect(run(W)).toBeTruthy();
+    }, { timeout: 90000 });
+  });
+
+  describe('Slop Upscale: the phone (390px)', () => {
+    it('the panel is a bottom sheet whose foot, with the Upscale button, always shows; Settings opens the rest', async () => {
+      const W = await open(390, 844), D = W.document;
+      await W.SlopUpscale.controller.open(await picture(W, 'p.png', 60, 40, '#c33'));
+      await sleep(300);
+      const b = run(W).getBoundingClientRect();
+      expect(b.top).toBeGreaterThan(700);
+      expect(b.bottom).toBeLessThanOrEqual(844);
+      expect(D.getElementById('up-scale-2').getBoundingClientRect().height).toBe(0);   // the settings wait in the closed sheet
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => D.getElementById('up-panel').classList.contains('ssh-on'));
+      await sleep(350);
+      expect(D.getElementById('up-scale-2').getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(run(W).getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      run(W).click();
+      await waitFor(() => done(W) && W.SlopUpscale.app.S.item.out, { timeout: 40000 });
+      expect(W.SlopUpscale.app.S.item.out.canvas.width).toBe(120);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Upscale: the right panel' });
+  </script>
+</body>
+</html>

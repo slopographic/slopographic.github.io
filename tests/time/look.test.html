@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Time: the look (header and tabs, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: time/index.html, time/css/time.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menu bar, the shell's buttons and the clocks are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../time/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn') && D.getElementById('st-device').textContent; }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+  const box = (D, id) => D.getElementById(id).getBoundingClientRect();
+
+  describe('Slop Time: the look', () => {
+    it('one header, named Time, with the 100% local badge', async () => {
+      const D = await open(1440);
+      expect(visible(D, 'header').length).toBe(1);
+      expect(D.querySelector('.smb-bar .smb-app').textContent).toBe('Time');
+      expect(D.querySelector('.smb-bar .local-badge')).toBeTruthy();
+    }, { timeout: 40000 });
+
+    it("at 1440px the device's zone sits at the end of the tab row, not as a line of its own", async () => {
+      const D = await open(1440);
+      const dev = box(D, 'st-device'), tab = box(D, 'tab-world');
+      expect(dev.top).toBeLessThan(tab.bottom);
+      expect(dev.left).toBeGreaterThan(box(D, 'tab-sync').right);
+    }, { timeout: 40000 });
+
+    it('at 390px every tab shows in full and nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      for (const b of D.querySelectorAll('.st-tabs button')) {
+        const r = b.getBoundingClientRect();
+        expect(r.left >= 0 && r.right <= 390.5 && b.scrollWidth <= b.clientWidth).toBe(true);
+      }
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Time: the look' });
+  </script>
+</body>
+</html>

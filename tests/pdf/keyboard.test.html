@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop PDF on a phone: an opaque tool sheet, one sheet at a time, and text edited above the keyboard</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 780px; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="para.helpers.js"></script>
+  <script>
+  /* The owner's iPhone: with no document open the Redact sheet showed the drop zone through it (the empty-mode fade of the
+     side panel applied to the sheet), and the keyboard covered the text being edited.
+     Covers: pdf/js/editor/view.js, pdf/js/editor/para-edit.js, pdf/js/editor/edit-text.js, pdf/js/editor/text.js, pdf/css/base.css, pdf/css/themes.css,
+     pdf/index.html, shared/input/keyboard.js, shared/ui/sheet.js, shared/ai/panel.js */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const KB = 320;
+  const W = () => PT.win, D = () => PT.win.document;
+  const props = () => D().getElementById('props');
+  const tap = (el) => { el.dispatchEvent(new (W().PointerEvent)('pointerdown', { bubbles: true, pointerId: 1 })); el.click(); };
+  /** The alpha of a computed colour (rgb(), rgba(), color(srgb … / a), transparent). */
+  function alpha(c) {
+    if (c === 'transparent') return 0;
+    const m = /\/\s*([\d.]+%?)\s*\)$/.exec(c) || /^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)$/.exec(c);
+    return m ? (m[1].endsWith('%') ? parseFloat(m[1]) / 100 : parseFloat(m[1])) : 1;
+  }
+  /** Opacity of an element times that of its ancestors. */
+  function opacityOf(el) { let o = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) o *= parseFloat(W().getComputedStyle(n).opacity); return o; }
+  let vv, H;
+  /** A stand-in visual viewport: the keyboard is it shrinking by kb (Playwright cannot raise a real one). */
+  async function keyboard(kb) {
+    if (!vv) { vv = new (W().EventTarget)(); H = D().documentElement.clientHeight; Object.assign(vv, { width: 390, height: H, offsetTop: 0, offsetLeft: 0, scale: 1 }); W().SlopKeyboard._viewport(vv); }
+    vv.height = H - kb; vv.dispatchEvent(new (W().Event)('resize'));
+    await sleep(80);
+  }
+  const inView = (el) => { const r = el.getBoundingClientRect(), v = W().SlopKeyboard.visible(); return r.top >= v.top - 0.5 && r.bottom <= v.bottom + 0.5 && r.height > 0; };
+
+  describe('Slop PDF at 390 px: the tool sheet', () => {
+    it('with no PDF open, the Redact sheet is opaque and dims the page, in dark and in light', async () => {
+      await PT.boot();
+      await waitFor(() => W().SlopKeyboard && W().SlopSheet, { timeout: 15000 });
+      D().head.append(Object.assign(D().createElement('style'), { textContent: '* { transition: none !important; }' }));
+      PT.reset();
+      tap(D().querySelector('#rail .rail-b[data-tool="redact"]')); await sleep(50);
+      expect(PT.A._.els.app.classList.contains('sheet-open')).toBe(true);
+      for (const theme of ['dark', 'light']) {
+        W().SlopTheme.apply(theme); await sleep(30);
+        const cs = W().getComputedStyle(props());
+        expect([theme, alpha(cs.backgroundColor), opacityOf(props()), cs.backdropFilter || 'none']).toEqual([theme, 1, 1, 'none']);
+        expect(/100vmax|\d{3,}px/.test(cs.boxShadow) || cs.boxShadow.split('rgba').length > 2).toBe(true);   // the dim
+      }
+      expect(W().getComputedStyle(D().getElementById('rail')).zIndex).toBe('41');   // the tools stay bright over the dim
+    }, { timeout: 60000 });
+
+    it('one sheet at a time: Slop AI opening closes the tool sheet, a tool opening closes Slop AI', async () => {
+      const s = D().createElement('script'); s.src = '../shared/ai/panel.js'; s.dataset.button = 'false'; D().head.append(s);
+      await waitFor(() => W().SlopAIPanel, { timeout: 15000 });
+      W().SlopAIPanel.open(); await sleep(50);
+      expect([W().SlopAIPanel.isOpen, PT.A._.els.app.classList.contains('sheet-open')]).toEqual([true, false]);
+      expect(W().SlopSheet.list().filter((x) => x.isOpen()).length).toBe(1);
+      tap(D().querySelector('#rail .rail-b[data-tool="sign"]')); await sleep(50);
+      expect([W().SlopAIPanel.isOpen, PT.A._.els.app.classList.contains('sheet-open')]).toEqual([false, true]);
+      PT.A._.sheet.close();
+    }, { timeout: 30000 });
+  });
+
+  describe('Slop PDF at 390 px: text edited above the keyboard', () => {
+    it('Edit text in a text box low on the page: the page view scrolls it above the keyboard; the tools hide meanwhile', async () => {
+      W().SlopTheme.apply('dark');
+      await PT.open(await PT.makePdf([{ w: 420, h: 320 }]), 'kb.pdf');
+      PT.A.openPage(PT.E.state.pages[0].id);
+      await waitFor(() => D().querySelector('.pv-page'));
+      const a = { id: 'kb-text', type: 'text', text: 'Type here', rot: 0, cx: 120, cy: 300, w: 160, h: 24, font: 'Helvetica', size: 16, color: '#111111', bold: false, italic: false, opacity: 1 };
+      PT.SP.editor.addAnnot(a, 'Add text');
+      await sleep(200);
+      const S = PT.SP.editor._;
+      S.openTextEditor(S.findAnnot(a.id));
+      await waitFor(() => !S.ta.hidden && D().activeElement === S.ta, { timeout: 4000 });
+      await keyboard(KB);
+      expect([W().SlopKeyboard.height(), inView(S.ta)]).toEqual([KB, true]);
+      expect(W().getComputedStyle(D().getElementById('rail')).visibility).toBe('hidden');
+      S.ta.value += '!'; S.ta.dispatchEvent(new (W().Event)('input', { bubbles: true })); await sleep(80);
+      expect(inView(S.ta)).toBe(true);   // still while typing
+      S.ta.blur(); await keyboard(0);
+      expect([D().querySelector('#viewer .slop-kb-spacer'), W().getComputedStyle(D().getElementById('rail')).visibility]).toEqual([null, 'visible']);
+    }, { timeout: 60000 });
+
+    it('Edit text ▸ Lines: the line being typed in (a press on it, as on a phone) shows above the keyboard', async () => {
+      const bytes = await PP.pdf((pg, f) => PP.lines(pg, f.hel, ['A line at the foot of the page'], 40, 30));
+      await PP.open(bytes, 'kb-lines.pdf');
+      PP.Ed().setEditTextMode('lines');
+      const a = PP.at(60, 320 - 30 - 4);
+      a.el.dispatchEvent(new (W().PointerEvent)('pointerdown', { clientX: a.x, clientY: a.y, button: 0, bubbles: true, cancelable: true, pointerId: 5, pointerType: 'mouse', isPrimary: true }));
+      const input = await waitFor(() => D().querySelector('.edit-run'), { timeout: 8000 });
+      await waitFor(() => D().activeElement === input, { timeout: 4000 });
+      await keyboard(KB);
+      expect(inView(input)).toBe(true);
+      input.dispatchEvent(new (W().KeyboardEvent)('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await keyboard(0);
+    }, { timeout: 60000 });
+
+    it('Edit text ▸ Paragraphs: the paragraph being typed in shows above the keyboard', async () => {
+      const bytes = await PP.pdf((pg, f) => PP.lines(pg, f.hel, ['The last paragraph on', 'the page, near its foot.'], 40, 40));
+      await PP.open(bytes, 'kb-para.pdf');
+      await PP.click(60, 320 - 40 - 4);
+      PP.P().edit();
+      const box = await waitFor(() => D().querySelector('.para-edit'), { timeout: 8000 });
+      await waitFor(() => D().activeElement === box, { timeout: 4000 });
+      await keyboard(KB);
+      expect(inView(box)).toBe(true);
+      box.dispatchEvent(new (W().KeyboardEvent)('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await keyboard(0);
+      PP.off();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop PDF · phone keyboard and sheets' });
+  </script>
+</body>
+</html>

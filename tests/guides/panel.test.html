@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopGuides panel tests</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/guides/guides.css">
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/guides/engine.js"></script>
+  <script src="../../shared/guides/notation.js"></script>
+  <script src="../../shared/guides/presets.js"></script>
+  <script src="../../shared/guides/panel-tabs.js"></script>
+  <script src="../../shared/guides/panel.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const SG = window.SlopGuides;
+  const KEY = 'slopguides.state.paneltest';
+  localStorage.removeItem(KEY);
+  let previews = [], applied = [], cleared = 0, sel = null;
+  const typeIn = (input, v) => { input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); };
+  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  let P;
+  const open = () => (P = SG.openPanel({
+    title: 'Guides', stateKey: KEY,
+    targets: [{ id: 'canvas', label: 'Canvas', rect: () => ({ x: 0, y: 0, w: 1200, h: 800 }) }, { id: 'sel', label: 'Selection', rect: () => sel }],
+    preview: (g) => previews.push(g), apply: (g, o) => applied.push([g, o.mode]), clear: () => cleared++,
+  }));
+
+  describe('panel', () => {
+    it('opens with three tabs and a disabled Selection target when nothing is selected', async () => {
+      open(); await frame();
+      expect(document.querySelectorAll('.sgd-panel').length).toBe(1);
+      expect([...P.el.querySelectorAll('.sgd-tab')].map((b) => b.textContent)).toEqual(['Form', 'Notation', 'Intervals']);
+      expect(P.el.querySelector('option[value=sel]').disabled).toBe(true);
+    });
+    it('previews 12 columns live while typing, then applies them', async () => {
+      const inputs = P.el.querySelectorAll('.sgd-form .sgd-num');
+      typeIn(P.el.querySelector('[aria-label="Number of columns"]'), '12');
+      typeIn(P.el.querySelector('[aria-label="Column gutter"]'), '20');
+      await frame();
+      const last = previews[previews.length - 1];
+      expect(last.filter((g) => g.o === 'v').length).toBe(24);
+      expect(inputs.length).toBeGreaterThan(8);
+      expect(P.el.querySelector('.sgd-status').textContent).toMatch(/24 guides/);
+      P.el.querySelector('.sgd-primary').click();
+      expect(applied[0][1]).toBe('add'); expect(applied[0][0].length).toBe(24);
+      [...P.el.querySelectorAll('.sgd-btn')].find((b) => b.textContent === 'Replace').click();
+      expect(applied[1][1]).toBe('replace');
+      [...P.el.querySelectorAll('.sgd-btn')].find((b) => b.textContent === 'Clear').click();
+      expect(cleared).toBe(1);
+    });
+    it('linked margins copy one value to all four sides', async () => {
+      P.el.querySelector('.sgd-link').click();
+      typeIn(P.el.querySelector('[aria-label="Top margin"]'), '10%');
+      expect(P.state.form.margins).toEqual({ top: '10%', right: '10%', bottom: '10%', left: '10%' });
+      P.el.querySelector('.sgd-link').click();
+    });
+    it('switching to Notation carries the form over; errors show in the status line', async () => {
+      P.el.querySelector('[data-tab=notation]').click(); await frame();
+      const ta = P.el.querySelector('.sgd-code');
+      expect(ta.value).toMatch(/\*11/);
+      expect(P.el.querySelector('.sgd-help')).toBeTruthy();
+      typeIn(ta, '| ~ ) |'); await frame();
+      expect(P.el.querySelector('.sgd-status').classList.contains('sgd-err')).toBe(true);
+      expect(P.el.querySelector('.sgd-primary').disabled).toBe(true);
+      typeIn(ta, '(|~|20px|)*4'); await frame();
+      expect(P.guides().length).toBe(9);
+    });
+    it('intervals tab and the selection target', async () => {
+      P.el.querySelector('[data-tab=intervals]').click(); await frame();
+      sel = { x: 100, y: 100, w: 200, h: 100 }; P.refresh();
+      const t = P.el.querySelector('select[aria-label="Lay out guides in"]'); t.value = 'sel'; t.dispatchEvent(new Event('change'));
+      typeIn(P.el.querySelector('[aria-label="Vertical guides spacing"]'), '50');
+      await frame();
+      expect(P.guides().filter((g) => g.o === 'v').map((g) => g.pos)).toEqual([100, 150, 200, 250, 300]);
+    });
+    it('loads presets from the dropdown and remembers its state', async () => {
+      const ps = P.el.querySelector('.sgd-preset');
+      ps.value = 'b' + SG.PRESETS.findIndex((p) => p.name === 'Rule of thirds'); ps.dispatchEvent(new Event('change'));
+      await frame();
+      expect(P.state.tab).toBe('notation');
+      P.close();
+      expect(previews[previews.length - 1]).toBe(null);
+      expect(document.querySelector('.sgd-panel')).toBe(null);
+      open(); await frame();
+      expect(P.state.tab).toBe('notation');
+      P.close();
+    });
+    it('Escape closes the panel; the preset menu offers save/export/import', async () => {
+      open(); await frame();
+      P.el.querySelector('[aria-label="Preset actions"]').click();
+      const labels = [...document.querySelectorAll('.sui-menu .sui-lbl')].map((x) => x.textContent);
+      expect(labels).toContain('Save as Preset…'); expect(labels).toContain('Import Presets…');
+      SlopUI.closeMenu();
+      P.el.querySelector('.sgd-code').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(document.querySelector('.sgd-panel')).toBe(null);
+      localStorage.removeItem(KEY);
+    });
+  });
+  SlopTest.run({ name: 'SlopGuides panel' });
+  </script>
+</body>
+</html>

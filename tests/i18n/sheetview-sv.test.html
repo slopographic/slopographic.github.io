@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Sheets in Swedish</title>
+  <!-- Covers: sheetview/i18n/index.js, sheetview/js/main.js, sheetview/js/panel.js, sheetview/js/view.js, sheetview/js/filter-ui.js, sheetview/js/export.js, sheetview/js/appearance.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Sheets', path: '../../sheetview/index.html', ns: 'sheetview',
+    ready: (doc) => doc.querySelector('#sv-side .sf-h') && doc.querySelector('#sv-sample') && doc.querySelector('#sv-style option'),
+    checks: [
+      ['#sv-open', 'Öppna', 'Open'],
+      ['#sv-open2', 'Öppna ett kalkylblad', 'Open a spreadsheet'],
+      ['#sv-sample', 'exempelprislista', 'sample price list'],
+      ['#sv-style option[value="striped"]', 'Randig', 'Striped'],
+      ['#sv-side .sf-h', 'Utseende', 'Look'],
+      ['#sv-cmd', 'Kommandon (sök', 'Commands (search', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Sheets in Swedish' });
+  </script>
+</body>
+</html>

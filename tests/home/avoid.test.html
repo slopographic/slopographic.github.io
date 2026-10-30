@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <title>Homepage · Sloppo keeps out of the way</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="boot.js"></script>
+  <script type="module">
+  // Covers: shared/buddy/avoid.js, shared/buddy/glide.js, shared/roam/path.js, shared/roam/spots.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const SPOT = 'slop.mascot.spot';
+  let win, S, M;
+  const ready = (async () => {
+    try { sessionStorage.removeItem(SPOT); } catch (e) { /* ignore */ }
+    win = await HomeTest.openHome();
+    S = win.SlopMascot; M = S.M;
+  })();
+  const landed = () => waitFor(() => M.mode === 'perched' || M.mode === 'float', { timeout: 8000 });
+  const quiet = () => { M.nextIdle = performance.now() + 1e6; };
+  /** His DOM box follows the model on the next frames: wait two before reading it. */
+  const frames = () => new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(r)));
+  const center = () => { const r = M.hit.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, r }; };
+  const inBox = (r, x, y) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  const mouse = (type, x, y, extra = {}) => win.document.dispatchEvent(new win.PointerEvent(type, { pointerId: 1, pointerType: 'mouse', clientX: x, clientY: y, bubbles: true, ...extra }));
+  const tap = (x, y, pointerType = 'touch') => {
+    const o = { pointerId: 5, pointerType, button: 0, clientX: x, clientY: y, bubbles: true };
+    M.hit.dispatchEvent(new win.PointerEvent('pointerdown', o));
+    M.hit.dispatchEvent(new win.PointerEvent('pointerup', o));
+  };
+  const controlsAt = (x, y) => win.document.elementsFromPoint(x, y)
+    .filter((el) => !el.closest('.sloppo-layer, .sloppo-hud, .buddy-toggle'))
+    .some((el) => el.closest('a[href], button, input, select, textarea, [role=button]'));
+
+  describe('keeping out of the way', () => {
+    it('moving the pointer onto Sloppo makes him glide to a free spot nearby', async () => {
+      await ready;
+      await landed();
+      quiet();
+      await frames();
+      const from = { x: M.x, y: M.y };
+      const c = center();
+      mouse('pointermove', c.x, c.y);
+      expect(M.mode).toBe('glide');
+      const g = M.glide;
+      mouse('pointermove', c.x, c.y);            // more moves over the old spot: still one approach
+      expect(M.glide).toBe(g);
+      await waitFor(() => M.mode === 'float', { timeout: 3000 });
+      quiet();                                   // no idle hop while the checks run
+      expect(Math.hypot(M.x - from.x, M.y - from.y)).toBeGreaterThan(60);
+      const b = M.hit.getBoundingClientRect();
+      expect(b.left >= 0 && b.right <= win.innerWidth && b.top >= 0 && b.bottom <= win.innerHeight).toBe(true);
+      expect(inBox(b, c.x, c.y)).toBe(false);
+      expect(controlsAt(b.left + b.width / 2, b.top + b.height / 2)).toBe(false);
+    });
+    it('remembers the spot for this page (sessionStorage), and a reload brings him back to it', async () => {
+      const saved = JSON.parse(sessionStorage.getItem(SPOT))[win.location.pathname];
+      expect(saved).toEqual({ x: Math.round(M.x), y: Math.round(M.y) });
+      win = await HomeTest.openHome({ fresh: false });
+      S = win.SlopMascot; M = S.M;
+      await waitFor(() => M.mode === 'float' || M.mode === 'perched', { timeout: 8000 });
+      expect(M.mode).toBe('float');
+      expect(Math.abs(M.x - saved.x) <= 1 && Math.abs(M.y - saved.y) <= 1).toBe(true);
+    });
+    it('the scrolling strip of app links counts as controls all over, gaps too: a spot free now is under a link a moment later', async () => {
+      const strip = win.document.querySelector('.hx-marquee');
+      expect(strip.hasAttribute('data-controls')).toBe(true);
+      const A = await win.eval('import(new URL("shared/buddy/avoid.js", document.baseURI).href)');   // the page's own module instance
+      win.scrollTo(0, Math.max(0, strip.getBoundingClientRect().top + win.scrollY - win.innerHeight / 2));
+      await frames();
+      const him = M.hit.getBoundingClientRect(), W = win.innerWidth;
+      // a label well inside the window and away from him (the strip keeps moving: read and probe in the same task)
+      const li = [...strip.querySelectorAll('.mq-list li')].find((n) => { const g = n.getBoundingClientRect(); return g.left > 80 && g.right < W - 80 && (g.right < him.left || g.left > him.right); });
+      expect(!!li).toBe(true);
+      const g = li.getBoundingClientRect(), a = li.querySelector('a').getBoundingClientRect();
+      const x = (a.right + g.right) / 2, y = g.top + g.height / 2;   // the dot after the label (li::after), no link there
+      expect(win.document.elementFromPoint(x, y).closest('a')).toBe(null);
+      expect(A.controlAt(x, y)).toBe(true);
+      win.scrollTo(0, 0);
+    });
+    it('a click in blank space, away from any control, reacts (pet: love, hearts, XP)', async () => {
+      await ready;
+      await landed();
+      quiet();
+      await frames();
+      mouse('pointermove', 4, 4);                // the pointer is away: the next press is a plain click
+      const xp = S.xp;
+      const c = center();
+      expect(controlsAt(c.x, c.y)).toBe(false);
+      tap(c.x, c.y, 'mouse');
+      expect(M.mood).toBe('love');
+      expect(S.xp).toBe(xp + 1);
+    });
+    it('a control under him is never clicked through him: the pointer passes to it', async () => {
+      await landed();
+      quiet();
+      await frames();
+      const cover = win.document.createElement('button');
+      cover.id = 'avoid-cover';
+      cover.type = 'button';
+      cover.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;opacity:0;z-index:2147483600;border:0;padding:0';
+      win.document.body.append(cover);
+      const c = center(), mode = M.mode, x0 = M.x;
+      mouse('pointermove', c.x, c.y);            // no free spot anywhere: he stays put
+      expect(M.mode).toBe(mode);
+      expect(M.x).toBe(x0);
+      expect(M.hit.style.pointerEvents).toBe('none');
+      expect(win.document.elementFromPoint(c.x, c.y).id).toBe('avoid-cover');
+      mouse('pointermove', 4, 4);                // leaving him gives his hit box back
+      expect(M.hit.style.pointerEvents).toBe('');
+      cover.remove();
+    });
+    it('touch never moves him, and a tap reacts', async () => {
+      await landed();
+      quiet();
+      await frames();
+      const c = center(), mode = M.mode, x0 = M.x, y0 = M.y;
+      win.document.dispatchEvent(new win.PointerEvent('pointermove', { pointerId: 5, pointerType: 'touch', clientX: c.x, clientY: c.y, bubbles: true }));
+      await sleep(400);
+      expect(M.mode).toBe(mode);
+      expect(M.x).toBe(x0);
+      expect(M.y).toBe(y0);
+      tap(c.x, c.y, 'touch');
+      expect(M.mood).toBe('love');
+    });
+  });
+
+  ready.then(() => sleep(100)).then(() => run());
+  </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>AI Tools · Whisper engine: cached decoding with the merged decoder, the plain one, segments</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/speech-models.js"></script>
+  <script src="../../aitools/model-registry.js"></script>
+  <script src="../../aitools/workers/whisper-logits.js"></script>
+  <script src="../../aitools/workers/whisper-quality.js"></script>
+  <script src="../../aitools/workers/whisper-decode.js"></script>
+  <script src="../../aitools/workers/whisper-longform.js"></script>
+  <script src="../../aitools/workers/speech-engine.js"></script>
+  <script>
+  // Covers: aitools/workers/speech-engine.js, aitools/workers/infer.worker.js, aitools/model-registry.js, aitools/workers/whisper-longform.js
+  // A fake runtime and scripted decoders: the real model is a download the tests do not make. The script says which token
+  // each pass makes most likely; the checks are on what the engine feeds the decoder.
+  const { describe, it, expect, run } = SlopTest;
+  const V = 51865, EOT = 50257, SOT = 50258, EN = 50259, TR = 50359, NOTS = 50363, TS0 = NOTS + 1, HELLO = 100;
+  class Tensor { constructor(type, data, dims) { this.type = type; this.data = data; this.dims = dims; } }
+  window.SlopAIOrt = { get: async () => ({ Tensor }) };
+  const vocab = []; vocab[EOT] = '<|endoftext|>'; vocab[HELLO] = 'Hello';
+  const added = { '<|startoftranscript|>': SOT, '<|en|>': EN, '<|transcribe|>': TR, '<|notimestamps|>': NOTS };
+  const SCRIPT = [TS0, HELLO, TS0 + 50, EOT];   // <|0.00|> Hello <|1.00|> end
+  const logits = (len, tok) => { const d = new Float32Array(len * V); d[(len - 1) * V + tok] = 10; return new Tensor('float32', d, [1, len, V]); };
+  const encoder = { inputNames: ['input_features'], outputNames: ['last_hidden_state'], run: async () => ({ last_hidden_state: new Tensor('float32', new Float32Array(1), [1, 1500, 384]) }) };
+  function merged() {
+    const calls = [];
+    const ENC_KV = new Tensor('float32', new Float32Array(1), [1, 6, 1500, 64]);
+    return { calls, ENC_KV, inputNames: ['input_ids', 'encoder_hidden_states', 'past_key_values.0.decoder.key', 'past_key_values.0.encoder.key', 'use_cache_branch'],
+      outputNames: ['logits', 'present.0.decoder.key', 'present.0.encoder.key'],
+      run: async (f) => {
+        const len = f.input_ids.dims[1], cached = f.use_cache_branch.data[0] === 1;
+        calls.push({ len, cached, encPast: f['past_key_values.0.encoder.key'] });
+        const tok = SCRIPT[calls.length - 1];
+        // a cached pass returns the encoder keys empty, as the real merged export does
+        return { logits: logits(len, tok), 'present.0.decoder.key': new Tensor('float32', new Float32Array(1), [1, 6, calls.length + 2, 64]),
+          'present.0.encoder.key': cached ? new Tensor('float32', new Float32Array(0), [1, 6, 0, 64]) : ENC_KV };
+      } };
+  }
+  function plain() {
+    const calls = [];
+    return { calls, inputNames: ['input_ids', 'encoder_hidden_states'], outputNames: ['logits'],
+      run: async (f) => { const len = f.input_ids.dims[1]; calls.push(len); return { logits: logits(len, SCRIPT[calls.length - 1]) }; } };
+  }
+  const samples = new Float32Array(16000 * 2);
+
+  describe('Whisper engine', () => {
+    it('merged decoder: the prompt once, then one token per pass with the cache; the encoder keys stay from the first pass', async () => {
+      const d = merged();
+      const r = await SlopAISpeech.transcribe({ encoder, decoder: d, vocab, added }, samples, { language: 'en' }, () => {});
+      expect(r.segments).toEqual([{ start: 0, end: 1, text: 'Hello' }]);
+      expect(r.language).toBe('en');
+      expect(d.calls.map((c) => [c.len, c.cached])).toEqual([[3, false], [1, true], [1, true], [1, true]]);
+      expect(d.calls.slice(1).every((c) => c.encPast === d.ENC_KV)).toBe(true);
+      expect(d.calls[0].encPast.dims).toEqual([1, 6, 1, 64]);   // a placeholder: the web runtime refuses an empty cache
+    });
+    it('plain decoder (an older install): reruns on the growing token list and gives the same text', async () => {
+      const d = plain();
+      const r = await SlopAISpeech.transcribe({ encoder, decoder: d, vocab, added }, samples, { language: 'en' }, () => {});
+      expect(r.segments).toEqual([{ start: 0, end: 1, text: 'Hello' }]);
+      expect(d.calls).toEqual([3, 4, 5, 6]);
+    });
+    it('the registry downloads the merged decoder (its cache makes decoding several times faster)', () => {
+      const names = window.SlopAIModels.byId('whisper-tiny').files.map((f) => f.name);
+      expect(names).toContain('decoder_model_merged_quantized.onnx');
+      expect(names).not.toContain('decoder_model_quantized.onnx');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

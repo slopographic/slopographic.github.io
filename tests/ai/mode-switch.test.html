@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: the permission mode switch by the message box</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // The owner could not find the permission switch: it was only under the model menu → "AI permissions…". Now the mode
+  // shows by the message box and switches in two clicks, as Claude Code's permission mode does; "Allow everything" shows
+  // its warning first. The modes are permissions.js's (MODES), the switch permissions-ui.js's (modeControl).
+  // Covers: shared/ai/permissions.js, shared/ai/permissions-ui.js, shared/ai/panel.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let P;
+  const q = (s) => P.document.querySelector(s);
+  const dialog = () => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const choose = (sel, v) => { sel.value = v; sel.dispatchEvent(new P.Event('change')); };
+  async function frame(width) {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.permissions/.test(k)) localStorage.removeItem(k);
+    P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width, height: 760 });
+    P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+    return waitFor(() => q('.sap-bar .sap-mode'), { timeout: 15000 });
+  }
+
+  describe('the mode switch', () => {
+    it('shows the mode with the short names from MODES; a switch is saved for the device; the settings follow it', async () => {
+      const sel = await frame(900), Pm = P.SlopAIPermissions;
+      expect([...sel.options].map((o) => o.value)).toEqual(Pm.MODES.map((m) => m.id));
+      expect([...sel.options].map((o) => o.textContent)).toEqual(['Ask each time', 'Allow app changes', 'Allow everything']);
+      expect(sel.value).toBe('ask');
+      expect(sel.getAttribute('aria-label')).toBe('AI permissions');
+      choose(sel, 'changes');
+      await waitFor(() => Pm.mode() === 'changes');
+      expect(JSON.parse(localStorage.getItem('slop-ai.permissions')).mode).toBe('changes');
+      expect(dialog()).toBe(null);
+      // a switch made in the settings shows here at once
+      Pm.setMode('ask');
+      expect(sel.value).toBe('ask');
+    }, { timeout: 60000 });
+
+    it('"Allow everything" shows its warning first: Cancel keeps the mode, Allow switches', async () => {
+      const sel = await frame(900), Pm = P.SlopAIPermissions, all = Pm.MODES.find((m) => m.id === 'all');
+      choose(sel, 'all');
+      let d = await waitFor(dialog);
+      expect(d.textContent).toContain(all.warning);
+      [...d.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      await waitFor(() => !dialog());
+      expect([Pm.mode(), sel.value]).toEqual(['ask', 'ask']);
+      choose(sel, 'all');
+      d = await waitFor(dialog);
+      [...d.querySelectorAll('button')].find((b) => b.textContent === 'Allow everything').click();
+      await waitFor(() => Pm.mode() === 'all');
+      expect(sel.value).toBe('all');
+      expect(sel.classList.contains('all')).toBe(true);
+      Pm.setMode('ask');
+    }, { timeout: 60000 });
+
+    it('fits a phone (390 px): on the panel, beside Control and the message box', async () => {
+      const sel = await frame(390);
+      await sleep(300);
+      const r = sel.getBoundingClientRect(), panel = q('.sap').getBoundingClientRect();
+      expect(r.width > 0 && r.left >= panel.left - 0.5 && r.right <= Math.min(panel.right, 390) + 0.5).toBe(true);
+      expect(P.document.documentElement.scrollWidth <= 390).toBe(true);
+      expect(r.bottom <= q('.sap-comp').getBoundingClientRect().top + 1).toBe(true);   // just above the message box
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop AI · permission mode switch' });
+  </script>
+</body>
+</html>

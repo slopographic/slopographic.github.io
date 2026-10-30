@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PhotoSlop: the look (top bar at 1440, 1024 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: photoslop/css/layout.css, photoslop/css/extras.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's buttons, Drive and View are in the top bar. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../photoslop/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.body && D.body.classList.contains('ready') && D.querySelector('.topbar .sh-switch') && D.querySelector('.topbar .sdl') && D.querySelector('.topbar .slopvm-btn'); }, { timeout: 40000 });
+    await sleep(400);   // shared/ui/hbtn.js settles the labels on the next frame
+    return f;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+
+  describe('PhotoSlop: the look', () => {
+    for (const w of [1440, 1024]) {
+      it(`at ${w}px the menus are whole, nothing passes the right edge, and the shared buttons match New`, async () => {
+        const f = await open(w), D = f.contentDocument;
+        const bar = D.querySelector('.topbar'), menu = D.getElementById('menubar');
+        expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth);
+        expect(menu.scrollWidth).toBeLessThanOrEqual(menu.clientWidth + 1);   // no menu hidden under the buttons
+        for (const n of visible(D, '.topbar a, .topbar button')) expect(n.getBoundingClientRect().right).toBeLessThanOrEqual(w + 0.5);
+        const own = D.getElementById('newBtn').getBoundingClientRect();
+        for (const n of visible(D, '.topbar .slop-hbtn')) {
+          const r = n.getBoundingClientRect();
+          expect(r.height).toBe(own.height);
+          expect(r.top).toBe(own.top);
+        }
+        f.remove();
+      }, { timeout: 60000 });
+    }
+
+    it('at 390px the bar takes two rows: the menus, then every button inside the window', async () => {
+      const f = await open(390), D = f.contentDocument;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const menu = D.getElementById('menubar').getBoundingClientRect();
+      expect(menu.width).toBeGreaterThan(200);
+      for (const n of visible(D, '.topbar .top-btn, .topbar .slop-hbtn')) {
+        const r = n.getBoundingClientRect();
+        expect(r.right).toBeLessThanOrEqual(390.5);
+        expect(r.top).toBeGreaterThanOrEqual(menu.bottom - 1);
+      }
+      expect(D.getElementById('panels').getBoundingClientRect().top).toBeGreaterThanOrEqual(D.querySelector('.topbar').getBoundingClientRect().bottom - 1);
+      f.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'PhotoSlop: the look' });
+  </script>
+</body>
+</html>

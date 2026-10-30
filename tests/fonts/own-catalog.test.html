@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts: the document's own fonts in the catalogue</title>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="mock.js"></script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  describe('Fonts catalogue: your own fonts', () => {
+    it('a document font is listed as own, is the only list an app that asks for it sees, and its bytes are the file', async () => {
+      await SlopFonts.ready();
+      const C = SlopFontCatalog;
+      const bytes = new Uint8Array(await (await fetch('../pdf/fixtures/Barlow-Regular.ttf')).arrayBuffer());
+      C.setDocumentFonts([{ family: 'Gill Sans', bytes }], { only: true });
+      const list = await C.families();
+      expect(list.length).toBe(1);
+      expect(list[0].name).toBe('Gill Sans');
+      expect(list[0].source).toBe('own');
+      expect(await C.hasFamily('Inter')).toBe(false);
+      const face = (await C.faces())[0];
+      expect((await C.bytesOf(face)).byteLength).toBe(bytes.byteLength);
+      expect(C.fromDataURL(C.toDataURL(bytes)).byteLength).toBe(bytes.byteLength);
+      C.setDocumentFonts([], { only: true });
+    });
+    it('a WOFF or WOFF2 file is refused for an app, with a message that names the app and the format', async () => {
+      const C = SlopFontCatalog;
+      for (const [name, msg] of [['Gill.woff', 'WOFF fonts cannot be used in Slop Docs yet'], ['Gill.woff2', 'WOFF2 fonts cannot be used in Slop Docs yet']]) {
+        let err = null;
+        try { await C.readFontFile(new File([new Uint8Array([1, 2, 3, 4])], name), 'Slop Docs'); } catch (e) { err = e; }
+        expect(!!err && err.message.startsWith(msg)).toBe(true);
+      }
+    });
+  });
+  run({ name: 'Fonts · own fonts in the catalogue' });
+  </script>
+</body>
+</html>

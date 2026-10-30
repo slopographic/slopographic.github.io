@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · list and table views of the finder</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+
+  /* Opens the homepage in a fresh frame at the given width and records any error the page raises. */
+  async function openAt(width) {
+    const win = await HomeTest.openHome();
+    const frame = document.getElementById('home-frame');
+    frame.style.width = width + 'px';
+    win.dispatchEvent(new win.Event('resize'));
+    await sleep(120);
+    const errors = [];
+    win.addEventListener('error', (e) => errors.push('error: ' + e.message));
+    win.addEventListener('unhandledrejection', (e) => errors.push('rejection: ' + (e.reason && e.reason.message)));
+    const realErr = win.console.error;
+    win.console.error = (...a) => { errors.push('console.error: ' + a.map(String).join(' ')); realErr.apply(win.console, a); };
+    return { win, doc: win.document, frame, errors };
+  }
+  const clickView = (doc, view) => {
+    const b = doc.querySelector(`#app-finder .fd-view[data-fd-view="${view}"]`);
+    b.click();
+    return b;
+  };
+  const appsOf = (win) => win.SLOP_APPS;
+  const noOverflow = (win) => win.document.documentElement.scrollWidth <= win.document.documentElement.clientWidth + 1;
+
+  for (const width of [390, 1280]) {
+    describe(`homepage finder list and table at ${width} px`, () => {
+      it('the list shows every app with its name, section, file types and open link', async () => {
+        const { win, doc, errors } = await openAt(width);
+        const apps = appsOf(win);
+        clickView(doc, 'list');
+        expect(doc.getElementById('view-home').hidden).toBe(false);
+        expect(doc.querySelector('#app-finder .fd-view[data-fd-view="list"]').getAttribute('aria-pressed')).toBe('true');
+        const rows = [...doc.querySelectorAll('#app-finder .fd-list .fd-row')];
+        expect(rows.length).toBe(apps.length);
+        for (const row of rows) {
+          const a = apps.find((x) => x.id === row.dataset.id);
+          expect(!!a).toBe(true);
+          expect(row.querySelector('b').textContent).toBe(win.slopAppLabel(a, false));
+          expect(row.querySelector('.fd-row-sec').textContent.trim() !== '').toBe(true);
+          expect(row.querySelector('.fd-row-types').textContent.trim() !== '').toBe(true);
+          expect(row.querySelector('a.fd-row-open').getAttribute('href')).toBe(a.path);
+          expect(row.getBoundingClientRect().height > 0).toBe(true);
+        }
+        expect(noOverflow(win)).toBe(true);
+        expect(errors).toEqual([]);
+      });
+
+      it('the table shows every app in four columns: App, Section, File types, Open', async () => {
+        const { win, doc, errors } = await openAt(width);
+        const apps = appsOf(win);
+        clickView(doc, 'table');
+        expect(doc.getElementById('view-home').hidden).toBe(false);
+        const heads = [...doc.querySelectorAll('#app-finder .fd-table thead th')].map((th) => th.textContent.trim());
+        expect(heads).toEqual(['App', 'Section', 'File types', 'Open']);
+        const trs = [...doc.querySelectorAll('#app-finder .fd-table tbody tr')];
+        expect(trs.length).toBe(apps.length);
+        for (const tr of trs) {
+          const a = apps.find((x) => win.slopAppLabel(x, false) === tr.querySelector('td[data-col="name"]').textContent);
+          expect(!!a).toBe(true);
+          expect(tr.querySelector('td[data-col="section"]').textContent.trim() !== '').toBe(true);
+          expect(tr.querySelector('td[data-col="types"]').textContent.trim() !== '').toBe(true);
+          expect(tr.querySelector('td[data-col="open"] a').getAttribute('href')).toBe(a.path);
+        }
+        expect(tr_visible(doc)).toBe(true);
+        expect(noOverflow(win)).toBe(true);
+        expect(errors).toEqual([]);
+      });
+
+      it('switching back to Cards after the table and list brings the cards and shelves back', async () => {
+        const { win, doc, errors } = await openAt(width);
+        clickView(doc, 'table');
+        clickView(doc, 'list');
+        expect(doc.querySelectorAll('#app-finder .fd-row').length).toBe(appsOf(win).length);
+        clickView(doc, 'cards');
+        expect(doc.getElementById('view-home').hidden).toBe(false);
+        expect(doc.querySelectorAll('#app-sections [data-perch="card"]').length).toBeGreaterThan(0);
+        expect(errors).toEqual([]);
+      });
+    });
+  }
+
+  function tr_visible(doc) {
+    const t = doc.querySelector('#app-finder .fd-table');
+    return !!t && t.getBoundingClientRect().height > 0;
+  }
+
+  run();
+  </script>
+</body>
+</html>

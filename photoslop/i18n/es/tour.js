@@ -1,0 +1,20 @@
+/* PhotoSlop, Spanish: the guided tour (shared/tour/tours/photoslop.js). Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-es.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'photoslop.tour.title': 'Recorrido por PhotoSlop',
+  'photoslop.tour.new_title': 'Empezar un archivo',
+  'photoslop.tour.new_text': 'Nuevo define el tamaño, el preajuste y el fondo de un documento (en Más ▾ en una ventana estrecha); Abrir carga un PSD, ORA o imagen. Cada archivo tiene su pestaña.',
+  'photoslop.tour.menus_title': 'Barra de menús',
+  'photoslop.tour.menus_text': 'Archivo, Editar, Imagen, Capa, Selección y Filtro están aquí. Cada menú lista sus comandos.',
+  'photoslop.tour.tools_title': 'Herramientas',
+  'photoslop.tour.tools_text': 'Los pinceles, la selección, el texto y el recorte están en la caja de herramientas. Elige una y ajústala en la barra de opciones.',
+  'photoslop.tour.options_title': 'Opciones de herramienta',
+  'photoslop.tour.options_text': 'La barra de opciones cambia con la herramienta activa: tamaño, opacidad, modo de fusión y más.',
+  'photoslop.tour.canvas_title': 'El lienzo',
+  'photoslop.tour.canvas_text': 'Pinta, selecciona y transforma en el lienzo. La barra de estado muestra el zoom y el tamaño.',
+  'photoslop.tour.panels_title': 'Capas y paneles',
+  'photoslop.tour.panels_text': 'Capas, historial y propiedades están en esta columna. En el móvil, el botón Capas los muestra.',
+  'photoslop.tour.export_title': 'Exportar',
+  'photoslop.tour.export_text': 'Exporta PNG, JPEG, WebP o PSD. El archivo se crea en tu dispositivo; no se sube nada.',
+  'photoslop.tour.theme_title': 'Tema',
+  'photoslop.tour.theme_text': 'Cambia entre Pro, Claro y Paint ’98.',
+});

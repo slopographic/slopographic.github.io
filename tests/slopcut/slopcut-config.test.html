@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut config import</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let f = document.getElementById('app');
+  /** Load SlopCut in a fresh iframe (each test starts from an untouched app) and wait until it is ready. */
+  async function open() {
+    const next = document.createElement('iframe');
+    next.id = 'app';
+    next.src = '../../slopcut/index.html';
+    f.replaceWith(next);
+    f = next;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname.endsWith('/slopcut/index.html') && f.contentWindow.document.readyState === 'complete' &&
+      f.contentWindow.document.body.classList.contains('ready') && f.contentWindow.SE && f.contentWindow.SE.configMap, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  /** A config that names two files the bin does not hold, on two tracks. */
+  const CONFIG = {
+    format: 'slop-config', version: 1, kind: 'project', app: 'slopedit', name: 'Browser import', created: '2026-10-11T09:00:00Z',
+    data: {
+      dims: { width: 320, height: 180, fps: 10 },
+      tracks: [
+        { name: 'V1', kind: 'video', clips: [{ kind: 'video', name: 'Intro', file: { name: 'intro.mp4', size: 1234 }, start: 0, in: 0, out: 3, position: { x: 0, y: 0 }, scale: 1, rotation: 0, opacity: 1 }] },
+        { name: 'A1', kind: 'audio', clips: [{ kind: 'audio', file: { name: 'music.wav', size: 5678 }, start: 0, in: 0, out: 3, gain: 0.5, position: { x: 0, y: 0 } }] },
+      ],
+    },
+  };
+
+  /** A drop of a file on the page, the way a person drops one from the desktop. */
+  function dropFile(W, name, text) {
+    const dt = new W.DataTransfer();
+    dt.items.add(new W.File([text], name, { type: 'application/json' }));
+    W.document.body.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  }
+
+  describe('SlopCut config import', () => {
+    it('a config dropped on the page lists its clips as missing media, and the timeline is there', async () => {
+      const W = await open();
+      dropFile(W, 'browser.slop.json', JSON.stringify(CONFIG));
+      await waitFor(() => W.SE.doc.clips.length === 2, { timeout: 10000 });
+      expect(W.SE.doc.w).toBe(320);
+      expect(W.SE.doc.tracks.map((t) => t.name)).toEqual(['V1', 'A1']);
+      const names = W.SE.doc.media.map((m) => m.name).sort();
+      expect(names).toEqual(['intro.mp4', 'music.wav']);
+      for (const m of W.SE.doc.media) expect(W.SE.media.get(m.id).status).toBe('missing');
+      await waitFor(() => W.document.querySelectorAll('.bi-err').length >= 2, { timeout: 5000 });
+      const bin = W.document.getElementById('bin').textContent;
+      expect(bin.includes('intro.mp4')).toBeTruthy();
+      expect(bin.includes('music.wav')).toBeTruthy();
+    });
+
+    it('a config that does not match the format is refused, and the timeline does not change', async () => {
+      const W = await open();
+      const before = W.SE.doc.clips.length;
+      const bad = JSON.parse(JSON.stringify(CONFIG));
+      bad.version = 2;
+      dropFile(W, 'bad.slop.json', JSON.stringify(bad));
+      await sleep(600);
+      expect(W.SE.doc.clips.length).toBe(before);
+      const res = await W.SlopConfig.importText(JSON.stringify(bad), { app: 'slopedit' });
+      expect(res.ok).toBe(false);
+      expect(res.errors.some((e) => e.path === 'version')).toBeTruthy();
+    });
+
+    it('the Config commands are in the palette and the File menu', async () => {
+      const W = await open();
+      for (const id of ['slopedit.config.export', 'slopedit.config.template', 'slopedit.config.import', 'slopedit.config.ai']) {
+        expect(!!W.SE.cmd.get(id)).toBeTruthy();
+      }
+      expect(W.SE.config.menu().length).toBe(4);
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

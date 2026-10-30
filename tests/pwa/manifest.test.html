@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PWA · manifest</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const APPS = ['photoslop/', 'slopvector/', 'pdf/', 'label/', 'slopisolate/', 'ai/', 'docs/', 'tables/', 'slides/', 'press/', 'slopcut/', 'contacts/', 'gallery/', '3d/', 'drive/'];
+  let m = null, brand = null;
+  const text = (url) => fetch(url).then((r) => { if (!r.ok) throw new Error(url + ' answered ' + r.status); return r.text(); });
+
+  describe('manifest.webmanifest', () => {
+    it('parses and names the app', async () => {
+      m = JSON.parse(await text('/manifest.webmanifest'));
+      brand = JSON.parse(await text('/brand/brand.json'));
+      expect(m.name).toBe(brand.name);   // this site: Slopographic, short name Slop (tests/node/whitelabel-facts.test.mjs)
+      expect(m.short_name.length > 0 && m.short_name.length <= 12).toBe(true);
+      expect(m.start_url).toBe('/');
+      expect(m.scope).toBe('/');
+      expect(m.display).toBe('standalone');
+    });
+    it('uses the homepage colours', async () => {
+      const home = await text('/index.html');
+      const theme = home.match(/name="theme-color" content="([^"]+)"/)[1];
+      expect(m.theme_color).toBe(theme);
+      expect(m.background_color).toBe(brand.colors.ink);   // this site: #0a0a0a
+    });
+    it('lists icons that exist on disk, including 192 and 512 PNGs', async () => {
+      const sizes = new Set();
+      for (const icon of m.icons) {
+        const res = await fetch(icon.src);
+        if (!res.ok) throw new Error(icon.src + ' is missing (' + res.status + ')');
+        if (icon.type === 'image/png') {
+          const bmp = await createImageBitmap(await res.blob());
+          expect(`${bmp.width}x${bmp.height}`).toBe(icon.sizes);
+          sizes.add(icon.sizes);
+        }
+      }
+      expect(sizes.has('192x192')).toBe(true);
+      expect(sizes.has('512x512')).toBe(true);
+      expect(m.icons.some((i) => i.src === '/favicon.svg' && i.sizes === 'any')).toBe(true);
+    });
+    it('opens files with the apps on the shared intake (file_handlers, taken by SlopIntake.launch from launchQueue)', async () => {
+      const m = await (await fetch('/manifest.webmanifest')).json();
+      const actions = (m.file_handlers || []).map((h) => h.action);
+      for (const a of ['/pdf/', '/photoslop/', '/resize/', '/gallery/', '/convert/']) expect(actions).toContain(a);
+      for (const h of m.file_handlers) { expect(Object.keys(h.accept).length > 0).toBe(true); expect((await fetch(h.action)).ok).toBe(true); }
+    });
+    it('has the Slop Drive shortcut and it opens', async () => {
+      const s = m.shortcuts.find((x) => x.url === '/drive/');
+      expect(!!s).toBe(true);
+      expect(s.name).toBe('Slop Drive');
+      expect((await fetch('/drive/')).ok).toBe(true);
+    });
+  });
+
+  describe('pages link the manifest and load the PWA glue', () => {
+    for (const p of ['', ...APPS]) {
+      it(`/${p}index.html`, async () => {
+        const html = await text(`/${p}index.html`);
+        expect(html).toContain('rel="manifest" href="/manifest.webmanifest"');
+        expect(html).toContain('shared/pwa.js');
+        expect(html).toMatch(/SlopPWA\.mount\(/);
+      });
+    }
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

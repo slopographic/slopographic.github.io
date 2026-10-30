@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: HEIC photos, spreadsheets, JSON, YAML, TOML, XML, subtitles, text to PDF and Word, AVIF</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script type="module">
+  // Covers: convert/js/core/heic.js, shared/heic/engine.js, shared/heic/worker.js, convert/js/core/data-more.js, convert/js/core/media-more.js
+  // Covers: convert/js/core/doc-out.js, convert/js/core/keywords.js, convert/js/core/more-pages.js, convert/js/core/data-pages.js, convert/js/core/detect.js
+  // Covers: convert/js/core/catalog.js, convert/js/core/image.js, convert/js/preview/model.js, convert/js/preview/spec.js, shared/seo/convert-copy.mjs
+  // tiny.heic (tests/convert/fixtures, CC0) goes through the real HEIC decoder from the pinned cdn commit, after its notice.
+  import { detectKind, KIND_LABEL } from '../../convert/js/core/detect.js';
+  import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+  import { canEncode } from '../../convert/js/core/image.js';
+  import { PAGES } from '../../convert/js/core/pages.js';
+  import { CONVERT_PAGES } from '../../shared/seo/convert-copy.mjs';
+  // the English page: a build whose root language is another has it under /en/ (shared/seo/HANDOFF.md, "Languages")
+  const EN_DIR = window.BRAND_FACTS && window.BRAND_FACTS.defaultLang !== 'en' ? 'en/' : '';
+  // a build that is not indexed (seo.index) and starts in another language has no English copies of the pages
+  const EN_PAGES = !(EN_DIR && window.BRAND_FACTS && !window.BRAND_FACTS.seoIndex);
+  import { buildPreview } from '../../convert/js/preview/model.js';
+  import { readZip } from '../../shared/office/zip.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+  const ids = (kind) => conversionsFor([kind]).map((c) => c.id);
+  const run = (id, file, kind, o = {}) => conv(id).run([{ name: file.name, file, kind }], o);
+  const dialog = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const press = (label) => [...dialog().querySelectorAll('button')].find((b) => b.textContent === label).click();
+  const head = async (f) => new Uint8Array(await f.slice(0, 512).arrayBuffer());
+  const heic = async () => new File([await (await fetch('fixtures/tiny.heic')).arrayBuffer()], 'IMG_0001.HEIC');
+  const text = (body, name, type = 'text/plain') => new File([body], name, { type });
+  try { localStorage.removeItem('slop-firstrun:heic-engine'); } catch (e) { /* none */ }
+
+  describe('detection and menus: each new kind gets only its own formats', () => {
+    it('HEIC, YAML, TOML, SRT, VTT (also by content), ODS and old XLS are told apart', async () => {
+      expect(detectKind('IMG_0001.HEIC', '', await head(await heic()))).toBe('heic');
+      expect(['a.yml', 'a.toml', 'a.srt', 'a.vtt', 'a.ods', 'a.xls'].map((n) => detectKind(n, '', null))).toEqual(['yaml', 'toml', 'srt', 'vtt', 'ods', 'xls']);
+      const enc = (s) => new TextEncoder().encode(s);
+      expect(detectKind('subs.txt', '', enc('WEBVTT\n\n00:01.000 --> 00:02.000\nHi\n'))).toBe('vtt');
+      expect(detectKind('subs.txt', '', enc('1\n00:00:01,000 --> 00:00:02,000\nHi\n'))).toBe('srt');
+      expect([KIND_LABEL.heic, KIND_LABEL.xls]).toEqual(['HEIC photo', 'Excel 97-2003 (XLS)']);
+    });
+    it('the catalog offers each conversion only for files it fits', () => {
+      expect(ids('heic').filter((i) => !conv(i).from.includes('*'))).toEqual(['heic-to-jpg', 'heic-to-png', 'heic-to-webp']);
+      expect(ids('png').includes('heic-to-jpg')).toBe(false);
+      expect(ids('xlsx')[0]).toBe('xlsx-to-csv');   // the default for a workbook
+      expect(ids('ods').includes('ods-to-xlsx') && !ids('xlsx').includes('ods-to-xlsx')).toBe(true);
+      expect(['json-to-yaml', 'json-to-toml', 'json-to-xml', 'json-format', 'json-to-xlsx'].every((i) => ids('json').includes(i))).toBe(true);
+      expect(ids('yaml').includes('yaml-to-json') && ids('toml').includes('toml-to-json')).toBe(true);
+      expect(ids('srt').includes('srt-to-vtt') && ids('vtt').includes('vtt-to-srt') && !ids('srt').includes('vtt-to-srt')).toBe(true);
+      expect(ids('md').includes('md-to-pdf') && ids('md').includes('md-to-docx') && ids('txt').includes('txt-to-pdf')).toBe(true);
+      expect(['to-ogg', 'to-opus', 'to-flac', 'to-m4a'].every((i) => ids('mp3').includes(i))).toBe(true);
+      expect(ids('flac').includes('to-flac') || ids('m4a').includes('to-m4a')).toBe(false);
+      expect(ids('gif').includes('gif-to-mp4')).toBe(true);
+      expect(ids('xls')).toEqual(['base64-encode', 'zip-files']);   // nothing of its own: the note says so
+      expect(ids('png').includes('to-avif')).toBe(canEncode('image/avif'));   // AVIF only where this browser writes it
+      expect(conv('to-jpg').keywords).toContain('jpeg');
+    });
+    it('the pair pages exist with their tool, and their head copy is the page copy', async () => {
+      for (const slug of ['heic-to-jpg', 'xlsx-to-csv', 'json-to-yaml', 'srt-to-vtt', 'markdown-to-pdf', 'wav-to-mp3']) {
+        const p = PAGES.find((x) => x.slug === slug);
+        expect(CONVERT_PAGES[`convert/${slug}`].title).toBe(p.title);
+        const html = EN_PAGES ? await (await fetch(`../../${EN_DIR}convert/${slug}/`)).text() : '';
+        if (EN_PAGES) expect(html).toContain(`data-preset="${p.conv}"`);
+        if (EN_PAGES) expect(html).toContain(`<title>${p.title}</title>`);
+        for (const k of p.from) expect(conv(p.conv).from).toContain(k);
+      }
+    });
+  });
+
+  describe('HEIC photos', () => {
+    it('the preview asks nothing and downloads nothing', async () => {
+      await (await import('../../convert/js/core/heic.js')).decodeHeic(new File([new Uint8Array(4)], 'x'), { ask: false }).catch(() => {});
+      await window.SlopHeicEngine.forget();
+      const f = await heic();
+      const pv = await buildPreview(conv('heic-to-jpg'), [{ name: f.name, file: f, kind: 'heic', size: f.size }], {});
+      expect(dialog()).toBe(null);
+      expect(pv.after.kind === 'error' ? pv.after.message : 'the browser read it').toMatch(/Convert asks|the browser read it/);
+    }, { timeout: 30000 });
+    it('declining the decoder converts nothing and says why', async () => {
+      const r = run('heic-to-jpg', await heic(), 'heic');
+      await waitFor(dialog, { timeout: 15000 });
+      expect(dialog().textContent).toContain('HEIC photo decoder');
+      press('Cancel');
+      let msg = '';
+      try { await r; } catch (e) { msg = e.message; }
+      expect(msg).toContain('was not downloaded');
+    }, { timeout: 30000 });
+    it('a real HEIC to JPG and PNG through the decoder: the size, and red on the left, blue on the right', async () => {
+      const r = run('heic-to-png', await heic(), 'heic');
+      await waitFor(dialog, { timeout: 15000 }); press('Continue');
+      const [png] = await r;
+      expect(png.name).toBe('IMG_0001.png');
+      const bmp = await createImageBitmap(png.blob);
+      expect([bmp.width, bmp.height]).toEqual([64, 48]);
+      const c = new OffscreenCanvas(64, 48), g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+      const [l, rgt] = [g.getImageData(8, 24, 1, 1).data, g.getImageData(56, 24, 1, 1).data];
+      expect(l[0] > 200 && l[2] < 90 && rgt[2] > 200 && rgt[0] < 90).toBe(true);
+      const [jpg] = await run('heic-to-jpg', await heic(), 'heic', { width: 32, quality: 80 });   // installed now: no question
+      expect(dialog()).toBe(null);
+      expect([jpg.blob.type, (await createImageBitmap(jpg.blob)).width]).toEqual(['image/jpeg', 32]);
+    }, { timeout: 90000 });
+  });
+
+  describe('data, subtitles and documents through the catalog', () => {
+    it('JSON to XLSX to CSV, and JSON to YAML, TOML and XML', async () => {
+      const json = text('[{"Name":"Goo","Price":4.5},{"Name":"Åsa","Price":7}]', 'p.json');
+      const [x] = await run('json-to-xlsx', json, 'json');
+      const [csv] = await run('xlsx-to-csv', new File([x.blob], 'p.xlsx'), 'xlsx', { bom: false });
+      expect(await csv.blob.text()).toBe('Name,Price\r\nGoo,4.5\r\nÅsa,7\r\n');
+      expect(await (await run('json-to-yaml', json, 'json'))[0].blob.text()).toContain('- Name: Goo');
+      const t = await run('json-to-toml', text('{"a":null,"b":1}', 'c.json'), 'json');
+      expect([await t[0].blob.text(), t.info]).toEqual(['b = 1\n\n', '1 empty (null) value was left out: TOML has no null.']);
+      expect((await (await run('json-to-xml', json, 'json', { root: 'prices' }))[0].blob.text())).toContain('<prices>\n  <item>\n    <Name>Goo</Name>');
+    });
+    it('SRT to VTT with a shift, and the shift on its own keeps the format', async () => {
+      const srt = text('1\n00:00:01,000 --> 00:00:02,000\nHi\n', 'a.srt');
+      const [v] = await run('srt-to-vtt', srt, 'srt', { shift: 1.5 });
+      expect([v.name, await v.blob.text()]).toEqual(['a.vtt', 'WEBVTT\n\n00:00:02.500 --> 00:00:03.500\nHi\n']);
+      const [s] = await run('subs-shift', srt, 'srt', { shift: -0.5 });
+      expect([s.name, (await s.blob.text()).split('\n')[1]]).toEqual(['a-shifted.srt', '00:00:00,500 --> 00:00:01,500']);
+    });
+    it('Markdown to PDF and DOCX with the Slop Docs engine: real pages, Word headings and lists', async () => {
+      const md = text('# Notes\n\nSome **bold** text with åäö.\n\n- one\n- two\n', 'notes.md');
+      const [pdf] = await run('md-to-pdf', md, 'md', { page: 'letter' });
+      const bytes = new Uint8Array(await pdf.blob.arrayBuffer());
+      const doc = await window.PDFLib.PDFDocument.load(bytes);   // pdf-lib, loaded by the engine
+      const { width, height } = doc.getPage(0).getSize();
+      expect([pdf.name, new TextDecoder().decode(bytes.subarray(0, 5)), doc.getPageCount(), Math.round(width), Math.round(height)]).toEqual(['notes.pdf', '%PDF-', 1, 612, 792]);   // US Letter
+      const [docx] = await run('md-to-docx', md, 'md');
+      const xml = new TextDecoder().decode((await readZip(new Uint8Array(await docx.blob.arrayBuffer()))).get('word/document.xml'));
+      expect(xml).toContain('w:val="Heading1"');
+      expect(xml).toContain('w:numPr');
+      expect(xml).toContain('åäö');
+      const [t] = await run('txt-to-pdf', text('plain line\nsecond', 'a.txt'), 'txt');
+      expect((await t.blob.slice(0, 5).text())).toBe('%PDF-');
+    }, { timeout: 60000 });
+    it('Arabic text to PDF: the Arabic font is asked for, downloaded and embedded, and the page draws', async () => {
+      const r = run('txt-to-pdf', text('مرحبا بالعالم\nHello', 'ar.txt'), 'txt', { font: 'sans' });
+      await waitFor(() => dialog() && /font for this language/.test(dialog().textContent), { timeout: 20000 });
+      [...dialog().querySelectorAll('button')].find((b) => /^Download/.test(b.textContent)).click();
+      const out = await r;
+      expect(out.info).toBe(undefined);   // no 'characters may show as boxes'
+      expect(!!(await window.SlopLibraryInstall.installed())['noto-arabic']).toBe(true);
+      const { pdfToImages } = await import('../../convert/js/core/pdf-raster.js');
+      expect(out[0].blob.size > 5000).toBe(true);   // the Arabic face subset is embedded
+      expect((await pdfToImages(new Uint8Array(await out[0].blob.arrayBuffer()), { pages: '1', scale: 1, format: 'png' })).length).toBe(1);
+    }, { timeout: 120000 });
+  });
+  SlopTest.run({ name: 'File convert: more conversions' });
+  </script>
+</body>
+</html>

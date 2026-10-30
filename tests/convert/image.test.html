@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: image conversions</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import { convertImage, imageForPdf, jpegOrientation, canvasToBlob, makeCanvas } from '../../convert/js/core/image.js';
+import { encodeBmp } from '../../convert/js/core/bmp.js';
+import { encodeIco } from '../../convert/js/core/ico.js';
+import { detectKind } from '../../convert/js/core/detect.js';
+const { describe, it, expect } = SlopTest;
+
+/** A 40x30 PNG: left half opaque red, right half fully transparent. */
+async function halfTransparentPng() {
+  const c = makeCanvas(40, 30), x = c.getContext('2d');
+  x.fillStyle = '#ff0000'; x.fillRect(0, 0, 20, 30);
+  return canvasToBlob(c, 'image/png');
+}
+const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
+const near = (px, rgb, tol = 48) => px.slice(0, 3).every((v, i) => Math.abs(v - rgb[i]) <= tol);
+async function drawn(blob) {
+  const bmp = await createImageBitmap(blob);
+  const c = makeCanvas(bmp.width, bmp.height), x = c.getContext('2d');
+  x.drawImage(bmp, 0, 0);
+  return { c, w: bmp.width, h: bmp.height };
+}
+
+describe('PNG to JPG', () => {
+  it('produces a JPEG of the same size', async () => {
+    const out = await convertImage(await halfTransparentPng(), { kind: 'png', to: 'jpg', quality: 0.9, background: '#00ff00' });
+    expect(out.blob.type).toBe('image/jpeg');
+    const b = await bytesOf(out.blob);
+    expect([b[0], b[1], b[2]]).toEqual([0xff, 0xd8, 0xff]);
+    expect(out.ext).toBe('jpg');
+    const d = await drawn(out.blob);
+    expect(d.w).toBe(40);
+    expect(d.h).toBe(30);
+  });
+  it('fills transparent areas with the chosen background colour', async () => {
+    const out = await convertImage(await halfTransparentPng(), { kind: 'png', to: 'jpg', quality: 0.9, background: '#00ff00' });
+    const d = await drawn(out.blob);
+    expect(near(SlopTest.pixel(d.c, 5, 15), [255, 0, 0])).toBeTruthy();
+    expect(near(SlopTest.pixel(d.c, 35, 15), [0, 255, 0])).toBeTruthy();
+  });
+  it('resizes keeping the proportions when only the width is given', async () => {
+    const out = await convertImage(await halfTransparentPng(), { kind: 'png', to: 'jpg', width: 20, quality: 0.9 });
+    expect(out.width).toBe(20);
+    expect(out.height).toBe(15);
+  });
+});
+
+describe('other raster outputs', () => {
+  it('writes a 24-bit BMP with the right header and size', async () => {
+    const out = await convertImage(await halfTransparentPng(), { kind: 'png', to: 'bmp', background: '#ffffff' });
+    const b = await bytesOf(out.blob);
+    expect(String.fromCharCode(b[0], b[1])).toBe('BM');
+    const dv = new DataView(b.buffer);
+    expect(dv.getInt32(18, true)).toBe(40);
+    expect(dv.getInt32(22, true)).toBe(30);
+    expect(dv.getUint16(28, true)).toBe(24);
+    expect(b.length).toBe(54 + 40 * 3 * 30);
+  });
+  it('writes an ICO with one entry at the chosen size', async () => {
+    const out = await convertImage(await halfTransparentPng(), { kind: 'png', to: 'ico', icoSize: 32 });
+    const b = await bytesOf(out.blob);
+    expect([b[0], b[1], b[2], b[3]]).toEqual([0, 0, 1, 0]);
+    expect(b[4] + (b[5] << 8)).toBe(1);
+    expect(b[6]).toBe(32);
+    expect(b[7]).toBe(32);
+    expect(String.fromCharCode(b[23], b[24], b[25])).toBe('PNG');
+  });
+  it('keeps transparency in WebP output where the browser can write WebP', async () => {
+    const out = await convertImage(await halfTransparentPng(), { kind: 'png', to: 'webp', quality: 0.9 }).catch((e) => ({ error: e }));
+    if (out.error) return; // this browser cannot write WebP: the UI reports it
+    expect(out.blob.type).toBe('image/webp');
+  });
+});
+
+describe('pure encoders and sniffers', () => {
+  it('encodeBmp writes bottom-up BGR rows padded to 4 bytes', () => {
+    const data = new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 255]); // 2x1: red, green
+    const b = encodeBmp({ width: 2, height: 1, data });
+    expect(b.length).toBe(54 + 8);
+    expect([b[54], b[55], b[56]]).toEqual([0, 0, 255]);
+    expect([b[57], b[58], b[59]]).toEqual([0, 255, 0]);
+  });
+  it('encodeIco stores 256 as 0 and rejects larger sizes', () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const b = encodeIco(png, 256, 256);
+    expect(b[6]).toBe(0);
+    expect(b[22]).toBe(0x89);
+    expect(() => encodeIco(png, 300, 10)).toThrow(/1 to 256/);
+  });
+  it('reads EXIF orientation from an APP1 segment', () => {
+    const exif = [0x45, 0x78, 0x69, 0x66, 0, 0, 0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0];
+    const seg = [0xff, 0xe1, 0, exif.length + 2, ...exif];
+    const jpeg = new Uint8Array([0xff, 0xd8, ...seg, 0xff, 0xda, 0, 2]);
+    expect(jpegOrientation(jpeg)).toBe(6);
+    expect(jpegOrientation(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0, 2]))).toBe(1);
+  });
+  it('detects kinds from bytes, name and type', () => {
+    expect(detectKind('x', '', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13]))).toBe('png');
+    expect(detectKind('report.bin', 'application/pdf', new Uint8Array([0x25, 0x50, 0x44, 0x46]))).toBe('pdf');
+    expect(detectKind('data.csv', 'text/plain', new TextEncoder().encode('a,b'))).toBe('csv');
+    expect(detectKind('logo', '', new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>'))).toBe('svg');
+    expect(detectKind('blob.dat', '', new Uint8Array([0, 1, 2, 255]))).toBe('bin');
+  });
+});
+
+describe('images for PDF', () => {
+  it('passes an upright JPEG through untouched', async () => {
+    const jpg = await canvasToBlob(makeCanvas(8, 8), 'image/jpeg', 0.9);
+    const r = await imageForPdf(jpg, 'jpg');
+    expect(r.mime).toBe('image/jpeg');
+    expect(r.width).toBe(8);
+  });
+  it('flattens a transparent PNG onto white', async () => {
+    const r = await imageForPdf(await halfTransparentPng(), 'png');
+    expect(r.mime).toBe('image/png');
+    const d = await drawn(new Blob([r.bytes], { type: 'image/png' }));
+    expect(near(SlopTest.pixel(d.c, 35, 15), [255, 255, 255], 2)).toBeTruthy();
+  });
+});
+
+SlopTest.run({ name: 'File convert: image conversions' });
+</script>
+</body>
+</html>

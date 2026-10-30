@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs context menus</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1100px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame, win, doc, E, S;
+  const rows = () => [...doc.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const labels = () => rows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const pick = (label) => { const r = rows().find((x) => x.querySelector('.sui-lbl').textContent === label); if (!r) throw new Error('no menu row ' + label + ' in ' + labels().join(' | ')); r.click(); };
+  const rightClickAt = (cx, cy, target) => (target || doc.querySelector('.page[data-pi="0"]')).dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, detail: 1 }));
+  const k = () => S.R.k();
+  const pageBox = () => doc.querySelector('.page[data-pi="0"]').getBoundingClientRect();
+  /** Client point at page-point (x, y) on page 0. */
+  const at = (x, y) => { const b = pageBox(), kk = k(); return [b.left + x * kk, b.top + y * kk]; };
+  const lineAt = (bi) => S.lineList.find((L) => L.pi === 0 && L.b === bi);
+  const firstLineClient = (bi) => { const L = lineAt(bi); return at(L.x + 6, L.y + L.line.h / 2); };
+  const cellItem = (bi, r, c) => S.layout.pages[0].items.find((it) => it.kind === 'cell' && it.path.join() === [bi, r, c].join());
+  const imgItem = () => S.layout.pages[0].items.find((it) => it.kind === 'img');
+  const pngUrl = () => { const cv = doc.createElement('canvas'); cv.width = 8; cv.height = 8; const g = cv.getContext('2d'); g.fillStyle = '#c33'; g.fillRect(0, 0, 8, 8); return cv.toDataURL('image/png'); };
+  const keyOn = (el, key) => { const ev = new win.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+
+  describe('Slop Docs context menus', () => {
+    it('loads docs/index.html and builds a document with text, a table and an image', async () => {
+      frame = document.createElement('iframe');
+      const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+      frame.src = '../../docs/index.html';
+      document.body.append(frame);
+      await loaded;
+      win = frame.contentWindow; doc = frame.contentDocument;
+      await waitFor(() => win.SlopDocs && win.SlopDocs.A && win.SlopDocEngine && win.SlopDocs.ctxmenu, { timeout: 15000 });
+      E = win.SlopDocEngine; S = win.SlopDocs;
+      const d = E.M.newDoc();
+      const img = { type: 'p', id: 'pimg', style: 'Normal', props: {}, runs: [{ text: E.M.OBJ, obj: 'img', src: pngUrl(), w: 60, h: 60, wrap: 'inline' }] };
+      d.blocks = [E.M.para('Alpha paragraph text'), E.M.table(2, 2), img, E.M.para('Omega')];
+      S.setDoc(d, { file: { name: 'Menus.sdoc' } });
+      await waitFor(() => S.layout && S.lineList.length > 0 && doc.querySelector('.page[data-pi="0"]'), { timeout: 8000 });
+      expect(S.doc.blocks.length).toBe(4);
+    });
+
+    it('right-click on a paragraph opens the paragraph menu (style, align, list) and Select all selects it', () => {
+      const [x, y] = firstLineClient(0);
+      rightClickAt(x, y);
+      expect(labels()).toContain('Paragraph style');
+      expect(labels()).toContain('Align');
+      expect(labels()).toContain('List');
+      expect(labels()).not.toContain('Bold');
+      pick('Select all');
+      expect(E.O.collapsed(S.sel)).toBe(false);
+    });
+
+    it('right-click on selected text opens the selection menu, and Bold applies to the selection', () => {
+      const [x, y] = firstLineClient(0);
+      rightClickAt(x, y);
+      expect(labels()).toContain('Cut');
+      expect(labels()).toContain('Copy');
+      expect(labels()).toContain('Clear formatting');
+      pick('Bold');
+      expect(S.A.state().b).toBe(true);
+    });
+
+    it('right-click on a table cell offers row and column edits, and Insert row below adds a row', () => {
+      const cell = cellItem(1, 0, 0);
+      rightClickAt(...at(cell.x + cell.w / 2, cell.y + cell.h / 2 || 40));
+      expect(labels()).toContain('Insert row below');
+      expect(labels()).toContain('Insert column right');
+      expect(labels()).toContain('Delete table');
+      pick('Insert row below');
+      expect(S.doc.blocks[1].rows.length).toBe(3);
+    });
+
+    it('right-click on an image offers wrap and delete; Delete image removes it', () => {
+      const im = imgItem();
+      rightClickAt(...at(im.x + im.w / 2, im.y + im.h / 2));
+      expect(labels()).toContain('Wrap text');
+      expect(labels()).toContain('Delete image');
+      pick('Delete image');
+      expect(S.doc.blocks[2].runs.some((r) => r.obj === 'img')).toBe(false);
+    });
+
+    it('right-click on the blank page offers Insert page break here, and it inserts a break', () => {
+      const b = pageBox();
+      rightClickAt(b.left + b.width / 2, b.bottom - 6);
+      expect(labels()).toContain('Insert page break here');
+      expect(labels()).toContain('Select all');
+      pick('Insert page break here');
+      expect(S.doc.blocks.some((bl) => bl.type === 'p' && bl.runs.some((r) => r.obj === 'pb'))).toBe(true);
+    });
+
+    it('the Menu key in the typing area opens the paragraph menu', () => {
+      S.select({ b: 0, o: 0 }, { b: 0, o: 0 });
+      const ime = doc.getElementById('ime');
+      ime.focus();
+      const ev = keyOn(ime, 'ContextMenu');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Paragraph style');
+      keyOn(doc.querySelector('.sui-menu'), 'Escape');
+    });
+  });
+  SlopTest.run({ name: 'Slop Docs context menus' });
+  </script>
+</body>
+</html>

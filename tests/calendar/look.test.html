@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Calendar: the look (header and toolbar, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: calendar/index.html, calendar/css/calendar.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menu bar, the shell's buttons and the month are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../calendar/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn') && D.querySelector('#cTitle').textContent; }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+
+  describe('Slop Calendar: the look', () => {
+    it('one header: the menu bar, with the 100% local badge in it', async () => {
+      const D = await open(1440);
+      expect(visible(D, 'header').length).toBe(1);
+      expect(D.querySelector('.smb-bar .local-badge')).toBeTruthy();
+    }, { timeout: 40000 });
+
+    it('at 1440px the toolbar is one row, its buttons as tall as the header buttons', async () => {
+      const D = await open(1440);
+      const tops = new Set(visible(D, '.toolbar > button, .toolbar .seg button, .toolbar select').map((n) => Math.round(n.getBoundingClientRect().top)));
+      expect(tops.size).toBe(1);
+      const hb = [...D.querySelectorAll('.smb-bar .slop-hbtn')].find((n) => n.getBoundingClientRect().width).getBoundingClientRect().height;
+      for (const n of visible(D, '.toolbar > button, .toolbar .seg button')) expect(n.getBoundingClientRect().height).toBe(hb);
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways and the toolbar stays inside the window', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      for (const n of visible(D, '.toolbar button, .toolbar select')) expect(n.getBoundingClientRect().right).toBeLessThanOrEqual(390.5);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Calendar: the look' });
+  </script>
+</body>
+</html>

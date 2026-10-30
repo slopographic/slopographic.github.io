@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Signature: the example, typing, templates, checks, copy, download, a picture from the device, kept on reload; at 1280 and 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: signature/index.html, signature/js/app.js, signature/js/form.js, signature/js/model.js, signature/js/templates.js, signature/css/signature.css, signature/js/layout.js, shared/buffer/clipboard.js
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  let W, D, A, copied, got;
+  const $ = (id) => D.getElementById(id);
+  async function boot(width = 1280, keep = false, height = 860) {
+    if (!keep) try { localStorage.removeItem('slop-signature'); } catch (e) { /* none */ }
+    const old = document.getElementById('app'), f = document.createElement('iframe');
+    f.id = 'app'; f.style.cssText = `width:${width}px;height:${height}px`;
+    old.replaceWith(f);
+    f.src = '../../signature/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopSignature && f.contentWindow.SlopSignature.app && f.contentWindow.document.querySelector('.smb-bar'), { timeout: 20000 });
+    W = f.contentWindow; D = W.document; A = W.SlopSignature.app; copied = null; got = [];
+    W.SlopBuffer.writeSystem = async (rec) => { copied = rec.formats; return true; };
+    W.SlopUI.download = (blob, name) => got.push({ blob, name });
+  }
+  const type = (key, v) => { const i = $('sg-' + key); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+
+  describe('Slop Signature', () => {
+    it('opens on a filled-in example, seen in the mock email', async () => {
+      await boot();
+      expect(D.querySelector('header.smb-bar .smb-app').textContent).toBe('Signature');
+      expect($('sgSig').textContent).toContain('Alex Morgan');
+      expect($('sgSig').querySelector('a[href="mailto:alex@northwind.example"]') !== null).toBe(true);
+      expect($('sgEmpty').hidden).toBe(true);
+      expect(D.querySelector('.sg-tpl[aria-checked="true"]').dataset.tpl).toBe('classic');
+    });
+    it('typing updates the signature at once, and HTML typed stays text', async () => {
+      type('name', 'Robin <i>Lee</i>');
+      expect($('sgSig').textContent).toContain('Robin <i>Lee</i>');
+      expect($('sgSig').querySelector('i')).toBe(null);
+    });
+    it('a template button changes the layout and shows as chosen', async () => {
+      D.querySelector('.sg-tpl[data-tpl="banner"]').click();
+      expect(D.querySelector('.sg-tpl[aria-checked="true"]').dataset.tpl).toBe('banner');
+      expect(A.state.template).toBe('banner');
+      const td = $('sgSig').querySelector('td');
+      expect(td.getAttribute('style')).toContain('background:#1f6feb');
+    });
+    it('lists what will not work as a link', async () => {
+      type('email', 'robin');
+      expect($('sgProblems').hidden).toBe(false);
+      expect($('sgProblems').textContent).toContain('Email: not an email address');
+      type('email', 'robin@lee.example');
+      expect($('sgProblems').hidden).toBe(true);
+    });
+    it('Copy signature puts the formatted signature and plain text on the clipboard', async () => {
+      $('sgCopy').click();
+      await waitFor(() => copied);
+      expect(copied['text/html']).toContain('Robin &lt;i&gt;Lee&lt;/i&gt;');
+      expect(copied['text/plain'].startsWith('-- \nRobin <i>Lee</i>')).toBe(true);
+      await waitFor(() => $('sgMsg').textContent.includes('Copied'));
+    });
+    it('Download HTML gives a page named after the person', async () => {
+      $('sgDownload').click();
+      expect(got[0].name).toBe('robin-i-lee-i-signature.html');
+      expect(await got[0].blob.text()).toContain('<!doctype html>');
+    });
+    it('a picture from this device is made small and kept in the signature', async () => {
+      const c = D.createElement('canvas'); c.width = 600; c.height = 300; c.getContext('2d').fillRect(0, 0, 600, 300);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      const logo = new W.File([blob], 'logo.png', { type: 'image/png' });
+      W.SlopUI.pickFiles = async () => [logo]; // the button is the intake's picker
+      D.getElementById('sgUpload').click();
+      await waitFor(() => $('sgSig').querySelector('img'));
+      expect($('sgSig').querySelector('img').getAttribute('src').startsWith('data:image/png;base64,')).toBe(true);
+      expect(D.querySelector('[data-group="picture"] .sg-note').textContent).toContain('Gmail does not show');
+    });
+    it('Clear empties it; the page keeps what was typed after a reload', async () => {
+      $('sgReset').click();
+      expect($('sgEmpty').hidden).toBe(false);
+      expect($('sgCopy').disabled).toBe(true);
+      type('name', 'Kim Park');
+      await boot(1280, true);
+      expect($('sg-name').value).toBe('Kim Park');
+      expect($('sgSig').textContent).toContain('Kim Park');
+    });
+    it('at 1280 px the form is a panel on the right, Copy signature at its foot copies', async () => {
+      await boot(1280);
+      const p = $('sgPanel').getBoundingClientRect();
+      expect(p.left >= $('sgView').getBoundingClientRect().right - 1).toBe(true);
+      expect(Math.round(p.right)).toBe(1280);
+      expect($('sgPanel').contains($('sgForm'))).toBe(true);
+      expect($('sgCopy').closest('.sf-p-foot').parentNode).toBe($('sgPanel'));
+      expect($('sgCopy').getBoundingClientRect().bottom <= 860).toBe(true);
+      expect([...$('sgPanel').querySelectorAll('.sf-h')].map((n) => n.textContent)).toEqual(['Your details', 'Result']);
+      $('sgCopy').click();
+      await waitFor(() => copied);
+      expect(copied['text/plain']).toContain('Alex Morgan');
+    });
+    it('at 390 px: the email is the page, Copy signature stays at the bottom, Edit opens the form; nothing scrolls sideways', async () => {
+      await boot(390, false, 844);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      expect($('sgSig').getBoundingClientRect().height > 0).toBe(true);
+      expect($('sgCopy').getBoundingClientRect().top > 700 && $('sgCopy').getBoundingClientRect().bottom <= 844).toBe(true);
+      expect($('sgForm').getBoundingClientRect().height).toBe(0);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => $('sgPanel').classList.contains('ssh-on'));
+      await sleep(300);
+      expect($('sg-name').getBoundingClientRect().height > 0).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

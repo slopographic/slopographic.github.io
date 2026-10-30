@@ -1,0 +1,129 @@
+/* Slop Gallery: page layout and the timeline. Colours are tokens on :root; dark is the default, light follows the OS or
+ * the data-theme attribute. Works at 390px wide with no horizontal page scroll (the side panel becomes a drawer). */
+:root {
+  --bg: #0e0e10; --panel: #17171a; --panel-2: #202026; --line: #2c2c33; --fg: #ece9e1; --fg-dim: #a3a09a; --fg-faint: #6d6b67;
+  --accent: #d4ff3a; --accent-ink: #10180a; --like: #6fe39a; --dislike: #ff6f8a; --hover: #26262d; --sel: #1f4a7a;
+  --radius: 8px; --ui: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #f4f2ec; --panel: #ffffff; --panel-2: #efece4; --line: #d9d5ca; --fg: #1d1c19; --fg-dim: #5c5a54; --fg-faint: #8e8b84; --accent: #3b5a00; --accent-ink: #ffffff; --like: #1f8a4c; --dislike: #b3264a; --hover: #e6e2d8; --sel: #cfe0ff; color-scheme: light; } }
+:root[data-theme="light"] { --bg: #f4f2ec; --panel: #ffffff; --panel-2: #efece4; --line: #d9d5ca; --fg: #1d1c19; --fg-dim: #5c5a54; --fg-faint: #8e8b84; --accent: #3b5a00; --accent-ink: #ffffff; --like: #1f8a4c; --dislike: #b3264a; --hover: #e6e2d8; --sel: #cfe0ff; color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
+body { font: 13px/1.4 var(--ui); }
+button, input, select { font: inherit; color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.muted { color: var(--fg-faint); font-size: 12px; margin: 6px 0; }
+.link { background: none; border: 0; color: var(--fg-dim); cursor: pointer; padding: 2px 0; text-decoration: underline; font-size: 12px; }
+.link:hover { color: var(--fg); }
+
+.app { height: 100%; display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+/* The shared header buttons (Slop Drive, Tour, Theme, Apps: shared/ui/hbtn.css) in the look of the toolbar's buttons. */
+.topbar { --slop-hbtn-h: 32px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: var(--panel-2); --slop-hbtn-line: var(--line); --slop-hbtn-hover: var(--hover); --slop-hbtn-fs: 13px; }
+.tb-btn { height: 32px; }
+.brand { display: inline-flex; width: 26px; height: 26px; color: var(--accent); }
+.brand-mark { width: 100%; height: 100%; fill: currentColor; }
+.brand-mark .shine { fill: none; stroke: var(--bg); stroke-width: 2; stroke-linecap: round; opacity: .6; }
+.appname { display: flex; flex-direction: column; line-height: 1.1; }
+.appname b { font-size: 14px; }
+.home-link { font-size: 11px; color: var(--fg-faint); text-decoration: none; }
+.tb-group { display: flex; gap: 6px; }
+.tb-btn, .side-btn, .v-btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+.tb-btn:hover, .side-btn:hover, .v-btn:hover { background: var(--hover); }
+.tb-btn[aria-pressed="true"], .nav-item.on, .albums .nav-item.on { border-color: var(--accent); color: var(--accent); }
+.tb-btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.tb-btn.primary:hover { filter: brightness(1.05); }
+.tb-filters { display: none; }
+.tb-flex { flex: 1; }
+.local-badge { font-size: 11px; color: var(--fg-dim); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.local-badge::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--like); margin-right: 6px; vertical-align: middle; }
+
+.body { flex: 1; min-height: 0; display: flex; position: relative; }
+.side { width: 248px; flex: none; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 10px 12px 24px; }
+.nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.nav-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.nav-item:hover { background: var(--hover); }
+.nav-n { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
+.side-sec { border-top: 1px solid var(--line); padding: 10px 0; }
+.side-sec h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-faint); margin: 0 0 6px; font-weight: 600; }
+.side-h { display: flex; justify-content: space-between; align-items: center; }
+.albums { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.albums .nav-item { font-size: 13px; }
+.side-btn { display: block; width: 100%; text-align: left; margin: 4px 0; background: none; border-color: transparent; padding: 5px 6px; }
+.side-btn:hover { background: var(--hover); }
+.fld { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; font-size: 12px; color: var(--fg-dim); }
+.fld input, .fld select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; color: var(--fg); width: 100%; }
+.check { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; color: var(--fg-dim); margin: 6px 0; }
+
+.grid-area { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.grid { position: relative; flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px 8px 24px; outline: none; }
+.grid:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.sticky { position: sticky; top: 0; z-index: 2; height: 40px; margin-bottom: -40px; display: flex; justify-content: space-between; align-items: center; padding: 0 10px; background: color-mix(in srgb, var(--bg) 92%, transparent); border-bottom: 1px solid var(--line); pointer-events: none; font-weight: 600; }
+.sticky[hidden] { display: none; }
+.sticky-n { font-size: 11px; color: var(--fg-faint); font-weight: 400; }
+.tl-content { position: relative; width: 100%; margin: 0; }
+.vhead { display: flex; justify-content: space-between; align-items: center; padding: 0 10px; font-weight: 600; border-bottom: 1px solid var(--line); }
+.vhead-n { font-size: 11px; color: var(--fg-faint); font-weight: 400; }
+.vrow { display: grid; justify-content: start; }
+
+.tile { position: relative; margin: 0; padding: 0; border: 2px solid transparent; border-radius: 4px; overflow: hidden; background: var(--panel-2); cursor: pointer; }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.tile:hover { border-color: var(--line); }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tile.sel { border-color: var(--accent); }
+.tile.sel::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.tile .tick { position: absolute; top: 6px; left: 6px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: rgba(0, 0, 0, .25); opacity: 0; }
+.tile.sel .tick { opacity: 1; background: var(--accent); border-color: var(--accent); }
+.tile .mk { position: absolute; right: 6px; bottom: 6px; font-size: 14px; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
+.tile .mk.fav { color: #ffd166; top: 6px; bottom: auto; right: 6px; }
+.tile .mk.liked, .tile .mk.disliked { width: 10px; height: 10px; border-radius: 50%; right: 8px; bottom: 8px; font-size: 0; }
+.tile .mk.liked { background: var(--like); }
+.tile .mk.disliked { background: var(--dislike); }
+
+.empty { padding: 48px 16px; text-align: center; color: var(--fg-dim); }
+.empty[hidden] { display: none; }
+/* The empty library's preview (SlopDrop.panel.preview) and its buttons. */
+.g-intro { max-width: 640px; margin: 0 auto 8px; }
+.g-intro[hidden], .g-empty-acts [hidden] { display: none; }
+.g-empty-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+.statusbar { display: flex; justify-content: space-between; gap: 12px; padding: 5px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--fg-dim); min-height: 28px; }
+.busy { color: var(--accent); }
+.busy[hidden] { display: none; }
+.drop-hint { position: fixed; inset: 12px; border: 2px dashed var(--accent); border-radius: 12px; display: none; align-items: center; justify-content: center; font-size: 18px; background: color-mix(in srgb, var(--bg) 80%, transparent); pointer-events: none; z-index: 900; }
+body.dragging .drop-hint { display: flex; }
+
+@media (max-width: 700px) {
+  .tb-filters { display: inline-block; }
+  .appname, .local-badge { display: none; }
+  /* Two rows: the home link, Filters and the shared buttons; then the toolbar on its own row. */
+  .tb-group { order: 10; flex: 1 1 100%; }
+  .tb-group .tb-btn { flex: 1 1 auto; }
+  /* The panel is a drawer from the left: shared/ui/sheet.js gives its place, motion, shadow (only while open) and × */
+  .side { --ssh-z: 50; }
+  .grid { padding: 6px 6px 20px; }
+  .tb-group .tb-btn { padding: 6px 8px; }
+}
+
+/* Make reel: the dialog's form, its validation line and the cut-out progress bar. */
+.reel-form { display: grid; gap: 10px; min-width: min(360px, 80vw); }
+.reel-err { color: #ff8a8a; min-height: 1em; margin: 0; }
+.reel-err:empty { display: none; }
+.reel-bar { width: 100%; height: 10px; }
+
+/* Drop strip above the grid (shared/drop, compact) */
+.g-dropstrip { margin: 8px 12px 0; padding: 6px 10px; border: 1px dashed var(--line, #3a3a46); border-radius: 8px; }
+/* A finger: a long press on a photo is the gallery's menu (shared/input), not iOS's image callout or a text selection. */
+@media (pointer: coarse) { .tile, .tile img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
+/* The panel on the right (js/ui/panel.js, shared/frame/frame.css) in the gallery's colours; Import photos at its foot. On a
+   phone it is a bottom sheet whose closed state shows Import over the status bar's place. */
+.g-panel { --sl-surface: var(--panel); --sl-background: var(--bg); --sl-text: var(--fg); --sl-border: var(--line); --sl-accent: var(--accent); }
+.g-panel .sf-set { gap: 2px; }
+.g-panel .side-btn { margin: 0; }
+.g-panel .sf-acts .tb-btn { white-space: normal; text-align: start; }
+.g-panel .sf-foot-acts .tb-btn, .g-panel .sf-foot-more { min-height: 40px; padding: 8px 12px; font: inherit; font-weight: 700; border-radius: 6px; }
+.g-panel .sf-foot-more { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); }
+.app:has(> .body.ssh-phone .g-panel.sf-has-foot) > .statusbar { display: none; }
+.g-panel .sf-h, .g-panel .sf-note, .g-panel .sf-item-meta { color: var(--fg-dim); }   /* the small headings in the gallery's dim ink (contrast) */

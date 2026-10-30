@@ -1,0 +1,15 @@
+/* SlopCut: keyframe track and random effect layer in the Inspector. Theme tokens come from base.css. */
+.anim { display: grid; gap: 8px; }
+.anim-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.anim-tracks { display: grid; gap: 4px; }
+.anim-row { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 6px; font-size: var(--fs-s); }
+.anim-name { color: var(--dim); }
+.anim-lane { position: relative; height: 18px; border-radius: var(--radius-s); background: var(--input); border: 1px solid var(--line-2); cursor: pointer; }
+.anim-key { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; padding: 0; border: 1px solid var(--line); background: var(--accent); transform: rotate(45deg); cursor: grab; touch-action: none; }
+.anim-key.on { outline: 2px solid var(--fg); outline-offset: 1px; }
+.anim-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.anim-axis { display: flex; justify-content: space-between; padding-left: 68px; color: var(--faint); font-size: var(--fs-s); }
+.anim-edit { display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line-2); border-radius: var(--radius-s); }
+/* A finger-sized key (shared/input/touch.css: --slop-hit is 44 px under a coarse pointer, 0 for a mouse): an invisible
+   square around the small diamond (rotated with it, so it stays a square). */
+.anim-key::after { content: ''; position: absolute; left: 50%; top: 50%; width: var(--slop-hit, 0px); height: var(--slop-hit, 0px); transform: translate(-50%, -50%); }

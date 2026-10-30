@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PWA · persistent storage answer</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../../shared/pwa.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const seen = [];
+  let answer = true;          // what the stubbed browser says
+  let calls = 0;
+    function stubPersist(fn) { Object.defineProperty(navigator.storage, 'persist', { value: fn, configurable: true, writable: true }); }
+  stubPersist(async () => { calls++; return answer; });
+  try { localStorage.removeItem('slop-pwa.persist'); } catch (e) { /* blocked */ }
+  window.SlopPWA.mount({ register: false });
+  window.SlopPWA.onPersist((a) => seen.push(a));
+
+  describe('asking the browser to keep storage', () => {
+    it('records granted when the browser says yes', async () => {
+      answer = true;
+      expect(await window.SlopPWA.requestPersist()).toBe('granted');
+      expect(window.SlopPWA.persistAnswer()).toBe('granted');
+      expect(seen[seen.length - 1]).toBe('granted');
+    });
+    it('records denied when the browser says no', async () => {
+      answer = false;
+      expect(await window.SlopPWA.requestPersist()).toBe('denied');
+      expect(window.SlopPWA.persistAnswer()).toBe('denied');
+      expect(seen[seen.length - 1]).toBe('denied');
+    });
+    it('records unsupported when the browser has no persist()', async () => {
+      stubPersist(undefined);
+      expect(await window.SlopPWA.requestPersist()).toBe('unsupported');
+      expect(window.SlopPWA.persistAnswer()).toBe('unsupported');
+      stubPersist(async () => { calls++; return answer; });
+    });
+    it('asks once after the app is installed', async () => {
+      answer = true;
+      const before = calls;
+      window.dispatchEvent(new Event('appinstalled'));
+      await waitFor(() => calls === before + 1, { timeout: 2000 });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(calls).toBe(before + 1);
+      expect(window.SlopPWA.persistAnswer()).toBe('granted');
+    });
+  });
+
+  describe('the Slop Drive message', () => {
+    it('granted says the browser keeps Slop Drive, in plain words', () => {
+      const m = window.SlopPWA.persistMessage('granted');
+      expect(m).toContain('Kept by the browser');
+      expect(m).toContain('Slop Drive');
+      expect(m).not.toContain('Backup');
+    });
+    it('denied says the browser did not promise and points to Backup & restore', () => {
+      const m = window.SlopPWA.persistMessage('denied');
+      expect(m).toContain('has not promised to keep Slop Drive');
+      expect(m).toContain('Export a copy with Backup & restore');
+    });
+    it('unsupported also points to Backup & restore', () => {
+      expect(window.SlopPWA.persistMessage('unsupported')).toContain('Backup & restore');
+    });
+    it('shows nothing before the browser has been asked', () => {
+      expect(window.SlopPWA.persistMessage(null)).toBe('');
+    });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

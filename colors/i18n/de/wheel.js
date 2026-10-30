@@ -1,0 +1,25 @@
+/* Slop Colors, German: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'colors.wheel.label': 'Farbkreis',
+  'colors.wheel.rule': 'Harmonie',
+  'colors.wheel.model': 'Farbkreis-Modell',
+  'colors.wheel.bright': 'Helligkeit',
+  'colors.wheel.light': 'Helligkeit',
+  'colors.wheel.bright_text': 'Helligkeit {pct} %',
+  'colors.wheel.light_text': 'Helligkeit {pct} %',
+  'colors.wheel.keys': 'Ziehen Sie einen Griff oder nutzen Sie darauf die Pfeiltasten: links und rechts drehen den Farbton, oben und unten ändern die Sättigung, Umschalt bewegt zehn Schritte, Bild auf und Bild ab ändern die Helligkeit.',
+  'colors.wheel.base': 'Grundfarbe',
+  'colors.wheel.handle': 'Farbe {n}',
+  'colors.wheel.value': 'Farbton {hue}°, Sättigung {sat} %, {hex}',
+  'colors.wheel.value_oklch': 'Farbton {hue}°, Chroma {sat} %, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (Künstler)',
+  'colors.wheel.oklch': 'OKLCH (wahrnehmungsgetreu)',
+  'colors.harmony.brightness': 'Schattierungen',
+  'colors.harmony.custom': 'Eigene',
+  'colors.cmd.g_wheel': 'Farbkreis',
+  'colors.cmd.wheel_rule': 'Farbkreis: Harmonie {rule}',
+  'colors.cmd.wheel_model': 'Farbkreis: Modell {wheel} verwenden',
+  'colors.cmd.wheel_focus': 'Farbkreis: zum Farbkreis gehen',
+});

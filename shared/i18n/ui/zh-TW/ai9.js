@@ -1,0 +1,20 @@
+/* Slop AI shared words, Chinese (Traditional): “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-zh-TW.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'ui.ai.cloud.or_signin': '使用 {name} 登入',
+  'ui.ai.cloud.or_note': '還沒有金鑰？登入後，{name} 會為此瀏覽器建立一組金鑰，費用從你自己的 {name} 額度扣除。你可以在 {link} 為它設定上限或撤銷。',
+  'ui.ai.cloud.or_privacy': '登入會直接從此瀏覽器連到 {name}，不經過任何 {brand} 伺服器。',
+  'ui.ai.cloud.or_manage': '你的 {name} 金鑰（透過登入或手動建立）可以在 {link} 設定上限或撤銷。「忘記金鑰」只會從此瀏覽器中移除金鑰。',
+  'ui.ai.cloud.or_going': '正在開啟 {name}…',
+  'ui.ai.cloud.or_finishing': '正在完成 {name} 登入…',
+  'ui.ai.cloud.or_done': '已使用 {name} 登入：此瀏覽器的金鑰已像貼上的金鑰一樣儲存。',
+  'ui.ai.cloud.or_denied': '{name} 未獲授權存取，因此沒有連線任何內容。按「使用 {name} 登入」重試，或貼上一組金鑰。',
+  'ui.ai.cloud.or_state': '這次登入不是在此分頁中開始的，為保護你的帳戶已遭拒絕。按「使用 {name} 登入」重新開始。',
+  'ui.ai.cloud.or_used': '這個登入代碼已使用過或已過期（代碼有效期為 10 分鐘）。按「使用 {name} 登入」重新開始。',
+  'ui.ai.cloud.or_failed': '{name} 沒有提供金鑰（{why}）。按「使用 {name} 登入」重試，或貼上一組金鑰。',
+  'ui.ai.cloud.or_offline': '瀏覽器處於離線狀態，無法完成登入。請連上網際網路，然後再按一次「使用 {name} 登入」。',
+  'ui.ai.cloud.or_network': '無法連線到 {name} 以完成登入。請檢查網路連線，然後再按一次「使用 {name} 登入」。',
+  'ui.ai.cloud.or_no_crypto': '此瀏覽器無法在這裡使用 {name} 登入（需要 https 頁面上的 Web Crypto）。請改為貼上金鑰。',
+  'ui.ai.cloud.or_key_label': '此瀏覽器中的 {brand}',
+  'ui.ai.cloud.or_badge': '登入',
+  'ui.ai.cloud.or_badge_t': '不必複製金鑰：使用你的 {name} 帳戶登入，就會為此瀏覽器建立金鑰。',
+});

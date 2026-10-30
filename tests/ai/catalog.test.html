@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: catalog</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/ai/catalog.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const C = SlopAIKit.catalog;
+  let W = null;
+  describe('the model catalog', () => {
+    it('lists the requested families', () => {
+      const ids = C.list.map((m) => m.id).join(' ');
+      for (const f of ['Llama-3.2-1B', 'Llama-3.2-3B', 'Qwen2.5-0.5B', 'Qwen2.5-1.5B-Instruct', 'Qwen2.5-3B', 'Qwen2.5-7B-Instruct', 'Qwen2.5-Coder-1.5B', 'Qwen2.5-Coder-7B', 'Phi-3.5-mini', 'gemma-2-2b']) expect(ids).toContain(f);
+      expect(new Set(C.list.map((m) => m.id)).size).toBe(C.list.length);
+    });
+    it('every entry has size, memory, licence and strengths', () => {
+      for (const m of C.list) {
+        expect(m.sizeMB).toBeGreaterThan(100); expect(m.vramMB).toBeGreaterThan(500); expect(m.vram32).toBeGreaterThan(m.vramMB);
+        expect(m.license.name.length).toBeGreaterThan(3); expect(m.license.url).toMatch(/^https:\/\//);
+        expect(m.strengths.length).toBeGreaterThan(0); expect(m.blurb.length).toBeGreaterThan(10);
+      }
+      expect(C.byId('gemma-2-2b-it-q4f16_1-MLC').license.short).toBe('Gemma terms');
+      expect(C.byId('Llama-3.2-1B-Instruct-q4f16_1-MLC').license.short).toBe('Llama community');
+      expect(C.byId('Qwen2.5-1.5B-Instruct-q4f16_1-MLC').license.short).toBe('Apache 2.0');
+      expect(C.byId('Qwen2.5-3B-Instruct-q4f16_1-MLC').license.short).toBe('Qwen research');
+      expect(C.byId('Phi-3.5-mini-instruct-q4f16_1-MLC').license.short).toBe('MIT');
+    });
+    it('byId finds the f32 builds too; custom() makes local entries', () => {
+      expect(C.byId('Qwen2.5-0.5B-Instruct-q4f32_1-MLC').id).toBe('Qwen2.5-0.5B-Instruct-q4f16_1-MLC');
+      expect(C.byId('nope')).toBe(null);
+      const c = C.custom('local:x', { name: 'x' }); expect(c.custom).toBe(true); expect(c.name).toBe('x');
+      expect(C.byId(C.DEFAULT)).toBeTruthy();
+    });
+    it('every id exists in the vendored WebLLM prebuilt list, with the same memory figures', async () => {
+      const w = await import('../../vendor/web-llm/web-llm.js');
+      W = w;
+      const list = w.prebuiltAppConfig.model_list, rec = (id) => list.find((r) => r.model_id === id);
+      for (const m of C.list) {
+        const r = rec(m.id), r32 = rec(m.f32Id);
+        expect(!!r).toBe(true); expect(!!r32).toBe(true);
+        expect(r.vram_required_MB).toBeCloseTo(m.vramMB, 0.01);
+        expect(r32.vram_required_MB).toBeCloseTo(m.vram32, 0.01);
+        expect(!!r.low_resource_required).toBe(m.lowResource);
+        expect(r.model).toBe('https://huggingface.co/mlc-ai/' + m.id);
+        expect(r.model_lib).toMatch(/^https:\/\/raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs\//);
+      }
+    }, { timeout: 30000 });
+    it('the vendored library exposes the engine API the adapter uses', () => {
+      for (const k of ['MLCEngine', 'CreateMLCEngine', 'prebuiltAppConfig', 'hasModelInCache', 'deleteModelAllInfoInCache']) expect(k in W).toBe(true);
+      expect(typeof W.MLCEngine.prototype.reload).toBe('function');
+      expect(typeof W.MLCEngine.prototype.unload).toBe('function');
+      expect(typeof W.MLCEngine.prototype.interruptGenerate).toBe('function');
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: catalog' });
+  </script>
+</body>
+</html>

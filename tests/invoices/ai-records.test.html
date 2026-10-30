@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business records for the assistant (Slop Invoices, Slop Contacts)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: shared/data/ai-records.js, shared/data/ai-records-apps.js, shared/biz/biz.js, contacts/js/app/commands.js, todo/js/ui/commands.js, calendar/js/ui/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, C;
+  const S = () => W.SlopData;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  async function boot(path, ready) {
+    const f = document.getElementById('app');
+    f.src = path;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopCmd && ready(f.contentWindow), { timeout: 20000 });
+    W = f.contentWindow; C = W.SlopCmd;
+  }
+  let PDFJS = null;
+  async function pdfText(blob) {
+    const base = new URL('../../vendor/pdfjs/', location.href).href;
+    PDFJS = PDFJS || await import(base + 'pdf.min.js');
+    PDFJS.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+    const doc = await PDFJS.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), standardFontDataUrl: base + 'standard_fonts/' }).promise;
+    return (await (await doc.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ');
+  }
+
+  describe('Slop Invoices: the assistant makes, issues, pays and exports invoices', () => {
+    it('prepare() loads the record commands; delete_record is the only destructive one', async () => {
+      await boot('../../invoices/index.html', (w) => w.SlopInvoices && w.SlopInvoices.app && w.document.getElementById('boot').hidden);
+      await S().store.erase(); await S().store.ready();
+      await C.prepare();
+      for (const t of ['describe-records', 'list-records', 'create-record', 'update-record', 'delete-record', 'export-records', 'create-invoice', 'issue-invoice', 'record-payment', 'export-invoice-pdf']) expect(!!C.get('invoices.ai.' + t)).toBe(true);
+      expect(C.list().filter((c) => /^invoices\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['invoices.ai.delete-record']);
+      const js = SlopCmdArgs.jsonSchema(C.get('invoices.ai.create-invoice').args);
+      expect(js.properties.lines.type).toBe('array');
+      const fields = (await run('invoices.ai.describe-records', { collection: 'invoices' })).value;
+      expect(fields.find((f) => f.field === 'lines').items).toContain('unitPrice');
+    }, { timeout: 30000 });
+
+    it('create_invoice with a new customer and plain prices, issued; a payment; the PDF to Slop Drive', async () => {
+      const r = await run('invoices.ai.create-invoice', { customer: 'Bee Farm Ltd', lines: [{ description: 'Hive check', qty: 2, unit_price: '45.50', tax_rate: '20' }, { description: 'Honey jars', qty: 10, unit_price: 3 }], due_days: 14, issue: true });
+      expect(r.value.number).toBe('INV-0001');
+      const inv = (await S().store.get('invoices', r.value.id)).value;
+      expect(inv.status).toBe('issued');
+      expect(inv.number).toBe('INV-0001');
+      expect(inv.lines[0].unitPrice).toBe(4550);
+      expect(inv.lines[0].taxRate).toBe(2000);
+      expect(inv.total).toBe(9100 + 1820 + 3000);
+      const cust = (await S().store.get('customers', inv.customerId)).value;
+      expect(cust.name).toBe('Bee Farm Ltd');
+      await run('invoices.ai.record-payment', { id: 'INV-0001', amount: '50' });
+      const pays = (await S().store.list('payments', { index: 'invoiceId', value: inv.id })).value;
+      expect(pays[0].amount).toBe(5000);
+      const p = await run('invoices.ai.export-invoice-pdf', { id: 'INV-0001' });
+      const id = /id ([^)\s]+)\)/.exec(p.value)[1], rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('INV-0001.pdf');
+      const text = await pdfText(rec.blob);
+      expect(text).toContain('INV-0001');
+      expect(text).toContain('Bee Farm Ltd');
+      expect(text).toContain('Hive check');
+    }, { timeout: 40000 });
+
+    it('create, update, list, delete and export records; the rollback removes what the assistant made', async () => {
+      const back = C.checkpoint();
+      const made = await run('invoices.ai.create-record', { collection: 'products', fields: { sku: 'JAR-1', name: 'Honey jar', price: '4.20', tax_rate: '5' } });
+      const pr = made.value.record;
+      expect([pr.price, pr.taxRate]).toEqual([420, 500]);
+      await run('invoices.ai.update-record', { collection: 'products', id: pr.id, fields: { price: '4.50' } });
+      expect((await S().store.get('products', pr.id)).value.price).toBe(450);
+      const list = (await run('invoices.ai.list-records', { collection: 'products', search: 'honey' })).value;
+      expect(list.length).toBe(1);
+      const bad = await C.exec('invoices.ai.create-record', { collection: 'products', fields: { name: 'No sku' } });
+      expect(bad.ok).toBe(false);
+      const e = await run('invoices.ai.export-records', { collection: 'customers', format: 'csv' });
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(e.value)[1]);
+      expect(await rec.blob.text()).toContain('Bee Farm Ltd');
+      const c2 = await run('invoices.ai.create-record', { collection: 'customers', fields: { name: 'Temp Co' } });
+      expect(back()).toBe(true);
+      let gone = false;
+      for (let i = 0; i < 50 && !gone; i++) { await new Promise((r) => setTimeout(r, 100)); gone = !(await S().store.get('customers', c2.value.id)).value && !(await S().store.get('products', pr.id)).value; }
+      expect(gone).toBe(true);
+    }, { timeout: 30000 });
+  });
+
+  describe('Slop Contacts: the same record commands', () => {
+    it('create_record adds a contact; list_records finds it', async () => {
+      await boot('../../contacts/index.html', (w) => w.document.body && w.SlopData && w.SlopCmd.get && w.SlopCmd.get('help.keys'));
+      await C.prepare();
+      await run('contacts.ai.create-record', { collection: 'customers', fields: { name: 'Grace Hopper', email: 'grace@example.com', categories: 'navy, code' } });
+      const l = (await run('contacts.ai.list-records', { collection: 'customers', search: 'grace' })).value;
+      expect(l[0].email).toBe('grace@example.com');
+      expect(l[0].categories).toEqual(['navy', 'code']);
+    }, { timeout: 30000 });
+  });
+  describe('Slop To-do and Slop Calendar: tasks and events', () => {
+    it('create_record adds a task in Slop To-do and an event in Slop Calendar', async () => {
+      await boot('../../todo/index.html', (w) => w.SlopCmd.get && w.SlopCmd.get('todo.calendar'));
+      await C.prepare();
+      const t = await run('todo.ai.create-record', { collection: 'tasks', fields: { title: 'Feed the bees' } });
+      expect((await S().store.get('tasks', t.value.id)).value.title).toBe('Feed the bees');
+      await boot('../../calendar/index.html', (w) => w.SlopCmd.get && w.SlopCmd.get('cal.crm'));
+      await C.prepare();
+      const fields = (await run('calendar.ai.describe-records', { collection: 'events' })).value.map((f) => f.field);
+      expect(fields).toContain('title');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Business records for the assistant' });
+  </script>
+</body>
+</html>

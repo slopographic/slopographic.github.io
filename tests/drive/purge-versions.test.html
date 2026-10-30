@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: purge removes versions</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, V;
+
+  /** A PDF original with two saved versions (the first has a change list). Returns the original's id and the hub ids of its records. */
+  async function pdfWithVersions(name, folderId) {
+    const pdf = new Blob([await (await fetch('fixtures/versions-sample.pdf')).arrayBuffer()], { type: 'application/pdf' });
+    const id = await H.put(pdf, { name, from: 'pdf', folderId, meta: { pdf: { role: 'original' } } });
+    await V.add(H, await H.get(id), {
+      blob: pdf, name,
+      changesBlob: new Blob([JSON.stringify([{ label: 'Text', from: 'Hello', to: 'Hi' }])], { type: 'application/json' }), changesName: name + '.changes.json',
+    });
+    await V.add(H, await H.get(id), { blob: pdf, name });
+    const orig = await H.get(id);
+    const ids = V.listOf(orig).flatMap((v) => [v.edited, v.changes]).filter(Boolean);
+    return { id, ids };
+  }
+  /** How many of the given hub records still exist. */
+  async function present(ids) {
+    let n = 0;
+    for (const x of ids) if (await H.get(x)) n++;
+    return n;
+  }
+
+  describe('Slop Drive: purge removes the saved versions', () => {
+    it('boots, and a PDF with two saved versions is in the hub', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; V = W.SlopVersions;
+      await H.clear();
+      const made = await pdfWithVersions('contract.pdf');
+      expect(made.ids.length).toBe(3);
+      expect(await present(made.ids)).toBe(3);
+    });
+
+    it('purging the file removes its original and every version record from the hub', async () => {
+      const made = await pdfWithVersions('purge-me.pdf');
+      await DR.refresh();
+      await DR.purge([await H.get(made.id)], { ask: false });
+      expect(!!(await H.get(made.id))).toBe(false);
+      expect(await present(made.ids)).toBe(0);
+    });
+
+    it('purging one file leaves another file and its versions alone', async () => {
+      const keep = await pdfWithVersions('keep.pdf');
+      const gone = await pdfWithVersions('gone.pdf');
+      await DR.refresh();
+      await DR.purge([await H.get(gone.id)], { ask: false });
+      expect(await present(gone.ids)).toBe(0);
+      expect(await present(keep.ids)).toBe(3);
+      expect((await H.get(keep.id)).meta.pdf.versions.length).toBe(2);
+    });
+
+    it('purging a folder removes the versions of the files inside it', async () => {
+      const folderId = await H.createFolder('Contracts');
+      const inside = await pdfWithVersions('inside.pdf', folderId);
+      const outside = await pdfWithVersions('outside.pdf');
+      await DR.refresh();
+      await DR.purge([{ id: folderId, name: 'Contracts', isFolder: true }], { ask: false });
+      expect(await present(inside.ids)).toBe(0);
+      expect(await present(outside.ids)).toBe(3);
+    });
+
+    it('a file with no versions purges cleanly', async () => {
+      const id = await H.put(new Blob(['plain text'], { type: 'text/plain' }), { name: 'note.txt', from: 'drive' });
+      await DR.refresh();
+      await DR.purge([await H.get(id)], { ask: false });
+      expect(!!(await H.get(id))).toBe(false);
+    });
+  });
+
+  SlopTest.run({ name: 'Slop Drive: purge removes the saved versions' });
+  </script>
+</body>
+</html>

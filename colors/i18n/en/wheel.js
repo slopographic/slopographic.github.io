@@ -1,0 +1,25 @@
+/* Slop Colors, English: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'colors.wheel.label': 'Colour wheel',
+  'colors.wheel.rule': 'Harmony',
+  'colors.wheel.model': 'Wheel',
+  'colors.wheel.bright': 'Brightness',
+  'colors.wheel.light': 'Lightness',
+  'colors.wheel.bright_text': 'Brightness {pct}%',
+  'colors.wheel.light_text': 'Lightness {pct}%',
+  'colors.wheel.keys': 'Drag a handle, or use the arrow keys on it: left and right turn the hue, up and down change the saturation, Shift moves ten steps, Page Up and Page Down change the brightness.',
+  'colors.wheel.base': 'Base colour',
+  'colors.wheel.handle': 'Colour {n}',
+  'colors.wheel.value': 'Hue {hue}°, saturation {sat}%, {hex}',
+  'colors.wheel.value_oklch': 'Hue {hue}°, chroma {sat}%, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (artist)',
+  'colors.wheel.oklch': 'OKLCH (perceptual)',
+  'colors.harmony.brightness': 'Shades',
+  'colors.harmony.custom': 'Custom',
+  'colors.cmd.g_wheel': 'Colour wheel',
+  'colors.cmd.wheel_rule': 'Wheel: set harmony to {rule}',
+  'colors.cmd.wheel_model': 'Wheel: use the {wheel} wheel',
+  'colors.cmd.wheel_focus': 'Wheel: go to the colour wheel',
+});

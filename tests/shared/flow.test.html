@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopFlow (the PDF → DOCX picture of a conversion)</title>
+  <style>body { margin: 0; padding: 12px; background: #f1ede4; color: #111; font: 14px system-ui; }</style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/ui/flow.js"></script>
+  <script>
+  // Covers: shared/ui/flow.js
+  const { describe, it, expect, run, sleep } = SlopTest;
+  const F = window.SlopFlow;
+  const host = document.getElementById('host');
+  const make = (o) => { const f = F.create(o); host.append(f.el); return f; };
+  const tiles = (f) => [...f.el.querySelectorAll('.sflow-tile')];
+
+  describe('SlopFlow kinds', () => {
+    it('sorts kinds into colour families, plurals with their singular', () => {
+      expect(F.family('pdf')).toBe('pdf');
+      expect(F.family('DOCX')).toBe('doc');
+      expect(F.family('csv')).toBe('sheet');
+      expect(F.family('pptx')).toBe('slide');
+      expect(F.family('jpeg')).toBe('image');
+      expect(F.family('mov')).toBe('video');
+      expect(F.family('PDFs')).toBe('pdf');
+      expect(F.family('nonsense')).toBe('file');
+      expect(F.family('')).toBe('file');
+    });
+    it('names a kind id by its short name and keeps a label someone already wrote', () => {
+      expect(F.tag('jpeg')).toBe('JPG');
+      expect(F.tag('docx')).toBe('DOCX');
+      expect(F.tag('PDFs')).toBe('PDFs');
+      expect(F.tag('')).toBe('FILE');
+    });
+    it('every kind is in one family only (one source for the colours)', () => {
+      const seen = new Map();
+      for (const [fam, list] of Object.entries(F.FAMILY)) for (const k of list) { expect(seen.has(k)).toBe(false); seen.set(k, fam); }
+    });
+  });
+
+  describe('SlopFlow element', () => {
+    it('draws two tiles joined by an arrow, named for screen readers', () => {
+      const f = make({ from: 'pdf', to: 'docx' });
+      expect(f.el.getAttribute('role')).toBe('img');
+      expect(f.el.getAttribute('aria-label')).toBe('PDF to DOCX');
+      expect(tiles(f).map((t) => t.textContent.replace(/\+\d+/, ''))).toEqual(['PDF', 'DOCX']);
+      expect(tiles(f).map((t) => t.dataset.family)).toEqual(['pdf', 'doc']);
+      expect(!!f.el.querySelector('.sflow-track')).toBe(true);
+      const [a, b] = tiles(f).map((t) => getComputedStyle(t).backgroundColor);
+      expect(a).not.toBe(b);   // the families have their own colours
+    });
+    it('injects its styles once, however many are made', () => {
+      make({ from: 'png', to: 'jpg' }); make({ from: 'csv', to: 'xlsx' });
+      expect(document.querySelectorAll('#sflow-style').length).toBe(1);
+    });
+    it('several kinds show the first with a +N count', () => {
+      const f = make({ from: ['png', 'jpg', 'webp'], to: 'pdf' });
+      const more = tiles(f)[0].querySelector('.sflow-more');
+      expect(more.hidden).toBe(false);
+      expect(more.textContent).toBe('+2');
+      expect(f.el.getAttribute('aria-label')).toBe('PNG, JPG, WEBP to PDF');
+      expect(tiles(f)[1].querySelector('.sflow-more').hidden).toBe(true);
+    });
+    it('a label replaces the spoken name; size sets the tile width', () => {
+      const f = make({ from: 'pdf', to: 'png', label: 'PDF pages to pictures', size: 'lg' });
+      expect(f.el.getAttribute('aria-label')).toBe('PDF pages to pictures');
+      const lg = tiles(f)[0].getBoundingClientRect().width;
+      const sm = tiles(make({ from: 'pdf', to: 'png', size: 'sm' }))[0].getBoundingClientRect().width;
+      expect(lg).toBeGreaterThan(sm * 1.5);
+    });
+    it('runs, fills with progress, then ticks when done or marks an error', () => {
+      const f = make({ from: 'pdf', to: 'docx' });
+      f.state('run').progress(0.5);
+      expect(f.el.dataset.state).toBe('run');
+      expect(f.el.style.getPropertyValue('--sflow-p')).toBe('0.5');
+      f.progress(7);
+      expect(f.el.style.getPropertyValue('--sflow-p')).toBe('1');
+      f.state('done');
+      expect(getComputedStyle(tiles(f)[1].querySelector('.sflow-mark')).display).toBe('grid');
+      expect(getComputedStyle(tiles(f)[0].querySelector('.sflow-mark')).display).toBe('none');   // the tick is on the target only
+      expect(getComputedStyle(tiles(f)[0].querySelector('.sflow-more')).display).toBe('none');   // no "+0" for one kind
+      f.state('error');
+      expect(getComputedStyle(tiles(f)[1].querySelector('.sflow-mark')).display).toBe('grid');
+      f.state('idle');
+      expect(f.el.style.getPropertyValue('--sflow-p')).toBe('0');
+      expect(getComputedStyle(tiles(f)[1].querySelector('.sflow-mark')).display).toBe('none');
+    });
+    it('a new pair goes back to idle and draws its arrow again; the same pair keeps its state', () => {
+      const f = make({ from: 'pdf', to: 'docx' });
+      f.state('done');
+      f.set({ from: 'pdf', to: 'docx' });
+      expect(f.el.dataset.state).toBe('done');
+      f.set({ from: 'pdf', to: 'xlsx' });
+      expect(f.el.dataset.state).toBe('idle');
+      expect(f.el.classList.contains('sflow-intro')).toBe(true);
+      expect(tiles(f)[1].dataset.family).toBe('sheet');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

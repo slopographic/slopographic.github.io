@@ -1,0 +1,20 @@
+/* PhotoSlop, Turkish (the source of truth for the keys is English): the guided tour (shared/tour/tours/photoslop.js). Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-tr.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'photoslop.tour.title': "PhotoSlop turu",
+  'photoslop.tour.new_title': "Bir dosya başlatın",
+  'photoslop.tour.new_text': "Yeni, bir belgenin boyutunu, ön ayarını ve arka planını belirler (dar pencerede Diğer ▾ içinde); Aç bir PSD, ORA ya da resim yükler. Her dosya kendi sekmesini alır.",
+  'photoslop.tour.menus_title': "Menü çubuğu",
+  'photoslop.tour.menus_text': "Dosya, Düzen, Görüntü, Katman, Seç ve Filtre burada bulunur. Her menü kendi komutlarını listeler.",
+  'photoslop.tour.tools_title': "Araçlar",
+  'photoslop.tour.tools_text': "Fırçalar, seçim, metin ve kırpma araç kutusunda bulunur. Birini seçin, sonra seçenekler çubuğunda ayarlayın.",
+  'photoslop.tour.options_title': "Araç seçenekleri",
+  'photoslop.tour.options_text': "Seçenekler çubuğu etkin araca göre değişir: boyut, opaklık, karıştırma modu ve daha fazlası.",
+  'photoslop.tour.canvas_title': "Tuval",
+  'photoslop.tour.canvas_text': "Tuvalde boyayın, seçin ve dönüştürün. Durum çubuğu yakınlaştırmayı ve boyutu gösterir.",
+  'photoslop.tour.panels_title': "Katmanlar ve paneller",
+  'photoslop.tour.panels_text': "Katmanlar, geçmiş ve özellikler bu sütunda bulunur. Telefonda Katmanlar düğmesi bunları gösterir.",
+  'photoslop.tour.export_title': "Dışa aktar",
+  'photoslop.tour.export_text': "PNG, JPEG, WebP ya da PSD dışa aktarın. Dosya cihazınızda oluşturulur; hiçbir şey yüklenmez.",
+  'photoslop.tour.theme_title': "Tema",
+  'photoslop.tour.theme_text': "Pro, Light ve Paint ’98 arasında geçiş yapın.",
+});

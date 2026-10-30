@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoices · random samples: create three, delete the samples</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/docs/model.js"></script>
+  <script src="../../shared/sample/rng.js"></script>
+  <script src="../../shared/sample/en.js"></script>
+  <script src="../../shared/sample/sv.js"></script>
+  <script src="../../shared/sample/people.js"></script>
+  <script src="../../shared/sample/goods.js"></script>
+  <script src="../../shared/sample/records.js"></script>
+  <script src="../../shared/docs/samples.js"></script>
+  <script src="../../shared/docs/samples-run.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../invoices/js/core/util.js"></script>
+  <script src="../../invoices/js/core/invoices.js"></script>
+  <script src="../../invoices/js/core/samples.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, run } = SlopTest;
+  const S = window.SlopData;
+  const NS = window.SlopInvoices;
+  const M = window.SlopDocs.model;
+  const D = window.SlopDocs.samples;
+  const fresh = async () => { const r = await S.store.erase(); if (!r.ok) throw new Error(r.message); const q = await S.store.ready(); if (!q.ok) throw new Error(q.message); };
+  const must = (r) => { if (!r.ok) throw new Error(`${r.code}: ${r.message}`); return r.value; };
+  const OPTS = { kind: 'invoice', count: 3, seed: 'browser-3', from: '2026-01-01', to: '2026-06-30', currency: 'USD', missing: { customers: true, products: true } };
+
+  describe('random samples in the store', () => {
+    beforeEach(fresh);
+    it('creates three random invoices as sample drafts, each total equal to the model', async () => {
+      const io = await NS.samples.io();
+      const res = must(await D.run({ ...OPTS, io }));
+      expect(res.created.length).toBe(3);
+      expect(res.failed).toEqual([]);
+      const invs = must(await S.store.list('invoices'));
+      expect(invs.length).toBe(3);
+      for (const inv of invs) {
+        expect(inv.sample).toBe(true);
+        expect(inv.status).toBe('draft');
+        expect(inv.number).toBe(undefined);
+        expect(inv.lines.length >= 1 && inv.lines.length <= 6).toBeTruthy();
+        const t = M.totals(inv.lines);
+        expect(inv.total).toBe(t.total);
+        expect(inv.subtotal + inv.tax).toBe(inv.total);
+      }
+      const custs = must(await S.store.list('customers'));
+      expect(custs.length).toBe(1);
+      expect(custs[0].sample).toBe(true);
+    });
+
+    it('the same seed gives the same documents (dates, lines, totals)', async () => {
+      const shape = (rows) => rows.map((r) => [r.date, r.dueDate, r.total, r.lines.map((l) => [l.description, l.qty, l.unitPrice, l.taxRate, l.discount || 0])]);
+      await fresh();
+      const io1 = await NS.samples.io();
+      must(await D.run({ ...OPTS, io: io1 }));
+      const first = shape(must(await S.store.list('invoices', { index: 'date' })));
+      await fresh();
+      const io2 = await NS.samples.io();
+      must(await D.run({ ...OPTS, io: io2 }));
+      const second = shape(must(await S.store.list('invoices', { index: 'date' })));
+      expect(second).toEqual(first);
+    });
+
+    it('delete all samples removes the three sample drafts and the samples customer and products, and nothing else', async () => {
+      const io = await NS.samples.io();
+      must(await D.run({ ...OPTS, io }));
+      const real = await S.store.put('customers', { name: 'Real Customer Ltd', email: 'real@example.test', stage: 'customer' });
+      const realInv = must(await NS.invoices.saveDraft({ customerId: must(real).id, date: '2026-10-01', lines: [{ description: 'Real work', qty: 1, unitPrice: 1000, taxRate: 0 }] }));
+      const gone = must(await D.removeSamples(await NS.samples.io()));
+      expect(gone.documents).toBe(3);
+      expect(gone.customers).toBe(1);
+      expect(gone.products >= 1).toBeTruthy();
+      expect(gone.kept).toEqual([]);
+      const invs = must(await S.store.list('invoices'));
+      expect(invs.map((x) => x.id)).toEqual([realInv.id]);
+      const custs = must(await S.store.list('customers'));
+      expect(custs.map((x) => x.name)).toEqual(['Real Customer Ltd']);
+      expect((must(await S.store.list('products'))).length).toBe(0);
+    });
+
+    it('an issued sample is left alone (it has a number now), and the numbering stays gapless', async () => {
+      const io = await NS.samples.io();
+      const res = must(await D.run({ ...OPTS, count: 2, io }));
+      must(await NS.invoices.issue(res.created[0].id));
+      const gone = must(await D.removeSamples(await NS.samples.io()));
+      expect(gone.documents).toBe(1);
+      expect(gone.kept.length).toBe(0);
+      const left = must(await S.store.list('invoices'));
+      expect(left.length).toBe(1);
+      expect(left[0].number).toBe('INV-0001');
+    });
+  });
+
+  run({ name: 'Slop Invoices samples' });
+  </script>
+</body>
+</html>

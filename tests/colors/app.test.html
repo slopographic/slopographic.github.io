@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Colors: colours from a picture, the eyedropper, the contrast check and the exports</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style></head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+// Covers: colors/index.html, colors/js/state.js, colors/js/swatches.js, colors/js/values.js, colors/js/picture.js, colors/js/contrast-ui.js, colors/js/panel.js, colors/js/io.js, colors/js/main.js
+// Covers: colors/js/core/convert.js, colors/js/core/harmony.js, colors/js/core/kmeans.js, colors/js/core/formats.js, colors/js/core/ase.js, shared/color/contrast.js
+const { describe, it, expect, waitFor, run } = SlopTest;
+let W, D;
+const BLOCKS = [['#1e3a8a', 0, 0, 200, 200], ['#f59e0b', 200, 0, 100, 200], ['#10b981', 300, 0, 100, 100], ['#e11d48', 300, 100, 100, 100]];
+/** A 400 × 200 PNG made of flat colour blocks: half dark blue, a quarter amber, an eighth each green and red. */
+async function blocks(name = 'blocks.png') {
+  const c = document.createElement('canvas'); c.width = 400; c.height = 200;
+  const x = c.getContext('2d');
+  for (const [f, a, b, w, h] of BLOCKS) { x.fillStyle = f; x.fillRect(a, b, w, h); }
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  return new W.File([blob], name, { type: 'image/png' });
+}
+async function open() {
+  const fr = document.getElementById('app');
+  localStorage.removeItem('slop-colors');
+  fr.src = '../../colors/index.html';
+  await waitFor(() => { try { return fr.contentWindow.CO && fr.contentWindow.CO.main && fr.contentDocument.querySelector('#co-download'); } catch (e) { return false; } }, { timeout: 30000 });
+  W = fr.contentWindow; D = W.document;
+}
+const S = () => W.CO.state.get();
+
+describe('Slop Colors: a picture', () => {
+  it('a picture of flat blocks gives its four colours, the largest first, with their shares', async () => {
+    await open();
+    const r = await W.SlopIntake.take([await blocks()], { to: 'colors' });
+    expect(r.added.length).toBe(1);
+    await waitFor(() => !D.getElementById('co-dominant-wrap').hidden);
+    const found = [...D.querySelectorAll('#co-dominant .co-sw-btn')].map((b) => b.dataset.hex);
+    expect(found).toEqual(['#1e3a8a', '#f59e0b', '#10b981', '#e11d48']);
+    expect(D.querySelector('#co-dominant .co-sw-share').textContent).toBe('50%');
+    D.getElementById('co-dominant-add').click();
+    expect(S().palette.colors.map((c) => c.hex)).toEqual(found);
+    expect(S().palette.name).toBe('blocks');
+  }, { timeout: 40000 });
+
+  it('the eyedropper: a click on the picture picks the pixel under it, and the magnifier shows it', async () => {
+    const cv = D.getElementById('co-canvas'), r = cv.getBoundingClientRect();
+    const at = (px, py) => ({ clientX: r.left + (px / cv.width) * r.width, clientY: r.top + (py / cv.height) * r.height, pointerId: 1, pointerType: 'mouse', bubbles: true, button: 0 });
+    cv.dispatchEvent(new W.PointerEvent('pointerdown', at(350, 150)));
+    expect(D.getElementById('co-loupe').hidden).toBe(false);
+    cv.dispatchEvent(new W.PointerEvent('pointerup', at(350, 150)));
+    expect(S().current).toBe('#e11d48');
+    expect(D.getElementById('co-big-hex').textContent).toBe('#e11d48');
+    expect(D.getElementById('co-in-rgb').value).toBe('rgb(225 29 72)');
+    cv.dispatchEvent(new W.PointerEvent('pointerdown', at(250, 20))); cv.dispatchEvent(new W.PointerEvent('pointerup', at(250, 20)));
+    expect(S().current).toBe('#f59e0b');
+  });
+
+  it('the keyboard: arrow keys move the point a pixel (Shift: ten) and Enter adds the colour to the palette', async () => {
+    const cv = D.getElementById('co-canvas'), key = (k, shift) => cv.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, shiftKey: !!shift, bubbles: true, cancelable: true }));
+    W.CO.picture.pickAt(199, 50);
+    expect(S().current).toBe('#1e3a8a');
+    key('ArrowRight');
+    expect(S().current).toBe('#f59e0b');
+    for (let i = 0; i < 10; i++) key('ArrowRight', true);
+    expect(S().current).toBe('#10b981');
+    const n = S().palette.colors.length;
+    key('Enter');
+    expect(S().palette.colors.length).toBe(n + 1);
+    expect(S().palette.colors[n].hex).toBe('#10b981');
+  });
+
+  it('fewer colours to find gives the biggest ones', async () => {
+    const k = D.getElementById('co-k'); k.value = '2'; k.dispatchEvent(new W.Event('change'));
+    expect(W.CO.picture.colors().length).toBe(2);
+    expect(W.CO.picture.colors()[0].hex).toBe('#1e3a8a');
+  });
+});
+
+describe('Slop Colors: the colour, the generated rows and the contrast check', () => {
+  it('typing any format sets the colour; the others follow', async () => {
+    const hsl = D.getElementById('co-in-hsl');
+    hsl.focus(); hsl.value = 'hsl(0 100% 50%)'; hsl.dispatchEvent(new W.Event('input'));
+    expect(S().current).toBe('#ff0000');
+    expect(D.getElementById('co-in-hex').value).toBe('#ff0000');
+    expect(D.getElementById('co-in-cmyk').value).toBe('cmyk(0% 100% 100% 0%)');
+    hsl.blur();
+    const bad = D.getElementById('co-in-hex'); bad.value = 'nope'; bad.dispatchEvent(new W.Event('input'));
+    expect(bad.getAttribute('aria-invalid')).toBe('true');
+    expect(S().current).toBe('#ff0000');
+    bad.dispatchEvent(new W.Event('change'));
+    expect(bad.value).toBe('#ff0000');
+    expect(D.getElementById('co-view').contains(hsl)).toBe(true);   // typed in the main view, beside its Copy
+    expect(hsl.closest('.co-value').querySelector('.co-copy').getAttribute('aria-label')).toBe('Copy HSL hsl(0 100% 50%)');
+  });
+  it('the harmony and scale rows follow the colour and the panel; a row becomes the palette', async () => {
+    W.CO.state.set({ harmony: 'triadic' });
+    expect([...D.querySelectorAll('#co-harmony .co-sw-btn')].map((b) => b.dataset.hex)).toEqual(['#ff0000', '#00ff00', '#0000ff']);
+    expect(D.querySelectorAll('#co-ramp .co-sw-btn').length).toBe(11);
+    D.getElementById('co-harm-use').click();
+    expect(S().palette.colors.map((c) => c.hex)).toEqual(['#ff0000', '#00ff00', '#0000ff']);
+  });
+  it('the contrast check gives the WCAG ratio and levels, and Fix finds a text colour that passes AA', async () => {
+    W.CO.state.set({ fg: '#777777', bg: '#ffffff' });
+    expect(D.getElementById('co-ratio').textContent).toBe('4.47 : 1')   // shown rounded down, as WebAIM's checker shows it (4.478);
+    const lv = (k) => D.querySelector(`#co-verdicts [data-level="${k}"]`).className;
+    expect(lv('aaNormal')).toContain('bad'); expect(lv('aaLarge')).toContain('ok'); expect(lv('ui')).toContain('ok');
+    D.getElementById('co-con-fix').click();
+    expect(W.SlopContrastMath.ratioHex(S().fg, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    expect(lv('aaNormal')).toContain('ok');
+    D.getElementById('co-con-swap').click();
+    expect(S().bg).not.toBe('#ffffff');
+    const fg = D.getElementById('co-con-fg'); fg.value = '#000'; fg.dispatchEvent(new W.Event('input'));
+    W.CO.state.set({ bg: '#ffffff' });
+    expect(D.getElementById('co-ratio').textContent).toBe('21.00 : 1');
+  });
+});
+
+describe('Slop Colors: the palette out and back in', () => {
+  it('every format: written, read back with the same colours (a palette file through the intake opens as the palette)', async () => {
+    W.CO.state.set({ palette: { name: 'Brand', colors: [{ hex: '#0b3d91', name: 'Navy' }, { hex: '#ff6f61' }] } });
+    for (const f of ['css', 'json', 'gpl', 'ase', 'tailwind']) {
+      const o = W.CO.io.build(f);
+      expect(o.blob.size).toBeGreaterThan(20);
+      if (f === 'tailwind') { expect(o.text).toContain("navy: '#0b3d91'"); continue; }
+      W.CO.state.set({ palette: { name: 'x', colors: [] } });
+      await W.SlopIntake.take([new W.File([o.blob], o.name, { type: o.blob.type })], { to: 'colors' });
+      expect(S().palette.colors.map((c) => c.hex)).toEqual(['#0b3d91', '#ff6f61']);
+      W.CO.state.set({ palette: { name: 'Brand', colors: [{ hex: '#0b3d91', name: 'Navy' }, { hex: '#ff6f61' }] } });
+    }
+    expect(W.CO.io.build('css').text).toContain('--brand-navy: #0b3d91;');
+  });
+  it('Save to Slop Drive keeps the file; Open in… lists apps and Save to Slop Drive', async () => {
+    const r = await W.CO.io.saveToDrive('gpl');
+    const rec = await W.SlopHub.get(r.id);
+    expect(rec.name).toBe('brand.gpl');
+    expect(await rec.blob.text()).toContain('GIMP Palette');
+    const items = W.CO.io.openInItems().map((i) => i.label);
+    expect(items.some((l) => /Slop Drive/.test(l))).toBe(true);
+    expect(D.getElementById('co-download').textContent).toContain('Download palette');
+  });
+  it('the state is kept: a reload shows the same palette', async () => {
+    const before = JSON.stringify(S().palette);
+    W.__old = true;
+    document.getElementById('app').src = '../../colors/index.html';
+    await waitFor(() => { try { const w = document.getElementById('app').contentWindow; return !w.__old && w.CO && w.CO.main && w.document.querySelector('#co-download'); } catch (e) { return false; } }, { timeout: 30000 });
+    W = document.getElementById('app').contentWindow; D = W.document;
+    expect(JSON.stringify(S().palette)).toBe(before);
+  }, { timeout: 40000 });
+});
+run({ name: 'Slop Colors' });
+</script>
+</body>
+</html>

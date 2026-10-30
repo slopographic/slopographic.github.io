@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopnodes in Swedish</title>
+  <!-- Covers: nodes/index.html, nodes/i18n/index.js, nodes/js/app.js, nodes/js/view.js, nodes/js/model.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slopnodes', path: '../../nodes/index.html', ns: 'nodes',
+    ready: (doc) => doc.querySelector('.sn-node .sn-kind') && doc.querySelector('.smb-menu-b'),
+    checks: [
+      ['#sn-add-value', '+ Värde', '+ Value'],
+      ['#sn-add-formula', 'formelnod', 'formula node', 'title'],
+      ['.sn-node .sn-kind', 'Värde', 'Value'],
+      ['#sn-status', 'Dra från', 'Drag from'],
+      ['#sn-count', 'noder', 'nodes'],
+      ['#sn-stage', 'Arbetsyta', 'Graph canvas', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slopnodes in Swedish' });
+  </script>
+</body>
+</html>

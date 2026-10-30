@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Hex tabs</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 720px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const tabEls = () => [...W().document.querySelectorAll('#hx-tabs .sl-doctab')];
+
+  /** Load the editor in the iframe and wait until it has booted (body.ready is set last in js/main.js). */
+  async function open() {
+    f.src = 'about:blank'; // so a reload never reads the old page's ready flag
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../hex/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready') && f.contentWindow.HexApp && f.contentWindow.HexApp.doc(), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const bytes = (...b) => new Blob([new Uint8Array(b)], { type: 'application/octet-stream' });
+
+  describe('Slop Hex tabs', () => {
+    it('two file tabs switch, keep their edits, and a reload brings both back', async () => {
+      // A clean start: no tabs stored from an earlier run of this page.
+      localStorage.removeItem('slop.doctabs.hex.v1');
+      await new Promise((r) => { const q2 = indexedDB.deleteDatabase('slop-doctabs'); q2.onsuccess = q2.onerror = q2.onblocked = () => r(); });
+      let w = await open();
+      await w.HexApp.openBlob(bytes(0x4d, 0x5a, 0x01, 0x02), { name: 'a.bin' });
+      expect(w.HexApp.doc().name).toBe('a.bin');
+      await w.HexApp.doc().load(0, 4);
+      w.HexApp.doc().write([{ at: 1, value: 0x11 }]); // one byte edited in a.bin
+      w.HexApp.changed();
+      await w.HexApp.openBlob(bytes(0x41, 0x42), { name: 'b.bin' });
+      expect(tabEls().length).toBe(2); // the blank tab from boot was replaced
+      expect(w.HexApp.doc().name).toBe('b.bin');
+      tabEls()[0].click(); // switch back to a.bin
+      expect(w.HexApp.doc().name).toBe('a.bin');
+      await w.HexApp.doc().load(0, 4);
+      expect(w.HexApp.doc().byte(1)).toBe(0x11);
+      expect(tabEls()[0].getAttribute('aria-selected')).toBe('true');
+      await w.HexTabs.flush();
+
+      // Reload: both tabs, a.bin on screen with its unsaved edit.
+      w = await open();
+      await sleep(100);
+      expect(tabEls().length).toBe(2);
+      expect(w.HexApp.doc().name).toBe('a.bin');
+      await w.HexApp.doc().load(0, 4);
+      expect(w.HexApp.doc().byte(1)).toBe(0x11);
+      expect(w.HexApp.doc().dirty()).toBe(true);
+      tabEls()[1].click();
+      expect(w.HexApp.doc().name).toBe('b.bin');
+      await w.HexApp.doc().load(0, 2);
+      expect(w.HexApp.doc().byte(0)).toBe(0x41);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Hex tabs' });
+  </script>
+</body>
+</html>

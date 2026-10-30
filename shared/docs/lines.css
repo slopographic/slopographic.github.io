@@ -1,0 +1,28 @@
+/* Document line cards and totals (shared/docs/lines.js) for Orders and Invoices: one card per line, the totals box, and
+ * the paper view's wrapper in the editor. Uses the business base tokens (shared/biz/app.css). Line cards stack at 390 px. */
+.line-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--mute); min-width: 0; }
+.line-grid .wide { grid-column: 1 / -1; }
+.line-grid input, .line-grid select { color: var(--ink); width: 100%; }
+.lines { display: grid; gap: 10px; }
+.line-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r, 12px); padding: 10px; min-width: 0; }
+.line-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.line-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.line-foot .num { font-weight: 600; }
+.line-card.bad { border-color: var(--danger); }
+.line-err { color: var(--danger); font-size: 12.5px; margin: 6px 0 0; }
+.totals dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; }
+.totals dt { color: var(--mute); }
+.totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.totals dt.grand, .totals dd.grand { font-weight: 700; color: var(--ink); border-top: 1px solid var(--line); padding-top: 6px; }
+.sample-progress { display: block; width: 100%; margin-top: 8px; }
+@media (max-width: 420px) {
+  .line-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (min-width: 720px) {
+  .line-grid { grid-template-columns: 2fr 2fr 1fr 1fr 1fr; }
+  .line-grid .full { grid-column: 1 / -1; }
+}
+
+/* The paper view (shared/docs/page.js) in the editor; the form-only parts are hidden in Page mode */
+.page-wrap { margin: 4px 0 18px; min-width: 0; }
+.page-wrap[hidden] { display: none !important; }

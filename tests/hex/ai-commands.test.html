@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Hex: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: hex/js/ai-commands.js, hex/js/commands.js, hex/js/doc.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('hex.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const bytes = async () => [...new Uint8Array(await W.HexApp.doc().toBlob().arrayBuffer())];
+
+  describe('Slop Hex: assistant commands', () => {
+    it('new_file, set_bytes (one undo step), find_bytes; past the end is refused', async () => {
+      f.src = '../../hex/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.HexApp && f.contentWindow.SlopCmd && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      await run('new-file', { name: 'hello.bin', text: 'Hello world' });
+      expect(W.HexApp.doc().name).toBe('hello.bin');
+      expect((await bytes()).length).toBe(11);
+      await run('set-bytes', { offset: '0x0', hex: '4A 45' });
+      expect(new TextDecoder().decode(new Uint8Array(await bytes()))).toBe('JEllo world');
+      const r = await C.exec('hex.ai.set-bytes', { offset: '10', text: 'xyz' });
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/past the end/);
+      const fnd = await run('find-bytes', { text: 'world' });
+      expect(fnd.value).toMatch(/\(6\)/);
+      W.HexApp.undo();
+      expect(new TextDecoder().decode(new Uint8Array(await bytes()))).toBe('Hello world');
+      expect(C.state().size).toBe(11);
+    }, { timeout: 30000 });
+
+    it('save_version and export_file write to Slop Drive; open_file reads it back; the rollback undoes', async () => {
+      await run('set-bytes', { offset: '0', text: 'Y' });
+      let r = await run('save-version', {});
+      const id = /id ([^)\s]+)\)/.exec(r.value)[1];
+      expect(new TextDecoder().decode(await (await W.SlopHub.get(id)).blob.arrayBuffer())).toBe('Yello world');
+      r = await run('export-file', { to: 'drive', name: 'copy.bin' });
+      expect((await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).name).toBe('copy.bin');
+      await run('open-file', { file: 'copy.bin' });
+      expect(W.HexApp.doc().name).toBe('copy.bin');
+      const back = C.checkpoint();
+      await run('set-bytes', { offset: '0', hex: '00' });
+      expect((await bytes())[0]).toBe(0);
+      expect(back()).toBe(true);
+      expect((await bytes())[0]).toBe(89);
+    }, { timeout: 30000 });
+
+    it('insert_bytes, append_bytes and delete_bytes change the size; each is one undo step; set_bytes works after', async () => {
+      const txt = async () => new TextDecoder().decode(new Uint8Array(await bytes()));
+      await run('new-file', { name: 'grow.txt', text: 'Hello world' });
+      await run('insert-bytes', { offset: '5', text: ',' });
+      expect(await txt()).toBe('Hello, world');
+      await run('append-bytes', { hex: '21 0A' });
+      expect(await txt()).toBe('Hello, world!\n');
+      await run('insert-bytes', { offset: 'end', text: 'x' });
+      expect(C.state().size).toBe(15);
+      await run('delete-bytes', { offset: '0x0', count: 7 });
+      expect(await txt()).toBe('world!\nx');
+      await run('set-bytes', { offset: '0', text: 'W' });
+      expect(await txt()).toBe('World!\nx');
+      W.HexApp.undo(); W.HexApp.undo();
+      expect(await txt()).toBe('Hello, world!\nx');
+      W.HexApp.redo();
+      expect(await txt()).toBe('world!\nx');
+      const back = C.checkpoint();
+      await run('append-bytes', { text: 'abc' });
+      await run('delete-bytes', { offset: '0', count: 1 });
+      expect(C.state().size).toBe(10);
+      expect(back()).toBe(true);
+      expect(await txt()).toBe('world!\nx');
+      const r = await C.exec('hex.ai.insert-bytes', { offset: '99', text: 'a' });
+      expect(r.ok).toBe(false);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop Hex: assistant commands' });
+  </script>
+</body>
+</html>

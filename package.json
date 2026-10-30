@@ -1,0 +1,13 @@
+{
+  "name": "slopographic",
+  "private": true,
+  "description": "Slopographic: browser apps, games and experiments. Static site, no build step.",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "test": "node tests/run.mjs",
+    "serve": "npx --yes http-server . -p 8080 -c-1"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: SIE files and bank statements to CSV and XLSX</title></head>
+<body>
+<script src="../../shared/intake/rules.js"></script>
+<script src="../../shared/intake/normalize.js"></script>
+<script src="../../shared/intake/pipeline.js"></script>
+<script src="../../shared/intake/intake.js"></script>
+<script src="../../shared/intake/sources.js"></script>
+<script src="../../shared/drop/panel.js"></script>
+<script src="../../shared/drop/drop.js"></script>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/core/finance.js, convert/js/core/finance-pages.js, convert/js/core/catalog.js, convert/js/core/detect.js, convert/js/core/pages.js, convert/js/preview/model.js, convert/js/ui/markup.js, convert/js/ui/cards.js
+import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+import { detectKind } from '../../convert/js/core/detect.js';
+import { PAGES } from '../../convert/js/core/pages.js';
+import { readXlsx } from '../../shared/sheets/xlsx.js';
+import { ConvertTool } from '../../convert/js/ui/tool.js';
+import { PreviewPanel } from '../../convert/js/preview/controller.js';
+const { describe, it, expect } = SlopTest;
+const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+const fix = async (name) => new Uint8Array(await (await fetch(`../finance/fixtures/${name}`, { cache: 'no-store' })).arrayBuffer());
+const item = async (name) => { const b = await fix(name); return { name, file: new File([b], name), kind: detectKind(name, '', b.subarray(0, 512)) }; };
+const sheetOf = async (out, name) => (await readXlsx(new Uint8Array(await out.blob.arrayBuffer()))).sheets.find((s) => s.name === name);
+const csvLines = async (out) => (await out.blob.text()).replace(/^﻿/, '').trim().split('\r\n');
+
+describe('detection by content', () => {
+  it('each sample is recognised from its first bytes, also under a plain .txt or .xml name', async () => {
+    const want = { 'ankan-sie4.se': 'sie', 'fakt-4i.si': 'sie', 'checking-v1.ofx': 'ofx', 'card-v2.qfx': 'ofx', 'checking.qif': 'qif', 'ankan-camt053-v02.xml': 'camt053', 'ankan-de.sta': 'mt940', 'jansen-nl.mt940': 'mt940' };
+    for (const [f, k] of Object.entries(want)) {
+      const head = (await fix(f)).subarray(0, 512);
+      expect(detectKind(f, '', head)).toBe(k);
+      expect(detectKind('download.txt', 'text/plain', head)).toBe(k);
+    }
+    expect(detectKind('statement.xml', 'text/xml', (await fix('ankan-camt053-v08.xml')).subarray(0, 512))).toBe('camt053');
+    expect(detectKind('a.csv', 'text/csv', new TextEncoder().encode('Date,Amount\n2026-10-01,5\n'))).toBe('csv');
+  });
+  it('the target list offers the finance conversions for each kind', () => {
+    const sie = conversionsFor(['sie']).map((c) => c.id);
+    expect(sie).toContain('sie-to-xlsx');
+    expect(sie).toContain('sie-to-csv');
+    expect(sie).not.toContain('bank-to-csv');
+    for (const k of ['ofx', 'qif', 'camt053', 'mt940']) expect(conversionsFor([k]).map((c) => c.id)).toContain('bank-to-xlsx');
+  });
+});
+
+describe('SIE to Excel and CSV', () => {
+  it('writes Info, Vouchers, Accounts, Balances and Periods, with numbers, dates and the file’s letters', async () => {
+    const res = await conv('sie-to-xlsx').run([await item('ankan-sie4.se')], {});
+    expect(res[0].name).toBe('ankan-sie4.xlsx');
+    const book = await readXlsx(new Uint8Array(await res[0].blob.arrayBuffer()));
+    expect(book.sheets.map((s) => s.name)).toEqual(['Info', 'Vouchers', 'Accounts', 'Balances', 'Periods']);
+    const v = book.sheets[1];
+    expect(v.text[0].slice(0, 4)).toEqual(['Series', 'Number', 'Date', 'Voucher text']);
+    expect(v.text[1][3]).toBe('Faktura 1001, Kund Åkesson');
+    expect(v.rows[1][6]).toBe(12500);              // a number, not text
+    expect(v.text[1][2]).toBe('2025-01-10');       // a date with a date format
+    expect(v.rows[1][2] instanceof Date || typeof v.rows[1][2] === 'number').toBeTruthy();
+    expect(v.bold.size > 0).toBeTruthy();
+    const b = book.sheets[3];
+    expect(b.text[0]).toEqual(['Account', 'Name', 'Type', 'Opening 2025', 'Closing 2025', 'Result 2025', 'Opening 2024']);
+    expect(res.info).toContain('Testbolaget Ankan AB, SIE type 4, SEK: 10 accounts, 4 vouchers (13 lines). Checksum matches.');
+    expect(res.preview.split('\n')[0].startsWith('Series\tNumber')).toBeTruthy();
+  });
+  it('CSV: one row per line; with semicolons the amounts get a decimal comma; a file without vouchers gives its balances', async () => {
+    const [out] = await conv('sie-to-csv').run([await item('ankan-sie4.se')], { delimiter: ';' });
+    const lines = await csvLines(out);
+    expect(lines[0].startsWith('Series;Number;Date;Voucher text;Account;Account name;Debit;Credit;Amount')).toBeTruthy();
+    expect(lines[1]).toContain('A;1;2025-01-10;Faktura 1001, Kund Åkesson;1930;Företagskonto;12500,00;;12500,00');
+    expect(lines.length).toBe(15);
+    const one = await conv('sie-to-csv').run([await item('ankan-sie1.se')], { delimiter: ',' });
+    expect(one[0].name).toBe('ankan-sie1-balances.csv');
+    expect(one.info).toContain('no vouchers');
+    expect((await csvLines(one[0]))[0]).toBe('Account,Name,Type,Opening 2025,Closing 2025,Result 2025');
+  });
+  it('a bank statement given to SIE to CSV is refused with a plain message', async () => {
+    let msg = '';
+    try { await conv('sie-to-csv').run([await item('checking.qif')], {}); } catch (e) { msg = e.message; }
+    expect(msg).toContain('bank statement, not an SIE file');
+  });
+});
+
+describe('bank statements to CSV and Excel', () => {
+  it('OFX, QIF and MT940 to CSV: date, amount (money out negative), text, counterparty', async () => {
+    const ofx = await csvLines((await conv('bank-to-csv').run([await item('checking-v1.ofx')], {}))[0]);
+    expect(ofx[0]).toBe('Date,Value date,Amount,Currency,Text,Counterparty,Reference,Type,Status,Bank id');
+    expect(ofx[2]).toBe('2026-10-21,,-4.50,USD,Café Corner,Café Corner,,DEBIT,,2026102101');
+    const qif = await csvLines((await conv('bank-to-csv').run([await item('checking.qif')], {}))[0]);
+    expect(qif[1].startsWith('2026-10-20,,1200.00,,ACME LTD · Invoice INV-0001,ACME LTD,1001')).toBeTruthy();
+    const res = await conv('bank-to-csv').run([await item('ankan-de.sta')], {});
+    const mt = await csvLines(res[0]);
+    expect(mt.length).toBe(5);
+    expect(mt[0].endsWith(',Account')).toBeTruthy();
+    expect(res.info).toContain('MT940 statement for DE00000000000000000001: 4 transactions');
+  });
+  it('camt.053 to Excel: Transactions and Statement sheets, the balance check, the pending line', async () => {
+    const res = await conv('bank-to-xlsx').run([await item('ankan-camt053-v02.xml')], {});
+    const t = await sheetOf(res[0], 'Transactions'), s = await sheetOf(res[0], 'Statement');
+    expect(t.rows[2][2]).toBe(-750);
+    expect(t.text[3][8]).toBe('PDNG');
+    const info = Object.fromEntries(s.text.map((r) => [r[0], r[1]]));
+    expect(info.Account).toBe('SE0000000000000000000001');
+    expect(info.Check).toBe('Opening + transactions = closing');
+    expect(res.info).toContain('(1 pending, not counted)');
+  });
+});
+
+describe('the converter pages', () => {
+  it('seven finance pages, in the Finance group, each on a finance conversion (SIE to JSON: a route that starts with one)', () => {
+    const fin = PAGES.filter((p) => p.cat === 'Finance');
+    expect(fin.map((p) => p.slug)).toEqual(['sie-to-xlsx', 'sie-to-csv', 'ofx-to-csv', 'qif-to-csv', 'camt053-to-xlsx', 'mt940-to-csv', 'sie-to-json']);
+    for (const p of fin) expect(!!conv(p.conv.split('>')[0])).toBeTruthy();
+  });
+  it('a dropped SIE file shows as text (code page 437 decoded) and its workbook as a table in the preview', async () => {
+    const root = document.createElement('div'), block = document.createElement('section');
+    document.body.append(root, block);
+    const tool = new ConvertTool(root, { conv: 'sie-to-xlsx', from: ['sie'] });
+    root.convertTool = tool;
+    new PreviewPanel(block, tool, root);
+    await tool.addFiles([new File([await fix('ankan-sie4.se')], 'ankan-sie4.se')]);
+    const t0 = Date.now();
+    while (block.querySelector('.cv-pv-status')?.textContent !== 'Up to date.' && Date.now() - t0 < 8000) await new Promise((r) => setTimeout(r, 50));
+    const [before, after] = block.querySelectorAll('.cv-pv-panel');
+    expect(before.textContent).toContain('#FNAMN "Testbolaget Ankan AB"');
+    expect(before.textContent).toContain('Företagskonto');
+    expect(after.textContent).toContain('Faktura 1001, Kund Åkesson');
+  });
+});
+
+SlopTest.run({ name: 'File convert: finance files' });
+</script>
+</body>
+</html>

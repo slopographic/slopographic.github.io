@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop in Swedish</title>
+  <!-- Covers: photoslop/i18n/index.js, photoslop/js/core/util.js, photoslop/js/ui/menus.js, photoslop/js/ui/chrome.js, shared/i18n/i18n.js -->
+  <!-- Covers (strings): photoslop/js/app/ai-commands.js photoslop/js/app/ai-draw-cmds.js photoslop/js/app/ai-draw.js
+        photoslop/js/app/ai-ops.js photoslop/js/app/ai-tool-use.js photoslop/js/app/ai-tools.js
+        photoslop/js/app/commands.js photoslop/js/app/imagegen.js photoslop/js/app/intake.js
+        photoslop/js/app/macros.js photoslop/js/app/main.js photoslop/js/app/nav-adapter.js photoslop/js/app/tabs.js
+        photoslop/js/app/topbar-fit.js photoslop/js/app/welcome.js photoslop/js/brushes/engine.js
+        photoslop/js/brushes/packs.js photoslop/js/brushes/panel.js photoslop/js/core/brush-resize.js
+        photoslop/js/core/composite.js photoslop/js/core/model.js photoslop/js/core/ops.js photoslop/js/core/size.js
+        photoslop/js/core/util.js photoslop/js/core/view-rot.js photoslop/js/filters/catalog.js
+        photoslop/js/filters/enhance.js photoslop/js/filters/fx-more.js photoslop/js/filters/helpers.js
+        photoslop/js/filters/repair.js photoslop/js/filters/slop.js photoslop/js/guides/input.js
+        photoslop/js/guides/model.js photoslop/js/guides/overlay.js photoslop/js/guides/ui.js
+        photoslop/js/io/buffer.js photoslop/js/io/config.js photoslop/js/io/files.js photoslop/js/io/formats.js
+        photoslop/js/io/hub.js photoslop/js/io/isolate.js photoslop/js/io/psd.js photoslop/js/io/raw.js
+        photoslop/js/io/save.js photoslop/js/layers/fx-preset-picker.js photoslop/js/layers/fx-presets.js
+        photoslop/js/layers/fx-rows.js photoslop/js/layers/fx.js photoslop/js/layers/masks.js
+        photoslop/js/retouch/boot.js photoslop/js/retouch/dialog-view.js photoslop/js/retouch/dialog.js
+        photoslop/js/retouch/enhance.js photoslop/js/retouch/portrait.js photoslop/js/retouch/remove.js
+        photoslop/js/retouch/source.js photoslop/js/retouch/tool.js photoslop/js/tools/eyedrop.js
+        photoslop/js/tools/fill.js photoslop/js/tools/heal.js photoslop/js/tools/paint.js
+        photoslop/js/tools/redeye.js photoslop/js/tools/select.js photoslop/js/tools/shape-layer.js
+        photoslop/js/tools/state.js photoslop/js/tools/stroke.js photoslop/js/tools/subject.js
+        photoslop/js/tools/transform-idle.js photoslop/js/tools/transform.js photoslop/js/type/edit.js
+        photoslop/js/type/model.js photoslop/js/type/props.js photoslop/js/ui/chrome.js
+        photoslop/js/ui/color-picker.js photoslop/js/ui/context.js photoslop/js/ui/dialogs.js
+        photoslop/js/ui/doc-dialogs.js photoslop/js/ui/filter-dialog.js photoslop/js/ui/fx-dialog.js
+        photoslop/js/ui/layer-style-pages.js photoslop/js/ui/layer-style.js photoslop/js/ui/menus.js
+        photoslop/js/ui/panels.js photoslop/js/ui/popups.js photoslop/js/ui/size-dialogs.js
+        photoslop/js/watermark/panel.js photoslop/js/watermark/state.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // PhotoSlop in a same-origin iframe, so it shares this page's localStorage (the language choice); the tour is marked shown.
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    localStorage.setItem('photoslop.tourShown', '1');
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../photoslop/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.body && f.contentDocument.body.classList.contains('ready') && f.contentDocument.querySelector('#menubar .mb-item') && f.contentDocument.querySelector('#toolbox .tool'), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(photoslop|ui|menu|shell|nav)\.[a-z0-9_]+\.[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menubar .mb-item')].map((b) => b.textContent.trim());
+  const toolNames = (doc) => [...doc.querySelectorAll('#toolbox .tool')].map((b) => b.getAttribute('aria-label'));
+  async function fileMenu(f) {
+    const b = f.contentDocument.querySelector('#menubar .mb-item');
+    b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const m = await waitFor(() => f.contentDocument.querySelector('.menu'), { timeout: 20000 });
+    const items = m.innerText;
+    f.contentWindow.closeMenus();
+    return items;
+  }
+
+  describe('PhotoSlop in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, tools and File menu, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc).slice(0, 4)).toEqual(['Arkiv', 'Redigera', 'Bild', 'Lager']);
+      expect(toolNames(doc)).toContain('Penselverktyg');
+      expect(toolNames(doc)).not.toContain('Brush Tool');
+      const items = await fileMenu(f);
+      expect(items).toContain('Öppna');
+      expect(KEY.test(items)).toBe(false);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && toolNames(doc).includes('Brush Tool'), { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv' && toolNames(doc).includes('Penselverktyg'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      const bar = doc.querySelector('.topbar');
+      expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'PhotoSlop in Swedish' });
+  </script>
+</body>
+</html>

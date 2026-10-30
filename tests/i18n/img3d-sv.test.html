@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Image to 3D in Swedish</title>
+  <!-- Covers: img3d/index.html, img3d/i18n/index.js, img3d/js/app/layout.js, img3d/js/app/main.js, img3d/js/app/image.js, img3d/js/app/export.js, img3d/js/model/jit.js, img3d/js/model/depth.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Image to 3D', path: '../../img3d/index.html', ns: 'img3d',
+    ready: (doc) => doc.querySelector('#panel .sf-h') && doc.getElementById('status').textContent,
+    checks: [
+      ['#btnSend', 'Öppna i Slop 3D', 'Open in Slop 3D'],
+      ['#panel .sf-h', 'Bild', 'Picture'],
+      ['#status', 'Öppna en bild för att börja', 'Open a picture to begin'],
+      ['#picName', 'Ingen bild än', 'No picture yet'],
+      ['#btnOpen', 'Öppna en bild från disken', 'Open a picture from disk', 'title'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Image to 3D in Swedish' });
+  </script>
+</body>
+</html>

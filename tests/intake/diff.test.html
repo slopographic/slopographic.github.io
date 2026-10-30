@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Compare: every way in is the same path, to the side asked for</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: diff/js/ui/main.js, diff/js/ui/slots.js
+  // Slop Compare on the one intake: a side's Open… (the picker), a drop on a side, a drop of two files on the zone, a paste,
+  // Slop Drive… (the shared Drive picker) and ?drive= all reach the one reader, which fills the side asked for (or A then B).
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const file = (name, text = name) => new W.File([text], name, { type: 'text/plain' });
+  const sides = () => [W.SlopCompare.S.sides.a.name, W.SlopCompare.S.sides.b.name];
+  async function boot(q = '') {
+    const fr = document.getElementById('app');
+    const loaded = new Promise((r) => fr.addEventListener('load', r, { once: true }));
+    fr.src = '../../diff/index.html' + q;
+    await loaded;
+    await waitFor(() => { try { return fr.contentWindow.SlopCompare && fr.contentWindow.SlopCompare.ready; } catch (e) { return false; } }, { timeout: 20000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('diff'), reader = s.processAll;
+    s.processAll = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+  }
+  describe('Slop Compare: one way in', () => {
+    it('Open… on B (the picker) fills B', async () => {
+      await boot();
+      W.SlopIntake.pickFiles = async () => [file('picked.txt')];
+      D.querySelector('[data-act="open"][data-side="b"]').click();
+      await waitFor(() => sides()[1] === 'picked.txt');
+      expect(sides()).toEqual(['', 'picked.txt']);
+      expect(seen).toEqual(['picker']);
+    }, { timeout: 40000 });
+    it('a drop on A fills A, and then the two compare', async () => {
+      seen = [];
+      D.querySelector('.df-side[data-side="a"]').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([file('dropped.txt')]) }));
+      await waitFor(() => sides()[0] === 'dropped.txt' && W.SlopCompare.S.result);
+      expect(seen).toEqual(['drop']);
+    });
+    it('two files dropped on the zone are A and B, in order; a paste goes to the first empty side', async () => {
+      seen = [];
+      W.SlopCompare.clearAll();
+      await W.SlopIntake.take(dtOf([file('one.txt'), file('two.txt')]), { to: 'diff', source: 'drop' });
+      expect(sides()).toEqual(['one.txt', 'two.txt']);
+      W.SlopCompare.setSide('a', {});
+      D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([file('pasted.txt')]) }));
+      await waitFor(() => sides()[0] === 'pasted.txt');
+      expect(seen).toEqual(['drop', 'paste']);
+    });
+    it('Slop Drive… opens the shared picker for that side; ?drive= opens a Drive file as A', async () => {
+      const id = await W.SlopHub.put(new W.Blob(['from the drive\n'], { type: 'text/plain' }), { name: 'kept.txt', from: 'test' });
+      W.SlopHub.pickFromDrive = async () => ({ id });
+      seen = [];
+      D.querySelector('[data-act="drive"][data-side="b"]').click();
+      await waitFor(() => sides()[1] === 'kept.txt');
+      expect(W.SlopCompare.S.sides.b.drive).toBe(id);
+      expect(seen).toEqual(['drive']);
+      await boot('?drive=' + id);
+      await waitFor(() => sides()[0] === 'kept.txt');
+      expect(D.getElementById('df-a-text').value).toBe('from the drive\n');
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Compare' });
+</script>
+</body>
+</html>

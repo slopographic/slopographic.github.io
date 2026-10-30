@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Invoices: customer statement (from Owed by customer; balance, ageing, period, CSV, print), at 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: invoices/js/ui/reminder.js, invoices/js/ui/statement.js, invoices/js/ui/list.js, invoices/js/ui/app.js, invoices/js/core/invoices.js, invoices/css/invoices.css, invoices/index.html, shared/data/statement.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, c;
+  const $ = (id) => D.getElementById(id);
+  const S = () => W.SlopData;
+  async function boot(hash = '') {
+    const f = document.getElementById('app');
+    f.src = '../../invoices/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopInvoices && f.contentWindow.SlopInvoices.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  const lineOf = (total) => [{ description: 'Work', qty: 1, unitPrice: total, taxRate: 0 }];
+  async function issued(date, dueDate, total) {
+    const d = (await S().store.put('invoices', { customerId: c.id, date, dueDate, lines: lineOf(total) })).value;
+    return (await S().billing.issue(d.id)).value;
+  }
+
+  describe('customer statement', () => {
+    it('Owed by customer opens the statement: every invoice and payment with a running balance, and the ageing', async () => {
+      await boot();
+      await S().store.erase(); await S().store.ready();
+      c = (await S().store.put('customers', { name: 'Ada Ltd', stage: 'customer', email: 'pay@ada.example', address: '1 High St\nLeeds' })).value;
+      const today = S().ledger.today(), back = (n) => S().ledger.addDays(today, -n);
+      const a = await issued(back(100), back(70), 10000);
+      await issued(back(20), back(5), 5000);
+      await S().billing.recordPayment({ invoiceId: a.id, amount: 4000, date: back(60), method: 'bank' });
+      await boot('#list');
+      await waitFor(() => D.querySelectorAll('#iOutstanding .sl-row').length === 1);
+      D.querySelector('#iOutstanding .sl-row').click();
+      await waitFor(() => W.location.hash === `#s/${c.id}` && !$('view-statement').hidden && D.querySelector('.statement'));
+      const rows = [...D.querySelectorAll('.st-table tbody tr')].map((r) => r.textContent);
+      expect(rows.length).toBe(3);
+      expect(rows[1]).toContain('Payment');
+      expect(D.querySelector('.st-table tfoot').textContent).toContain('$110.00');
+      expect(D.querySelector('.st-total').textContent).toBe('Balance owed$110.00');
+      const ages = [...D.querySelectorAll('.st-age .stat')].map((x) => x.textContent);
+      expect(ages[1]).toContain('$50.00');
+      expect(ages[3]).toContain('$60.00');
+      expect(D.querySelector('.st-to').textContent).toContain('Leeds');
+      expect(D.querySelector('.biz-docbar').hidden).toBe(false);   // the record bar (shared/biz/docbar.js), not a new tab
+      expect(D.querySelector('.biz-docbar .biz-doc-title:not([hidden])').textContent).toBe('Ada Ltd: statement');
+    });
+    it('a From date gives an opening balance and only the later lines', async () => {
+      const from = S().ledger.addDays(S().ledger.today(), -30);
+      $('stFrom').value = from; $('stFrom').dispatchEvent(new W.Event('input'));
+      await waitFor(() => D.querySelector('.st-open'));
+      expect(D.querySelector('.st-open').textContent).toContain('$60.00');
+      expect(D.querySelectorAll('.st-table tbody tr').length).toBe(2);
+    });
+    it('Reminder… writes a final reminder (an invoice is 70 days late) listing the open invoices, to copy or email', async () => {
+      $('stFrom').value = ''; $('stFrom').dispatchEvent(new W.Event('input'));
+      $('stRemind').click();
+      const dlg = await waitFor(() => SlopTest.topDialog(D));
+      expect(dlg.textContent).toContain('Final reminder');
+      const subject = dlg.querySelector('input'), body = dlg.querySelector('textarea');
+      expect(subject.value).toBe('Final reminder: $110.00 overdue');
+      expect(body.value.startsWith('Hello Ada Ltd,')).toBe(true);
+      expect(body.value).toContain('(70 days late)');
+      const mail = dlg.querySelector('a.btn');
+      expect(mail.getAttribute('href').startsWith('mailto:pay%40ada.example?subject=Final%20reminder')).toBe(true);
+      subject.value = 'Changed'; subject.dispatchEvent(new W.Event('input'));
+      expect(mail.getAttribute('href')).toContain('subject=Changed');
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Close').click();
+      await waitFor(() => !SlopTest.topDialog(D));
+    });
+    it('Download CSV gives the statement as CSV; the page has no sideways scroll at 390 px', async () => {
+      let got = null;
+      W.SlopUI.download = (blob, name) => { got = { blob, name }; };
+      $('stCsv').click();
+      await waitFor(() => !!got);
+      expect(got.name.startsWith('statement-Ada-Ltd-')).toBe(true);
+      expect((await got.blob.text()).split('\r\n')[0]).toBe('Date,What,Invoice,Due,Charged,Paid,Balance');
+      document.getElementById('app').style.width = '390px';
+      await waitFor(() => W.innerWidth === 390);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

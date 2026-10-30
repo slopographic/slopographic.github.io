@@ -1,0 +1,22 @@
+/* Slop Calendar, Traditional Chinese (Taiwan): the command palette entries. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-zh-TW.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'calendar.cmd.g_cal': '行事曆',
+  'calendar.cmd.g_goto': '前往',
+  'calendar.cmd.prev': '行事曆：上一個期間',
+  'calendar.cmd.next': '行事曆：下一個期間',
+  'calendar.cmd.today': '行事曆：回到今天',
+  'calendar.cmd.year': '行事曆：年檢視',
+  'calendar.cmd.month': '行事曆：月檢視',
+  'calendar.cmd.split': '行事曆：分割檢視',
+  'calendar.cmd.undo': '行事曆：復原上一次移動',
+  'calendar.cmd.week': '行事曆：週檢視',
+  'calendar.cmd.day': '行事曆：日檢視',
+  'calendar.cmd.agenda': '行事曆：議程',
+  'calendar.cmd.new': '行事曆：新增活動',
+  'calendar.cmd.tasks': '行事曆：顯示或隱藏待辦事項',
+  'calendar.cmd.import': '行事曆：匯入 .ics',
+  'calendar.cmd.export': '行事曆：匯出 .ics',
+  'calendar.cmd.todo': '前往 Slop To-do',
+  'calendar.cmd.reminders': '前往 Slop Reminders',
+  'calendar.cmd.crm': '前往 Slop CRM',
+});

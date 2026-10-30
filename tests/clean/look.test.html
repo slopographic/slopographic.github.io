@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopClean: the look (header, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: clean/index.html, clean/css/clean.css, clean/js/app/layout.js, clean/js/ui/choices.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's buttons are in. */
+  async function open(width, height = 800) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../clean/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-switch') && D.querySelector('header a.brand .brand-app') && D.getElementById('cl-open'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  /** The header's visible buttons and links. */
+  const controls = (D) => [...D.querySelectorAll('header a, header button')].filter((n) => n.getBoundingClientRect().width > 0);
+  /** True when no two controls on the same row overlap, and all are inside the window. */
+  function laidOut(D, width) {
+    const rs = controls(D).map((n) => n.getBoundingClientRect()).sort((a, b) => a.top - b.top || a.left - b.left);
+    return rs.every((r, i) => r.left >= 0 && r.right <= width + 0.5 && (!i || rs[i - 1].bottom <= r.top + 4 || r.left >= rs[i - 1].right - 0.5));
+  }
+
+  describe('SlopClean: the look', () => {
+    it('the header leads with the home link (the app icon), then the name', async () => {
+      const D = await open(1440);
+      const brand = D.querySelector('header.cl-top a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.nextElementSibling.textContent).toBe('SlopClean');
+      expect(D.querySelector('.sps-dock')).toBe(null); // the corner Home and All apps pills are not needed
+    }, { timeout: 40000 });
+
+    it('at 1440px every header control sits on one row, as tall as the shell buttons', async () => {
+      const D = await open(1440);
+      expect(laidOut(D, 1440)).toBe(true);
+      const top = D.querySelector('header.cl-top');
+      expect(top.getBoundingClientRect().height).toBeLessThan(60);
+      const h = (s) => D.querySelector(s).getBoundingClientRect().height;
+      expect(h('#cl-open')).toBe(h('header .sh-switch'));
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways and no header controls overlap', async () => {
+      const D = await open(390);
+      expect(laidOut(D, 390)).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+
+    /** A plain JPEG made here, opened the way a drop opens it. */
+    async function addPicture(D) {
+      const c = D.createElement('canvas'); c.width = 120; c.height = 80;
+      c.getContext('2d').fillRect(0, 0, 120, 80);
+      const b = await new Promise((r) => c.toBlob(r, 'image/jpeg'));
+      await D.defaultView.CL.app.addFiles([new D.defaultView.File([b], 'p.jpg', { type: 'image/jpeg' })]);
+    }
+
+    it('at 1280px the choices are a panel on the right with Copy and clean at its foot; only Open is in the header', async () => {
+      const D = await open(1280), side = D.getElementById('cl-side');
+      await addPicture(D);
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('cl-view').getBoundingClientRect().right - 1);
+      expect(Math.round(side.getBoundingClientRect().right)).toBe(1280);
+      expect([...side.querySelectorAll('.sf-h')].map((n) => n.textContent)).toEqual(['What to remove', 'Result']);
+      for (const id of ['cl-choices', 'cl-remove-all', 'cl-save-all', 'cl-all']) expect(side.contains(D.getElementById(id))).toBe(true);
+      expect(D.querySelector('header').contains(D.getElementById('cl-all'))).toBe(false);
+      const all = D.getElementById('cl-all');
+      expect(all.closest('.sf-p-foot')).toBeTruthy();
+      await waitFor(() => !all.disabled, { timeout: 10000 });
+      expect(all.getBoundingClientRect().bottom).toBeLessThanOrEqual(800);
+    }, { timeout: 40000 });
+
+    it('at 390px Copy and clean stays at the bottom; Choices opens the sheet with the ticks', async () => {
+      const D = await open(390, 844);
+      await addPicture(D);
+      const all = D.getElementById('cl-all');
+      expect(all.getBoundingClientRect().top).toBeGreaterThan(700);
+      expect(all.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => D.getElementById('cl-side').classList.contains('ssh-on'));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(D.querySelector('#cl-choices input').getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'SlopClean: the look' });
+  </script>
+</body>
+</html>

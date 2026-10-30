@@ -1,0 +1,25 @@
+/* Slop Press, Simplified Chinese: the toolbar, the colour picker, the guide dialog and the tool names. Same keys as press/i18n/en/toolbar.js.
+ * Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'press.tool.undo_fill': '填充',
+  'press.tool.undo_stroke': '描边',
+  'press.tool.fill_tip': '填充（点击即可选择）',
+  'press.tool.fill_label': '填充颜色',
+  'press.tool.stroke_tip': '描边（点击即可选择）',
+  'press.tool.stroke_label': '描边颜色',
+  'press.tool.title_key': '{name}（{key}）',
+  'press.kit.colour': '颜色',
+  'press.kit.custom_colour': '自定义颜色…',
+  'press.kit.mode': '模式',
+  'press.kit.mode_cmyk': 'CMYK（印刷色）',
+  'press.kit.ink.c': '青',
+  'press.kit.ink.m': '品红',
+  'press.kit.ink.y': '黄',
+  'press.kit.ink.k': '黑',
+  'press.guide.title': '创建参考线',
+  'press.guide.margins': '页边距',
+  'press.guide.page': '页面',
+  'press.guide.selection': '所选内容',
+  'press.guide.undo_create': '创建参考线',
+  'press.guide.undo_clear': '清除参考线',
+});

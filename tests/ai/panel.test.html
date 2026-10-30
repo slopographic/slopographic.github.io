@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: side panel and window.SlopAI</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let P, H;
+  describe('window.SlopAI without a model', () => {
+    it('is not ready and answers with an offline Sloppo line', async () => {
+      P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width: 900, height: 700 });
+      await P.SlopAIPanel.ready;
+      expect(P.SlopAI.ready).toBe(false); expect(P.SlopAI.look).toBe(null);
+      const s = P.SlopAI.ask('hello');
+      const parts = []; for await (const x of s) parts.push(x);
+      expect(parts.join('')).toMatch(BRAND_FACTS.tone === 'plain' ? /^No model is loaded/ : /SLURP|blorp/);   // the plain copy (brand/copy/plain.json) in a plain build expect(s.offline).toBe(true);
+      P.SlopAIPanel.open();
+      // no model: the shared model choice (picker.js), or the plain WebGPU message, with a link to Slop AI
+      await waitFor(() => P.document.querySelector('.sap-pick a'));
+      expect(P.document.querySelector('.sap-pick').textContent).toMatch(/Pick a model|WebGPU/);
+      expect(P.document.querySelector('.sap-pick a').getAttribute('href')).toMatch(/\/ai\/#models$/);
+    });
+  });
+  describe('sharing a model loaded in Slop AI', () => {
+    it('the panel finds the model in another tab', async () => {
+      H = await AT.app('', { width: 900, height: 600 });
+      let readyEvents = 0; P.SlopAI.on('ready', () => readyEvents++);
+      await H.AI.E.load('Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
+      await waitFor(() => P.SlopAI.ready);
+      expect(readyEvents).toBe(1);
+      expect(P.SlopAI.model.kind).toBe('remote'); expect(P.SlopAI.model.id).toBe('Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
+      expect(P.SlopAI.look).toEqual({ hat: 'brain', aura: 'ai', sparkle: true });
+      await waitFor(() => P.document.querySelector('.sap-fab').classList.contains('on'));
+    });
+    it('SlopAI.ask streams a Sloppo reply through the host tab', async () => {
+      const s = P.SlopAI.ask('who are you?');
+      let n = 0; for await (const x of s) n++;
+      expect(n).toBeGreaterThan(2);
+      const text = await s.text;
+      expect(text.length).toBeGreaterThan(5);
+      const sys = H.AI.E.engine.calls.pop().messages[0].content;
+      expect(sys).toMatch(/SLURP\. I am the slop\. ask me anything\./);
+      expect((await P.SlopAI.comment('the user drew a cat').text).length).toBeGreaterThan(3);
+    });
+    it('the panel controls the page’s commands, asking before destructive ones', async () => {
+      let asked = 0; P.SlopAIPermissions.prompt = async () => { asked++; return 'once'; };   // the permission question (permissions-ui.js)
+      await P.SlopAIPanel.send('please run demo.bold');
+      expect(P.ran).toEqual(['demo.bold']); expect(asked).toBe(0);
+      await P.SlopAIPanel.send('now run demo.clear');
+      expect(P.ran).toEqual(['demo.bold', 'demo.clear']); expect(asked).toBe(1);
+      const roles = P.SlopAIPanel.messages.map((m) => m.role);
+      expect(roles.filter((r) => r === 'tool').length).toBe(2);
+      expect(P.document.querySelectorAll('.sap-tool').length).toBe(2);
+      expect(P.document.querySelector('.sap-list').textContent).toContain('Done!');
+    });
+    it('unloading in Slop AI makes the panel offline again', async () => {
+      await H.AI.E.unload();
+      await waitFor(() => !P.SlopAI.ready);
+      expect(P.SlopAI.model).toBe(null);
+    });
+  });
+  describe('the download notice (picker.js), shared by the panel and Slop AI (ai/js/core/engine.js consent)', () => {
+    // Covers: shared/ai/picker.js, ai/js/core/engine.js
+    it('names the real size, the hosts and the licence, and Cancel declines', async () => {
+      const K = P.SlopAIKit, m = K.catalog.byId('Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
+      try { P.localStorage.removeItem('slop-firstrun:ai-model:' + m.id); } catch (e) { /* private */ }
+      const answer = K.picker.consent(m, {});
+      const dlg = await waitFor(() => [...P.document.querySelectorAll('.sui-dlg')].pop());
+      expect(dlg.textContent).toContain('880 MB'); expect(dlg.textContent).toContain('huggingface.co'); expect(dlg.textContent).toContain('Apache License 2.0');
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      expect(await answer).toBe(false);
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: side panel and window.SlopAI' });
+  </script>
+</body>
+</html>

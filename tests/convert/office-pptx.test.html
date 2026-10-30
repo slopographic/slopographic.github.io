@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: PowerPoint to PDF, pictures and text with the Slop Slides engine</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/core/slides-out.js, convert/js/core/deck-text.js, convert/js/core/office.js, convert/js/core/doc-out.js
+  // Covers: slides/js/io/pptx-in.js, slides/js/io/pdf.js, slides/js/render/canvas.js, slides/js/manifest.js
+  // A two-slide deck (Swedish and Arabic text, a red picture) is written by Slop Slides' own PPTX writer (slides/js/io/pptx.js),
+  // speaker notes are added as PowerPoint writes them, then it is converted; pdf.js reads the PDF back and draws it. The Arabic font is served from memory.
+  import { serveArabic, readPdf, pageText, pageSize, drawPage, ARABIC } from './office-helpers.js';
+  import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+  import { defaultTarget } from '../../convert/js/ui/targets.js';
+  import { slidesEngine } from '../../convert/js/core/slides-out.js';
+  import { script } from '../../convert/js/core/doc-out.js';
+  import { readZip, writeZip } from '../../shared/office/zip.js';
+  const { describe, it, expect } = SlopTest;
+  const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+  const fetched = await serveArabic();
+
+  /** A red 40 × 40 PNG as a data URL. */
+  function redPng() { const c = document.createElement('canvas'); c.width = c.height = 40; const x = c.getContext('2d'); x.fillStyle = '#ff0000'; x.fillRect(0, 0, 40, 40); return c.toDataURL('image/png'); }
+  const IMG = { x: 600, y: 300, w: 200, h: 150 };
+  let deckFile = null;
+  async function pptx() {
+    if (deckFile) return deckFile;
+    const S = await slidesEngine();
+    if (!S.pptx) await script(new URL('../../slides/js/io/pptx.js', location.href).href);   // the writer: not part of the convert engine
+    const d = S.model.newDeck({ title: 'Tur' });
+    d.slides[0].objects[0].text.paras = [{ runs: [{ t: 'Hej världen åäö' }] }];
+    d.slides[0].objects[1].text.paras = [{ runs: [{ t: 'مرحبا بالعالم' }] }];
+    const s2 = S.model.addSlide(d, 'title-content');
+    s2.objects[0].text.paras = [{ runs: [{ t: 'Andra bilden' }] }];
+    s2.objects[1].text.paras = [{ runs: [{ t: 'Första punkten' }], bullet: 'disc' }, { runs: [{ t: 'Andra punkten' }], bullet: 'disc' }];
+    s2.objects[1].w = 500;
+    d.media.red = { mime: 'image/png', data: redPng(), name: 'red.png' };
+    s2.objects.push(S.objects.make('image', { media: 'red', ...IMG, radius: 0, mask: 'none' }));
+    deckFile = new File([await withNotes((await S.pptx.write(d)).blob, 1, 'Mina anteckningar')], 'Tur.pptx', { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+    return deckFile;
+  }
+  /** The writer leaves speaker notes out (slides/HANDOFF.md), so slide n gets a notes part the way PowerPoint writes one. */
+  async function withNotes(blob, n, text) {
+    const files = await readZip(blob), dec = new TextDecoder();
+    const rels = `ppt/slides/_rels/slide${n}.xml.rels`;
+    const P = 'http://schemas.openxmlformats.org/presentationml/2006/main', A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    files.set(rels, new TextEncoder().encode(dec.decode(files.get(rels)).replace('</Relationships>',
+      '<Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide1.xml"/></Relationships>')));
+    files.set('ppt/notesSlides/notesSlide1.xml', new TextEncoder().encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes xmlns:p="${P}" xmlns:a="${A}"><p:cSld><p:spTree>` +
+      `<p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:p><a:r><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>` +
+      '</p:spTree></p:cSld></p:notes>'));
+    return writeZip([...files].map(([path, data]) => ({ path, data })));
+  }
+  const run = async (id, o = {}) => conv(id).run([{ name: 'Tur.pptx', file: await pptx(), kind: 'pptx' }], o);
+  const isRed = (px) => px[0] > 200 && px[1] < 60 && px[2] < 60;
+
+  describe('PowerPoint files in the catalog', () => {
+    it('PowerPoint to PDF comes first, then pictures and text', () => {
+      expect(conversionsFor(['pptx']).map((c) => c.id).filter((id) => !conv(id).from.includes('*'))).toEqual(['pptx-to-pdf', 'pptx-to-images', 'pptx-to-text']);
+      expect(defaultTarget('pptx')).toBe('pptx-to-pdf');
+      expect(conv('pptx-to-images').lossy).toBe(true);
+      expect(conv('pptx-to-text').chain).toBe('first');
+      expect(conv('pptx-to-images').keywords).toContain('png');
+    });
+  });
+
+  describe('PowerPoint to PDF', () => {
+    it('one page per slide at the slide size, with the text, the Arabic in its font, and the picture', async () => {
+      const out = await run('pptx-to-pdf');
+      expect(out[0].name).toBe('Tur.pdf');
+      expect(out.info).toBe('2 pages.');
+      expect(fetched).toContain('NotoSansArabic-test.ttf');
+      const pdf = await readPdf(out[0].blob);
+      expect(pdf.numPages).toBe(2);
+      const p1 = await pdf.getPage(1), p2 = await pdf.getPage(2);
+      expect(await pageSize(p1)).toEqual([960, 540]);
+      const t1 = await pageText(p1);
+      expect(t1).toContain('Hej världen åäö');
+      expect(ARABIC.test(t1)).toBe(true);
+      const t2 = await pageText(p2);
+      for (const t of ['Andra bilden', 'Första punkten', 'Andra punkten']) expect(t2).toContain(t);
+      const ctx = await drawPage(p2);
+      expect(isRed(ctx.getImageData(IMG.x + IMG.w / 2, IMG.y + IMG.h / 2, 1, 1).data)).toBe(true);
+      expect(isRed(ctx.getImageData(IMG.x - 30, IMG.y + IMG.h / 2, 1, 1).data)).toBe(false);
+    }, { timeout: 120000 });
+  });
+
+  describe('PowerPoint to pictures and to text', () => {
+    it('one PNG per slide in a ZIP, at the chosen size, with the picture drawn', async () => {
+      const [z] = await run('pptx-to-images', { scale: 1 });
+      expect(z.name).toBe('Tur-slides.zip');
+      const files = await readZip(new Uint8Array(await z.blob.arrayBuffer()));
+      expect([...files.keys()]).toEqual(['Tur-slide-1.png', 'Tur-slide-2.png']);
+      const png = files.get('Tur-slide-2.png');
+      expect(Array.from(png.subarray(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+      const bmp = await createImageBitmap(new Blob([png], { type: 'image/png' }));
+      expect([bmp.width, bmp.height]).toEqual([960, 540]);
+      const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+      const x = c.getContext('2d'); x.drawImage(bmp, 0, 0);
+      expect(isRed(x.getImageData(IMG.x + IMG.w / 2, IMG.y + IMG.h / 2, 1, 1).data)).toBe(true);
+      const [big] = await run('pptx-to-images', { scale: 2 });
+      const b2 = await createImageBitmap(new Blob([(await readZip(new Uint8Array(await big.blob.arrayBuffer()))).get('Tur-slide-1.png')]));
+      expect(b2.width).toBe(1920);
+    }, { timeout: 60000 });
+    it('text: each slide with its title and text, notes when asked', async () => {
+      const [t] = await run('pptx-to-text', { notes: true });
+      const text = await t.blob.text();
+      expect(t.name).toBe('Tur.txt');
+      expect(text.startsWith('Slide 1\nHej världen åäö\nمرحبا بالعالم\n\nNotes:\nMina anteckningar\n\nSlide 2\nAndra bilden\n• Första punkten\n• Andra punkten')).toBe(true);
+      const [quiet] = await run('pptx-to-text', { notes: false });
+      expect((await quiet.blob.text()).includes('Mina anteckningar')).toBe(false);
+    }, { timeout: 30000 });
+    it('a file that is not a presentation says so', async () => {
+      let msg = '';
+      try { await conv('pptx-to-pdf').run([{ name: 'nope.pptx', file: new File(['hello'], 'nope.pptx'), kind: 'pptx' }], {}); } catch (e) { msg = e.message; }
+      expect(msg).toContain('nope.pptx');
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'File convert: PowerPoint files' });
+  </script>
+</body>
+</html>

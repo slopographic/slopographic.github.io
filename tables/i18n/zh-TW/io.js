@@ -1,0 +1,22 @@
+/* Slop Tables, Traditional Chinese: opening and saving files, what an import leaves out, and the configuration messages. Same keys as tables/i18n/en/io.js. Terms: shared/i18n/glossary-zh-TW.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'tables.file.open_failed': '無法開啟該檔案',
+  'tables.file.save_failed': '無法儲存',
+  'tables.file.left_out': '已開啟，但遺漏了部分內容',
+  'tables.file.left_out_body': '儲存時會將其保留為 Slop Drive 中的 Slop Tables 檔案；「檔案 ▸ 下載 ▸ XLSX」會寫出新的 Excel 檔案。',
+  'tables.file.opened': '已開啟 {name}',
+  'tables.file.opened_it': '已開啟檔案',
+  'tables.file.not_ours': '這不是 Slop Tables 檔案。',
+  'tables.file.kinds': 'Slop Tables 可開啟 .stab、.xlsx、.ods、.csv 和 .tsv 檔案。',
+  'tables.file.damaged': '此 Slop Tables 檔案已損毀（{what}）。',
+  'tables.file.newer': '此 Slop Tables 檔案來自較新版本的 Slop Tables。',
+  'tables.import.unknown_fn': '有 {n} 個公式使用了 Slop Tables 尚未支援的函數，因此會顯示 #NAME?。',
+  'tables.import.skipped': '未匯入：{list}。',
+  'tables.import.chart_kind': '未匯入 {n} 個 {kind} 圖表：Slop Tables 可繪製直條、橫條、折線和圓餅圖。',
+  'tables.import.chart_shape': '未匯入 {n} 個圖表：其資料數列並非單一儲存格區塊。',
+  'tables.drop.label': '將試算表拖放到這裡以開啟',
+  'tables.drop.noun': '一份試算表',
+  'tables.config.label': '活頁簿',
+  'tables.config.desc': '工作表及其儲存格內容；公式以 = 開頭的文字形式寫入',
+  'tables.config.kept': '已保留開啟中的活頁簿',
+});

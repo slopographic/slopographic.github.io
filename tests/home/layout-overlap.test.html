@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Homepage · layout, overlaps and the consent strip</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; background: #fff; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: home/home.css, shared/promo/promo.js
+  /* The homepage at 390, 768 and 1280 px wide, in a same-origin iframe of that width and 800 px tall.
+   * Three checks, each on the page as it is when the check runs:
+   *  1. Overlaps (at the top of the page, the app globe held still, Sloppo hidden): no two visible buttons or links that
+   *     are not nested overlap. The globe icons are left out: they turn past each other by design, out of the tab order
+   *     (their keyboard way in is the list in .gx-nav, which is checked like any link). Header controls are in this set too, so the title row, the tabs and the Tours and Apps buttons
+   *     must not run into each other.
+   *  2. Coverage: each visible control is scrolled into view (the way a jump link or keyboard focus does it, with the
+   *     sticky header and the strip as scroll padding) and then document.elementFromPoint at its centre must be the
+   *     control or one of its children. A control under the consent strip, or under anything else, fails.
+   *     The strip's own buttons are checked too; the bubble is not in this set (see 4).
+   *  3. Room: while the strip is shown, body's bottom padding is at least the strip's height.
+   *  4. Sloppo's speech bubble: shown and brought on screen, it must not be covered by the consent strip. The bubble has
+   *     pointer-events: none, so the test lets it take pointer events for the check and then puts that back. The bubble
+   *     floats over page content by design, so it is not checked for overlaps with page content.
+   * The strip is shown when no choice is saved, so every page here starts with it. The header icon contrast is checked
+   * in each theme (light, dark, Classic 98, Slopographic Lime) at 1280 px. */
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const HEIGHT = 800;
+  const WIDTHS = [390, 768, 1280];
+  const THEMES = BRAND_FACTS.themes;   // the themes the build offers (a profile can hide some)
+  const CONSENT_KEY = 'slop-consent';
+  const PROFILE_KEY = 'slop-profile';
+  const CONTROLS = 'button, a[href]';
+
+  /** Opens the homepage at a width (and theme, if given) with the globe held still and the strip showing. */
+  async function openHome(width, theme) {
+    try {
+      localStorage.removeItem(CONSENT_KEY);
+      localStorage.removeItem('slop.mascot.v1');
+      if (theme) localStorage.setItem(PROFILE_KEY, JSON.stringify({ v: 1, data: { theme: { mode: theme } } }));
+      else localStorage.removeItem(PROFILE_KEY);
+    } catch (e) { /* storage blocked: the page still loads */ }
+    const old = document.getElementById('home-frame');
+    if (old) old.remove();
+    const f = document.createElement('iframe');
+    f.id = 'home-frame';
+    f.style.cssText = `width:${width}px;height:${HEIGHT}px;border:0;display:block`;
+    f.src = '../../index.html';
+    document.body.prepend(f);
+    await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    const win = f.contentWindow;
+    // the built-in mascot and the consent strip, when the build has them (tests/brand-facts.js)
+    const F = BRAND_FACTS, mascot = () => F.mascot !== 'builtin' || win.SlopMascot, consent = () => !F.analytics || win.document.getElementById('slopc-banner');
+    await waitFor(() => mascot() && win.document.querySelector('.app-card') && win.SlopGlobe && win.SlopGlobe.frames() > 0 && consent(), { timeout: 30000 });
+    const doc = win.document;
+    doc.documentElement.style.scrollBehavior = 'auto'; // the homepage scrolls smoothly; the checks need the jump to land at once
+    win.SlopGlobe.pause(true);                          // the globe would keep moving under the checks
+    return win;
+  }
+  const strip = (win) => win.document.getElementById('slopc-banner');
+  /** The mascot out of the way: the built-in one hidden, a build's own one switched off for this page. */
+  const hideMascot = (win) => { if (win.SlopMascot) win.SlopMascot.show(false); else if (win.SlopBuddyBoot && win.SlopBuddyBoot.on) win.SlopBuddyBoot.setOn(false, false); };
+
+  function label(el) {
+    const label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+    const cls = typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).join('.') : '';
+    return `${el.tagName.toLowerCase()}${cls} "${label}"`;
+  }
+  /** Whether the element is rendered and painted: not display:none, visibility:hidden, opacity 0, content-visibility
+   * hidden, or inside a closed <details> (other than its summary). Closed details keep their boxes, so rects alone lie. */
+  function rendered(el, win) {
+    if (!el.getClientRects().length || win.getComputedStyle(el).visibility !== 'visible') return false;
+    for (let p = el; p && p !== win.document.documentElement; p = p.parentElement) {
+      if (p.tagName === 'DETAILS' && !p.open) {
+        const sum = p.querySelector(':scope > summary');
+        if (!(sum && sum.contains(el))) return false;
+      }
+      const cs = win.getComputedStyle(p);
+      if (cs.opacity === '0' || cs.contentVisibility === 'hidden') return false;
+    }
+    return true;
+  }
+  /** The element's box cut down by every ancestor that clips (overflow other than visible). Ignores the window. */
+  function clipped(el, win) {
+    const r = el.getBoundingClientRect();
+    let box = { l: r.left, t: r.top, r: r.right, b: r.bottom };
+    for (let p = el.parentElement; p && p !== win.document.documentElement; p = p.parentElement) {
+      const cs = win.getComputedStyle(p);
+      if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+      const pr = p.getBoundingClientRect();
+      box = { l: Math.max(box.l, pr.left), t: Math.max(box.t, pr.top), r: Math.min(box.r, pr.right), b: Math.min(box.b, pr.bottom) };
+    }
+    return box;
+  }
+  const big = (b) => b.r - b.l >= 2 && b.b - b.t >= 2;
+  /** The part a person can see: clipped by the ancestors and by the window. Null when nothing shows. */
+  function seen(el, win) {
+    if (!rendered(el, win)) return null;
+    const c = clipped(el, win);
+    const v = { l: Math.max(c.l, 0), t: Math.max(c.t, 0), r: Math.min(c.r, win.innerWidth), b: Math.min(c.b, win.innerHeight) };
+    return big(v) ? v : null;
+  }
+  /** Controls in the page, outside the strip (the strip is checked by coverage) and the mascot's own layer. */
+  function pageControls(win) {
+    return [...win.document.querySelectorAll(CONTROLS)].filter((el) => !el.closest('#slopc-banner, .sloppo-layer, .sloppo-hud, .gx-layer'));
+  }
+
+  /** 1. Overlaps between visible, non-nested controls at the top of the page. */
+  function overlapFailures(win) {
+    const list = [];
+    // the mascot's toggle floats in the corner over whatever scrolls under it (where it lands depends on the build's card
+    // sizes); that nothing it covers is out of reach is check 2's
+    for (const el of pageControls(win)) { const b = !el.closest('.buddy-toggle') && seen(el, win); if (b) list.push({ el, b }); }
+    const out = [];
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const A = list[i], B = list[j];
+      if (A.el.contains(B.el) || B.el.contains(A.el)) continue; // a button inside a card link is by design
+      const ox = Math.min(A.b.r, B.b.r) - Math.max(A.b.l, B.b.l);
+      const oy = Math.min(A.b.b, B.b.b) - Math.max(A.b.t, B.b.t);
+      if (ox > 1 && oy > 1) out.push(`${label(A.el)} overlaps ${label(B.el)} by ${Math.round(ox)}x${Math.round(oy)}px`);
+    }
+    return out;
+  }
+
+  /** 2. Every visible control, scrolled into view, is the topmost thing at its centre. */
+  async function coverageFailures(win) {
+    const doc = win.document, out = [], s = strip(win);
+    for (const el of [...pageControls(win), ...(s ? s.querySelectorAll(CONTROLS) : [])]) {
+      if (!rendered(el, win) || !big(clipped(el, win))) continue; // hidden, or clipped away
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const b = seen(el, win);
+      if (!b) continue;
+      const x = (b.l + b.r) / 2, y = (b.t + b.b) / 2;
+      const hit = doc.elementFromPoint(x, y);
+      if (hit && (hit === el || el.contains(hit))) continue;
+      const cover = hit ? (s && s.contains(hit) ? 'the consent strip' : label(hit)) : 'nothing (point is off the page)';
+      out.push(`${label(el)} at (${Math.round(x)}, ${Math.round(y)}) is covered by ${cover}`);
+    }
+    return out;
+  }
+
+  /** 3. Body's bottom padding clears the strip while the strip is shown. */
+  function roomFailures(win) {
+    const s = strip(win);
+    if (!s) return ['the consent strip is not shown'];
+    const h = s.getBoundingClientRect().height;
+    const pad = parseFloat(win.getComputedStyle(win.document.body).paddingBottom) || 0;
+    const reserved = parseFloat(win.document.documentElement.style.getPropertyValue('--consent-h')) || 0;
+    const out = [];
+    if (pad < h - 0.5) out.push(`body padding-bottom ${pad}px is less than the strip height ${h}px`);
+    if (reserved < h - 1) out.push(`--consent-h ${reserved}px is less than the strip height ${h}px`);
+    return out;
+  }
+
+  /** 4. Sloppo's bubble, on screen, is not covered by the consent strip. */
+  async function bubbleFailures(win) {
+    const doc = win.document, M = win.SlopMascot, s = strip(win);
+    M.show(true);
+    await waitFor(() => !M.M.el.hidden && rendered(M.M.el, win), { timeout: 30000 }); // a slow machine can take a while to spawn him
+    M.say('Hi! Pet me.', 60000, { force: true });
+    await waitFor(() => M.M.bubble.classList.contains('show') && win.getComputedStyle(M.M.bubble).opacity === '1', { timeout: 20000 });
+    await waitFor(() => M.M.mode === 'perched', { timeout: 20000 }); // let him land before the bubble is measured
+    M.M.el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const bubble = M.M.bubble, was = bubble.style.pointerEvents;
+    bubble.style.pointerEvents = 'auto';
+    try {
+      const b = seen(bubble, win);
+      if (!b) return ['the bubble is not on screen after Sloppo is brought into view'];
+      const pts = [[(b.l + b.r) / 2, (b.t + b.b) / 2], [b.l + 6, b.t + 6], [b.r - 6, b.t + 6], [b.l + 6, b.b - 6], [b.r - 6, b.b - 6]];
+      for (const [x, y] of pts) {
+        const hit = doc.elementFromPoint(x, y);
+        if (!hit || bubble.contains(hit)) continue;
+        if (s && s.contains(hit)) return [`the bubble is covered by the consent strip at (${Math.round(x)}, ${Math.round(y)})`];
+        if (hit.closest('.nav, .toast') || M.M.el.contains(hit)) continue; // the header, the toast and Sloppo sit by design
+        return [`the bubble is covered by ${label(hit)} at (${Math.round(x)}, ${Math.round(y)})`];
+      }
+      return [];
+    } finally {
+      bubble.style.pointerEvents = was;
+      M.show(false);
+    }
+  }
+
+  // Colour helpers for the header contrast check (sRGB, WCAG relative luminance).
+  const rgba = (str) => {
+    const c = str.match(/^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.]+))?\)/); // color-mix() results come back as srgb floats
+    if (c) return { r: c[1] * 255, g: c[2] * 255, b: c[3] * 255, a: c[4] === undefined ? 1 : +c[4] };
+    const n = str.match(/[\d.]+/g).map(Number);
+    return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
+  };
+  const over = (fg, bg) => ({ r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 });
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+  for (const w of WIDTHS) {
+    describe(`homepage at ${w} px`, () => {
+      it('no two visible buttons or links overlap, header controls included', async () => {
+        const win = await openHome(w);
+        hideMascot(win);
+        const out = overlapFailures(win);
+        expect(out).toEqual([]);
+      }, { timeout: 90000 });
+      it('every visible control is above the consent strip and not covered by anything when scrolled into view', async () => {
+        const win = await openHome(w);
+        hideMascot(win);
+        // the corner presence (the mascot's toggle, a build's own mascot) floats at the bottom right: a control brought into
+        // view stops above it (html scroll-padding-bottom, home/home.css --corner-room), so the promo line's Hide is never under it
+        const pad = parseFloat(win.getComputedStyle(win.document.documentElement).scrollPaddingBottom) || 0;
+        for (const c of win.document.querySelectorAll('.buddy-toggle, .mascot-slot')) {
+          if (!seen(c, win)) continue;
+          expect(win.innerHeight - c.getBoundingClientRect().top).toBeLessThanOrEqual(pad);
+        }
+        const out = await coverageFailures(win);
+        expect(out).toEqual([]);
+      }, { timeout: 180000 });
+      it('the page keeps room for the consent strip (bottom padding and --consent-h equal its height)', async () => {
+        const win = await openHome(w);
+        if (!BRAND_FACTS.analytics) {   // a build without third parties shows no strip and keeps no room for one
+          expect(strip(win)).toBe(null);
+          expect(parseFloat(win.getComputedStyle(win.document.body).paddingBottom) || 0).toBe(0);
+          return;
+        }
+        expect(roomFailures(win)).toEqual([]);
+        // Accepting nothing removes the strip; the room goes with it.
+        win.document.querySelector('#slopc-banner [data-act="close"]').click();
+        await waitFor(() => !strip(win), { timeout: 4000 });
+        const pad = parseFloat(win.getComputedStyle(win.document.body).paddingBottom) || 0;
+        expect(pad).toBe(0);
+      }, { timeout: 90000 });
+      if (BRAND_FACTS.mascot === 'builtin') it("Sloppo's speech bubble is not covered by the consent strip", async () => {
+        const win = await openHome(w);
+        const out = await bubbleFailures(win);
+        expect(out).toEqual([]);
+      }, { timeout: 90000 });
+    });
+  }
+
+  describe('header icons and labels in every theme (1280 px)', () => {
+    for (const theme of THEMES) it(`${theme}: the Apps label and the tabs reach 4.5:1, the search and bell icons 3:1`, async () => {
+      const win = await openHome(1280, theme);
+      const doc = win.document;
+      expect(doc.documentElement.getAttribute('data-slop-theme')).toBe(theme);
+      const bg = over(rgba(win.getComputedStyle(doc.querySelector('.nav')).backgroundColor), rgba(win.getComputedStyle(doc.body).backgroundColor));
+      const ink = (sel) => over(rgba(win.getComputedStyle(doc.querySelector(sel)).color), bg);
+      const text = { apps: ratio(ink('.sh-switch .sh-hbtn-txt'), bg), tab: ratio(ink('.nav .tab'), bg) };
+      const icon = { search: ratio(ink('.sh-switch'), bg), bell: ratio(ink('.sn-bell'), bg) };
+      expect(text.apps).toBeGreaterThanOrEqual(4.5);
+      expect(text.tab).toBeGreaterThanOrEqual(4.5);
+      expect(icon.search).toBeGreaterThanOrEqual(3);
+      expect(icon.bell).toBeGreaterThanOrEqual(3);
+    }, { timeout: 90000 });
+  });
+
+  run({ name: "Homepage · layout, overlaps and the consent strip" });
+  </script>
+</body>
+</html>

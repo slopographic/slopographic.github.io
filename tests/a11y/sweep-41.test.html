@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Readable text in every theme, part 41: fontcreator</title>
+<style>body { margin: 0; background: #888; }</style></head>
+<body>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/theme/theme.js"></script>
+<script src="../harness.js"></script>
+<script src="../../shared/color/contrast.js"></script>
+<script src="contrast.js"></script>
+<script src="components.js"></script>
+<script src="sweep.js"></script>
+<script>
+// The contrast sweep (tests/a11y/sweep.js): Slop Font (fontcreator), in the Light, Dark, Classic 98 and Lime themes at 1280 and 390 px, with
+// the shared menus, dialogs, toast, Drive picker, command palette, AI panel and Convert dialog opened on each at 390 px.
+SlopSweep.define(['../../fontcreator/']);
+SlopTest.run({ name: 'Contrast sweep 41' });
+</script>
+</body>
+</html>

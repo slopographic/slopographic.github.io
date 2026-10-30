@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopIsolate on a phone: the settings bottom sheet</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: slopisolate/js/ui/menus.js, slopisolate/js/ui/main.js, slopisolate/css/themes.css, slopisolate/css/panel.css, slopisolate/index.html -->
+  <iframe id="f" src="../../slopisolate/index.html"></iframe>
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* the notice may show */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D;
+  const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('390 × 844: Settings is a SlopSheet', () => {
+    it('the Settings button opens the sheet; the same button closes it', async () => {
+      W = document.getElementById('f').contentWindow;
+      await waitFor(() => W.CO && W.CO.sheet && W.document.querySelector('#props .pp-title'), { timeout: 30000 });
+      D = W.document;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const btn = D.getElementById('btnPanel'), props = D.getElementById('props');
+      expect([W.CO.sheet.isPhone(), W.CO.sheet.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([true, false, 'false']);
+      btn.click();
+      expect([W.CO.sheet.isOpen(), btn.getAttribute('aria-expanded'), W.getComputedStyle(props).visibility]).toEqual([true, 'true', 'visible']);
+      expect(Math.round(props.getBoundingClientRect().bottom)).toBe(844);
+      btn.click();
+      expect(W.CO.sheet.isOpen()).toBe(false);
+    });
+    it('the × closes it and gives focus back to the button; Escape closes it', async () => {
+      const btn = D.getElementById('btnPanel');
+      btn.focus(); btn.click();
+      const x = D.querySelector('#props > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close settings');
+      x.click();
+      expect([W.CO.sheet.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc();
+      expect(W.CO.sheet.isOpen()).toBe(false);
+    });
+    it('the View menu’s panel command toggles the sheet too', () => {
+      W.CO.menus.act.panel(); expect(W.CO.sheet.isOpen()).toBe(true);
+      W.CO.menus.act.panel(); expect(W.CO.sheet.isOpen()).toBe(false);
+    });
+    it('the closed sheet still shows its footer: Download, Open in… and Settings, which opens the sheet; no sideways scroll', async () => {
+      const props = D.getElementById('props'), foot = props.querySelector('.sf-p-foot'), dl = D.getElementById('btnDownload');
+      expect(W.CO.sheet.isOpen()).toBe(false);
+      expect([foot.contains(dl), foot.contains(D.getElementById('btnOpenIn'))]).toEqual([true, true]);
+      const f = foot.getBoundingClientRect(), d = dl.getBoundingClientRect();
+      expect(Math.round(f.bottom)).toBe(844);
+      expect(d.width).toBeGreaterThan(80);
+      expect(d.right).toBeLessThanOrEqual(390);
+      expect(props.querySelector('.pp-title').getBoundingClientRect().height).toBe(0);   // only the footer while closed
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      let n = 0; W.CO.menus.act.exportOne = () => { n++; };
+      dl.disabled = false; dl.click();
+      expect(n).toBe(1);
+      foot.querySelector('.sf-foot-more').click();
+      expect(W.CO.sheet.isOpen()).toBe(true);
+      esc();
+      expect(W.CO.sheet.isOpen()).toBe(false);
+    });
+  });
+  SlopTest.run({ name: 'SlopIsolate: phone settings sheet' });
+  </script>
+</body>
+</html>

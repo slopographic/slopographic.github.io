@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Calendar: the day panel on the right with New event at its foot (1280 and 390)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 844px; }</style></head>
+<body>
+  <!-- Covers: calendar/js/ui/panel.js, calendar/js/ui/app.js, calendar/js/ui/editor.js, calendar/css/views.css, calendar/css/calendar.css, calendar/index.html -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D;
+  async function open(width) {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = '../../calendar/index.html'; document.body.append(F);
+    W = F.contentWindow;
+    await waitFor(() => W.document.getElementById('cBoot') && W.document.getElementById('cBoot').hidden && W.document.getElementById('cTitle').textContent, { timeout: 30000 });
+    D = W.document;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+    await sleep(50);
+  }
+  /** The editor's buttons at the panel's foot. */
+  const footBtn = (label) => [...D.querySelectorAll('#cSide .sf-p-foot button')].find((b) => b.textContent.trim() === label && !b.hidden);
+  /** Leaves the editor with Cancel at the panel's foot and waits until the day is back. */
+  const closeDialogs = async () => { footBtn('Cancel').click(); await waitFor(() => !D.getElementById('evTitle') && footBtn('New event'), { timeout: 5000 }); };
+
+  describe('Slop Calendar: the day panel', () => {
+    it('at 1280 the panel is right of the calendar with the day, the choices and the file; New event at its foot opens the editor', async () => {
+      await open(1280);
+      const nw = D.getElementById('cNew'), side = D.getElementById('cSide');
+      expect(nw.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(D.querySelector('.toolbar').contains(nw)).toBe(false);
+      for (const id of ['cZone', 'cTasks', 'cImport', 'cExport', 'cConfig']) expect(side.contains(D.getElementById(id))).toBe(true);
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('main').getBoundingClientRect().right - 1);
+      expect(nw.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      nw.click();
+      await waitFor(() => D.getElementById('evTitle'), { timeout: 5000 });
+      // the editor is the panel (not a dialog): the form in it, Cancel and Save at its foot, in view
+      expect(side.contains(D.getElementById('evTitle'))).toBe(true);
+      expect(D.querySelectorAll('.sui-dlg').length).toBe(0);
+      expect(D.querySelector('#cSide .sf-p-h').textContent).toBe('New event');
+      expect(footBtn('Save').getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      expect(footBtn('Save').classList.contains('sui-primary')).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+      await closeDialogs();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+    }, { timeout: 60000 });
+
+    it('Save at the panel\'s foot stores the event and puts the day back', async () => {
+      D.getElementById('cNew').click();
+      const t = await waitFor(() => D.getElementById('evTitle'), { timeout: 5000 });
+      t.value = 'Saved from the panel';
+      footBtn('Save').click();
+      await waitFor(async () => (await W.SlopData.store.list('events')).value.some((e) => e.title === 'Saved from the panel'), { timeout: 8000 });
+      await waitFor(() => !D.getElementById('evTitle') && footBtn('New event'), { timeout: 5000 });
+    }, { timeout: 60000 });
+
+    it("the day's events are listed in the panel and open in the editor", async () => {
+      const C = W.SlopCal, z = C.state.zone;
+      const f = { ...C.editor.defaults({ day: C.state.anchor, minutes: 600 }, z), title: 'Panel check' };
+      await W.SlopEvents.save(W.SlopEvents.fromForm(f, null).value);
+      await C.app.render();
+      const item = await waitFor(() => [...D.querySelectorAll('#cSide .sf-item-main')].find((b) => b.textContent.includes('Panel check')));
+      item.click();
+      await waitFor(() => D.getElementById('evTitle') && D.getElementById('evTitle').value === 'Panel check', { timeout: 5000 });
+      await closeDialogs();
+    }, { timeout: 60000 });
+
+    it('at 390 the closed sheet shows New event at the bottom; Day opens it; no sideways scroll', async () => {
+      await open(390);
+      const nw = D.getElementById('cNew'), r = nw.getBoundingClientRect();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(r.height).toBeGreaterThan(0);
+      expect(r.bottom).toBeLessThanOrEqual(844.5);
+      expect(r.top).toBeGreaterThan(844 - 120);
+      D.querySelector('#cSide .sf-foot-more').click();
+      await waitFor(() => D.getElementById('cSide').classList.contains('ssh-on'));
+      D.querySelector('#cSide .sf-foot-more').click();
+      await waitFor(() => !D.getElementById('cSide').classList.contains('ssh-on'));
+      nw.click();   // the editor opens in the sheet; closing the sheet cancels it
+      await waitFor(() => D.getElementById('cSide').classList.contains('ssh-on') && D.getElementById('evTitle'), { timeout: 5000 });
+      await sleep(300);
+      const save = footBtn('Save').getBoundingClientRect();
+      expect(Math.round(save.bottom)).toBeLessThanOrEqual(844);
+      expect(save.top).toBeGreaterThan(844 - 120);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      D.querySelector('#cSide .ssh-x').click();
+      await waitFor(() => !D.getElementById('evTitle') && footBtn('New event'), { timeout: 5000 });
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Calendar: the day panel' });
+  </script>
+</body>
+</html>

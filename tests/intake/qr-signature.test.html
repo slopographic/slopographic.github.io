@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in QR SLOP and Slop Signature: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: qr/js/app.js, qr/js/panel-design.js, qr/js/save.js, signature/js/form.js
+  // QR SLOP's logo (the logo tab's box: a click or a drop; a pasted picture) and Slop Signature's picture (the button; a
+  // paste) are each the page's one way in; QR SLOP's Open from Slop Drive is a part of its own.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  async function open(src, ready) {
+    const fr = document.createElement('iframe'); fr.src = src; document.body.append(fr);
+    await waitFor(() => { try { return ready(fr.contentWindow); } catch (e) { return false; } }, { timeout: 20000 });
+    const W = fr.contentWindow, seen = [];
+    return { W, D: W.document, seen };
+  }
+  async function png(P, name) {
+    const c = P.D.createElement('canvas'); c.width = c.height = 16; c.getContext('2d').fillRect(0, 0, 16, 16);
+    return new P.W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const dtOf = (W, files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  function spy(P, id) { const s = P.W.SlopIntake.spec(id), r = s.process; s.process = (f, ctx) => { P.seen.push(ctx.source); return r(f, ctx); }; }
+
+  describe('QR SLOP: one way in', () => {
+    let P;
+    it('the logo box: a click and a drop', async () => {
+      P = await open('../../qr/index.html', (w) => w.document.body.classList.contains('ready') && w.SlopIntake.spec('qr'));
+      spy(P, 'qr');
+      P.D.getElementById('qr-tab-logo').click();
+      const box = await waitFor(() => P.D.querySelector('#qr-logo .qr-drop'));
+      const f = await png(P, 'logo.png');
+      P.W.SlopUI.pickFiles = async () => [f];
+      box.click();
+      await waitFor(() => P.seen.length === 1 && P.W.QRState.S.logo.href);
+      P.D.querySelector('#qr-logo .qr-drop').dispatchEvent(new P.W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf(P.W, [await png(P, 'b.png')]) }));
+      await waitFor(() => P.seen.length === 2);
+      expect(P.seen).toEqual(['picker', 'drop']);
+    }, { timeout: 40000 });
+    it('a pasted picture', async () => {
+      P.D.body.dispatchEvent(new P.W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf(P.W, [await png(P, 'c.png')]) }));
+      await waitFor(() => P.seen.length === 3);
+      expect(P.seen[2]).toBe('paste');
+    });
+    it('Open from Slop Drive is a part of its own', async () => {
+      const blob = await png(P, 'code.png');
+      P.W.SlopHub.pickFromDrive = async () => ({ id: 'q1', name: 'code.png', type: 'image/png', blob, meta: {} });
+      const r = await P.W.QRSave.openPicked();
+      expect(r.id).toBe('q1');
+      expect(P.seen.length).toBe(3);
+    });
+  });
+  describe('Slop Signature: one way in', () => {
+    it('the picture button and a paste', async () => {
+      const P = await open('../../signature/index.html', (w) => w.SlopIntake.spec('signature') && w.document.getElementById('sgUpload'));
+      spy(P, 'signature');
+      const f = await png(P, 'me.png');
+      P.W.SlopUI.pickFiles = async () => [f];
+      P.D.getElementById('sgUpload').click();
+      await waitFor(() => P.seen.length === 1);
+      P.D.body.dispatchEvent(new P.W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf(P.W, [await png(P, 'p.png')]) }));
+      await waitFor(() => P.seen.length === 2);
+      expect(P.seen).toEqual(['picker', 'paste']);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: QR SLOP and Slop Signature' });
+</script>
+</body>
+</html>

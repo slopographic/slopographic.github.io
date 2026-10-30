@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Font: draw glyphs, space and kern them, try and export the font</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style></head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script src="helpers.js"></script>
+<script>
+// Covers: fontcreator/index.html, fontcreator/css/fontcreator.css, fontcreator/css/views.css, fontcreator/js/state.js, fontcreator/js/store.js
+// Covers: fontcreator/js/grid.js, fontcreator/js/editor/view.js, fontcreator/js/editor/draw.js, fontcreator/js/editor/select.js, fontcreator/js/editor/tools.js
+// Covers: fontcreator/js/editor/ops.js, fontcreator/js/editor/toolbar.js, fontcreator/js/panel.js, fontcreator/js/panel-more.js, fontcreator/js/kerning.js
+// Covers: fontcreator/js/tester.js, fontcreator/js/io/files.js, fontcreator/js/io/woff2.js, fontcreator/js/io/woff2-worker.js, fontcreator/js/main.js
+// Covers: shared/tour/tours/fontcreator.js, shared/tour/mount.js
+// Covers: fontcreator/js/core/build.js, fontcreator/js/core/model.js, fontcreator/js/core/paths.js, fontcreator/js/core/stroke.js, vendor/opentype/opentype.min.js
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+let W, D, FC;
+const S = () => FC.state, P = () => W.SlopFont.paths, M = () => W.SlopFont.model;
+const bbox = () => P().bbox(S().view().contours);
+describe('Slop Font: drawing', () => {
+  it('opens on A with the grid, the editor and Download font in the panel', async () => {
+    ({ W, D, FC } = await FT.open(document.getElementById('app')));
+    expect(S().cur()).toBe('u0041');
+    expect(D.querySelectorAll('#fc-cells .fc-cell').length).toBe(95);
+    expect(D.querySelector('#fc-cells .fc-cell').dataset.id).toBe('u0041');
+    expect(D.getElementById('fc-download').disabled).toBe(true);
+    expect(D.getElementById('fc-start').hidden).toBe(false);
+    expect(D.querySelector('.sab-title').textContent).toContain('Slop Font');
+  }, { timeout: 40000 });
+
+  it('the Tour button in the header starts the tour on the glyph grid', async () => {
+    const btn = D.querySelector('header.sab .stour-btn');
+    expect(!!btn).toBe(true);
+    btn.click();
+    await waitFor(() => W.SlopTour && W.SlopTour.isOpen && W.SlopTour.isOpen(), { timeout: 10000 });
+    const cur = W.SlopTour.current();
+    expect(cur.app).toBe('fontcreator');
+    expect(cur.index).toBe(0);
+    W.SlopTour.close();
+  }, { timeout: 15000 });
+
+  it('the Rectangle tool draws a box snapped to the grid; Undo and Redo', async () => {
+    FT.click(D, 'fc-tool-rect');
+    expect(S().settings().tool).toBe('rect');
+    await FT.drag(W, { x: 101, y: 3 }, { x: 203, y: 698 });
+    expect(S().view().contours.length).toBe(1);
+    const b = bbox();
+    expect([b.x, b.y, b.w, b.h]).toEqual([100, 0, 100, 700]);
+    expect(D.querySelector('[data-id="u0041"]').classList.contains('fc-empty')).toBe(false);
+    expect(D.getElementById('fc-start').hidden).toBe(true);
+    FT.click(D, 'fc-undo');
+    expect(S().view().contours.length).toBe(0);
+    FT.click(D, 'fc-redo');
+    expect(S().view().contours.length).toBe(1);
+    expect(D.getElementById('fc-download').disabled).toBe(false);
+  });
+
+  it('the Pen: clicks make sharp points, a drag a smooth one, a click on the first point closes the contour', async () => {
+    S().select('V');
+    FT.click(D, 'fc-tool-pen');
+    await FT.tap(W, { x: 0, y: 700 }); await FT.tap(W, { x: 600, y: 700 });
+    await FT.drag(W, { x: 300, y: 0 }, { x: 400, y: 0 });
+    await FT.tap(W, { x: 0, y: 700 });
+    const c = S().view().contours;
+    expect(c.length).toBe(1);
+    expect(c[0].pts.length).toBe(3);
+    expect([c[0].pts[2].ox, c[0].pts[2].ix]).toEqual([400, 200]);
+    expect(W.SVGeom.isSmooth(c[0].pts[2])).toBe(true);
+  });
+
+  it('Select: drag a point, nudge it with the keys, delete it; a double click turns a point smooth', async () => {
+    S().select('A');
+    FT.click(D, 'fc-tool-select');
+    await FT.drag(W, { x: 200, y: 700 }, { x: 250, y: 760 });
+    const top = S().view().contours[0].pts.find((p) => p.y === 760);
+    expect(!!top && top.x === 250).toBe(true);
+    FT.key(W, 'ArrowLeft', { shiftKey: true });
+    expect(S().view().contours[0].pts.some((p) => p.x === 240 && p.y === 760)).toBe(true);
+    await FT.dbl(W, { x: 240, y: 760 });
+    expect(W.SVGeom.isSmooth(S().view().contours[0].pts.find((p) => p.y === 760))).toBe(true);
+    FT.key(W, 'Delete');
+    expect(S().view().contours[0].pts.length).toBe(3);
+    S().undo(); S().undo(); S().undo(); S().undo();
+    expect([bbox().w, bbox().h]).toEqual([100, 700]);
+  });
+
+  it('two shapes: Shift-click both, Union them; Subtract cuts a hole', async () => {
+    S().select('O');
+    FT.click(D, 'fc-tool-rect');
+    await FT.drag(W, { x: 50, y: 0 }, { x: 550, y: 700 });
+    FT.click(D, 'fc-tool-ellipse');
+    await FT.drag(W, { x: 400, y: 200 }, { x: 700, y: 500 });
+    FT.click(D, 'fc-tool-select');
+    await FT.tap(W, { x: 100, y: 100 }); await FT.tap(W, { x: 650, y: 350 }, { shiftKey: true });
+    expect(FC.ops.selected()).toEqual([0, 1]);
+    FT.click(D, 'fc-path');
+    const item = [...D.querySelectorAll('[role=menuitem], [role=menuitemradio], [role=option]')].find((b) => /^Union/.test(b.textContent.trim()));
+    item.click();
+    expect(S().view().contours.length).toBe(1);
+    expect(Math.round(bbox().w)).toBe(650);
+    FT.click(D, 'fc-tool-ellipse');
+    await FT.drag(W, { x: 200, y: 200 }, { x: 400, y: 500 });
+    FT.click(D, 'fc-tool-select');
+    S().clearSel(); S().sel.contours.add(0); S().sel.contours.add(1);
+    FC.ops.boolean('minus');
+    expect(S().view().contours.length).toBe(2);
+    expect(P().orient(S().view().contours).some((c) => P().area(c) < 0)).toBe(true);
+  });
+
+  it('the Stroke tool draws a monoline stroke of the panel\'s width', async () => {
+    S().select('l');
+    const sw = D.getElementById('fc-stroke-width'); sw.value = '60'; sw.dispatchEvent(new W.Event('change'));
+    FT.click(D, 'fc-tool-stroke');
+    await FT.tap(W, { x: 200, y: 750 }); await FT.tap(W, { x: 200, y: 0 });
+    FT.key(W, 'Enter');
+    const b = bbox();
+    expect(Math.abs(b.w - 60)).toBeLessThan(4); expect(Math.abs(b.h - 810)).toBeLessThan(4);
+    FT.click(D, 'fc-tool-select');
+  });
+});
+
+describe('Slop Font: spacing, grid, kerning, type test, export', () => {
+  it('Width, Left side and Right side in the panel', async () => {
+    S().select('A');
+    FT.change(D, 'fc-lsb', 60);
+    expect(M().sides(S().view()).lsb).toBe(60);
+    FT.change(D, 'fc-rsb', 40);
+    expect(S().view().advance).toBe(200);
+    FT.change(D, 'fc-advance', 260);
+    expect(M().sides(S().view()).rsb).toBe(100);
+  });
+
+  it('the grid: a set, a typed character added, a cell opens its glyph', async () => {
+    const add = D.getElementById('fc-add-chars'); add.value = 'ŋ';
+    add.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(!!M().find(S().project(), 'ŋ')).toBe(true);
+    expect(S().cur()).toBe('u014B');
+    const set = D.getElementById('fc-set'); set.value = 'digits'; set.dispatchEvent(new W.Event('change'));
+    expect(D.querySelectorAll('#fc-cells .fc-cell').length).toBe(10);
+    D.querySelector('[data-id="u0037"]').click();
+    expect(S().cur()).toBe('u0037');
+    expect(D.getElementById('fc-gtitle').textContent).toContain('U+0037');
+    set.value = 'basic'; set.dispatchEvent(new W.Event('change'));
+  });
+
+  it('Kerning: two letters, a value, the pair in the list', async () => {
+    S().select('V'); S().edit('v', 'glyph', (p, g) => { g.contours = P().fromSvg('M0 700 L250 0 L350 0 L600 700 L500 700 L300 120 L100 700 Z'); g.advance = 600; });
+    D.getElementById('fc-tab-kerning').click();
+    expect(D.getElementById('view-kerning').hidden).toBe(false);
+    const a = D.getElementById('fc-kern-a'), b = D.getElementById('fc-kern-b');
+    a.value = 'A'; a.dispatchEvent(new W.Event('change')); b.value = 'V'; b.dispatchEvent(new W.Event('change'));
+    FT.change(D, 'fc-kern-value', -80);
+    expect(S().project().kerning['u0041 u0056']).toBe(-80);
+    expect(D.querySelector('#fc-kern-list .fc-kern-pair').textContent.replace(/\s+/g, ' ')).toBe('AV -80');
+    expect(D.getElementById('fc-kern-canvas').width).toBeGreaterThan(100);
+    const lay = FC.kerning.layout('AV');
+    expect(lay.items[1].kern).toBe(-80);
+  });
+
+  it('Type test: the real font is built and loaded', async () => {
+    D.getElementById('fc-tab-test').click();
+    const fam = await FC.tester.refresh();
+    expect(fam).toMatch(/^SlopFontTest\d+$/);
+    expect(D.fonts.check('24px ' + fam)).toBe(true);
+    FT.click(D, 'fc-test-dark');
+    expect(D.getElementById('fc-test-out').classList.contains('fc-test-dark')).toBe(true);
+    D.getElementById('fc-tab-draw').click();
+  });
+
+  it('exports TTF, OTF, WOFF and WOFF2 that read back; the project to Slop Drive; Copy CSS', async () => {
+    const SF = W.SlopFont;
+    for (const [f, kind] of [['ttf', 'ttf'], ['otf', 'otf'], ['woff', 'woff'], ['woff2', 'woff2']]) {
+      const o = await FC.io.build(f);
+      expect(SF.sfnt.sniff(o.bytes)).toBe(kind);
+    }
+    const w2 = await FC.io.build('woff2'), back = await FC.woff2.decompress(w2.bytes), font = W.opentype.parse(back.buffer);
+    expect(font.numGlyphs).toBe(S().project().glyphs.length);
+    expect(font.getKerningValue(font.charToGlyph('A'), font.charToGlyph('V'))).toBe(-80);
+    const r = await FC.io.saveToDrive('sfont'), rec = await W.SlopHub.get(r.id);
+    expect(r.name).toBe('MyFont-Regular.sfont');
+    expect(JSON.parse(await rec.blob.text()).glyphs.length).toBe(S().project().glyphs.length);
+    expect(FC.io.css()).toContain('font-family: "My Font"');
+    expect(D.getElementById('fc-download').textContent).toContain('.ttf');
+    const fmt = D.getElementById('fc-format'); fmt.value = 'woff2'; fmt.dispatchEvent(new W.Event('change'));
+    expect(D.getElementById('fc-download').textContent).toContain('.woff2');
+  }, { timeout: 30000 });
+
+  it('the font is kept in this browser: a reload brings it back', async () => {
+    const n = S().project().glyphs.length, kern = S().project().kerning;
+    await FC.store.flush();
+    ({ W, D, FC } = await FT.open(document.getElementById('app'), { keep: true }));
+    expect(S().project().glyphs.length).toBe(n);
+    expect(S().project().kerning).toEqual(kern);
+  }, { timeout: 40000 });
+});
+SlopTest.run({ name: 'Slop Font app' });
+</script>
+</body>
+</html>

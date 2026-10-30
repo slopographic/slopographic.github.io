@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Reminders: the look (the menu bar, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: reminders/index.html, reminders/css/reminders.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menu bar, the shell's buttons and the timeline are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../reminders/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn') && D.querySelector('.rm-group'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+  const h = (n) => n.getBoundingClientRect().height;
+
+  describe('Slop Reminders: the look', () => {
+    it('one header: the shared menu bar with the brand, the name and the 100% local badge', async () => {
+      const D = await open(1440);
+      expect(visible(D, 'header').length).toBe(1);
+      const bar = D.querySelector('header.smb-bar');
+      expect(bar.querySelector('a.smb-brand').getAttribute('href')).toBe('../');
+      expect(bar.querySelector('.smb-app').textContent).toBe('Reminders');
+      expect(bar.querySelector('.local-badge')).toBeTruthy();
+      expect(D.querySelector('.topbar')).toBe(null);
+    }, { timeout: 40000 });
+
+    it("the menus run the page's own controls: About and the command search in Help", async () => {
+      const D = await open(1440);
+      const help = [...D.querySelectorAll('.smb-menu-b')].find((b) => b.textContent === 'Help');
+      help.click();
+      const items = [...help.parentElement.querySelectorAll('.smb-item')].map((b) => b.textContent);
+      expect(items).toContain('About');
+      expect(items).toContain('Search commands');
+    }, { timeout: 40000 });
+
+    it("the page's buttons and fields are as tall as the header buttons", async () => {
+      const D = await open(1440);
+      const hb = h([...D.querySelectorAll('.smb-bar .slop-hbtn')].find((n) => n.getBoundingClientRect().width));
+      for (const n of visible(D, '.perm .btn, .add .btn, .field input')) expect(h(n)).toBe(hb);
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      for (const n of visible(D, '.main button, .main input')) expect(n.getBoundingClientRect().right).toBeLessThanOrEqual(390.5);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Reminders: the look' });
+  </script>
+</body>
+</html>

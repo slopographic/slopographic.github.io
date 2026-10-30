@@ -1,0 +1,195 @@
+/* Sloppo, the homepage mascot (home/mascot/). Tokens come from style/base.css. */
+/* The layer spans the whole page (its height is kept in sync by engine.js) and lets clicks through. */
+.sloppo-layer { position: absolute; left: 0; top: 0; width: 100%; z-index: 15; overflow: clip; pointer-events: none; }
+.sloppo-layer[hidden], .sloppo-hud[hidden] { display: none; }
+/* In apps he turns into a ghost while you work (press, drag, paint, play). */
+.sloppo-layer.is-ghost .sloppo { opacity: .28; transition: opacity .2s; }
+.sloppo-layer.is-ghost .sloppo-hit, .sloppo-layer.is-ghost .sloppo-say { pointer-events: none; }
+@media print { .sloppo-layer, .sloppo-hud { display: none; } }
+.sloppo { position: absolute; left: 0; top: 0; will-change: transform; }
+.sloppo[hidden] { display: none; }
+.sloppo-svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; transition: filter .3s; }
+.sloppo.is-chaos .sloppo-svg { filter: drop-shadow(0 0 10px rgba(255, 60, 80, .55)); }
+.sloppo-hit {
+  position: absolute; pointer-events: auto; cursor: grab; touch-action: none;
+  border-radius: 50% 50% 42% 42%; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.sloppo-hit.grabbing, .sloppo.is-held .sloppo-hit { cursor: grabbing; }
+.sloppo-hit:focus-visible { outline: 2px dashed var(--slop); outline-offset: 4px; }
+
+/* speech bubble */
+.sloppo-say {
+  position: absolute; left: 0; top: 0; max-width: 220px; width: max-content; padding: 6px 11px;
+  border-radius: 14px; background: var(--bone); color: var(--ink); font: 600 12px/1.3 var(--mono);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35); opacity: 0; transform: translateY(6px) scale(.9);
+  transform-origin: var(--tail, 50%) 100%; transition: opacity .18s, transform .18s; pointer-events: none;
+}
+.sloppo-say.show { opacity: 1; transform: none; }
+.sloppo-say.below::after { bottom: auto; top: -5px; border-radius: 3px 0 0 0; }
+.sloppo-say::after {
+  content: ""; position: absolute; left: var(--tail, 50%); bottom: -5px; width: 10px; height: 10px;
+  margin-left: -5px; background: inherit; transform: rotate(45deg); border-radius: 0 0 3px 0;
+}
+
+/* dizzy stars orbiting his head */
+.sloppo-stars { position: absolute; left: 50%; height: 16px; display: none; pointer-events: none; }
+.sloppo.is-dizzy .sloppo-stars { display: block; }
+.sloppo-stars i {
+  position: absolute; left: 50%; top: 0; font-style: normal; font-size: 14px; color: #ffd23f; text-shadow: 0 0 6px rgba(0, 0, 0, .6);
+  animation: sloppo-orbit 1.1s linear infinite;
+}
+.sloppo-stars i:nth-child(2) { animation-delay: -.37s; color: #5cc8ff; }
+.sloppo-stars i:nth-child(3) { animation-delay: -.73s; color: #ff4f86; }
+@keyframes sloppo-orbit {
+  0% { transform: translate(-50%, 0) translateX(-28px) scale(.8); z-index: 0; }
+  25% { transform: translate(-50%, 0) translate(0, 5px) scale(1.1); }
+  50% { transform: translate(-50%, 0) translateX(28px) scale(.8); }
+  75% { transform: translate(-50%, 0) translate(0, -5px) scale(.6); opacity: .6; }
+  100% { transform: translate(-50%, 0) translateX(-28px) scale(.8); }
+}
+
+/* particles */
+.sloppo-fx { position: absolute; pointer-events: none; display: block; }
+.sloppo-fx svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+.sloppo-heart { width: 18px; height: 18px; margin: -9px 0 0 -9px; color: #ff4f86; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .4)); }
+.sloppo-spark { width: 16px; height: 16px; margin: -8px 0 0 -8px; }
+.sloppo-crumb { width: 6px; height: 5px; margin: -3px 0 0 -3px; border-radius: 2px; }
+.sloppo-drop { width: 7px; height: 7px; margin: -4px 0 0 -4px; border-radius: 50%; background: #a6ee14; }
+
+/* chaos: letters flying into his mouth, goo splats */
+.sloppo-letter { position: absolute; margin: 0; white-space: pre; pointer-events: none; will-change: transform; }
+.sloppo-goo { position: absolute; pointer-events: none; }
+.sloppo-goo svg { display: block; width: 100%; height: auto; overflow: visible; }
+.sloppo-goo .goo-body { fill: #a6ee14; opacity: .88; }
+.sloppo-goo .drip { transform-box: fill-box; transform-origin: top; animation: sloppo-drip 2.4s cubic-bezier(.3, 0, .2, 1) both; }
+.sloppo-goo .goo-shine { fill: rgba(255, 255, 255, .55); }
+@keyframes sloppo-drip { from { transform: scaleY(.1); } to { transform: none; } }
+
+/* HUD: a round level toggle beside him; the card opens next to him (a bottom sheet on phones) */
+.sloppo-hud { position: fixed; left: 0; top: 0; z-index: 25; font: 600 11px var(--mono); color: var(--hud-ink);
+  /* The HUD follows the site theme (light or dark), not the fixed homepage palette. */
+  --hud-bg: var(--sl-surface, #17171b); --hud-ink: var(--sl-text, #f1ede4); --hud-line: var(--sl-border, #2b2b33);
+  --hud-accent: var(--sl-accent, #d4ff3a); --hud-on: var(--sl-on-accent, #0e0e10); }
+.sloppo-hud.is-away { display: none; }
+.sh-toggle {
+  display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: color-mix(in srgb, var(--hud-bg) 92%, transparent); color: inherit;   /* the theme's surface, under the theme's ink */ font: inherit; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35); transition: opacity .6s ease, transform .2s, border-color .2s;
+}
+.sh-toggle:hover { border-color: var(--slop); transform: scale(1.06); }
+.sh-toggle:focus-visible { outline: 2px solid var(--slop); outline-offset: 2px; }
+.sh-lv { white-space: nowrap; }
+.sh-lv b { color: var(--hud-accent); }
+.sloppo-hud.is-open .sh-toggle { border-color: var(--hud-accent); }
+.sloppo-hud.is-angry .sh-toggle { border-color: rgba(255, 79, 110, .6); }
+.sloppo-hud.is-faded:not(.is-open) .sh-toggle { opacity: .4; }
+.sloppo-hud.is-faded:not(.is-open):hover .sh-toggle, .sloppo-hud.is-faded:not(.is-open):focus-within .sh-toggle { opacity: 1; }
+.sh-panel {
+  position: absolute; left: calc(100% + 8px); top: -6px; width: 252px; max-width: calc(100vw - 24px);
+  display: grid; gap: 8px; padding: 10px; border-radius: 16px; border: 1px solid var(--hud-line);
+  background: color-mix(in srgb, var(--hud-bg) 92%, transparent); color: var(--hud-ink); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+.sh-panel.flip { left: auto; right: calc(100% + 8px); }
+.sh-panel[hidden] { display: none; }
+.sh-grip { display: none; }
+.sh-meters { display: flex; align-items: center; gap: 8px; }
+.sh-bar { flex: 1; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--hud-ink) 14%, transparent); overflow: hidden; }
+.sh-bar i { display: block; height: 100%; width: 0; background: var(--hud-accent); border-radius: 3px; transition: width .35s; }
+.sh-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.sh-btn {
+  min-height: 30px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--hud-line); background: transparent;
+  color: var(--hud-ink); font: inherit; cursor: pointer; white-space: nowrap;
+}
+.sh-btn:hover { border-color: var(--hud-accent); }
+.sh-btn[hidden] { display: none; }
+.sh-hat-s { display: none; }
+.sh-unleash[aria-pressed="true"] { background: #ff4f6e; border-color: #ff4f6e; color: #0a0a0a; }
+.sh-restore { background: var(--hud-accent); border-color: var(--hud-accent); color: var(--hud-on); }
+@media (max-width: 520px) {
+  .sh-hat-n { display: none; }
+  .sh-hat-s { display: inline; }
+}
+@media (max-width: 600px) {
+  .sloppo-hud .sh-panel {
+    position: fixed !important; left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important;
+    width: auto; max-width: none; max-height: 56vh; overflow: auto; border-radius: 18px 18px 0 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .sh-grip {
+    display: block; justify-self: center; width: 48px; height: 22px; margin: -4px 0 0; padding: 0; border: 0; background: none; cursor: pointer;
+  }
+  .sh-grip::before { content: ""; display: block; width: 40px; height: 4px; margin: 0 auto; border-radius: 2px; background: rgba(241, 237, 228, .35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sloppo-stars i, .sloppo-goo .drip { animation: none; }
+  .sloppo-say, .sh-bar i, .sh-toggle { transition: none; }
+}
+
+/* Sloppo's chaos and rage effects (home/mascot/). Loaded after mascot.css. */
+
+/* RAGE: red tint, shaking, steam */
+.sloppo.is-rage .sloppo-svg {
+  filter: drop-shadow(0 0 12px rgba(255, 40, 40, .85));
+  animation: sloppo-shake .09s linear infinite;
+}
+.sloppo.is-rage .sloppo-3d { animation: sloppo-shake .09s linear infinite; }
+@keyframes sloppo-shake {
+  0% { transform: translate(1.5px, 0) rotate(.6deg); }
+  25% { transform: translate(-1.5px, 1px) rotate(-.6deg); }
+  50% { transform: translate(1px, -1px) rotate(.4deg); }
+  75% { transform: translate(-1px, 1px) rotate(-.4deg); }
+  100% { transform: translate(1.5px, 0) rotate(.6deg); }
+}
+.sloppo-steam {
+  width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 30%, rgba(255, 255, 255, 0) 70%);
+}
+
+/* 3D mode: the WebGL canvas replaces the painted one */
+.sloppo-3d { position: absolute; inset: 0; pointer-events: none; }
+.sloppo.is-3d .sloppo-svg { display: none; }
+
+/* goo blasts */
+.sloppo-ball {
+  position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #f1ffb8, #a6ee14 45%, #4d8f00); box-shadow: 0 0 14px rgba(166, 238, 20, .7);
+}
+.sloppo-crack { position: absolute; pointer-events: none; }
+.sloppo-crack svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sloppo-crack path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sloppo-crack .c-hi { stroke: rgba(241, 237, 228, .35); stroke-width: 3.2; transform: translate(.8px, .8px); }
+.sloppo-crack .c-lo { stroke: #050505; stroke-width: 1.8; }
+.sloppo-burn {
+  position: absolute; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(circle closest-side, transparent 0 46%, rgba(20, 8, 0, .95) 48%, rgba(110, 36, 0, .85) 56%,
+    rgba(255, 140, 30, .55) 63%, rgba(255, 90, 0, 0) 76%);
+  animation: sloppo-ember 1.4s ease-in-out infinite alternate;
+}
+@keyframes sloppo-ember { from { filter: brightness(.8); } to { filter: brightness(1.35); } }
+
+/* black holes */
+.sloppo-hole { position: absolute; width: 96px; height: 96px; transform: translate(-50%, -50%); pointer-events: none; }
+.sloppo-hole i { position: absolute; inset: 0; border-radius: 50%; }
+.sloppo-hole .bh-ring {
+  inset: -18px; filter: blur(2px);
+  background: conic-gradient(from 0deg, rgba(212, 255, 58, .0), rgba(212, 255, 58, .85), rgba(168, 107, 255, .7), rgba(92, 200, 255, .0), rgba(212, 255, 58, .8), rgba(212, 255, 58, 0));
+  -webkit-mask: radial-gradient(circle closest-side, transparent 52%, #000 56%, #000 80%, transparent 100%);
+  mask: radial-gradient(circle closest-side, transparent 52%, #000 56%, #000 80%, transparent 100%);
+  animation: sloppo-spin .9s linear infinite;
+}
+.sloppo-hole .bh-disk { inset: 18px; background: #000; box-shadow: 0 0 0 2px rgba(212, 255, 58, .35), 0 0 30px 10px rgba(0, 0, 0, .9); }
+@keyframes sloppo-spin { to { transform: rotate(360deg); } }
+
+/* HUD rage meter */
+.sh-rage { width: 34px; height: 6px; border-radius: 3px; background: rgba(255, 79, 110, .18); overflow: hidden; }
+.sh-rage[hidden] { display: none; }
+.sh-rage i { display: block; height: 100%; width: 0; background: #ff4f6e; transition: width .3s; }
+.sh-rage.full i { animation: sloppo-blink .3s steps(2) infinite; }
+@keyframes sloppo-blink { 50% { opacity: .3; } }
+.sh-3d[aria-pressed="true"] { background: var(--hud-ink); color: var(--hud-bg); border-color: var(--hud-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sloppo.is-rage .sloppo-svg, .sloppo.is-rage .sloppo-3d, .sloppo-burn, .sloppo-hole .bh-ring, .sh-rage.full i { animation: none; }
+}

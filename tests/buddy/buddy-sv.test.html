@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <meta name="slop-test-lang" content="default">   <!-- the page chooses Swedish itself: the harness leaves the language alone -->
+  <title>Buddy in Swedish</title>
+  <!-- Covers: shared/buddy/boot.js, shared/buddy/hud.js, shared/buddy/care.js, shared/buddy/tips.js, shared/buddy/lines.js, shared/buddy/store.js, shared/buddy/levels.js, shared/buddy/power.js, shared/buddy/candy.js, shared/buddy/mood.js, shared/buddy/treats.js, shared/buddy/fx.js, shared/buddy/engine.js, shared/buddy/view3d.js, shared/i18n/ui/en/buddy.js, shared/i18n/ui/sv/buddy.js, shared/i18n/ui/en/buddy2.js, shared/i18n/ui/sv/buddy2.js -->
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="boot.js"></script>
+  <script type="module">
+  // Sloppo's toggle, card, Give… tray, hats, tips and lines were English in every language. They are keys now
+  // (ui.buddy.*), read when drawn, and the card follows a language switch.
+  import { pool } from '../../shared/buddy/lines.js';
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { openApp, turnOn, frames } = BuddyTest;
+  const leak = (el) => /ui\.buddy\./.test(el.outerHTML);
+  describe('Sloppo in Swedish', () => {
+    let win, S;
+    it('the toggle, the card and its buttons read Swedish, no key shows', async () => {
+      win = await openApp('?cmd=1', { clear: true });
+      await win.SlopI18n.ready();
+      expect(win.SlopI18n.get()).toBe('sv');
+      // the toggle's tip: the table's words, or the name of a build's own mascot (boot.js names it once the art is in)
+      const tip = () => win.document.querySelector('.buddy-toggle .bt-main').title;
+      const tipOk = (key) => tip() === win.SlopI18n.t(key) || /^[^()]+ \(Alt\+Shift\+S\)$/.test(tip()) && !/^Sloppo /.test(tip());
+      expect(tip() + ' ' + tipOk('ui.buddy.toggle_tip')).toBe(tip() + ' true');
+      expect(win.SlopI18n.t('ui.buddy.toggle_tip')).toMatch(/-kompis \(Alt\+Shift\+S\)$/);
+      S = await turnOn(win);
+      S.M.xp = 40; S.M.level = 3; S.M.hat = 'party';
+      S.toggleHud(true);
+      await frames(win, 3);
+      const hud = win.document.querySelector('.sloppo-hud');
+      expect(hud.getAttribute('aria-label')).toBe(win.SlopI18n.t('ui.buddy.hud_aria'));
+      expect(win.SlopI18n.t('ui.buddy.hud_aria')).toMatch(/, maskoten$/);
+      expect(hud.querySelector('.sh-unleash').textContent).toBe('Släpp lös');
+      expect(hud.querySelector('.sh-ask').textContent).toBe('Fråga');
+      expect(hud.querySelector('.sh-lv').textContent.trim()).toBe('Nv 3');
+      expect(hud.querySelector('.sh-hat-n').textContent).toBe('Partyhatt');
+      expect(leak(hud)).toBe(false);
+      expect(leak(win.document.querySelector('.buddy-toggle'))).toBe(false);
+    });
+    it('a tip and its opt-out read Swedish, and his lines come from the Swedish pool', async () => {
+      await sleep(2600);
+      expect(S.tips.maybeTip(true)).toBe(true);
+      const b = S.M.bubble;
+      expect(/gör en etikett|Skriver du ut ett ark/.test(b.textContent)).toBe(true);
+      const btns = [...b.querySelectorAll('.say-actions button')].map((x) => x.textContent);
+      expect(btns[btns.length - 1]).toBe('Visa inte tips igen');
+      expect(pool('hello')[0]).toBe('Hej! Klappa mig.');
+      expect(leak(b)).toBe(false);
+    });
+    it('switching to English redraws the card at once', async () => {
+      win.SlopI18n.set('en');
+      await waitFor(() => win.document.querySelector('.sloppo-hud .sh-unleash').textContent === 'Unleash', { timeout: 5000 });
+      expect(win.document.querySelector('.sloppo-hud .sh-lv').textContent.trim()).toBe('Lv 3');
+      const tip = win.document.querySelector('.buddy-toggle .bt-main').title;
+      expect(tip === win.SlopI18n.t('ui.buddy.toggle_tip') || /^[^()]+ \(Alt\+Shift\+S\)$/.test(tip)).toBe(true);
+      expect(win.SlopI18n.t('ui.buddy.toggle_tip')).toMatch(/ buddy \(Alt\+Shift\+S\)$/);
+      try { localStorage.removeItem('slop-profile'); SlopTest.english(); } catch (e) { /* none */ }
+    });
+  });
+  run({ name: 'Buddy in Swedish' });
+  </script>
+</body>
+</html>

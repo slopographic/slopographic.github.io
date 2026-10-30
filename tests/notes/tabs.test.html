@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Notes tabs</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe; Slop Drive is the shared hub on this test origin, as in notes.test.html. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const tabEls = () => [...W().document.querySelectorAll('#nt-tabs .sl-doctab')];
+  const SRC = '../../notes/index.html';
+
+  /** Load the app fresh (about:blank first, so a reload never reads the old page's ready flag). */
+  async function open() {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = SRC;
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname === new URL(SRC, location.href).pathname && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    return W();
+  }
+  /** Sets a field the way a typist does, so the app's input handler runs. */
+  const type = (sel, value) => { const el = q(sel); el.value = value; el.dispatchEvent(new (W().Event)('input', { bubbles: true })); };
+  const saved = () => waitFor(() => q('#nt-save') && q('#nt-save').textContent === 'Saved to Slop Drive', { timeout: 8000 });
+
+  describe('Slop Notes tabs', () => {
+    it('two note tabs switch, and a reload brings both back with their notes', async () => {
+      // A clean start: no tabs stored from an earlier run of this page.
+      localStorage.removeItem('slop.doctabs.notes.v1');
+      await new Promise((r) => { const q2 = indexedDB.deleteDatabase('slop-doctabs'); q2.onsuccess = q2.onerror = q2.onblocked = () => r(); });
+      await open();
+      q('#nt-new').click();
+      await waitFor(() => tabEls().length === 1 && !q('#nt-note').hidden, { timeout: 8000 });
+      type('#nt-title', 'Alpha');
+      await saved();
+      q('#nt-new').click(); // a second note, in a second tab
+      await waitFor(() => tabEls().length === 2 && !q('#nt-note').hidden, { timeout: 8000 });
+      expect(q('#nt-title').value).toBe('');
+      type('#nt-title', 'Beta');
+      await saved();
+      tabEls()[0].click(); // switch to the first note
+      expect(q('#nt-title').value).toBe('Alpha');
+      expect(tabEls()[0].getAttribute('aria-selected')).toBe('true');
+      await saved();
+
+      // Reload: the same two tabs, the first note on screen.
+      const W2 = await open();
+      await waitFor(() => tabEls().length === 2 && !q('#nt-note').hidden, { timeout: 8000 });
+      expect(W2.document.querySelectorAll('#nt-tabs .sl-doctab').length).toBe(2);
+      expect(q('#nt-title').value).toBe('Alpha');
+      tabEls()[1].click();
+      expect(q('#nt-title').value).toBe('Beta');
+      tabEls()[0].click();
+      expect(q('#nt-title').value).toBe('Alpha');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Notes tabs' });
+  </script>
+</body>
+</html>

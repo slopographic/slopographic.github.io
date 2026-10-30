@@ -1,0 +1,87 @@
+{
+  "id": "sample-sv",
+  "name": "Exempelbolaget Verktyg",
+  "shortName": "Verktyg",
+  "brandWord": "Exempelbolaget",
+  "tagline": "Kontorsverktyg som körs i webbläsaren. Dina filer stannar på din enhet.",
+  "origin": "https://app.exempelbolaget.example",
+  "cname": "app.exempelbolaget.example",
+  "defaultLang": "sv",
+  "naming": "plain",
+  "tone": "plain",
+  "mascot": false,
+  "github": "exempelbolaget",
+  "mailDomain": "exempelbolaget.example",
+  "brandTerms": [
+    "Exempelbolaget"
+  ],
+  "colors": {
+    "ink": "#18181b",
+    "paper": "#fafafa",
+    "accent": "#0f766e"
+  },
+  "palette": {
+    "hue": 174,
+    "from": [
+      65,
+      100
+    ]
+  },
+  "themes": {
+    "light": {
+      "background": "#f4f4f5",
+      "surface": "#ffffff",
+      "text": "#09090b",
+      "accent": "#115e59",
+      "border": "#71717a"
+    },
+    "dark": {
+      "background": "#18181b",
+      "surface": "#27272a",
+      "text": "#f4f4f5",
+      "accent": "#2dd4bf",
+      "border": "#71717a"
+    },
+    "hide": [
+      "classic",
+      "lime"
+    ],
+    "names": "brandWord"
+  },
+  "defaultTheme": "light",
+  "logo": {
+    "text": "Exempelbolaget Verktyg",
+    "mark": "E",
+    "color": "#0f766e"
+  },
+  "links": {},
+  "footer": "© 2026 Exempelbolaget AB.",
+  "copy": {},
+  "apps": {
+    "hide": []
+  },
+  "media": false,
+  "support": {
+    "exportCard": false,
+    "donate": false,
+    "ads": false
+  },
+  "analytics": false,
+  "seo": {
+    "homeTitle": "Exempelbolaget Verktyg: kontorsverktyg i webbläsaren",
+    "homeDescription": "PDF-redigerare, bildredigerare, dokument, kalkylark, fakturor och mer. Körs i webbläsaren och dina filer stannar på din enhet. Gratis.",
+    "titleSuffix": " | Exempelbolaget",
+    "langs": ["sv", "en"]
+  },
+  "legal": {
+    "holder": "Exempelbolaget AB",
+    "year": "2026"
+  },
+  "publish": {
+    "repo": "exempelbolaget/verktyg",
+    "branch": "main",
+    "secret": "SAMPLE_TOKEN",
+    "author": "Exempelbolaget",
+    "email": "app.exempelbolaget.example"
+  }
+}

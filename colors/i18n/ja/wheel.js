@@ -1,0 +1,25 @@
+/* Slop Colors, Japanese: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'colors.wheel.label': 'カラーホイール',
+  'colors.wheel.rule': '配色',
+  'colors.wheel.model': 'ホイール',
+  'colors.wheel.bright': '明るさ',
+  'colors.wheel.light': '明度',
+  'colors.wheel.bright_text': '明るさ {pct}%',
+  'colors.wheel.light_text': '明度 {pct}%',
+  'colors.wheel.keys': 'ハンドルをドラッグするか、ハンドルで矢印キーを使います。左右で色相、上下で彩度が変わり、Shift で 10 ずつ、Page Up と Page Down で明るさが変わります。',
+  'colors.wheel.base': '基準色',
+  'colors.wheel.handle': '色 {n}',
+  'colors.wheel.value': '色相 {hue}°、彩度 {sat}%、{hex}',
+  'colors.wheel.value_oklch': '色相 {hue}°、クロマ {sat}%、{hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB（絵の具）',
+  'colors.wheel.oklch': 'OKLCH（知覚）',
+  'colors.harmony.brightness': '明暗',
+  'colors.harmony.custom': 'カスタム',
+  'colors.cmd.g_wheel': 'カラーホイール',
+  'colors.cmd.wheel_rule': 'ホイール: 配色を{rule}にする',
+  'colors.cmd.wheel_model': 'ホイール: {wheel} ホイールを使う',
+  'colors.cmd.wheel_focus': 'ホイール: カラーホイールへ移動',
+});

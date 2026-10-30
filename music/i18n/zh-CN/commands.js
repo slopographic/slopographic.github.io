@@ -1,0 +1,28 @@
+/* Slop Music, Simplified Chinese: the command palette entries for playback, the library and playlists. Same keys as music/i18n/en/commands.js.
+ * Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'music.cmd.play': '播放',
+  'music.cmd.pause': '暂停',
+  'music.cmd.play_pause': '播放或暂停',
+  'music.cmd.play_track': '播放曲目…',
+  'music.cmd.play_playlist': '播放播放列表…',
+  'music.cmd.next': '下一首',
+  'music.cmd.previous': '上一首',
+  'music.cmd.seek': '定位',
+  'music.cmd.volume': '设置音量',
+  'music.cmd.speed': '设置速度',
+  'music.cmd.shuffle': '随机播放',
+  'music.cmd.repeat': '重复',
+  'music.cmd.queue_track': '将曲目添加到播放队列…',
+  'music.cmd.find_tracks': '查找曲目…',
+  'music.cmd.tag_track': '为曲目添加标签…',
+  'music.cmd.create_playlist': '新建播放列表…',
+  'music.cmd.rename_playlist': '重命名播放列表…',
+  'music.cmd.add_to_playlist': '将曲目添加到播放列表…',
+  'music.cmd.remove_from_playlist': '从播放列表中移除曲目…',
+  'music.cmd.delete_playlist': '删除播放列表…',
+  'music.cmd.export_playlist': '导出播放列表…',
+  'music.cmd.group_player': '播放器',
+  'music.cmd.group_library': '资料库',
+  'music.cmd.group_playlists': '播放列表',
+});

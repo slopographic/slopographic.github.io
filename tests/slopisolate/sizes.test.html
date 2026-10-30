@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopIsolate: one size for each model</title></head>
+<body>
+  <!-- Covers: slopisolate/js/io/files.js, slopisolate/js/ui/panel.js, shared/cutout/models.js, shared/firstrun/notice.js -->
+  <!-- The model cards once said 4.4 / 44.4 / 24.7 MB, the descriptions 4.6 / 47 / 26 MB, and the first-use notice
+       "about 73 MB in all" though only the chosen model downloads. Every size now comes from the registry's bytes,
+       written with SlopFirstRun.size, and the notice names only the model that will download. -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let f;
+  const W = () => f.contentWindow, D = () => f.contentDocument;
+
+  async function open() {
+    try { localStorage.removeItem('slop-firstrun:slopisolate'); } catch (e) { /* private window */ }
+    f = document.createElement('iframe');
+    f.style.cssText = 'width:1280px;height:800px;border:0;display:block';
+    f.src = '../../slopisolate/index.html?t=' + Date.now();
+    document.body.append(f);
+    await waitFor(() => W() && W().CO && W().CO.files && D().querySelectorAll('.models .m-size').length === 3 && D().querySelector('.models .m-size').textContent, { timeout: 15000 });
+  }
+  async function noticeText() {
+    const c = D().createElement('canvas'); c.width = c.height = 8;
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    const p = W().CO.files.take([new (W().File)([blob], 'x.png', { type: 'image/png' })]);
+    const dlg = await waitFor(() => D().querySelector('.sui-dlg'), { timeout: 5000 });
+    const text = dlg.textContent;
+    [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+    await p;
+    await waitFor(() => !D().querySelector('.sui-dlg') || null, { timeout: 3000 }).catch(() => {});
+    return text;
+  }
+
+  describe('SlopIsolate: the first drop', () => {
+    it('a file dropped on the drop zone on a first visit asks with the notice (naming the chosen model), not an error', async () => {
+      await open();
+      const errors = [];
+      W().addEventListener('error', (e) => errors.push(e.message));
+      const c = D().createElement('canvas'); c.width = c.height = 8;
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      const dt = new (W().DataTransfer)();
+      dt.items.add(new (W().File)([blob], 'dropped.jpe', { type: 'image/jpeg' }));
+      D().getElementById('isoDrop').dispatchEvent(new (W().DragEvent)('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      const dlg = await waitFor(() => D().querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(dlg.textContent).toContain(W().SlopFirstRun.size(W().SlopCutoutModels.MODELS.fast.bytes));
+      expect(D().body.textContent.includes('is not defined')).toBe(false);
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      expect(errors).toEqual([]);
+      f.remove();
+    }, { timeout: 30000 });
+  });
+
+  describe('SlopIsolate: model sizes', () => {
+    it('each model card shows the size the notice would give, and no description repeats a size', async () => {
+      await open();
+      const M = W().SlopCutoutModels.MODELS, size = W().SlopFirstRun.size;
+      const want = ['fast', 'quality', 'portrait'].map((id) => size(M[id].bytes));
+      expect(want).toEqual(['4.4 MB', '44 MB', '25 MB']);
+      const cards = [...D().querySelectorAll('.models .model')];
+      expect(cards.map((l) => l.querySelector('.m-size').textContent.replace(/^on device · /, ''))).toEqual(want);
+      for (const l of cards) expect(/\bMB\b/.test(l.querySelector('small').textContent)).toBe(false);
+    });
+    it('the first-use notice names only the chosen model and its size', async () => {
+      const M = W().SlopCutoutModels.MODELS, size = W().SlopFirstRun.size;
+      W().CO.state.model = 'fast';
+      let text = await noticeText();
+      expect(text).toContain(`Fast model (U²-Netp), ${size(M.fast.bytes)}`);
+      expect(text).toContain(`This is downloaded once, ${size(M.fast.bytes)},`);
+      expect(text.includes('in all')).toBe(false);
+      expect(text.includes('IS-Net')).toBe(false);
+      W().CO.state.model = 'quality';
+      text = await noticeText();
+      expect(text).toContain(`Quality model (IS-Net), ${size(M.quality.bytes)}`);
+      expect(text.includes('U²-Netp')).toBe(false);
+      f.remove();
+    });
+  });
+  SlopTest.run({ name: 'SlopIsolate: model sizes' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery: library, I/O and virtual list</title>
+  <style>body { margin: 0; font: 12px ui-monospace, monospace; }
+    #scroller { position: absolute; left: 0; top: 0; width: 400px; height: 500px; overflow-y: auto; background: #eee; }
+    #content { position: relative; width: 100%; }</style>
+</head>
+<body>
+  <div id="scroller"><div id="content"></div></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script>
+    // Isolated databases for this page only: the real user library and Slop Drive are never touched.
+    window.SLOP_GALLERY_DB = 'gallery-test-' + Math.random().toString(36).slice(2, 10);
+    window.SLOP_DRIVE_DB = 'gallery-drive-test-' + Math.random().toString(36).slice(2, 10);
+  </script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="../../gallery/js/io/hash.js"></script>
+  <script src="../../gallery/js/io/exif.js"></script>
+  <script src="../../gallery/js/io/zip.js"></script>
+  <script src="../../gallery/js/io/source.js"></script>
+  <script src="../../gallery/js/io/backup.js"></script>
+  <script src="../../gallery/js/io/export.js"></script>
+  <script src="../../gallery/js/core/db.js"></script>
+  <script src="../../gallery/js/core/thumb.js"></script>
+  <script src="../../gallery/js/core/library.js"></script>
+  <script src="../../gallery/js/core/import.js"></script>
+  <script src="../../gallery/js/core/query.js"></script>
+  <script src="../../shared/deck/deck.js"></script>
+  <script src="../../gallery/js/core/urls.js"></script>
+  <script src="../../gallery/js/ui/state.js"></script>
+  <script src="../../gallery/js/ui/vlist.js"></script>
+  <script src="../../gallery/js/ui/rows.js"></script>
+  <script src="../../gallery/js/ui/sortmode.js"></script>
+  <script src="helpers.js"></script>
+  <script src="spec-io.js"></script>
+  <script src="spec-core.js"></script>
+  <script>SlopTest.run({ name: 'Slop Gallery · library' });</script>
+</body>
+</html>

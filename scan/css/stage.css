@@ -1,0 +1,51 @@
+/* Slop Scan: the view of a page. The empty page (the camera button and the drop zone), the toolbar, the result, and the
+   photo with its corners: a shaded outside, the page's outline, four round handles (a 44 px reach on touch screens: the
+   hit circle is drawn larger there by js/editor.js) and the magnifier in the corner away from the finger. */
+.sc-view { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--sc-stage); }
+.sc-empty { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px 16px; }
+.sc-hello { font-size: 20px; line-height: 1.3; text-align: center; max-width: 30ch; }
+.sc-big { min-height: 52px; min-width: 220px; font-size: 16px; border-radius: 12px; }
+.sc-drop { width: 100%; max-width: 640px; }
+
+.sc-work { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.sc-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--sc-line); background: var(--sc-panel); }
+.sc-modes { display: inline-flex; flex: none; }
+.sc-modes .sui-btn { min-height: 36px; padding-inline: 12px; }
+.sc-pos { color: var(--sc-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sc-tools-end { margin-inline-start: auto; display: inline-flex; gap: 4px; }
+.sc-back { display: none; }
+
+.sc-result-box, .sc-crop { flex: 1 1 auto; min-height: 0; position: relative; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; padding: 12px; overflow: hidden; }
+.sc-result { max-width: 100%; max-height: 100%; background: #fff; box-shadow: 0 2px 14px rgba(0, 0, 0, .45); transition: opacity .15s; }
+.sc-result-box.is-busy .sc-result { opacity: .75; }
+.sc-crop { touch-action: none; user-select: none; -webkit-user-select: none; }
+.sc-photo, .sc-handles { grid-area: 1 / 1; display: block; }
+.sc-handles { overflow: visible; }
+.sc-shade { fill: rgba(0, 0, 0, .45); pointer-events: none; }
+.sc-poly { fill: color-mix(in srgb, var(--sc-accent) 12%, transparent); stroke: var(--sc-accent); vector-effect: non-scaling-stroke; pointer-events: none; }
+.sc-handle { cursor: grab; outline: none; }
+.sc-handle .sc-hit { fill: transparent; }
+.sc-handle .sc-dot { fill: color-mix(in srgb, var(--sc-accent) 35%, transparent); stroke: var(--sc-accent); }
+.sc-handle.is-drag { cursor: grabbing; }
+.sc-handle.is-drag .sc-dot, .sc-handle:focus-visible .sc-dot { fill: var(--sc-accent); }
+.sc-handle:focus-visible .sc-hit { stroke: var(--sc-fg); stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.sc-loupe { position: absolute; top: 12px; left: 12px; width: 128px; height: 128px; border-radius: 50%; border: 3px solid var(--sc-accent);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .55); pointer-events: none; background: #000; }
+.sc-loupe.is-right { left: auto; right: 12px; }
+
+.sc-under { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; min-height: 48px; border-top: 1px solid var(--sc-line); background: var(--sc-panel); }
+.sc-note { flex: 1 1 200px; color: var(--sc-dim); font-size: 13px; }
+.sc-corner-tools { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-inline-start: auto; }
+.sc-corner-tools .sui-btn { min-height: 40px; }
+
+@media (pointer: coarse) { .sc-modes .sui-btn, .sc-corner-tools .sui-btn { min-height: 44px; } }
+@media (max-width: 860px) {
+  .sc-back { display: inline-flex; }
+  .sc-tools { padding: 6px 8px; }
+  .sc-tools-end { margin-inline-start: 0; }
+  .sc-pos, #sc-prev, #sc-next { display: none; }
+  .sc-tools { flex-wrap: nowrap; }
+  .sc-result-box, .sc-crop { padding: 8px; }
+  .sc-under { padding-bottom: calc(8px + var(--sf-foot-h, 0px)); }
+  .sc-empty { padding-bottom: calc(24px + var(--sf-foot-h, 0px)); }
+}

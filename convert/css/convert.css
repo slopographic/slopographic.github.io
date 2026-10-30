@@ -1,0 +1,100 @@
+@import url("tool.css");   /* the tool (drop zone, cards, options, results), scoped under .cv-tool */
+@import url("../../shared/footnav/footnav.css");   /* the site links at the foot of the converter pages (tools/seo/footnav.mjs) */
+/* File convert: hub and converter pages. Colours are tokens on :root; dark is the default. */
+:root {
+  --bg: #0a0a0a; --panel: #161618; --panel-2: #1f1f23; --ink: #f1ede4; --muted: #b3ada3;
+  --line: #3a3a40; --accent: #d4ff3a; --accent-ink: #0a0a0a; --danger: #ff8a9b; --focus: #ffffff;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --bg: #f6f3ec; --panel: #ffffff; --panel-2: #efebe2; --ink: #161616; --muted: #58534b; --line: #c9c3b6; --accent: #3d5a00; --accent-ink: #ffffff; --danger: #b00020; --focus: #161616; color-scheme: light; }
+}
+:root[data-theme="light"] { --bg: #f6f3ec; --panel: #ffffff; --panel-2: #efebe2; --ink: #161616; --muted: #58534b; --line: #c9c3b6; --accent: #3d5a00; --accent-ink: #ffffff; --danger: #b00020; --focus: #161616; color-scheme: light; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; min-height: 100vh; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.cv-skip-link { position: absolute; left: 8px; top: -48px; background: var(--accent); color: var(--accent-ink); padding: 8px 12px; border-radius: 6px; z-index: 5; }
+.cv-skip-link:focus { top: 8px; }
+.cv-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* The header: the app's icon (home), the name (the converter list), then the shared header buttons (shell/header.js,
+ * shared/ui/hbtn.css) at the right in the page's colours. */
+.cv-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 56px; padding: 10px 16px; border-bottom: 1px solid var(--line);
+  --slop-hbtn-h: 34px; --slop-hbtn-radius: 8px; --slop-hbtn-bg: var(--panel); --slop-hbtn-line: var(--line); --slop-hbtn-hover: var(--panel-2); --slop-hbtn-fs: 14px; }
+.cv-brand { display: inline-flex; align-items: center; color: var(--ink); }
+.cv-brand .brand-mark { width: 24px; height: 24px; fill: var(--accent); }
+.cv-app { margin-right: auto; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.cv-app:hover { text-decoration: underline; }
+.cv-top > .slopvm-bar { margin-left: 0; }   /* the View button (hub only) joins the others at the right */
+.cv-wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 56px; overflow-wrap: anywhere; }
+.cv-wrap:has(.cv-frame) { max-width: 1200px; }   /* the tool with its panel on the right (js/ui/frame.js); the text keeps its ch limits */
+.cv-wrap h1 { font-size: clamp(1.6rem, 4vw, 2.3rem); line-height: 1.15; margin: 0 0 12px; }
+.cv-wrap h2 { font-size: 1.25rem; margin: 0 0 10px; }
+.cv-lead { font-size: 1.08rem; color: var(--muted); margin: 0 0 20px; max-width: 64ch; }
+.cv-section { margin: 18px 0; }
+.cv-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 18px 0; }
+.cv-explain p, .cv-faq p { color: var(--muted); max-width: 66ch; }
+.cv-faq h3 { font-size: 1rem; margin: 16px 0 4px; }
+.cv-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 0; list-style: none; }
+.cv-links a { display: block; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; background: var(--panel); }
+.cv-links a:hover { border-color: var(--accent); }
+
+.cv-hint { color: var(--muted); font-size: 14px; margin: 0; }
+/* Buttons outside the tool (the hub cards, the preview) look like the tool's. */
+.cv-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; font: inherit; font-weight: 600; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; cursor: pointer; }
+.cv-btn:hover:not(:disabled) { border-color: var(--accent); }
+.cv-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cv-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.cv-small { min-height: 36px; padding: 4px 12px; font-size: 14px; }
+@media (max-width: 480px) { .cv-wrap { padding: 18px 16px 44px; } }
+
+/* Live preview (js/preview): input box, before and after panels, and the Copy, Swap and Download buttons. */
+.cv-pv { margin-top: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 16px; }
+.cv-pv [hidden] { display: none; }
+.cv-pv-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.cv-pv-head h2 { margin: 0; font-size: 1.1rem; }
+.cv-pv-status { color: var(--muted); font-size: .9rem; margin: 0; }
+.cv-pv-input { margin: 12px 0 0; }
+.cv-pv-input label { display: block; font-weight: 600; margin-bottom: 4px; }
+.cv-pv-input textarea { display: block; width: 100%; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; }
+.cv-pv-input textarea:disabled { opacity: .6; }
+.cv-pv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.cv-pv-panel { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); overflow: hidden; }
+.cv-pv-cap { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: .9rem; }
+.cv-pv-meta { color: var(--muted); font-weight: 400; font-size: .85rem; }
+.cv-pv-body { padding: 8px; max-height: 360px; overflow: auto; }
+.cv-pv-body img { display: block; max-width: 100%; height: auto; margin: 0 auto; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+.cv-pv-3d { height: 260px; border-radius: 6px; background: radial-gradient(circle at 50% 40%, var(--panel), var(--panel-2)); }
+.cv-pv-text { margin: 0; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.cv-pv-line { display: block; min-height: 1.45em; }
+.cv-pv-chg { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+.cv-pv-error { color: var(--danger); margin: 0; }
+.cv-pv-note { color: var(--muted); font-size: .9rem; margin: 10px 0 0; }
+.cv-pv-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+@media (max-width: 640px) { .cv-pv-grid { grid-template-columns: 1fr; } }
+
+/* Hub conversion cards (js/ui/cards.js): grouped by category, one column on phones, the same tokens and radii as the rest. */
+.cv-catalog { background: none; border: 0; padding: 0; font-family: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.cv-catalog-lead { color: var(--muted); margin: 0 0 14px; max-width: 64ch; }
+.cv-search { display: grid; gap: 6px; margin: 0 0 18px; }
+.cv-search label { font-weight: 600; font-size: 15px; }
+.cv-search input[type="search"] { width: 100%; min-height: 44px; padding: 8px 12px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.cv-cat { margin: 0 0 26px; }
+.cv-cat-h { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+.cv-pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.cv-pair { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.cv-pair:hover { border-color: var(--accent); }
+.cv-pair-path { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.cv-pair-path .sflow { color: var(--muted); }
+.cv-pair-title { font-size: 1.05rem; margin: 0; }
+.cv-pair-desc, .cv-pair-accepts { margin: 0; color: var(--muted); }
+.cv-pair-accepts { font-size: 14px; }
+.cv-pair-accepts span { color: var(--ink); font-weight: 600; }
+.cv-pair-go { margin-top: auto; align-self: flex-start; }
+.cv-cards-empty { color: var(--muted); }
+.cv-foot { padding-top: 0; }
+.cv-foot .fnav { --fn-fg: var(--ink); --fn-dim: var(--muted); --fn-line: var(--line); }

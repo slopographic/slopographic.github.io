@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop 3D: open and export every model format (shared 3D I/O)</title>
+  <style>body { margin: 0; } #stage iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <!-- Covers: 3d/js/app/modelio.js, 3d/js/app/files.js, 3d/js/app/commands.js, 3d/index.html -->
+  <div id="stage"></div>
+  <script src="../harness.js"></script>
+  <script type="module">
+import * as T from '../../vendor/three/three.module.min.js';
+import { writeModel } from '../../shared/3d-io/write.js';
+import { readModel } from '../../shared/3d-io/read.js';
+import { stats, bounds } from '../../shared/3d-io/scene.js';
+import { readZip } from '../../shared/office/zip.js';
+import { dae, fbxBinary, threeMf } from '../3d-io/fixtures.js';
+const { describe, it, expect, waitFor } = SlopTest;
+let frame = null;
+async function openApp() {
+  if (frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.src = '../../3d/index.html';
+  document.getElementById('stage').append(frame);
+  await waitFor(() => { const d = frame.contentDocument; return d && d.body && d.body.dataset.ready === '1' && frame.contentWindow.Slop3D; }, { timeout: 45000, step: 100 });
+  const w = frame.contentWindow;
+  w.__downloads = [];
+  w.SlopUI.download = (blob, name) => w.__downloads.push({ blob, name });
+  w.SlopUI.alert = (title, msg) => { w.__alert = msg; return Promise.resolve(); };
+  return w;
+}
+const meshes = (w) => Object.values(w.Slop3D.state.s.doc.nodes).filter((n) => n.type === 'mesh');
+const tris = (w) => meshes(w).reduce((n, m) => n + m.geom.indices.length / 3, 0);
+/** A cube 2 × 2 × 2 moved to x = 1, red, in a group: written by the shared writer as the given format. */
+async function cubeFile(format, opts = {}) {
+  const g = new T.Group(); g.name = 'Box';
+  const m = new T.Mesh(new T.BoxGeometry(2, 2, 2), new T.MeshStandardMaterial({ name: 'Red', color: 0xff0000, roughness: 0.3 }));
+  m.name = 'Cube'; m.position.x = 1; g.add(m);
+  const { files } = await writeModel(g, format, { name: 'cube', ...opts });
+  return files.map((f) => new File([f.blob], f.name));
+}
+
+describe('Slop 3D opens every model format', () => {
+  it('STL, PLY, GLB, glTF, OBJ with its MTL, 3MF, DAE and FBX each open as 12 triangles', async () => {
+    const w = await openApp();
+    const sets = [await cubeFile('stl'), await cubeFile('ply'), await cubeFile('glb'), await cubeFile('gltf'), await cubeFile('obj'),
+      [new File([await threeMf()], 'cube.3mf')], [new File([dae()], 'cube.dae')], [new File([fbxBinary()], 'cube.fbx')]];
+    for (const files of sets) {
+      w.__alert = null;
+      const ok = await w.Slop3D.files.openBlob(files[0], files[0].name, { with: files.slice(1) });
+      expect(w.__alert).toBe(null);
+      expect(ok).toBe(true);
+      expect(tris(w)).toBe(12);
+      expect(w.Slop3D.state.s.file.name).toBe('cube');
+    }
+  }, { timeout: 90000 });
+
+  it('a GLB keeps its node transform and material; an OBJ gets its colour from the MTL file', async () => {
+    const w = await openApp();
+    const [glb] = await cubeFile('glb');
+    await w.Slop3D.files.openBlob(glb, glb.name);
+    const b = w.Slop3D.ops.bounds(w.Slop3D.state.s.doc);
+    expect(b.min[0]).toBeCloseTo(0, 1e-4);
+    expect(b.max[0]).toBeCloseTo(2, 1e-4);
+    const m = meshes(w)[0];
+    expect(m.material.color).toBe('#ff0000');
+    expect(m.material.roughness).toBeCloseTo(0.3, 1e-6);
+    const obj = await cubeFile('obj');
+    await w.Slop3D.files.openBlob(obj[0], obj[0].name, { with: obj.slice(1) });
+    expect(meshes(w)[0].material.color).toBe('#ff0000');
+    expect(w.Slop3D.format.validate(JSON.parse(JSON.stringify(w.Slop3D.state.s.doc))).ok).toBe(true);
+  }, { timeout: 60000 });
+
+  it('a broken file says why and leaves the scene alone', async () => {
+    const w = await openApp();
+    const ok = await w.Slop3D.files.openBlob(new File(['# nothing\n'], 'empty.obj'), 'empty.obj');
+    expect(ok).toBe(false);
+    expect(w.__alert).toMatch(/no faces/);
+  }, { timeout: 60000 });
+});
+
+describe('Slop 3D exports every writable format', () => {
+  it('a cube exports as OBJ (zip with the MTL), STL, PLY, GLB, glTF and USDZ, and each reads back', async () => {
+    const w = await openApp();
+    w.SlopCmd.run('3d.add.cube');
+    await waitFor(() => meshes(w).length === 1);
+    w.Slop3D.actions.setField(meshes(w)[0].id, 'transform.p', [3, 0, 0]);
+    for (const fmt of ['obj', 'stl', 'ply', 'glb', 'gltf', 'usdz']) {
+      w.__downloads = [];
+      w.SlopCmd.run(fmt === 'obj' ? '3d.file.exportObj' : `3d.file.export${fmt[0].toUpperCase()}${fmt.slice(1)}`);
+      await waitFor(() => w.__downloads.length === 1, { timeout: 15000 });
+      const d = w.__downloads[0];
+      if (fmt === 'usdz') { expect(d.name).toBe('Untitled.usdz'); expect([...new Uint8Array(await d.blob.slice(0, 2).arrayBuffer())]).toEqual([0x50, 0x4b]); continue; }
+      let files = [{ name: d.name, blob: d.blob }];
+      if (fmt === 'obj') {
+        expect(d.name).toBe('Untitled-obj.zip');
+        const zip = await readZip(d.blob);
+        expect([...zip.keys()]).toEqual(['Untitled.obj', 'Untitled.mtl']);
+        files = [...zip.entries()].map(([name, data]) => ({ name, blob: new Blob([data]) }));
+      } else expect(d.name).toBe(`Untitled.${fmt}`);
+      const r = await readModel(files);
+      expect(stats(r.root).triangles).toBe(12);
+      const b = bounds(r.root);
+      expect(b.min[0]).toBeCloseTo(2.5, 1e-3);
+      expect(b.max[0]).toBeCloseTo(3.5, 1e-3);
+    }
+  }, { timeout: 90000 });
+
+  it('the Export menu lists every format', async () => {
+    const w = await openApp();
+    const ids = w.SlopCmd.list ? w.SlopCmd.list().map((c) => c.id) : null;
+    for (const id of ['3d.file.exportObj', '3d.file.exportStl', '3d.file.exportPly', '3d.file.exportGlb', '3d.file.exportGltf', '3d.file.exportUsdz']) {
+      if (ids) expect(ids).toContain(id); else expect(typeof w.SlopCmd.run).toBe('function');
+    }
+  }, { timeout: 60000 });
+});
+
+SlopTest.run({ name: 'Slop 3D: model files' });
+  </script>
+</body>
+</html>

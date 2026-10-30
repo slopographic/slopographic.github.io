@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture: a page opened with ?fresh whose service worker never finishes updating</title>
+  <script>
+  // The worker's update() never settles, as when a new release is still precaching the whole site.
+  window.__updateCalls = 0;
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: {
+    getRegistration: async () => ({ update: () => { window.__updateCalls++; return new Promise(() => {}); } }),
+    register: async () => ({}), addEventListener() {}, controller: null,
+  } });
+  </script>
+  <script src="../../shared/pwa.js"></script>
+</head>
+<body>fixture</body>
+</html>

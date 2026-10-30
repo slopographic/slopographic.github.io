@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>shared/ui/menubutton.js: a button with its own menu of choices</title>
+<style>:root { --panel: #fff; --ink: #111; --line: #999; --accent: #3d5a00; --focus: #111; } body { margin: 0; padding: 40px; }</style></head>
+<body>
+<button type="button" id="b">Pick</button> <button type="button" id="other">Other</button>
+<script src="../../shared/ui/menubutton.js"></script>
+<script src="../harness.js"></script>
+<script>
+// Covers: shared/ui/menubutton.js
+const { describe, it, expect } = SlopTest;
+const b = document.getElementById('b');
+let picked = [];
+const icon = () => { const s = document.createElement('i'); s.className = 'ic'; return s; };
+const items = () => [{ heading: 'Images' }, { value: 'jpg', label: 'To JPG', icon: icon(), checked: true }, { value: 'png', label: 'To PNG' },
+  { heading: 'Text' }, { value: 'txt', label: 'Text file' }, { value: 'off', label: 'Turned off', disabled: true }];
+const mb = SlopMenuButton.attach(b, { label: 'Convert x to', items, onPick: (v) => picked.push(v) });
+const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+const menu = () => document.querySelector('.smb-menu');
+
+describe('SlopMenuButton', () => {
+  it('marks the button as a menu button, closed', () => {
+    expect([b.getAttribute('aria-haspopup'), b.getAttribute('aria-expanded')]).toEqual(['menu', 'false']);
+  });
+  it('a click opens it under the button with groups, icons and the chosen row focused', () => {
+    b.click();
+    const m = menu();
+    expect([m.getAttribute('role'), m.getAttribute('aria-label'), b.getAttribute('aria-expanded'), b.getAttribute('aria-controls')]).toEqual(['menu', 'Convert x to', 'true', m.id]);
+    expect([...m.querySelectorAll('[role="group"]')].map((g) => g.querySelector('.smb-h').textContent)).toEqual(['Images', 'Text']);
+    expect(document.activeElement.dataset.value).toBe('jpg');
+    expect(document.activeElement.getAttribute('role')).toBe('menuitemradio');
+    expect(!!document.activeElement.querySelector('.smb-icon .ic')).toBe(true);
+    expect(m.getBoundingClientRect().top >= b.getBoundingClientRect().bottom).toBe(true);
+  });
+  it('arrows wrap and skip disabled rows, Home and End jump, a letter finds a row', () => {
+    key(document.activeElement, 'ArrowDown'); expect(document.activeElement.dataset.value).toBe('png');
+    key(document.activeElement, 'End'); expect(document.activeElement.dataset.value).toBe('txt');
+    key(document.activeElement, 'ArrowDown'); expect(document.activeElement.dataset.value).toBe('jpg');
+    key(document.activeElement, 'Home'); expect(document.activeElement.dataset.value).toBe('jpg');
+    key(document.activeElement, 't'); expect(document.activeElement.dataset.value).toBe('png');
+    key(document.activeElement, 'e'); expect(document.activeElement.dataset.value).toBe('txt');   // "te": Text file
+  });
+  it('Enter picks the row, closes the menu and gives focus back to the button', () => {
+    key(document.activeElement, 'Enter');
+    expect([picked, menu(), document.activeElement, b.getAttribute('aria-expanded')]).toEqual([['txt'], null, b, 'false']);
+  });
+  it('ArrowUp opens on the last row; Escape closes; a click outside closes', () => {
+    key(b, 'ArrowUp'); expect(document.activeElement.dataset.value).toBe('txt');
+    key(document.activeElement, 'Escape'); expect([menu(), document.activeElement]).toEqual([null, b]);
+    b.click(); expect(!!menu()).toBe(true);
+    document.getElementById('other').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(menu()).toBe(null);
+  });
+  it('only one menu is open at a time, and an empty list says so', () => {
+    const c = document.createElement('button'); c.textContent = 'Empty'; document.body.append(c);
+    SlopMenuButton.attach(c, { items: [], empty: 'No format' });
+    b.click(); c.click();
+    expect(document.querySelectorAll('.smb-menu').length).toBe(1);
+    expect(menu().querySelector('.smb-empty').textContent).toBe('No format');
+    SlopMenuButton.close();
+    mb.destroy(); b.click(); expect(menu()).toBe(null);
+  });
+});
+
+describe('SlopMenuButton search', () => {
+  const s = document.createElement('button'); s.textContent = 'Many'; document.body.append(s);
+  const many = () => [{ heading: 'Images' }, { value: 'to-jpg', label: 'To JPG', checked: true }, { value: 'to-png', label: 'To PNG' },
+    { value: 'to-webp', label: 'To WebP' }, { heading: 'PDF' }, { value: 'images-to-pdf', label: 'Images to PDF', keywords: ['acrobat'] },
+    { heading: 'Encoding' }, { value: 'base64-encode', label: 'Base64 encode' }, { value: 'url-encode', label: 'URL encode' }];
+  const got = [];
+  SlopMenuButton.attach(s, { label: 'Convert y to', items: many, onPick: (v) => got.push(v) });
+  const search = () => menu().querySelector('.smb-search');
+  const visible = () => [...menu().querySelectorAll('.smb-row:not([hidden])')].map((r) => r.dataset.value);
+  const type = (text) => { search().value = text; search().dispatchEvent(new Event('input', { bubbles: true })); };
+  it('six or more choices open with a search box at the top, the cursor in it', () => {
+    s.click();
+    expect(!!search()).toBe(true);
+    expect(document.activeElement).toBe(search());
+    expect(search().getAttribute('aria-label')).toBe('Search Convert y to');
+    expect(menu().firstElementChild).toBe(search());
+  });
+  it('typing filters by label, value and keywords; empty groups hide; no match says so', () => {
+    type('png'); expect(visible()).toEqual(['to-png']);
+    expect([...menu().querySelectorAll('.smb-group:not([hidden]) .smb-h')].map((h) => h.textContent)).toEqual(['Images']);
+    type('acrobat'); expect(visible()).toEqual(['images-to-pdf']);
+    type('encode'); expect(visible()).toEqual(['base64-encode', 'url-encode']);
+    type('zzz'); expect(visible()).toEqual([]); expect(menu().querySelector('.smb-nomatch').hidden).toBe(false);
+    type(''); expect(visible().length).toBe(6); expect(menu().querySelector('.smb-nomatch').hidden).toBe(true);
+  });
+  it('ArrowDown goes to the first row, ArrowUp from it back to the box, a letter on a row types into the box', () => {
+    type('to ');
+    key(search(), 'ArrowDown'); expect(document.activeElement.dataset.value).toBe('to-jpg');
+    key(document.activeElement, 'ArrowUp'); expect(document.activeElement).toBe(search());
+    key(search(), 'ArrowDown'); key(document.activeElement, 'w');
+    expect([document.activeElement, search().value, visible()]).toEqual([search(), 'to w', ['to-webp']]);
+  });
+  it('Enter in the box picks the first match and closes', () => {
+    type('base');
+    key(search(), 'Enter');
+    expect([got, menu(), document.activeElement]).toEqual([['base64-encode'], null, s]);
+  });
+  it('a short menu has no search box, and search: false turns it off', () => {
+    b.click(); expect(menu() ? menu().querySelector('.smb-search') : null).toBe(null); SlopMenuButton.close();
+    const t = document.createElement('button'); document.body.append(t);
+    SlopMenuButton.attach(t, { items: many, search: false });
+    t.click(); expect(menu().querySelector('.smb-search')).toBe(null); SlopMenuButton.close();
+  });
+});
+describe('SlopMenuButton colours', () => {
+  // The menu sits in <body>, outside an app's own boxes. It used the page's --ink, which is the near-black page colour in some
+  // apps (Slop PDF): dark rows on the dark menu. It reads the theme (--sl-*) or SlopUI's --s-* only.
+  it('takes the theme text and surface, never the page --ink', () => {
+    const r = document.documentElement.style;
+    r.setProperty('--sl-text', 'rgb(241, 237, 228)'); r.setProperty('--sl-surface', 'rgb(21, 21, 24)'); r.setProperty('--ink', 'rgb(10, 10, 10)');
+    SlopMenuButton.close(); mb.open();
+    const m = mb.menu, row = m.querySelector('.smb-row:not([aria-checked="true"])');
+    expect([getComputedStyle(m).backgroundColor, getComputedStyle(row).color]).toEqual(['rgb(21, 21, 24)', 'rgb(241, 237, 228)']);
+    SlopMenuButton.close();
+    ['--sl-text', '--sl-surface', '--ink'].forEach((k) => r.removeProperty(k));
+  });
+});
+SlopTest.run({ name: 'shared/ui menubutton' });
+</script>
+</body>
+</html>

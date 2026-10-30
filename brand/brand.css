@@ -1,0 +1,8 @@
+/* The brand link in an app header (brand/brand.js): the logo image at the mark's size, and the app's own icon with the
+ * Slopographic mark as a small corner badge (appMark). The shell links this file on its pages; a page without the shell
+ * links it itself. */
+img.brand-mark, header .brand img { width: 20px; height: 20px; display: block; flex: none; }
+
+header .brand .brand-tile { position: relative; display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; color: inherit; }
+header .brand .brand-tile .brand-app { width: 100%; height: 100%; display: block; }
+header .brand .brand-tile .brand-badge { position: absolute; right: -5px; bottom: -5px; width: 12px; height: 12px; padding: 1px; box-sizing: border-box; border-radius: 50%; background: var(--brand-ink, #0a0a0a); }

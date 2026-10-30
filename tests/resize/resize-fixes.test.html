@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: shrinking, transparency and the aspect lock</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../resize/js/core/size.js"></script>
+  <script src="../../resize/js/core/format.js"></script>
+  <script src="../../resize/js/image/image.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const R = window.SlopResize;
+
+  /** A canvas of 2 px vertical black and white stripes (the worst case for a bad shrink). */
+  function stripes(w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    for (let i = 0; i < w; i += 2) { x.fillStyle = '#000'; x.fillRect(i, 0, 1, h); x.fillStyle = '#fff'; x.fillRect(i + 1, 0, 1, h); }
+    return c;
+  }
+  const asFile = async (cv, type, name) => new File([await new Promise((r) => cv.toBlob(r, type))], name, { type });
+  async function decode(blob) {
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    c.getContext('2d').drawImage(bmp, 0, 0);
+    return c;
+  }
+  /** Share of pixels that are pure black or pure white (1 for a hard, aliased shrink; near 0 for a smooth one). */
+  function hardShare(cv) {
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let hard = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) { const v = d[i]; if (v < 20 || v > 235) hard++; n++; }
+    return hard / n;
+  }
+  const px = (cv, x, y) => [...cv.getContext('2d').getImageData(x, y, 1, 1).data];
+  const BASE = { mode: 'size', w: 500, h: 375, keepRatio: true, fill: 'fit', anchor: 'center', bg: 'transparent', even: false, resample: 'best', maxBytes: 0 };
+  const OPT = (mime) => ({ mime, quality: 0.92, maxBytes: 0 });
+
+  describe('Slop Resize: shrinking and enlarging', () => {
+    it('a 4000 × 3000 picture shrinks to 500 wide with smooth steps (no hard, aliased pixels)', async () => {
+      const f = await asFile(stripes(4000, 3000), 'image/png', 'big.png');
+      const out = await R.image.run(f, BASE, OPT('image/png'));
+      expect(out.w).toBe(500);
+      expect(out.h).toBe(375);
+      const cv = await decode(out.blob);
+      expect(hardShare(cv) < 0.05).toBeTruthy();
+    });
+
+    it('nearest resampling is the hard, aliased case, so the test above can tell the two apart', async () => {
+      const f = await asFile(stripes(4000, 3000), 'image/png', 'big.png');
+      const out = await R.image.run(f, { ...BASE, resample: 'nearest' }, OPT('image/png'));
+      expect(hardShare(await decode(out.blob)) > 0.5).toBeTruthy();
+    });
+
+    it('a shrink that is not an exact halving (2400 → 700) stays smooth', async () => {
+      const f = await asFile(stripes(2400, 1600), 'image/png', 's.png');
+      const out = await R.image.run(f, { ...BASE, w: 700, h: 0 }, OPT('image/png'));
+      expect(out.w).toBe(700);
+      expect(hardShare(await decode(out.blob)) < 0.05).toBeTruthy();
+    });
+
+    it('an enlargement (100 × 50 → 400 × 200) fills the target with the picture', async () => {
+      const c = document.createElement('canvas'); c.width = 100; c.height = 50;
+      const x = c.getContext('2d'); x.fillStyle = '#ff0000'; x.fillRect(0, 0, 50, 50); x.fillStyle = '#0000ff'; x.fillRect(50, 0, 50, 50);
+      const out = await R.image.run(await asFile(c, 'image/png', 'small.png'), { ...BASE, w: 400, h: 200, fill: 'stretch', keepRatio: false }, OPT('image/png'));
+      const d = await decode(out.blob);
+      expect([d.width, d.height]).toEqual([400, 200]);
+      expect(px(d, 40, 100)[0] > 200).toBeTruthy();
+      expect(px(d, 360, 100)[2] > 200).toBeTruthy();
+    });
+  });
+
+  /** A 200 × 100 PNG: the left half fully transparent, the right half opaque red. */
+  async function halfTransparent() {
+    const c = document.createElement('canvas'); c.width = 200; c.height = 100;
+    const x = c.getContext('2d'); x.fillStyle = '#ff0000'; x.fillRect(100, 0, 100, 100);
+    return asFile(c, 'image/png', 'alpha.png');
+  }
+
+  describe('Slop Resize: transparency', () => {
+    it('a PNG keeps its transparency when shrunk (left stays see-through, right stays red)', async () => {
+      const out = await R.image.run(await halfTransparent(), { ...BASE, w: 100, h: 50, fill: 'stretch', keepRatio: false }, OPT('image/png'));
+      const d = await decode(out.blob);
+      expect(px(d, 10, 25)[3] < 10).toBeTruthy();
+      const right = px(d, 90, 25);
+      expect(right[0] > 200 && right[3] > 245).toBeTruthy();
+      expect(out.note).toBe('');
+    });
+
+    it('a WebP keeps its transparency when the browser can write WebP', async () => {
+      const sup = await R.format.imageSupport();
+      if (!sup.has('image/webp')) return;
+      const out = await R.image.run(await halfTransparent(), { ...BASE, w: 100, h: 50, fill: 'stretch', keepRatio: false }, OPT('image/webp'));
+      const d = await decode(out.blob);
+      expect(px(d, 10, 25)[3] < 60).toBeTruthy();
+    });
+
+    it('JPEG (no alpha) fills transparent areas white, not black, and says so', async () => {
+      const out = await R.image.run(await halfTransparent(), { ...BASE, w: 100, h: 50, fill: 'stretch', keepRatio: false }, OPT('image/jpeg'));
+      const d = await decode(out.blob);
+      const left = px(d, 10, 25);
+      expect(left[0] > 235 && left[1] > 235 && left[2] > 235).toBeTruthy();
+      expect(out.note).toContain('no transparency');
+    });
+
+    it('JPEG with a chosen background colour fills with that colour', async () => {
+      const out = await R.image.run(await halfTransparent(), { ...BASE, w: 100, h: 50, fill: 'stretch', keepRatio: false, bg: '#ff0000' }, OPT('image/jpeg'));
+      const d = await decode(out.blob);
+      const left = px(d, 10, 25);
+      expect(left[0] > 200 && left[1] < 60 && left[2] < 60).toBeTruthy();
+      expect(out.note).toBe('');
+    });
+
+    it('a picture with no transparency gives no JPEG note', async () => {
+      const c = document.createElement('canvas'); c.width = 60; c.height = 40;
+      c.getContext('2d').fillStyle = '#336699'; c.getContext('2d').fillRect(0, 0, 60, 40);
+      const out = await R.image.run(await asFile(c, 'image/png', 'plain.png'), { ...BASE, w: 30, h: 20, fill: 'stretch', keepRatio: false }, OPT('image/jpeg'));
+      expect(out.note).toBe('');
+    });
+  });
+
+  describe('Slop Resize: keep aspect ratio in the panel (Fit inside)', () => {
+    let win = null, doc = null;
+    const type = (id, v) => { const e = doc.getElementById(id); e.value = String(v); e.dispatchEvent(new win.Event('input', { bubbles: true })); };
+    const check = (id, v) => { const e = doc.getElementById(id); e.checked = v; e.dispatchEvent(new win.Event('change', { bubbles: true })); };
+    async function panel() {
+      if (win) return;
+      const f = document.createElement('iframe');
+      f.style.cssText = 'width:1280px;height:800px;border:0';
+      f.src = '../../resize/index.html';
+      document.body.append(f);
+      await new Promise((r) => f.addEventListener('load', r, { once: true }));
+      win = f.contentWindow; doc = f.contentDocument;
+      await SlopTest.waitFor(() => win.SlopResize && win.SlopResize.queue && win.SlopResize.app);
+      const c = doc.createElement('canvas'); c.width = 1000; c.height = 500;
+      await win.SlopResize.queue.add(new win.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'wide.png', { type: 'image/png' }));
+      await new Promise((r) => setTimeout(r, 50));
+      // the lock follows the picture for Fit inside (Fit and Cover keep the box: tests/resize/box.test.html)
+      const fill = doc.getElementById('rs-fill'); fill.value = 'within'; fill.dispatchEvent(new win.Event('change', { bubbles: true }));
+    }
+    it('typing a width sets the height from the picture ratio (1000 × 500: width 500 gives height 250)', async () => {
+      await panel();
+      check('rs-keep', true); type('rs-mode', 'size'); type('rs-h', 1080); type('rs-w', 500);
+      expect(doc.getElementById('rs-h').value).toBe('250');
+    });
+
+    it('typing a height sets the width (height 333 on a 1000 × 500 picture gives width 666)', async () => {
+      await panel();
+      check('rs-keep', true); type('rs-h', 333);
+      expect(doc.getElementById('rs-w').value).toBe('666');
+    });
+
+    it('a width that rounds is derived once from the typed value, so the height does not drift', async () => {
+      await panel();
+      check('rs-keep', true); check('rs-even', false); type('rs-w', 1001);
+      expect(doc.getElementById('rs-h').value).toBe('501');
+      check('rs-even', true); type('rs-w', 1001);
+      expect(doc.getElementById('rs-h').value).toBe('500');
+    });
+
+    it('with Keep aspect ratio off, typing a width leaves the height alone', async () => {
+      await panel();
+      check('rs-keep', false); type('rs-h', 700); type('rs-w', 300);
+      expect(doc.getElementById('rs-h').value).toBe('700');
+      check('rs-keep', true);
+    });
+
+    it('the resize output follows the locked size: width 500 on a 1000 × 500 picture gives 500 × 250', async () => {
+      await panel();
+      check('rs-keep', true); type('rs-w', 500);
+      await win.SlopResize.app.run();
+      const it = win.SlopResize.queue.items()[0];
+      expect(it.status).toBe('done');
+      expect([it.out.w, it.out.h]).toEqual([500, 250]);
+    });
+
+    it('JPEG turns Transparent off and explains the fill; PNG brings it back', async () => {
+      await panel();
+      type('rs-mime', 'image/jpeg'); doc.getElementById('rs-mime').dispatchEvent(new win.Event('change', { bubbles: true }));
+      const tr = doc.getElementById('rs-transparent'), note = doc.getElementById('rs-alpha-note');
+      expect(tr.disabled).toBeTruthy();
+      expect(tr.checked).toBeFalsy();
+      expect(note.hidden).toBeFalsy();
+      expect(note.textContent).toContain('no transparency');
+      doc.getElementById('rs-mime').value = 'image/png'; doc.getElementById('rs-mime').dispatchEvent(new win.Event('change', { bubbles: true }));
+      expect(tr.disabled).toBeFalsy();
+      expect(tr.checked).toBeTruthy();
+      expect(note.hidden).toBeTruthy();
+    });
+  });
+  SlopTest.run({ name: 'Slop Resize: shrinking, transparency and the aspect lock' });
+  </script>
+</body>
+</html>

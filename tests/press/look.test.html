@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press: the look (header buttons one height, nothing past the edge, no sideways scroll)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: press/index.html -->
+  <!-- Covers: press/css/chrome.css -->
+  <!-- Covers: press/css/responsive.css -->
+  <!-- Covers: press/js/ui/dock.js, press/js/ui/controlbar.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The page in a fresh iframe of this width, once it and the shell's header buttons are in. */
+  async function open(width) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = SRC;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-hdr .slop-hbtn') && D.querySelector(READY); }, { timeout: 30000 });
+    await sleep(600);   // the header fit (shared/ui/hbtn.js) runs on the next frame
+    return f.contentDocument;
+  }
+  const box = (n) => n.getBoundingClientRect();
+  const shown = (n) => !!n && box(n).width > 0 && box(n).height > 0;
+  const headers = (D) => [...D.querySelectorAll('header')].filter((n) => shown(n) && !n.parentElement.closest('header'));
+  const hbtns = (D) => [...D.querySelectorAll('.slop-hbtn')].filter(shown);
+  /** The shared header buttons are one height, and the page's own buttons (selectors) match it. */
+  function sameHeight(D, sels) {
+    const hs = hbtns(D).map((n) => Math.round(box(n).height));
+    expect(hs.length).toBeGreaterThan(3);
+    for (const h of hs) expect(h).toBe(hs[0]);
+    for (const sel of sels) {
+      const n = D.querySelector(sel);
+      if (!shown(n)) continue;
+      expect(sel + ' ' + Math.round(box(n).height)).toBe(sel + ' ' + hs[0]);
+    }
+    return hs[0];
+  }
+  /** Nothing in the header ends past its right edge or is clipped by it, and the page does not scroll sideways. */
+  function fits(D) {
+    const h = headers(D)[0], W = D.defaultView.innerWidth;
+    expect(h.scrollWidth).toBeLessThanOrEqual(h.clientWidth + 1);
+    for (const n of h.querySelectorAll('button, a, input, select')) if (shown(n)) expect((n.id || n.className) + ' ' + (box(n).right <= W + 0.5)).toBe((n.id || n.className) + ' true');
+    expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(W);
+  }
+  /** Every shared header button sits on the row of the given element. */
+  function oneRow(D, sel) {
+    const r = box(D.querySelector(sel));
+    for (const n of hbtns(D)) expect(Math.abs((box(n).top + box(n).bottom) / 2 - (r.top + r.bottom) / 2)).toBeLessThan(2);
+  }
+  const SRC = '../../press/index.html', READY = '#panelsToggle';
+
+  describe('Slop Press: the look', () => {
+    for (const W of [1440, 1024]) {
+      it(W + ': the compact menu bar holds the shared buttons at its own 24 px; every menu stays in view', async () => {
+        const D = await open(W);
+        expect(headers(D).length).toBe(1);
+        expect(sameHeight(D, ['#panelsToggle', '#searchCmd'])).toBe(24);
+        oneRow(D, '#panelsToggle');
+        fits(D);
+        const bar = box(headers(D)[0]);
+        for (const n of hbtns(D)) { expect(box(n).top).toBeGreaterThanOrEqual(bar.top); expect(box(n).bottom).toBeLessThanOrEqual(bar.bottom); }
+        const menus = D.getElementById('menus');
+        expect(menus.scrollWidth).toBeLessThanOrEqual(menus.clientWidth + 1);
+        expect(D.querySelector('header .home-link')).toBe(null);   // the brand is the one link home
+      }, { timeout: 40000 });
+    }
+    it('the brand names the app', async () => {
+      const D = await open(1440);
+      expect(D.querySelector('header .app-name').textContent).toBe('Slop Press');
+    }, { timeout: 40000 });
+    it('390: nothing scrolls sideways', async () => {
+      const D = await open(390);
+      fits(D);
+    }, { timeout: 40000 });
+    it('1280: Export PDF… sits at the foot of the dock on the right (once: not in the control bar) and opens the Export PDF dialog', async () => {
+      const D = await open(1280), dock = D.getElementById('dock'), b = D.getElementById('dockExport');
+      expect(b.closest('.sf-p-foot').parentNode).toBe(dock);
+      expect([...D.querySelectorAll('button')].filter((x) => shown(x) && x.textContent.trim() === 'Export PDF…').length).toBe(1);
+      expect(Math.round(box(b).bottom)).toBeLessThanOrEqual(Math.round(box(dock).bottom));
+      b.click();
+      await waitFor(() => [...D.querySelectorAll('.sui-dlg, [role="dialog"]')].some((d) => /Export PDF/.test(d.textContent)), { timeout: 5000 });
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Press: the look' });
+  </script>
+</body>
+</html>

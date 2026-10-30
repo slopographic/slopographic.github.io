@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables grid colour tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; } #app2 { width: 640px; height: 400px; }</style>
+</head>
+<body>
+  <!-- The real app runs in same-origin iframes; tests drive window.SlopTables inside them. -->
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="tables.helpers.js"></script>
+  <script src="tables.spec-theme.js"></script>
+  <script>SlopTest.run({ name: 'Slop Tables grid colours' });</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shell · SlopOpenTabs and SlopTabs live side by side</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/ui/tabs.js"></script>
+  <script src="../../shell/tabs.js"></script>
+  <script>
+  // Covers: shell/tabs.js, shell/switcher.js, shell/shell.js
+  // The view tab strip (SlopTabs, shared/ui/tabs.js) and the list of open pages (SlopOpenTabs, shell/tabs.js) had the same
+  // global name, so whichever loaded second was lost: the app switcher's open tabs, or an app's tabs. They are two names now.
+  const { describe, it, expect, run } = SlopTest;
+  describe('two globals, one page', () => {
+    it('SlopTabs is still the view tab strip', () => {
+      expect(typeof window.SlopTabs.mount).toBe('function');
+    });
+    it('SlopOpenTabs lists the other open pages and has this page id', () => {
+      expect(Array.isArray(window.SlopOpenTabs.list())).toBe(true);
+      expect(typeof window.SlopOpenTabs.id).toBe('string');
+      expect(typeof window.SlopOpenTabs.focus).toBe('function');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

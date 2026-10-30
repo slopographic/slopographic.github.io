@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=overlay">
+  <title>Buddy · a build's own mascot: the toggle runs it in the slot</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Covers: shared/mascot/slot.js, shared/mascot/roam.js -->
+  <!-- A build with a mascot of its own (brand profile "mascot": { "overlay": ... }, copied to brand/mascot/): the
+       buddy's toggle shows its icon and name and runs it in the mascot slot (shared/mascot/slot.js), never the buddy
+       engine. The slot itself, with the sample overlay: tests/buddy/slot.test.html (this repository only). A build without a mascot: tests/buddy/off.test.html. -->
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script type="module">
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { openApp } = BuddyTest;
+  const loaded = (win, re) => win.performance.getEntriesByType('resource').some((e) => re.test(e.name));
+  const { name } = await import('../../brand/mascot/icon.js');
+
+  describe('the build\'s own mascot', () => {
+    it('the toggle carries its name, and nothing loads until it is switched on', async () => {
+      const win = await openApp('', { clear: true });
+      expect(BRAND_FACTS.mascot).toBe('overlay');
+      await waitFor(() => win.document.querySelector('.buddy-toggle .bt-main').title.includes(name), { timeout: 5000 });
+      expect(win.SlopBuddyBoot.on).toBe(false);
+      expect(win.document.querySelector('.mascot-slot')).toBe(null);
+      expect(loaded(win, /brand\/mascot\/mascot\.js|shared\/buddy\/engine\.js/)).toBe(false);
+    });
+    it('switched on it greets in the slot; switched off it hides; the buddy engine never loads', async () => {
+      const win = await openApp('', { clear: true });
+      const played = [];
+      win.document.addEventListener('mascot-played', (e) => played.push(e.detail.moment));
+      win.document.querySelector('.buddy-toggle .bt-main').click();
+      await waitFor(() => win.document.querySelector('.mascot-slot') && !win.document.querySelector('.mascot-slot').hidden, { timeout: 10000 });
+      expect(win.SlopBuddyBoot.on).toBe(true);
+      await waitFor(() => played.includes('greeting') || played.length > 0, { timeout: 5000 });
+      expect(loaded(win, /shared\/mascot\/slot\.js/)).toBe(true);
+      expect(loaded(win, /shared\/buddy\/engine\.js/)).toBe(false);
+      win.document.querySelector('.buddy-toggle .bt-main').click();
+      await waitFor(() => win.document.querySelector('.mascot-slot').hidden, { timeout: 5000 });
+      expect(win.SlopBuddyBoot.on).toBe(false);
+    });
+    it('the profile\'s size and roaming: the dock as tall as it asks on a desktop, roaming when it asks for it', async () => {
+      const win = await openApp('', { clear: true });
+      win.document.querySelector('.buddy-toggle .bt-main').click();
+      await waitFor(() => win.MascotSlot && win.document.querySelector('.mascot-slot') && !win.document.querySelector('.mascot-slot').hidden, { timeout: 10000 });
+      const S = await win.eval('import(new URL("../../shared/mascot/slot.js", document.baseURI).href)');   // the page's own module
+      const dock = win.document.querySelector('.mascot-slot'), want = S.OPTIONS.size.desktop;
+      expect(dock.offsetHeight).toBe(want || Math.round(136 * S.SCALE));
+      const R = win.MascotSlot.parts().roam.state();
+      expect(R.style).toBe(S.OPTIONS.roam === true ? 'float' : S.OPTIONS.roam || '');
+      expect(R.enabled).toBe(!!R.style && !win.matchMedia('(prefers-reduced-motion: reduce), (pointer: coarse)').matches);
+      win.document.querySelector('.buddy-toggle .bt-main').click();
+    });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

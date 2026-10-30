@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: mini-app sandbox</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, AI;
+  window.secret = 'parent-secret';
+  try { localStorage.setItem('slop-ai-sandbox-probe', 'host-data'); } catch (e) { /* blocked */ }
+  const PROBE = `<!doctype html><html><head><title>probe</title></head><body><script>
+    const r = {};
+    try { r.parentDoc = !!parent.document.body; } catch (e) { r.parentDoc = 'blocked'; }
+    try { r.parentVar = parent.secret || null; } catch (e) { r.parentVar = 'blocked'; }
+    try { r.storage = localStorage.getItem('slop-ai-sandbox-probe'); } catch (e) { r.storage = 'blocked'; }
+    try { r.cookie = document.cookie; } catch (e) { r.cookie = 'blocked'; }
+    try { r.idb = !!indexedDB.open('x'); } catch (e) { r.idb = 'blocked'; }
+    r.origin = String(self.origin);
+    fetch('/favicon.svg').then(() => { r.fetch = 'ok'; }, () => { r.fetch = 'blocked'; }).then(() => parent.postMessage({ probe: r }, '*'));
+  <\/script></body></html>`;
+  function run(html) {
+    return new Promise((res) => {
+      const f = document.createElement('iframe');
+      f.setAttribute('sandbox', AI.SANDBOX); f.srcdoc = AI.sandboxDoc(html);
+      addEventListener('message', function on(e) { if (e.source === f.contentWindow && e.data && e.data.probe) { removeEventListener('message', on); res({ r: e.data.probe, f }); } });
+      document.body.append(f);
+    });
+  }
+  describe('mini-app sandbox isolation', () => {
+    it('the builder preview uses sandbox="allow-scripts" only', async () => {
+      W = await AT.app(); AI = W.AI;
+      const fr = W.document.getElementById('preview');
+      expect(fr.getAttribute('sandbox')).toBe('allow-scripts');
+      for (const t of ['allow-same-origin', 'allow-popups', 'allow-top-navigation', 'allow-forms', 'allow-modals']) expect(fr.sandbox.contains(t)).toBe(false);
+      expect(fr.getAttribute('referrerpolicy')).toBe('no-referrer');
+    });
+    it('the app cannot reach the page, its storage or the network', async () => {
+      const { r, f } = await run(PROBE);
+      expect(r.parentDoc).toBe('blocked');
+      expect(r.parentVar).toBe('blocked');
+      expect(r.storage).toBe('blocked');
+      expect(r.cookie).toBe('blocked');
+      expect(r.origin).toBe('null');
+      expect(r.fetch).toBe('blocked');
+      let read = 'blocked'; try { read = f.contentDocument ? 'readable' : 'blocked'; } catch (e) { /* blocked */ }
+      expect(read).toBe('blocked');
+    });
+    it('sandboxDoc puts the CSP first in any document shape', () => {
+      const csp = /<meta http-equiv="Content-Security-Policy" content="default-src 'none'/;
+      expect(AI.sandboxDoc('<html><head><title>x</title></head><body></body></html>')).toMatch(/<head><meta http-equiv="Content-Security-Policy"/);
+      expect(AI.sandboxDoc('<html><body>x</body></html>')).toMatch(/<html><head><meta http-equiv/);
+      expect(AI.sandboxDoc('<p>bare</p>')).toMatch(csp);
+    });
+    it('extractHtml takes the last complete HTML block', () => {
+      const t = 'v1:\n```html\n<!doctype html><p>one</p>\n```\nv2:\n```html\n<!doctype html><p>two</p>\n```\n```js\nx()\n```';
+      expect(AI.extractHtml(t)).toBe('<!doctype html><p>two</p>');
+      expect(AI.extractHtml('```\n<!doctype html><b>x</b>\n```')).toBe('<!doctype html><b>x</b>');
+      expect(AI.extractHtml('```html\n<!doctype html><p>unfinished')).toBe(null);
+      expect(AI.extractHtml('no code')).toBe(null);
+    });
+    it('templates run in the preview; save and download work', async () => {
+      AI.setTab('build');
+      W.document.querySelector('[data-tpl="calculator"]').click();
+      await waitFor(() => AI.builder.conv && AI.builder.conv.html);
+      const fr = W.document.getElementById('preview');
+      expect(fr.hidden).toBe(false);
+      expect(fr.srcdoc).toMatch(/Content-Security-Policy/); expect(fr.srcdoc).toContain('Slop Calculator');
+      const saved = []; W.SlopHub.saveToDrive = async (b, n) => { saved.push([n, b.type]); };
+      W.document.getElementById('btnBuildSave').click();
+      await waitFor(() => saved.length);
+      expect(saved[0]).toEqual(['calculator.html', 'text/html']);
+      W.document.querySelector('#buildModes [data-mode="code"]').click();
+      expect(W.document.getElementById('codeView').textContent).toContain('<!doctype html>');
+    });
+    it('iterating by chat replaces the preview with the new file', async () => {
+      await AI.E.load('Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC');
+      W.document.querySelector('#buildModes [data-mode="preview"]').click();
+      const before = AI.builder.conv.html;
+      const e = AI.E.engine; e.replies.push('Here:\n```html\n<!doctype html><html><head></head><body><h1 id="t">Version 2</h1></body></html>\n```');
+      await AI.builder.send('make the title say Version 2');
+      expect(AI.builder.conv.html).not.toBe(before);
+      expect(W.document.getElementById('preview').srcdoc).toContain('Version 2');
+      expect(e.calls.pop().messages[0].content).toMatch(/ONE complete HTML file/);
+      expect((await AI.db.get(AI.builder.conv.id)).html).toContain('Version 2');
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: mini-app sandbox' });
+  </script>
+</body>
+</html>

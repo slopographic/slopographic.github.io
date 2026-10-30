@@ -1,0 +1,22 @@
+/* Slop Tables, Japanese: the open, save and import messages and the drop zone. Same keys as tables/i18n/en/io.js. Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'tables.file.open_failed': 'そのファイルを開けませんでした',
+  'tables.file.save_failed': '保存できませんでした',
+  'tables.file.left_out': '一部を除いて開きました',
+  'tables.file.left_out_body': '保存すると Slop Drive に Slop Tables ファイルとして保持されます。ファイル ▸ ダウンロード ▸ XLSX で新しい Excel ファイルを書き出せます。',
+  'tables.file.opened': '{name} を開きました',
+  'tables.file.opened_it': 'ファイルを開きました',
+  'tables.file.not_ours': 'Slop Tables のファイルではありません。',
+  'tables.file.kinds': 'Slop Tables は .stab、.xlsx、.ods、.csv、.tsv ファイルを開けます。',
+  'tables.file.damaged': 'この Slop Tables ファイルは破損しています（{what}）。',
+  'tables.file.newer': 'この Slop Tables ファイルは、新しいバージョンの Slop Tables で作成されています。',
+  'tables.import.unknown_fn': '{n} 件の数式が、Slop Tables にまだない関数を使用しているため、#NAME? と表示されます。',
+  'tables.import.skipped': '読み込まれませんでした：{list}。',
+  'tables.import.chart_kind': '{n} 件の {kind} グラフは読み込まれませんでした。Slop Tables は縦棒、横棒、折れ線、円グラフを描画します。',
+  'tables.import.chart_shape': '{n} 件のグラフは読み込まれませんでした。系列が 1 つのセルのブロックになっていません。',
+  'tables.drop.label': 'スプレッドシートをドロップして開く',
+  'tables.drop.noun': 'スプレッドシート',
+  'tables.config.label': 'ブック',
+  'tables.config.desc': 'シートとそのセルの内容です。数式は = で始まるテキストとして書かれます。',
+  'tables.config.kept': '開いているブックは保持されました',
+});

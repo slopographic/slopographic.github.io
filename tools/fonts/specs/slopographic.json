@@ -1,0 +1,65 @@
+{
+  "_": "The Slopographic family: this site's own type. Build: python3 tools/fonts/build.py tools/fonts/specs/slopographic.json shared/fonts/brand",
+  "family": "Slopographic",
+  "slug": "slopographic",
+  "version": "1.000",
+  "vendor": "SLOP",
+  "designer": "Slopographic",
+  "url": "https://slopographic.com/fonts/slopographic/",
+  "copyright": "Copyright 2026 Slopographic",
+  "about": "Slopographic is the type family of slopographic.com: a sans, a serif, a mono and a condensed face made from open-source (SIL OFL) fonts, with drop-shaped dots on i and j, a single-storey a and a flat-top 3 in the sans, a dripping \"slop\" ligature, and the Slopographic drop mark in the Private Use Area. The mascot is not in the fonts: Sloppo stays all-rights-reserved art.",
+  "changelog": ["1.000 (2026-10-25): the first release: Sans, Serif, Mono and Condensed."],
+  "forbid": [],
+  "mascots": ["Sloppo"],
+  "roles": {
+    "sans": {
+      "name": "Slopographic Sans", "source": "inter-tight", "fallback": "Inter Tight Fallback",
+      "axes": { "wght": [300, 900] }, "italic": true,
+      "features": ["ccmp", "locl", "kern", "mark", "tnum", "pnum", "frac", "numr", "dnom"],
+      "defaults": ["cv11", "cv09"],
+      "tittle": "drop",
+      "ss": [
+        { "tag": "ss01", "name": "Double-storey a", "undo": "cv11" },
+        { "tag": "ss02", "name": "Round-top 3", "undo": "cv09" },
+        { "tag": "ss03", "name": "Round dots", "undo": "tittle" },
+        { "tag": "ss04", "name": "Open digits", "from": ["cv01", "cv02", "cv03", "cv04"] }
+      ],
+      "ligatures": [{ "tag": "dlig", "name": "Drip ligature", "texts": ["slop", "Slop"], "drips": [{ "at": 1, "length": 0.9 }, { "at": 2, "length": 0.5, "align": "center" }] }],
+      "pua": ["mark"]
+    },
+    "serif": {
+      "name": "Slopographic Serif", "source": "instrument-serif", "fallback": "Instrument Serif Fallback", "italic": true,
+      "features": ["ccmp", "locl", "kern", "mark", "liga"],
+      "tittle": "drop",
+      "ligatures": [{ "tag": "dlig", "name": "Drip ligature", "texts": ["slop", "Slop"], "drips": [{ "at": 1, "length": 0.8 }, { "at": 2, "length": 0.45, "align": "center" }] }],
+      "pua": ["mark"]
+    },
+    "mono": {
+      "name": "Slopographic Mono", "source": "jetbrains-mono", "fallback": "JetBrains Mono Fallback",
+      "axes": { "wght": [400, 800] }, "italic": true,
+      "features": ["ccmp", "locl", "kern", "mark", "zero"],
+      "tittle": "drop",
+      "ss": [{ "tag": "ss01", "name": "Round dots", "undo": "tittle" }],
+      "ligatures": [{ "tag": "dlig", "name": "Drip ligature", "texts": ["slop", "Slop"], "drips": [{ "at": 1, "length": 0.8 }, { "at": 2, "length": 0.45, "align": "center" }] }],
+      "pua": ["mark"]
+    },
+    "cond": {
+      "name": "Slopographic Condensed", "source": "archivo", "fallback": "Archivo Fallback", "category": "sans",
+      "axes": { "wdth": [62, 100], "wght": [300, 900] }, "italic": true,
+      "features": ["ccmp", "locl", "kern", "mark", "tnum", "pnum", "frac", "numr", "dnom"],
+      "tittle": "drop",
+      "ss": [{ "tag": "ss01", "name": "Round dots", "undo": "tittle" }],
+      "ligatures": [{ "tag": "dlig", "name": "Drip ligature", "texts": ["slop", "Slop"], "drips": [{ "at": 1, "length": 0.85 }, { "at": 2, "length": 0.45, "align": "center" }] }],
+      "pua": ["mark"]
+    }
+  },
+  "pua": {
+    "mark": { "code": "E000", "name": "Slopographic mark", "kind": "mark", "drawing": "drop" }
+  },
+  "drawings": {
+    "drop": { "box": [5, 1.5, 22, 29.5], "ops": [
+      ["add", "path", "M16 2C16 2 6 13.5 6 20a10 10 0 0 0 20 0C26 13.5 16 2 16 2z"],
+      ["sub", "stroke", "M11.5 20.5a4.5 4.5 0 0 0 3.5 4.4", 1.9]
+    ] }
+  }
+}

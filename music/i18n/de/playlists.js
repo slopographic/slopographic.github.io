@@ -1,0 +1,31 @@
+/* Music, German: the playlists view. Same keys as music/i18n/en/playlists.js.
+ * Terms: shared/i18n/glossary-de.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'music.pl.new': 'Neue Playlist',
+  'music.pl.open': 'Aus Drive öffnen…',
+  'music.pl.none': 'Noch keine Playlists.',
+  'music.pl.tracks_n': '{n} Titel',
+  'music.pl.tracks_n#one': '{n} Titel',
+  'music.pl.drag_label': 'Zum Umordnen ziehen oder die Pfeiltasten verwenden',
+  'music.pl.drag': 'Zum Umordnen ziehen',
+  'music.pl.not_in_drive': 'Nicht in Slop Drive',
+  'music.pl.remove_from': 'Aus der Playlist entfernen',
+  'music.pl.choose': 'Eine Playlist auswählen oder eine neue erstellen.',
+  'music.pl.play': 'Abspielen',
+  'music.pl.add_tracks': 'Titel hinzufügen…',
+  'music.pl.save_drive': 'In Slop Drive speichern…',
+  'music.pl.in_order': 'Titel in Reihenfolge',
+  'music.pl.empty': 'Diese Playlist ist leer. „Titel hinzufügen…“ verwenden.',
+  'music.pl.rename_title': 'Playlist umbenennen',
+  'music.pl.delete_title': 'Playlist löschen',
+  'music.pl.delete_msg': '„{name}“ löschen? Die Titel bleiben in der Bibliothek.',
+  'music.pl.lib_empty': 'Die Bibliothek ist leer. Zuerst Dateien hinzufügen.',
+  'music.pl.add_to_title': 'Titel zu {name} hinzufügen',
+  'music.pl.save_title': '„{name}“ in Slop Drive speichern',
+  'music.pl.saved': 'Playlist in Slop Drive gespeichert',
+  'music.pl.open_title': 'Eine Playlist aus Slop Drive öffnen',
+  'music.pl.noun': 'eine Playlist',
+  'music.pl.opened': 'Playlist geöffnet',
+  'music.pl.open_failed': 'Konnte nicht geöffnet werden',
+  'music.pl.not_playlist': 'Diese Datei ist keine Playlist.'
+});

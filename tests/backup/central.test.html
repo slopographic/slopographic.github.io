@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Backup · Export everything: round trips and version 1 files</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="util.js"></script>
+  <script src="../../shared/backup/index.js"></script>
+  <script>
+  // Covers: shared/backup/central-apps.js (it loads the Slop Data scripts, schema-checks.js first)
+  const { describe, it, expect, run } = SlopTest;
+
+  describe('export and import everything', () => {
+    it('export then import into an empty state gives the same counts for Slop Data and Slop Drive', async () => {
+      const C = await BK.central();
+      await BK.eraseData();
+      for (const n of ['Ada', 'Bo', 'Cy']) expect((await SlopData.store.put('customers', { name: n })).ok).toBe(true);
+      await BK.seedDrive();
+      const before = await BK.counts();
+      expect(before).toEqual({ customers: 3, files: 2, folders: 1 });
+      const ex = await C.exportEverything();
+      expect(ex.name).toMatch(/^slopographic-backup-\d{4}-\d{2}-\d{2}\./);
+      expect(ex.name.endsWith(SlopBackup.JSON_EXT)).toBe(true);   // the profile's extension (shared/backup/index.js)
+      expect(ex.envelope.version).toBe(2);
+      expect(ex.envelope.registry).toContain('drive');
+      expect(ex.envelope.registry).toContain('data');
+      expect(ex.rows.find((r) => r.id === 'drive').counts.records).toBe(3);
+      await BK.eraseData();
+      await BK.deleteDb('slop-drive');
+      expect(await BK.counts()).toEqual({ customers: 0, files: 0, folders: 0 });
+      const p = await C.plan(ex.blob);
+      expect(p.ok).toBe(true);
+      expect(p.rows.find((r) => r.id === 'data').action).toBe('import');
+      const r = await C.apply(p);
+      expect(r.ok).toBe(true);
+      expect(await BK.counts()).toEqual(before);
+      const f1 = await BK.driveFile('f1');
+      expect(await f1.blob.text()).toBe('hello');
+      expect(f1.folderId).toBe('d1');
+    });
+
+    it('apps that the file does not hold are reported as left alone, and their data is kept', async () => {
+      const C = await BK.central();
+      await BK.seedDrive();
+      const env = await BK.envelopeOf(C);
+      delete env.apps.drive;
+      const p = await C.plan(BK.blob(JSON.stringify(env)));
+      expect(p.ok).toBe(true);
+      expect(p.rows.find((r) => r.id === 'drive').action).toBe('left-alone');
+      const before = (await BK.counts()).files;
+      expect((await C.apply(p)).ok).toBe(true);
+      expect((await BK.counts()).files).toBe(before);
+    });
+  });
+
+  describe('version 1 files still import', () => {
+    it('a version 1 Slop Data bundle (no exchangeRates) imports through migration 2', async () => {
+      const C = await BK.central();
+      await BK.eraseData();
+      await SlopData.store.put('customers', { name: 'Dee' });
+      const bundle = (await SlopData.exporter.exportBundle()).value;
+      const v1 = { format: 'slop-data', version: 1, exportedAt: '2025-01-02T03:04:05.000Z', collections: { ...bundle.collections } };
+      delete v1.collections.exchangeRates;
+      await BK.eraseData();
+      const p = await C.plan(BK.blob(JSON.stringify(v1)));
+      expect(p.ok).toBe(true);
+      expect(p.source).toBe('Slop Data backup, version 1');
+      const row = p.rows.find((r) => r.id === 'data');
+      expect(row.from).toBe(1);
+      expect(row.version).toBe(2);
+      expect((await C.apply(p)).ok).toBe(true);
+      expect((await SlopData.store.list('customers')).value.length).toBe(1);
+      expect(Array.isArray((await SlopData.exporter.exportBundle()).value.collections.exchangeRates)).toBe(true);
+    });
+
+    it('a version 1 Slopographic .slop backup imports: its Drive databases and profile settings', async () => {
+      const C = await BK.central();
+      localStorage.removeItem('slop-profile'); SlopTest.english();
+      await BK.deleteDb('slop-drive');
+      const manifest = { format: 'slopographic-backup', version: 1, created: '2025-06-01T10:00:00.000Z', origin: location.origin, app: 'Slopographic', counts: {}, bytes: 3 };
+      const local = { 'slop-profile': JSON.stringify({ v: 1, data: { photoslop: { zoom: 'fit' } } }), 'slop-sync': '{"clientId":"LEGACY-SYNC"}', 'slop-consent': '{"token":"LEGACY-CONSENT"}' };
+      const idb = [
+        { name: 'slop-drive', version: 2, stores: [
+          { name: 'files', keyPath: 'id', autoIncrement: false, indexes: [{ name: 'time', keyPath: 'time', unique: false, multiEntry: false }],
+            records: [{ v: { id: 'f1', name: 'a.txt', type: 'text/plain', size: 3, time: 1, folderId: null, blob: { $: 'blob', ref: 0, type: 'text/plain' } } }] },
+          { name: 'folders', keyPath: 'id', autoIncrement: false, indexes: [], records: [] } ] },
+        { name: 'slop-sync', version: 1, stores: [{ name: 'kv', keyPath: null, autoIncrement: false, indexes: [], records: [{ k: 'tok', v: 'LEGACY-TOKEN' }] }] },
+      ];
+      const zip = await SlopZip.zip([
+        { name: 'manifest.json', data: JSON.stringify(manifest) }, { name: 'local.json', data: JSON.stringify(local) },
+        { name: 'idb.json', data: JSON.stringify(idb) }, { name: 'blobs/0', data: new Blob(['abc']) }]);
+      const p = await C.plan(new File([zip], 'old.slop'));
+      expect(p.ok).toBe(true);
+      expect(p.source).toBe('Slopographic backup, version 1');
+      expect(p.rows.find((r) => r.id === 'drive').action).toBe('import');
+      expect(p.rows.find((r) => r.id === 'profile').action).toBe('import');
+      expect(JSON.stringify(p.envelope)).not.toContain('LEGACY-TOKEN');
+      expect((await C.apply(p)).ok).toBe(true);
+      expect(await (await BK.driveFile('f1')).blob.text()).toBe('abc');
+      expect(JSON.parse(localStorage.getItem('slop-profile')).data.photoslop.zoom).toBe('fit');
+      localStorage.removeItem('slop-profile'); SlopTest.english();
+    });
+  });
+  describe('the dialog', () => {
+    it('opens with the export and import sections, and Done closes it', async () => {
+      const C = await BK.central();
+      const closed = C.openDialog();
+      await SlopTest.waitFor(() => document.querySelector('.ev-dlg'), { timeout: 8000 });
+      expect(!!document.querySelector('[data-act="export-all"]')).toBe(true);
+      expect(!!document.querySelector('[data-act="import-all"]')).toBe(true);
+      document.querySelector('.ev-dlg .sui-foot button').click();
+      await closed;
+      await SlopTest.waitFor(() => !document.querySelector('.ev-dlg'), { timeout: 3000 });
+    });
+  });
+  run({ name: 'Backup · Export everything: round trips and version 1 files' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows steps in Swedish</title>
+  <!-- Covers: shared/ops/i18n.js, shared/ops/registry.js, shared/ops/entry.js, shared/ops/dialog.js, shared/ops/flowdoc.js
+       shared/i18n/ui/en/ops.js, shared/i18n/ui/en/ops2.js, shared/i18n/ui/en/ops3.js, shared/i18n/ui/sv/ops.js,
+       shared/i18n/ui/sv/ops2.js, shared/i18n/ui/sv/ops3.js -->
+  <link rel="stylesheet" href="../../shared/slopui.css">
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/ops/flowdoc.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script type="module">
+  import * as R from '../../shared/ops/all.js';
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n;
+  const KEY = /\bui\.[a-z_]+\./;
+  /** Switches the language as the header does, and waits for its tables and the listeners. */
+  async function lang(code) {
+    let fired = false;
+    const off = I.on(() => { fired = true; });
+    expect(I.set(code).ok).toBe(true);
+    await I.ready();
+    await waitFor(() => fired || I.get() === 'en');
+    off();
+  }
+  /** Every word of the shared steps (File convert's own and the macros aside). */
+  function words() {
+    const out = [];
+    for (const op of R.all().filter((o) => o.app !== 'convert' && o.kind === 'op')) {
+      out.push(op.label, op.description);
+      for (const o of op.options) { out.push(o.label, o.hint || ''); for (const c of (o.type === 'select' && o.options) || []) out.push(String(c[1])); }
+    }
+    return out;
+  }
+
+  describe('the steps of Slop Workflows in Swedish', () => {
+    it('labels, options and the menu items read Swedish, no key shows, and a switch back reads English at once', async () => {
+      try {
+        await lang('sv');
+        expect(R.byId('resize.image').label).toBe('Ändra storlek');
+        expect(R.byId('slopedit.reframe').options[0].label).toBe('Bildformat');
+        expect(R.byId('watermark.apply').options.find((o) => o.key === 'mark').label).toBe('Vattenstämpel');
+        expect(words().filter((w) => KEY.test(w))).toEqual([]);
+        expect(window.SlopWorkflowEntry.menuItems(() => []).map((i) => i.label)).toEqual(['Kör ett arbetsflöde…', 'Lägg till i ett arbetsflöde…']);
+        expect(window.SlopFlowDoc.normalize(null).errors).toEqual(['Det här är inget arbetsflöde.']);
+        await lang('en');
+        expect(R.byId('resize.image').label).toBe('Resize');
+        expect(R.byId('slopedit.reframe').options[0].label).toBe('Frame');
+        expect(window.SlopWorkflowEntry.menuItems(() => []).map((i) => i.label)).toEqual(['Run a workflow…', 'Add to a workflow…']);
+      } finally { localStorage.removeItem('slop-profile'); SlopTest.english(); }
+    });
+  });
+  run({ name: 'Slop Workflows steps in Swedish' });
+  </script>
+</body>
+</html>

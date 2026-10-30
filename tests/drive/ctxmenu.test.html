@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive context menus</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, folder, file;
+  const menuRows = () => [...W.document.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const labels = () => menuRows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const pick = (label) => { const r = menuRows().find((x) => x.querySelector('.sui-lbl').textContent === label); if (!r) throw new Error('no menu row ' + label + ' in ' + labels().join(' | ')); r.click(); };
+  const closeMenus = () => W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+  const keyOf = (id, isFolder) => (isFolder ? 'd:' : 'f:') + id;
+  const itemEl = (id, isFolder = false) => W.document.querySelector(`#pane [data-key="${keyOf(id, isFolder)}"]`) || W.document.querySelector(`#tree [data-key="${keyOf(id, true)}"]`);
+  const rightClick = (el, x = 200, y = 200) => el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, detail: 1 }));
+  const keyOn = (el, key) => { const ev = new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+  const fileRec = () => [...DR.S.files.values()].find((f) => f.name === 'notes.txt' && !f.trashedAt);
+
+  describe('Slop Drive context menus', () => {
+    it('opens Slop Drive on an empty drive and adds a folder and a file', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      folder = await DR.newFolder(null, 'Projects');
+      await DR.importFiles([{ file: new W.File(['hello'], 'notes.txt', { type: 'text/plain' }), path: 'notes.txt' }], null);
+      await DR.refresh(); DR.render();
+      await waitFor(() => fileRec() && itemEl(fileRec().id), { timeout: 10000 });
+      file = fileRec();
+      expect(!!itemEl(folder, true)).toBe(true);
+    }, { timeout: 30000 });
+
+    it('right-click on a file offers open, download, rename and trash, and Rename… renames it', async () => {
+      rightClick(itemEl(file.id));
+      expect(labels()).toContain('Download');
+      expect(labels()).toContain('Rename…');
+      expect(labels()).toContain('Move to Trash');
+      expect(labels()).not.toContain('New folder inside');
+      W.SlopUI.prompt = async () => 'renamed.txt';
+      pick('Rename…');
+      await waitFor(() => fileRec() === undefined && [...DR.S.files.values()].some((f) => f.name === 'renamed.txt'), { timeout: 5000 });
+      expect([...DR.S.files.values()].some((f) => f.name === 'renamed.txt')).toBe(true);
+      file = [...DR.S.files.values()].find((f) => f.name === 'renamed.txt');
+    });
+
+    it('right-click on a folder offers folder actions, and New folder inside creates a folder in it', async () => {
+      rightClick(itemEl(folder, true));
+      expect(labels()).toContain('Open');
+      expect(labels()).toContain('New folder inside');
+      expect(labels()).toContain('Paste into folder');
+      expect(labels()).not.toContain('Quick look');
+      W.SlopUI.prompt = async () => 'Inner';
+      pick('New folder inside');
+      await waitFor(() => [...DR.S.folders.values()].some((f) => f.name === 'Inner'), { timeout: 5000 });
+      expect([...DR.S.folders.values()].filter((f) => f.name === 'Inner').length).toBe(1);
+    });
+
+    it('right-click on empty space offers new, upload, paste, select all, view and sort, and Select all selects everything', async () => {
+      const pane = W.document.getElementById('pane');
+      rightClick(pane, 600, 600);
+      expect(labels()).toContain('New folder');
+      expect(labels()).toContain('Upload files…');
+      expect(labels()).toContain('Sort by');
+      expect(labels()).toContain('View');
+      pick('Select all');
+      expect(DR.selected().length).toBeGreaterThan(1);
+    });
+
+    it('the Menu key on a focused file opens the file menu', () => {
+      closeMenus();
+      const el = itemEl(file.id);
+      el.focus();
+      const ev = keyOn(el, 'ContextMenu');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Move to Trash');
+      closeMenus();
+    });
+
+    it('Shift+F10 on the focused pane opens the empty-area menu', () => {
+      const pane = W.document.getElementById('pane');
+      DR.select([]);
+      pane.focus();
+      const ev = keyOn(pane, 'F10');
+      expect(ev.defaultPrevented).toBe(false);
+      const ev2 = new W.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true });
+      pane.dispatchEvent(ev2);
+      expect(ev2.defaultPrevented).toBe(true);
+      expect(labels()).toContain('New folder');
+      closeMenus();
+    });
+
+    it('a Trash item offers Restore and Delete forever, and Restore brings it back', async () => {
+      await DR.trash([file]);
+      await DR.refresh(); DR.render();
+      DR.goSection('trash');
+      await waitFor(() => itemEl(file.id), { timeout: 5000 });
+      rightClick(itemEl(file.id));
+      expect(labels()).toContain('Restore');
+      expect(labels()).toContain('Delete forever…');
+      pick('Restore');
+      await waitFor(() => !DR.S.files.get(file.id).trashedAt, { timeout: 5000 });
+      expect(!DR.S.files.get(file.id).trashedAt).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive context menus' });
+  </script>
+</body>
+</html>

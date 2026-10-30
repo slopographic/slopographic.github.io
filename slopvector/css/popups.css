@@ -1,0 +1,25 @@
+/* SlopVector — menus, dialog bodies, colour picker */
+/* ---------- menus: dropdowns and context menus are SlopUI menus (../shared/slopui.css) ---------- */
+.sui-menu.sv-dropdown { border-radius: 0 0 var(--radius) var(--radius); min-width: 236px; }
+
+/* ---------- dialog bodies (dialog chrome comes from ../shared/slopui.css) ---------- */
+.xbtn { width: 24px; height: 22px; border: 0; background: none; color: inherit; font-size: 18px; line-height: 1; border-radius: var(--radius-s); padding: 0; opacity: .7; }
+.xbtn:hover { opacity: 1; background: rgba(127, 127, 127, .2); }
+.shortcuts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.sc-col h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent-line); }
+.sc-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+.sc-table td { padding: 2.5px 0; border-bottom: 1px solid var(--sep); vertical-align: top; }
+.sc-table td:last-child { text-align: right; }
+kbd { font-family: var(--mono); font-size: 10.5px; background: var(--bg-input); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 3px; padding: 0 5px; white-space: nowrap; color: var(--text); }
+.about { display: grid; grid-template-columns: 64px 1fr; gap: 16px; }
+.about h3 { margin: 0 0 2px; font-family: var(--font-display); font-weight: 900; font-size: 24px; letter-spacing: -.02em; }
+.about p { margin: 0 0 10px; line-height: 1.5; }
+.about a { color: var(--accent-line); }
+.about-mark .brand-mark { width: 64px; height: 64px; }
+
+/* ---------- colour picker ---------- */
+.picker { position: fixed; z-index: 1200; width: 244px; background: var(--bg-panel); border: 1px solid var(--border-dark); border-radius: 8px; box-shadow: var(--shadow), var(--bevel-out); padding: 0 10px 10px; display: flex; flex-direction: column; gap: 9px; }
+.picker-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 -10px; padding: 0 6px 0 10px; font-weight: 700; background: var(--title-bg); color: var(--title-fg); border-bottom: 1px solid var(--border-dark); border-radius: 8px 8px 0 0; }
+.pk-foot { display: flex; gap: 6px; align-items: center; }
+
+.noscript { position: fixed; inset: 0; display: grid; place-items: center; background: var(--ink); color: var(--bone); margin: 0; }

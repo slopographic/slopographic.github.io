@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopCut: the look (top bar at 1440, 1024 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: slopcut/css/base.css, slopcut/css/themes.css, slopcut/js/ui/layout.js, slopcut/js/ui/app.js, slopcut/js/ui/main.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The app in a fresh iframe of this width, once it is ready and the shell's, Drive's and View's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../slopcut/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.body && D.body.classList.contains('ready') && D.querySelector('.topbar .sh-switch') && D.querySelector('.topbar .sdl') && D.querySelector('.topbar .slopvm-btn'); }, { timeout: 40000 });
+    await sleep(400);   // shared/ui/hbtn.js settles the labels on the next frame
+    return f;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+
+  describe('SlopCut: the look', () => {
+    for (const w of [1440, 1024, 390]) {
+      it(`at ${w}px nothing in the top bar passes the right edge, and the shared buttons match Undo`, async () => {
+        const f = await open(w), D = f.contentDocument, W = f.contentWindow;
+        const bar = D.querySelector('.topbar');
+        expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth);
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(w);
+        for (const n of visible(D, '.topbar a, .topbar button, .topbar input')) expect(n.getBoundingClientRect().right).toBeLessThanOrEqual(w + 0.5);
+        const own = D.getElementById('btnUndo').getBoundingClientRect();
+        for (const n of visible(D, '.topbar .slop-hbtn')) {
+          const r = n.getBoundingClientRect();
+          if (w > 760) expect(r.height).toBe(own.height);   // the phone bar makes its own buttons taller for touch
+          expect(Math.abs((r.top + r.bottom) / 2 - (own.top + own.bottom) / 2)).toBeLessThan(1.5);
+        }
+        // the View button is the shared icon alone, without the glyph SlopCut once drew in front of it
+        expect(W.getComputedStyle(D.querySelector('.slopvm-btn'), '::before').content).toBe('none');
+        f.remove();
+      }, { timeout: 60000 });
+    }
+
+    // The suite rule (shared/frame/HANDOFF.md): Export sits at the foot of the inspector on the right (the shared footer)
+    it('at 1280px Export sits at the foot of the inspector on the right, not in the top bar, and runs Export', async () => {
+      const f = await open(1280), D = f.contentDocument, W = f.contentWindow, btn = D.getElementById('btnExport'), insp = D.getElementById('insp');
+      expect(D.querySelector('.topbar').contains(btn)).toBe(false);
+      expect(btn.closest('.sf-p-foot').parentNode).toBe(insp);
+      expect(insp.getBoundingClientRect().left).toBeGreaterThan(D.getElementById('monitor').getBoundingClientRect().right - 1);
+      expect(btn.getBoundingClientRect().bottom).toBeLessThanOrEqual(insp.getBoundingClientRect().bottom + 0.5);
+      expect(btn.getBoundingClientRect().width).toBeGreaterThan(100);
+      const seen = [], run = W.SE.cmd.run, toast = W.SlopUI.toast;
+      W.SE.cmd.run = (id) => { seen.push(id); }; W.SlopUI.toast = (m) => { seen.push(m); };
+      btn.click();
+      W.SE.cmd.run = run; W.SlopUI.toast = toast;
+      expect(seen.length).toBe(1);
+      expect(/file\.export|Add some clips/.test(seen[0])).toBe(true);
+      f.remove();
+    }, { timeout: 60000 });
+    it('at 390px the closed inspector sheet shows Export at the bottom; the Inspector tab opens the whole sheet', async () => {
+      const f = await open(390), D = f.contentDocument, W = f.contentWindow, btn = D.getElementById('btnExport'), insp = D.getElementById('insp');
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const r = btn.getBoundingClientRect();
+      expect(r.width).toBeGreaterThan(100);
+      expect(r.bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      expect(r.top).toBeGreaterThan(D.querySelector('.mtabs').getBoundingClientRect().bottom - 1);   // under the tabs, not over them
+      const no = D.querySelector('.slopc-btn[data-act="reject"]'); if (no) no.click();   // the first-visit consent banner, answered
+      expect(D.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).closest('#btnExport')).toBe(btn);
+      expect(insp.querySelector('.insp-body').getBoundingClientRect().height).toBe(0);
+      D.querySelector('.mtab[data-pane="insp"]').click();
+      await waitFor(() => insp.classList.contains('ssh-on'));
+      await sleep(300);
+      expect(insp.querySelector('.insp-body').getBoundingClientRect().height).toBeGreaterThan(100);
+      expect(btn.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      f.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'SlopCut: the look' });
+  </script>
+</body>
+</html>

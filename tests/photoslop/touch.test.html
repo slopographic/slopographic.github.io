@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>PhotoSlop touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- PhotoSlop with a finger and a pen (shared/input), on an iPad in WebKit and an Android tablet in Chromium.
+       Covers: photoslop/js/core/view.js, photoslop/js/tools/transform.js, photoslop/js/tools/transform-idle.js,
+       photoslop/js/tools/select.js, photoslop/js/guides/input.js, photoslop/js/core/brush-resize.js,
+       photoslop/js/ui/filter-dialog.js -->
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, win;
+  /** A point on the canvas for a document point (x, y from the viewport's top left), for TouchKit. */
+  const at = (x, y) => ({ el: W.V.el, x: W.V.ox + x * W.V.zoom, y: W.V.oy + y * W.V.zoom });
+  const menus = () => win.document.querySelectorAll('.sui-menu').length;
+  const closeMenus = () => win.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+  const opaque = (c) => { const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++; return n; };
+  /** A 400 × 300 document with two small layers, A (left) and B (right), at 100 %, Move tool. */
+  function scene() {
+    W.newDocTab(400, 300, '#ffffff', 'Touch'); W.actualPixels(); W.selectTool('move');
+    for (const [name, x, col] of [['A', 40, '#e02020'], ['B', 240, '#2050e0']]) {
+      const c = W.mkCanvas(400, 300), g = W.cx(c); g.fillStyle = col; g.fillRect(x, 100, 100, 100);
+      W.addLayer({ name, canvas: c }, 'Add ' + name);
+    }
+    return { A: W.D.layers.find((L) => L.name === 'A'), B: W.D.layers.find((L) => L.name === 'B') };
+  }
+  /** The page at rest before a drag: the new document drawn and the autosave a change schedules (2.5 s later, the open
+   *  tabs written out) done now. A gesture sent while the page is busy waits for it, and a finger held still that long
+   *  is a long press (the canvas menu cancels the drag); a person's finger does not wait on the page like that. */
+  async function drawn() {
+    W.eval('clearTimeout(autosaveTimer); autosaveTimer = 0');
+    await W.autosave();
+    await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => setTimeout(r, 50))));
+  }
+
+  describe('PhotoSlop on touch', () => {
+    it('boots with the touch layer, the canvas a touch surface and the panels free to scroll', async () => {
+      ({ W, win } = await freshApp());
+      await waitFor(() => win.SlopTouch && win.SlopTouch.ready, { timeout: 20000 });
+      expect(W.V.el.getAttribute('data-touch-surface')).toBe('nav');
+      expect(win.getComputedStyle(W.V.el).touchAction).toBe('none');
+      expect(win.getComputedStyle(win.document.querySelector('.layers')).touchAction).not.toBe('none');
+    }, { timeout: 40000 });
+
+    it('a tap with the Move tool (auto-select) selects the layer under the finger', async () => {
+      const { A, B } = scene();
+      W.T.move.auto = true;
+      expect(W.D.activeId).toBe(B.id);
+      await TouchKit.tap(at(80, 150));
+      await waitFor(() => W.D.activeId === A.id, { timeout: 3000 });
+      W.T.move.auto = false;
+    });
+
+    it('a finger drag with the Move tool moves the layer', async () => {
+      const { B } = scene();
+      await drawn();
+      const x0 = W.layerBoundsDoc(B).x;
+      await TouchKit.drag(at(290, 150), 60, 0, 10);
+      const x = () => W.layerBoundsDoc(W.D.layers.find((L) => L.name === 'B')).x;
+      try { await waitFor(() => x() > x0 + 30, { timeout: 3000 }); } catch (e) { throw new Error(`the layer is at ${x()}, it was at ${x0} (zoom ${W.V.zoom})`); }
+      expect(x()).toBeLessThan(x0 + 64 / Math.min(1, W.V.zoom)); // about 60 screen px (a real finger loses the first few to the start threshold)
+    });
+
+    it('a finger grabs a transform handle from 15 px away (a mouse needs 9) and scales the layer', async () => {
+      scene();
+      await drawn();
+      const br = W.idleBoxPoints()[2];
+      expect(br).toBeTruthy();
+      await TouchKit.drag({ el: W.V.el, x: br.x + 11, y: br.y + 10 }, 40, 30, 10);
+      expect(W.TRANSFORM.active).toBe(true);
+      expect(W.TRANSFORM.sx).toBeGreaterThan(1.1); // about 1.25 (a real finger loses the first few px to the 3 px start threshold)
+      W.cancelTransform();
+    });
+
+    it('a double tap on a text layer edits its text', async () => {
+      W.newDocTab(600, 300, '#ffffff', 'Type'); W.actualPixels(); W.setColor('fg', '#000000');
+      Object.assign(W.T.type, { font: 'Archivo', size: 96, bold: true, italic: false, align: 'left', tracking: 0, leading: 120, aa: 'smooth' }); W.selectTool('type');
+      W.startTypeEdit({ x: 20, y: 20 }, null); await sleep(10); W.TE.el.focus();
+      win.document.execCommand('insertText', false, 'Slop'); await W.endTypeEdit();
+      W.selectTool('move');
+      expect(!!W.TE.el).toBe(false);
+      await sleep(1200); // the new text layer settles first (its first render keeps the page busy, and taps 500 ms apart are no double tap)
+      await TouchKit.doubleTap(at(60, 60));
+      await waitFor(() => !!W.TE.el, { timeout: 3000 });
+      await W.endTypeEdit(true);
+    });
+
+    it('a long press opens the canvas menu, and the lift does not pick an item', async () => {
+      scene(); closeMenus();
+      const n = W.Hist.idx;
+      await TouchKit.longPress(at(200, 60));
+      await waitFor(() => menus() > 0, { timeout: 3000 });
+      await sleep(300);
+      expect(menus()).toBeGreaterThan(0);
+      expect(W.Hist.idx).toBe(n);
+      closeMenus();
+    });
+
+    it('a pinch zooms the canvas, not the page', async () => {
+      scene();
+      const z0 = W.V.zoom;
+      await TouchKit.pinch(at(200, 150), 2, 10);
+      await waitFor(() => W.V.zoom > z0 * 1.5, { timeout: 3000 });
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      if (win.visualViewport) expect(win.visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+
+    it('a pen stroke passes its pressure to the brush (a light stroke is thinner) and touches are ignored while it is down', async () => {
+      const paint = async (pressure) => {
+        W.newDocTab(400, 300, '#ffffff', 'Pen'); W.actualPixels();
+        W.addLayer({ name: 'Ink', canvas: W.mkCanvas(400, 300) }, 'Add Ink');
+        W.selectTool('brush'); W.setColor('fg', '#000000');
+        await TouchKit.drag(at(60, 150), 260, 0, 12, { kind: 'pen', pressure });
+        await sleep(100);
+        return opaque(W.activeLayer().canvas);
+      };
+      const light = await paint(0.2), firm = await paint(1);
+      expect(light).toBeGreaterThan(0);
+      expect(firm).toBeGreaterThan(light * 1.5);
+      // Palm rejection: a finger that lands while the pen is drawing never reaches the canvas.
+      const p = TouchKit.where(at(60, 60));
+      const pen = TouchKit.finger(p.x, p.y, 'pen', 0.5);
+      const q = TouchKit.where(at(300, 250)), palm = TouchKit.finger(q.x, q.y, 'touch');
+      expect(W.V.op && W.V.op.id).not.toBe(null);
+      expect(W.V.touches.size).toBe(0);
+      palm.up(q.x, q.y); pen.up(p.x, p.y);
+      await sleep(450);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop touch' });
+  </script>
+</body>
+</html>

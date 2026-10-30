@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop masks tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="masks-helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  describe('Layer masks', () => {
+    it('boots', async () => {
+      await bootApp();
+      expect(typeof W.addMask).toBe('function');
+      expect(typeof W.invertMask).toBe('function');
+      expect(typeof W.setClipping).toBe('function');
+      expect(typeof W.selectSubject).toBe('function');
+    }, { timeout: 40000 });
+
+    it('Reveal All and Hide All add a mask, one undo step each; the composite follows', async () => {
+      await makeDoc(); let n = W.Hist.idx;
+      W.addMask('reveal');
+      expect(W.activeLayer().mask.def).toBe(false);
+      expect(colorAt(150, 100)[0]).toBe(0);
+      expect(W.Hist.idx).toBe(n + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Add Layer Mask');
+      W.undo(); expect(W.activeLayer().mask).toBe(null); W.redo();
+      await makeDoc(); W.addMask('hide');
+      expect(W.activeLayer().mask.def).toBe(true);
+      expect(colorAt(150, 100)[0]).toBe(255);
+    });
+
+    it('Reveal Selection keeps only the selected area visible', async () => {
+      await makeDoc();
+      W.selectShape((g) => g.fillRect(50, 50, 100, 60));
+      W.addMask('sel');
+      const L = W.activeLayer();
+      expect(maskAt(L, 100, 80)).toBe(255);
+      expect(maskAt(L, 10, 10)).toBe(0);
+      expect(W.D.sel).toBe(null);
+      expect(colorAt(100, 80)[0]).toBe(0);
+      expect(colorAt(10, 10)[0]).toBe(255);
+    });
+
+    it('the brush paints on the mask: white reveals, black hides', async () => {
+      await makeDoc(); W.addMask('hide'); W.UI.editMask = true;
+      W.selectTool('brush'); W.eval('T.brush.size = 30; T.brush.pressure = false');
+      W.setColor('fg', '#ffffff'); drag({ x: 60, y: 50 }, { x: 120, y: 50 }); await sleep(60);
+      expect(maskAt(W.activeLayer(), 90, 50)).toBeGreaterThan(200);
+      expect(colorAt(90, 50)[0]).toBe(0);
+      W.setColor('fg', '#000000'); drag({ x: 60, y: 50 }, { x: 120, y: 50 }); await sleep(60);
+      expect(maskAt(W.activeLayer(), 90, 50)).toBeLessThan(60);
+      expect(colorAt(90, 50)[0]).toBe(255);
+    });
+
+    it('Invert Mask swaps shown and hidden in one step, and undoes', async () => {
+      await makeDoc(); W.addMask('reveal');
+      setMaskCanvas((g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 150, 200); }, false);
+      expect(colorAt(40, 100)[0]).toBe(0);
+      expect(colorAt(200, 100)[0]).toBe(255);
+      const n = W.Hist.idx;
+      run('Layer', 'Mask', 'Invert');
+      expect(W.Hist.idx).toBe(n + 1);
+      expect(colorAt(40, 100)[0]).toBe(255);
+      expect(colorAt(200, 100)[0]).toBe(0);
+      W.undo(); expect(colorAt(40, 100)[0]).toBe(0); W.redo();
+    });
+
+    it('Disable / Enable Mask toggles the mask, one step each; Delete Mask removes it', async () => {
+      await makeDoc(); W.addMask('hide');
+      setMaskCanvas((g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 150, 200); }, false);
+      expect(colorAt(40, 100)[0]).toBe(0);
+      const n = W.Hist.idx;
+      run('Layer', 'Mask', 'Disable');
+      expect(W.activeLayer().mask.enabled).toBe(false);
+      expect(colorAt(200, 100)[0]).toBe(0);
+      expect(W.Hist.idx).toBe(n + 1);
+      run('Layer', 'Mask', 'Disable');
+      expect(colorAt(200, 100)[0]).toBe(255);
+      run('Layer', 'Mask', 'Delete');
+      expect(W.activeLayer().mask).toBe(null);
+      W.undo(); expect(!!W.activeLayer().mask).toBe(true);
+    });
+
+    it('Apply Mask bakes the mask into the pixels and removes it', async () => {
+      await makeDoc('#ff0000'); W.addMask('hide');
+      setMaskCanvas((g) => { g.fillStyle = '#fff'; g.fillRect(0, 0, 100, 200); }, false);
+      run('Layer', 'Mask', 'Apply');
+      expect(W.activeLayer().mask).toBe(null);
+      expect(colorAt(50, 100)).toEqual([255, 0, 0, 255]);
+      expect(colorAt(200, 100)[0]).toBe(255);
+      expect(colorAt(200, 100)[1]).toBe(255);
+    });
+
+    it('the mask survives saving to PSD and reading back', async () => {
+      await makeDoc(); W.selectShape((g) => g.fillRect(0, 0, 100, 200)); W.addMask('sel');
+      W.setLayerProps(W.activeLayer().id, { name: 'Masked' }, 'Rename');
+      const doc = await W.readPSD(W.writePSD().buffer);
+      const L = doc.layers.find((l) => l.name === 'Masked');
+      expect(!!L.mask).toBe(true);
+      expect(maskAt(L, 50, 100)).toBe(255);
+      expect(maskAt(L, 250, 100)).toBe(0);
+    }, { timeout: 30000 });
+  });
+
+  describe('Clipping masks', () => {
+    /** White page; 'Base' is a red square at 60..180 × 40..120; 'Top' is black over the whole page. */
+    async function makeClip() {
+      await makeDoc('#ffffff');
+      const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#f00'; g.fillRect(60, 40, 120, 80);
+      W.addLayer({ name: 'Base', canvas: c }, 'Add Base');
+      const t = W.mkCanvas(300, 200), tg = W.cx(t); tg.fillStyle = '#000'; tg.fillRect(0, 0, 300, 200);
+      W.addLayer({ name: 'Top', canvas: t }, 'Add Top');
+      return layerNamed('Top');
+    }
+
+    it('a clipped layer shows only where the layer below is opaque, and releases again', async () => {
+      await makeClip();
+      expect(colorAt(10, 10)[0]).toBe(0);
+      const n = W.Hist.idx;
+      W.setClipping(layerNamed('Top').id, true);
+      expect(W.Hist.idx).toBe(n + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Create Clipping Mask');
+      expect(colorAt(10, 10)[0]).toBe(255);
+      expect(colorAt(100, 80)).toEqual([0, 0, 0, 255]);
+      W.undo(); expect(!!layerNamed('Top').clip).toBe(false); W.redo();
+      W.setClipping(layerNamed('Top').id, false);
+      expect(colorAt(10, 10)[0]).toBe(0);
+    });
+
+    it('the bottom layer cannot clip; a clipped layer hides with its base', async () => {
+      await makeClip();
+      const bottom = W.D.layers[0];
+      W.setClipping(bottom.id, true);
+      expect(!!bottom.clip).toBe(false);
+      W.setClipping(layerNamed('Top').id, true);
+      W.setLayerProps(layerNamed('Base').id, { visible: false }, 'Hide');
+      expect(colorAt(100, 80)[0]).toBe(255);
+      expect(colorAt(10, 10)[0]).toBe(255);
+    });
+
+    it('Alt-click on a layer row toggles its clipping mask', async () => {
+      await makeClip();
+      const row = [...win.document.querySelectorAll('.layers li.layer')].find((r) => r.querySelector('.lp-name').textContent.includes('Top'));
+      const rect = row.getBoundingClientRect();
+      row.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true, altKey: true, clientX: rect.left + 5, clientY: rect.top + 5 }));
+      expect(layerNamed('Top').clip).toBe(true);
+      const again = [...win.document.querySelectorAll('.layers li.layer')].find((r) => r.querySelector('.lp-name').textContent.includes('Top'));
+      expect(!!again.querySelector('.lp-clip')).toBe(true);
+    });
+
+    it('a clipped layer survives PSD save and read, and merging keeps the look', async () => {
+      await makeClip(); W.setClipping(layerNamed('Top').id, true);
+      const before = colorAt(100, 80), outside = colorAt(10, 10);
+      const doc = await W.readPSD(W.writePSD().buffer);
+      expect(doc.layers.find((l) => l.name === 'Top').clip).toBe(true);
+      W.D.activeId = layerNamed('Top').id; W.mergeDown();
+      expect(colorAt(100, 80)).toEqual(before);
+      expect(colorAt(10, 10)).toEqual(outside);
+    }, { timeout: 30000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop masks and clipping' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop shapes</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run, pixel } = SlopTest;
+  const f = document.getElementById('app');
+  /** A pointer event on the viewport, as the Shape tool hears it. */
+  const ev = (W, type, x, y) => new W.PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 9, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y });
+  async function fresh() {
+    await new Promise((res) => { const q = indexedDB.deleteDatabase('slopshop'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+    await new Promise((res) => { f.onload = () => { f.onload = null; res(); }; f.src = '../../photoslop/index.html'; }); // a new document, not the old ready one
+    await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  /** Draws a rectangle from document point a to b with the Shape tool (the drag is done on the viewport). */
+  function drag(W, a, b) {
+    const el = W.eval('V.el'), at = (p) => W.eval(`toScreen(${p.x}, ${p.y})`);
+    const s = at(a), e = at(b), r = el.getBoundingClientRect();
+    el.dispatchEvent(ev(W, 'pointerdown', r.left + s.x, r.top + s.y));
+    el.dispatchEvent(ev(W, 'pointermove', r.left + (s.x + e.x) / 2, r.top + (s.y + e.y) / 2));
+    el.dispatchEvent(ev(W, 'pointermove', r.left + e.x, r.top + e.y));
+    el.dispatchEvent(ev(W, 'pointerup', r.left + e.x, r.top + e.y));
+  }
+  /** Sets a number field in the options bar by its label, as a user does (change event). */
+  async function setOpt(W, label, value) {
+    const input = W.document.querySelector(`#options input[aria-label="${label}"].opt-num`);
+    input.value = String(value); input.dispatchEvent(new W.Event('change')); await sleep(20);
+  }
+
+  describe('PhotoSlop shape tools', () => {
+    it('the rounded rectangle tool draws a rounded shape layer, and the radius field changes it', async () => {
+      const W = await fresh();
+      W.eval("selectTool('shape')"); await sleep(30);
+      // Kind: Rounded Rectangle (the first select in the options bar)
+      const kind = W.document.querySelector('#options select');
+      kind.value = 'rounded'; kind.dispatchEvent(new W.Event('change')); await sleep(30);
+      expect(W.eval('T.shape.kind')).toBe('rounded');
+      await setOpt(W, 'Corner radius', 32); // tool options persist between loads, so set the value this test uses
+      const layers0 = W.eval('D.layers.length');
+      drag(W, { x: 100, y: 100 }, { x: 300, y: 200 });
+      await sleep(40);
+      expect(W.eval('D.layers.length')).toBe(layers0 + 1);
+      const L = W.eval('activeLayer()');
+      expect(L.shape.kind).toBe('rounded');
+      expect(L.shape.radius).toBe(32);
+      // Radius 32 on a 200 x 100 box: the top-left corner pixel is outside the curve, the middle of the edge is inside.
+      expect(pixel(L.canvas, 101, 101)[3]).toBe(0);
+      expect(pixel(L.canvas, 200, 101)[3]).toBeGreaterThan(0);
+      const steps0 = W.eval('Hist.idx');
+
+      await setOpt(W, 'Corner radius', 60);
+      await sleep(500); // the change settles into one history step
+      const L2 = W.eval('activeLayer()');
+      expect(L2.shape.radius).toBe(60);
+      // 60 clamps to 50 on this box (100 / 2 limit per side), so the corner is still cut and the edge is solid
+      expect(pixel(L2.canvas, 101, 101)[3]).toBe(0);
+      expect(pixel(L2.canvas, 200, 101)[3]).toBeGreaterThan(0);
+      expect(W.eval('Hist.idx')).toBe(steps0 + 1);
+    }, { timeout: 60000 });
+
+    it('a plain rectangle is square until its radius is set, and the radius edits the same layer', async () => {
+      const W = await fresh();
+      W.eval("selectTool('shape')"); await sleep(30);
+      const kind = W.document.querySelector('#options select');
+      kind.value = 'rect'; kind.dispatchEvent(new W.Event('change')); await sleep(30);
+      await setOpt(W, 'Corner radius', 0);
+      expect(W.eval('T.shape.kind')).toBe('rect');
+      drag(W, { x: 120, y: 120 }, { x: 320, y: 220 });
+      await sleep(40);
+      const L = W.eval('activeLayer()');
+      expect(L.shape.kind).toBe('rect');
+      expect(pixel(L.canvas, 121, 121)[3]).toBeGreaterThan(0);
+      await setOpt(W, 'Corner radius', 40);
+      await sleep(500);
+      expect(pixel(W.eval('activeLayer()').canvas, 121, 121)[3]).toBe(0);
+      expect(W.eval('activeLayer()').shape.radius).toBe(40);
+    }, { timeout: 60000 });
+  });
+  run({ name: 'PhotoSlop shapes' });
+  </script>
+</body>
+</html>

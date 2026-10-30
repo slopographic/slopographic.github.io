@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut export size tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #app { width: 1280px; height: 760px; }</style>
+</head>
+<body>
+  <!-- Export at a chosen size from a 1920×1080 source: output size and picture fit, compared with the preview. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script src="export-size.spec.js"></script>
+  <script>SlopTest.run({ name: 'SlopCut export size' });</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+/* The typeface page (typeface/index.html). Shares tokens, the header and the footer with style/base.css and style/footer.css. */
+.nav .tabs { margin-left: auto; }
+.tf-main { max-width: 1080px; margin: 0 auto; padding: 0 24px 56px; }
+.tf-hero { padding: 40px 0 12px; }
+.tf-title { font-family: var(--cond); font-stretch: 62%; font-weight: 900; font-size: clamp(56px, 13vw, 168px); line-height: 0.86; text-transform: uppercase; margin: 0 0 18px; white-space: nowrap; overflow: hidden; }   /* one line in the fallback too: no shift when the font swaps */
+.tf-lede { color: var(--bone-dim); font-size: 18px; max-width: 64ch; margin: 0 0 20px; }
+.tf-actions { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 0; }
+.tf-link { color: var(--bone); text-underline-offset: 3px; }
+.tf-main h2 { font-family: var(--cond); font-stretch: 62%; font-weight: 800; font-size: 28px; text-transform: uppercase; margin: 48px 0 10px; }
+.tf-main > section > p { color: var(--bone-dim); margin: 0 0 16px; max-width: 72ch; }
+.tf-main code { font-family: var(--mono); font-size: 0.9em; color: var(--bone); }
+.tf-meta { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--bone-dim); margin: 0 0 8px; text-transform: uppercase; }
+.tf-styles { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.tf-style { border: 1px solid var(--line); border-radius: 12px; padding: 18px; background: var(--ink-2); min-width: 0; }
+.tf-style h3 { font-size: 30px; margin: 0 0 6px; line-height: 1.1; }
+.tf-weights { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 34px; line-height: 1.15; margin: 8px 0 10px; }
+.tf-line { font-size: 22px; margin: 0 0 4px; color: var(--bone); overflow-wrap: anywhere; }
+.tf-features { display: grid; gap: 10px; }
+.tf-feature { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px 16px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--line); font-size: 34px; }
+.tf-feature .tf-meta { grid-column: 1 / -1; margin: 0; }
+.tf-arrow { color: var(--slop); font-size: 20px; }
+.tf-on { color: var(--slop); }
+.tf-pua { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 16px; }
+.tf-mark { margin: 0; padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; text-align: center; }
+.tf-mark span { display: block; font-size: 88px; line-height: 1.1; color: var(--slop); }
+.tf-mark figcaption { font-family: var(--mono); font-size: 12px; color: var(--bone-dim); }
+.tf-glyphs p { font-size: 34px; line-height: 1.4; letter-spacing: 0.06em; margin: 0; overflow-wrap: anywhere; }
+.tf-tester { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 0 0 12px; font-size: 14px; color: var(--bone-dim); }
+.tf-tester label { display: inline-flex; gap: 8px; align-items: center; }
+.tf-tester select { font: inherit; color: var(--bone); background: var(--ink-3); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.tf-tester input[type="range"] { width: 140px; accent-color: var(--slop); }
+.tf-sets { display: contents; }
+.tf-check input { accent-color: var(--slop); }
+.tf-sample { min-height: 2em; padding: 18px; border: 1px solid var(--line); border-radius: 12px; line-height: 1.15; color: var(--bone); overflow-wrap: anywhere; outline: none; }
+.tf-sample:focus-visible { border-color: var(--slop); }
+[hidden] { display: none !important; }
+/* The sections and the footer appear together once the manifest is read: nothing on screen moves when they fill (CLS). */
+html:not([data-typeface="ready"]) .tf-main > section:not(.tf-hero), html:not([data-typeface="ready"]) .footer { display: none; }
+
+@media (max-width: 560px) {
+  .tf-main { padding: 0 16px 40px; }
+  .tf-feature { grid-template-columns: 1fr; font-size: 28px; }
+  .tf-arrow { display: none; }
+  .tf-actions { flex-direction: column; align-items: flex-start; }
+  .tf-styles { grid-template-columns: minmax(0, 1fr); }
+}

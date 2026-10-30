@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Effects app tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- The real model, store, actions and renderer of Slop Effects (no page UI): add a layer, a keyframe, render one frame. -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/motion/easing.js"></script>
+  <script src="../../shared/motion/track.js"></script>
+  <script src="../../shared/motion/timeline.js"></script>
+  <script src="../../shared/motion/presets.js"></script>
+  <script src="../../shared/video/seed.js"></script>
+  <script src="../../effects/js/model/defs.js"></script>
+  <script src="../../effects/js/model/core.js"></script>
+  <script src="../../effects/js/model/values.js"></script>
+  <script src="../../effects/js/model/layers.js"></script>
+  <script src="../../effects/js/model/keys.js"></script>
+  <script src="../../effects/js/model/motion.js"></script>
+  <script src="../../effects/js/model/history.js"></script>
+  <script src="../../effects/js/model/project.js"></script>
+  <script src="../../effects/js/render/fx.js"></script>
+  <script src="../../effects/js/render/draw.js"></script>
+  <script src="../../effects/js/render/media.js"></script>
+  <script src="../../effects/js/app/state.js"></script>
+  <script src="../../effects/js/app/actions.js"></script>
+  <script src="../../effects/js/app/actions-keys.js"></script>
+  <script src="app.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop Effects app' });</script>
+</body>
+</html>

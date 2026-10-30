@@ -1,0 +1,33 @@
+/* Slop AI, Italian: Build a mini-app (the builder chat, the preview and the templates). The templates' prompts and
+ * their HTML stay English (the prompt is what the model is asked). Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'ai.build.new': 'Nuova mini-app',
+  'ai.build.hello': 'Crea una mini-app',
+  'ai.build.hello_lead': 'Descrivi un’app, un gioco o una pagina. Il modello scrive un unico file HTML e funziona qui, isolato. Oppure parti da un modello:',
+  'ai.build.placeholder': 'Descrivi la tua app, o cosa cambiare',
+  'ai.build.none_yet': 'Nessuna mini-app per ora',
+  'ai.build.delete_q': 'Eliminare questa mini-app?',
+  'ai.build.delete_body': 'La sua chat e il suo codice vengono rimossi.',
+  'ai.build.no_html': 'Nessun file HTML completo in quella risposta. Chiedi di nuovo, oppure scrivi «invia l’intero file».',
+  'ai.build.starter_reply': 'Modello di partenza. Dimmi cosa cambiare.',
+  'ai.build.from_chat': 'Mini-app dalla chat',
+  'ai.build.tpl_tip': 'Parti dal modello {name}',
+  'ai.build.preview': 'Anteprima',
+  'ai.build.code': 'Codice',
+  'ai.build.modes': 'Anteprima o codice',
+  'ai.build.back_chat': '← Chat',
+  'ai.build.preview_title': 'Anteprima della mini-app (isolata)',
+  'ai.build.sandboxed': '🔒 isolata',
+  'ai.build.sandbox_tip': 'sandbox="allow-scripts", no same-origin, nessuna rete',
+  'ai.build.restart': 'Riavvia l’app',
+  'ai.build.download_tip': 'Scarica .html',
+  'ai.build.nothing': 'Nulla da mostrare ancora',
+  'ai.build.nothing_lead': 'L’app compare qui non appena il modello invia un file HTML completo.',
+
+  'ai.tpl.game': 'Gioco',
+  'ai.tpl.game_blurb': 'Prendi lo slop che cade',
+  'ai.tpl.calculator': 'Calcolatrice',
+  'ai.tpl.calculator_blurb': 'Una calcolatrice essenziale',
+  'ai.tpl.landing': 'Pagina di presentazione',
+  'ai.tpl.landing_blurb': 'Un sito di una sola pagina',
+});

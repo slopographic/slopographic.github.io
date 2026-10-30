@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Expenses: a mileage claim (there and back, the amount as you type, recorded, the rate remembered)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: expenses/js/ui/mileage.js, expenses/js/core/mileage.js, expenses/js/ui/list.js, expenses/index.html
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const field = (label) => [...D.querySelectorAll('.sui-dlg .sui-field, .sui-dlg label')].find((l) => l.textContent.trim().startsWith(label)).querySelector('input, select');
+  const type = (input, v) => { input.value = v; input.dispatchEvent(new W.Event('input', { bubbles: true })); };
+
+  describe('Mileage claim', () => {
+    it('there and back doubles the distance; the amount shows as it is typed; Record makes an expense', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../expenses/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopExpenses && f.contentWindow.SlopExpenses.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+      W = f.contentWindow; D = W.document;
+      try { W.localStorage.removeItem('slop-expenses.mileage'); } catch (e) { /* ignore */ }
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      W.SlopExpenses.app.go('list');
+      await waitFor(() => !D.getElementById('view-list').hidden);
+      D.getElementById('xMileage').click();
+      await waitFor(() => D.querySelector('.sui-dlg'));
+      type(field('From'), 'Leeds'); type(field('To'), 'York');
+      field('There and back').click();
+      type(field('Distance'), '42'); type(field('Rate per unit'), '0.45');
+      expect(D.querySelector('.sui-dlg .sheet-total b').textContent).toBe('$37.80');
+      [...D.querySelectorAll('.sui-dlg button')].find((b) => b.textContent === 'Record claim').click();
+      await waitFor(() => W.location.hash.startsWith('#e/'));
+      const e = (await W.SlopData.store.list('expenses')).value[0];
+      expect([e.supplier, e.amount, e.tax, e.method]).toEqual(['Mileage', 3780, 0, 'other']);
+      expect(e.description).toBe('Mileage: Leeds to York and back, 84 mi at 0.45');   // miles: the books are en-US
+    });
+    it('the next claim starts with the rate and there-and-back remembered; a bad distance is refused in plain words', async () => {
+      W.SlopExpenses.mileageDialog.open();
+      await waitFor(() => D.querySelector('.sui-dlg'));
+      expect(field('Rate per unit').value).toBe('0.45');
+      expect(field('There and back').checked).toBe(true);
+      type(field('Distance'), 'far');
+      [...D.querySelectorAll('.sui-dlg button')].find((b) => b.textContent === 'Record claim').click();
+      await waitFor(() => /Distance: type/.test(D.querySelector('.sui-dlg .msg').textContent));
+      expect((await W.SlopData.store.list('expenses')).value.length).toBe(1);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

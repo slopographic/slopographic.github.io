@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopMask tests</title>
+</head>
+<body>
+  <script src="../../shared/mask/mask.js"></script>
+  <script src="../../shared/mask/overlay.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const M = window.SlopMask;
+  const px = (c, x, y) => [...c.getContext('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data];
+  const fill = (w, h, rgba) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = rgba; g.fillRect(0, 0, w, h); return c; };
+
+  describe('SlopMask', () => {
+    it('exposes the module calls', () => {
+      for (const k of ['make', 'align', 'apply', 'invert', 'paint', 'live', 'overlay']) expect(typeof M[k]).toBe('function');
+    });
+    it('make: reveal shows all, hide hides all, sel copies the alpha; def follows the kind', () => {
+      const r = M.make(10, 10, 'reveal'), h = M.make(10, 10, 'hide');
+      expect(px(r.canvas, 5, 5)[3]).toBe(255); expect(r.def).toBe(false);
+      expect(px(h.canvas, 5, 5)[3]).toBe(0); expect(h.def).toBe(true);
+      const s = M.make(10, 10, 'sel', fill(10, 10, '#000'));
+      expect(px(s.canvas, 3, 3)[3]).toBe(255); expect(s.enabled).toBe(true);
+    });
+    it('align: outside the mask canvas the default applies (hidden when def, shown otherwise)', () => {
+      const half = M.make(10, 10, 'reveal'); half.x = 5; half.def = true;
+      const a = M.align(half, 20, 20, 0, 0);
+      expect(px(a, 2, 2)[3]).toBe(0);     // outside, def hides
+      expect(px(a, 8, 8)[3]).toBe(255);   // inside, the mask reveals
+      half.def = false;
+      const b = M.align(half, 20, 20, 0, 0);
+      expect(px(b, 2, 2)[3]).toBe(255);   // outside, def reveals
+      expect(px(b, 8, 8)[3]).toBe(255);
+      const hidden = M.make(10, 10, 'hide'); hidden.def = false;
+      expect(px(M.align(hidden, 10, 10, 0, 0), 4, 4)[3]).toBe(0); // inside, transparent hides
+    });
+    it('apply keeps the source where the alpha is opaque', () => {
+      const out = M.apply(fill(4, 4, '#f00'), fill(4, 4, 'rgba(0,0,0,0.5)'));
+      expect(px(out, 1, 1)[3]).toBe(128);
+    });
+    it('invert swaps shown and hidden and flips the default', () => {
+      const m = M.make(6, 6, 'hide');
+      const i = M.invert(m);
+      expect(px(i.canvas, 2, 2)[3]).toBe(255); expect(i.def).toBe(false);
+      expect(px(m.canvas, 2, 2)[3]).toBe(0);
+    });
+    it('paint: white reveals, black hides, opacity scales the stroke', () => {
+      const base = M.make(20, 20, 'hide');
+      const dab = fill(20, 20, '#000');
+      const revealed = M.paint(base.canvas, dab, { opacity: 1, value: 1 });
+      expect(px(revealed, 10, 10)[3]).toBe(255);
+      const hid = M.paint(M.make(20, 20, 'reveal').canvas, dab, { opacity: 1, value: 0 });
+      expect(px(hid, 10, 10)[3]).toBe(0);
+      expect(px(base.canvas, 10, 10)[3]).toBe(0); // the source is not changed
+    });
+    it('live: each call bakes the stroke so far, and fn.last holds the result for overlays', () => {
+      const m = M.make(20, 20, 'hide');
+      const buf = fill(20, 20, '#000');
+      let n = 0;
+      const surf = M.live(() => m, () => { n++; return buf; }, { opacity: 1, value: 1 });
+      const r = surf({ id: 1 });
+      expect(px(r.canvas, 4, 4)[3]).toBe(255);
+      expect(surf.last).toBe(r);
+      expect(n).toBe(1);
+      expect(px(m.canvas, 4, 4)[3]).toBe(0);
+    });
+    it('overlay tints only where the mask hides (no error on an empty target)', () => {
+      const g = document.createElement('canvas'); g.width = 40; g.height = 40;
+      const ctx = g.getContext('2d');
+      M.overlay(ctx, M.make(10, 10, 'reveal').canvas, 0, 0, 0, 0, 2);
+      M.overlay(ctx, M.make(10, 10, 'hide').canvas, 0, 0, 0, 0, 2);
+      expect(px(g, 5, 5)[0]).toBeGreaterThan(200);
+    });
+  });
+  SlopTest.run({ name: 'SlopMask (shared)' });
+  </script>
+</body>
+</html>

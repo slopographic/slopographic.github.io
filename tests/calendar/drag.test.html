@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calendar · dragging an event moves its day or its time; a move can be undone</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: calendar/js/ui/app.js (the drag undo, now SlopUndo from shared/ui/undo.js)
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const cal = document.createElement('iframe');
+  cal.style.cssText = 'width:1100px;height:760px;border:0;position:fixed;left:0;top:0;background:#111';
+  cal.src = '../../calendar/index.html#month';
+  document.body.append(cal);
+  const cw = () => cal.contentWindow, cd = () => cal.contentDocument;
+  const booted = () => cw() && cw().SlopCal && cw().SlopCal.state && cd() && cd().getElementById('cBoot') && cd().getElementById('cBoot').hidden;
+  const T = () => cw().SlopTime;
+  const zone = () => cw().SlopCal.state.zone;
+  const today = () => T().todayIn(zone());
+  const fire = (target, type, x, y) => target.dispatchEvent(new (cw().PointerEvent)(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true }));
+  const center = (node) => { const r = node.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  const stored = async (id) => (await cw().SlopEvents.list()).value.find((e) => e.id === id);
+  // "2026-10-15 10:00" in the viewer's zone, for the saved instants.
+  const hm = (ms) => { const p = T().parts(ms, zone()); return `${p.day} ${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}`; };
+  const at = (day, hhmm) => `${day} ${hhmm}`;
+  const addEvent = async (title, day, from, to) => {
+    const r = await cw().SlopEvents.save({ title, allDay: false, start: T().dayTimeToUtc(day, from, zone()), end: T().dayTimeToUtc(day, to, zone()), tz: zone(), color: 'blue', kind: 'event', freq: 'none' });
+    if (!r.ok) throw new Error(r.message || 'could not save');
+    return (await cw().SlopEvents.list()).value.find((e) => e.title === title);
+  };
+  const cellOf = (day) => cd().querySelector(`.mo-cell[data-day="${day}"]`);
+  const chipOf = (day, id) => cd().querySelector(`.mo-cell[data-day="${day}"] .chip[data-id="${id}"]`);
+
+  describe('dragging in the month view', () => {
+    let rec, target;
+    it('dragging an event to another day moves its date and keeps its time', async () => {
+      await waitFor(booted, { timeout: 20000 });
+      target = T().addDays(today(), 2);
+      rec = await addEvent('Move me to another day', today(), '10:00', '11:00');
+      await cw().SlopCal.app.setView('month', today());
+      const chip = await waitFor(() => chipOf(today(), rec.id), { timeout: 8000 });
+      const from = center(chip), to = center(cellOf(target));
+      fire(chip, 'pointerdown', from.x, from.y);
+      fire(cd(), 'pointermove', from.x + 20, from.y + 2);
+      fire(cd(), 'pointermove', to.x, to.y);
+      await waitFor(() => cellOf(target).classList.contains('is-drop'), { timeout: 2000 });
+      const tip = cd().querySelector('.dr-tip');
+      expect(tip).toBeTruthy();
+      expect(tip.textContent).toContain(T().dayText(target, undefined, { weekday: 'short', day: 'numeric', month: 'short' }));
+      fire(cd(), 'pointerup', to.x, to.y);
+      const moved = await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.start).startsWith(target) ? r : null; }, { timeout: 8000 });
+      expect(hm(moved.start)).toBe(at(target, '10:00'));
+      expect(hm(moved.end)).toBe(at(target, '11:00'));
+      expect(cd().querySelector('.dr-tip')).toBe(null);
+    });
+
+    it('a move can be undone from the Undo button in the toast', async () => {
+      const btn = await waitFor(() => cd().querySelector('.sui-toast-act'), { timeout: 4000 });
+      expect(btn.textContent).toBe('Undo');
+      btn.click();
+      const back = await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.start) === at(today(), '10:00') ? r : null; }, { timeout: 8000 });
+      expect(hm(back.end)).toBe(at(today(), '11:00'));
+      expect(cw().SlopCal.history.size).toBe(0);
+    });
+
+    it('a move can be undone with Ctrl+Z', async () => {
+      const chip = await waitFor(() => chipOf(today(), rec.id), { timeout: 8000 });
+      const from = center(chip), to = center(cellOf(target));
+      fire(chip, 'pointerdown', from.x, from.y);
+      fire(cd(), 'pointermove', from.x + 20, from.y + 2);
+      fire(cd(), 'pointermove', to.x, to.y);
+      fire(cd(), 'pointerup', to.x, to.y);
+      await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.start).startsWith(target); }, { timeout: 8000 });
+      cd().dispatchEvent(new (cw().KeyboardEvent)('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+      const back = await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.start) === at(today(), '10:00') ? r : null; }, { timeout: 8000 });
+      expect(back).toBeTruthy();
+    });
+
+    it('dropping an event where it already is does nothing and adds no undo step', async () => {
+      const before = cw().SlopCal.history.size;
+      const chip = await waitFor(() => chipOf(today(), rec.id), { timeout: 8000 });
+      const from = center(chip);
+      fire(chip, 'pointerdown', from.x, from.y);
+      fire(cd(), 'pointermove', from.x + 10, from.y + 4);
+      fire(cd(), 'pointerup', from.x + 10, from.y + 4);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(cw().SlopCal.history.size).toBe(before);
+      expect(hm((await stored(rec.id)).start)).toBe(at(today(), '10:00'));
+    });
+  });
+
+  describe('a press that does not move', () => {
+    it('opens the event once, as a click does, and the drag does not open it', async () => {
+      const rec = await addEvent('Click me once', today(), '12:00', '13:00');
+      await cw().SlopCal.app.setView('month', today());
+      const chip = await waitFor(() => chipOf(today(), rec.id), { timeout: 8000 });
+      const c = center(chip);
+      chip.click();
+      // the editor opens in the right panel (calendar/js/ui/panel.js), once
+      const editing = () => cw().SlopCal.panel.editing() && cd().querySelector('#cSide .sf-p-h').textContent === 'Edit event';
+      await waitFor(editing, { timeout: 4000 });
+      expect(cd().querySelectorAll('#evTitle').length).toBe(1);
+      [...cd().querySelectorAll('#cSide .sf-p-foot button')].find((b) => b.textContent.trim() === 'Cancel').click();
+      await waitFor(() => !cw().SlopCal.panel.editing(), { timeout: 4000 });
+      fire(chip, 'pointerdown', c.x, c.y);
+      fire(cd(), 'pointerup', c.x, c.y);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(cw().SlopCal.panel.editing()).toBe(false);
+    });
+  });
+
+  describe('dragging in the week view', () => {
+    it('dragging a block to a later time moves its time to the half hour, and shows the new time while dragging', async () => {
+      const rec = await addEvent('Move me to 14:30', today(), '10:00', '11:00');
+      await cw().SlopCal.app.setView('week', today());
+      const block = await waitFor(() => cd().querySelector(`.tg-col[data-day="${today()}"] .tg-block[data-id="${rec.id}"]`), { timeout: 8000 });
+      const from = center(block);
+      const dy = 270 * (48 / 60);   // 10:00 to 14:30 is 270 minutes, at 48 pixels an hour
+      fire(block, 'pointerdown', from.x, from.y);
+      fire(cd(), 'pointermove', from.x, from.y + 20);
+      fire(cd(), 'pointermove', from.x, from.y + dy);
+      const tip = await waitFor(() => cd().querySelector('.dr-tip'), { timeout: 2000 });
+      expect(tip.textContent).toContain(T().timeText(T().dayTimeToUtc(today(), '14:30', zone()), zone(), undefined));
+      fire(cd(), 'pointerup', from.x, from.y + dy);
+      const moved = await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.start) === at(today(), '14:30') ? r : null; }, { timeout: 8000 });
+      expect(hm(moved.end)).toBe(at(today(), '15:30'));
+    });
+
+    it('dragging a block to another day column moves its date and keeps its time', async () => {
+      const other = T().dowOf(today()) === 0 ? T().addDays(today(), -1) : T().addDays(today(), 1);
+      const rec = await addEvent('Move me to the next column', today(), '10:00', '11:00');
+      await cw().SlopCal.app.setView('week', today());
+      const block = await waitFor(() => cd().querySelector(`.tg-col[data-day="${today()}"] .tg-block[data-id="${rec.id}"]`), { timeout: 8000 });
+      const from = center(block);
+      const to = center(cd().querySelector(`.tg-col[data-day="${other}"]`));
+      fire(block, 'pointerdown', from.x, from.y);
+      fire(cd(), 'pointermove', from.x + 20, from.y);
+      fire(cd(), 'pointermove', to.x, from.y);
+      fire(cd(), 'pointerup', to.x, from.y);
+      const moved = await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.start).startsWith(other) ? r : null; }, { timeout: 8000 });
+      expect(hm(moved.start)).toBe(at(other, '10:00'));
+    });
+
+    it('dragging the bottom edge changes the end time in 15-minute steps', async () => {
+      const rec = await addEvent('Resize me', today(), '10:00', '11:00');
+      await cw().SlopCal.app.setView('week', today());
+      const block = await waitFor(() => cd().querySelector(`.tg-col[data-day="${today()}"] .tg-block[data-id="${rec.id}"]`), { timeout: 8000 });
+      const handle = block.querySelector('.rz');
+      const h = center(handle);
+      fire(handle, 'pointerdown', h.x, h.y);
+      fire(cd(), 'pointermove', h.x, h.y + 20);
+      fire(cd(), 'pointermove', h.x, h.y + 24);   // 24 pixels is 30 minutes at 48 pixels an hour
+      fire(cd(), 'pointerup', h.x, h.y + 24);
+      const resized = await waitFor(async () => { const r = await stored(rec.id); return r && hm(r.end) === at(today(), '11:30') ? r : null; }, { timeout: 8000 });
+      expect(hm(resized.start)).toBe(at(today(), '10:00'));
+    });
+  });
+
+  run({ name: 'Calendar · drag and drop' });
+  </script>
+</body>
+</html>

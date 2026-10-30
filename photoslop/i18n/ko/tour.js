@@ -1,0 +1,20 @@
+/* PhotoSlop, Korean (the source of truth for the keys is the English table): the guided tour (shared/tour/tours/photoslop.js). Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'photoslop.tour.title': 'PhotoSlop 둘러보기',
+  'photoslop.tour.new_title': '파일 시작하기',
+  'photoslop.tour.new_text': '새로 만들기는 문서의 크기, 프리셋, 배경을 정합니다(좁은 창에서는 더보기 ▾에 있습니다). 열기는 PSD, ORA 또는 이미지를 불러옵니다. 파일마다 탭이 생깁니다.',
+  'photoslop.tour.menus_title': '메뉴 막대',
+  'photoslop.tour.menus_text': '파일, 편집, 이미지, 레이어, 선택, 필터가 여기에 있습니다. 각 메뉴에 명령이 나열되어 있습니다.',
+  'photoslop.tour.tools_title': '도구',
+  'photoslop.tour.tools_text': '브러시, 선택, 문자, 자르기는 도구 상자에 있습니다. 하나를 고른 다음 옵션 막대에서 설정하세요.',
+  'photoslop.tour.options_title': '도구 옵션',
+  'photoslop.tour.options_text': '옵션 막대는 활성 도구에 따라 바뀝니다. 크기, 불투명도, 혼합 모드 등이 있습니다.',
+  'photoslop.tour.canvas_title': '캔버스',
+  'photoslop.tour.canvas_text': '캔버스에서 칠하고, 선택하고, 변형하세요. 상태 막대에는 확대율과 크기가 표시됩니다.',
+  'photoslop.tour.panels_title': '레이어와 패널',
+  'photoslop.tour.panels_text': '레이어, 기록, 속성은 이 열에 있습니다. 휴대폰에서는 레이어 버튼으로 표시합니다.',
+  'photoslop.tour.export_title': '내보내기',
+  'photoslop.tour.export_text': 'PNG, JPEG, WebP 또는 PSD로 내보내세요. 파일은 이 기기에서 만들어지며 아무것도 업로드되지 않습니다.',
+  'photoslop.tour.theme_title': '테마',
+  'photoslop.tour.theme_text': 'Pro, Light, Paint ’98 사이를 전환하세요.',
+});

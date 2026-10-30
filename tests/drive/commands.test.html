@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive commands</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR;
+  describe('commands for the shared palette (SlopCmd)', () => {
+    it('lists every action with unique ids, groups and keys', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR;
+      const cmds = DR.commands(), ids = cmds.map((c) => c.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const id of ['newFolder', 'rename', 'move', 'trash', 'view.grid', 'view.usage', 'dupes', 'exportBackup', 'shortcuts']) expect(ids).toContain('drive.' + id);
+      expect(cmds.every((c) => c.id.startsWith('drive.') && c.title && c.group && Array.isArray(c.keys) && typeof c.run === 'function')).toBe(true);
+    });
+    it('New folder is Ctrl+Alt+Shift+N: no shortcut is one the browser keeps (Ctrl+N, Ctrl+Shift+N incognito, Ctrl+T, Ctrl+W)', async () => {
+      // Covers: drive/js/ui/keys.js, drive/js/ui/commands.js, drive/js/ui/menus.js
+      const reserved = ['Mod+N', 'Shift+Mod+N', 'Mod+T', 'Shift+Mod+T', 'Mod+W', 'Shift+Mod+W'];
+      expect(DR.commands().filter((c) => c.keys.some((k) => reserved.includes(k))).map((c) => c.id)).toEqual([]);
+      expect(DR.commands().find((c) => c.id === 'drive.newFolder').keys).toEqual(['Alt+Shift+Mod+N']);
+      expect(DR.SHORTCUTS.find((r) => r[1] === 'New folder')[0]).toBe('Ctrl+Alt+Shift+N');
+      const orig = DR.newFolder; let made = 0;
+      DR.newFolder = () => { made++; };
+      try {
+        W.document.body.dispatchEvent(DT.key('N', { code: 'KeyN', ctrlKey: true, altKey: true, shiftKey: true }));
+        await waitFor(() => made === 1);
+        W.document.body.dispatchEvent(DT.key('N', { code: 'KeyN', ctrlKey: true, shiftKey: true }));
+        await new Promise((r) => setTimeout(r, 100));
+        expect(made).toBe(1);
+      } finally { DR.newFolder = orig; }
+    });
+    it('registers with SlopCmd when present and hands the shortcuts over', async () => {
+      const got = { reg: [], prov: null, init: null, opened: 0, keymap: 0 };
+      // The real SlopCmd (shared/commands) is loaded at boot; clear its bindings so only the stub is live.
+      const real = W.SlopCmd; if (real && real.unregister && real.list) real.unregister(real.list().map((c) => c.id));
+      W.SlopCmd = { init: (o) => { got.init = o; }, register: (l) => got.reg.push(...l), addProvider: (p) => { got.prov = p; }, keyFor: (id) => (id === 'drive.rename' ? 'F2' : ''), open: () => got.opened++, openKeymap: () => got.keymap++ };
+      expect(DR.wireCommands()).toBe(true);
+      expect(got.init.app).toBe('drive');
+      expect(got.reg.length).toBe(DR.commands().length);
+      expect(W.document.getElementById('btnCmd').hidden).toBe(false);
+      // a registered key no longer runs from the private map
+      const before = DR.S.view;
+      W.document.body.dispatchEvent(DT.key('6'));
+      expect(DR.S.view).toBe(before);
+      // running the command does it
+      got.reg.find((c) => c.id === 'drive.view.usage').run();
+      expect(DR.S.view).toBe('usage');
+      DR.shortcutsDialog(); expect(got.keymap).toBe(1);
+      DR.openPalette(); expect(got.opened).toBe(1);
+      expect(DR.keyLabel('rename')).toBe('F2');
+    });
+    it('offers files as palette results', async () => {
+      const H = W.SlopHub; await H.clear();
+      await H.put(DT.text('x'), { name: 'quarterly report.txt' }); await DR.refresh();
+      const prov = (() => { let pr; W.SlopCmd.addProvider = (x) => { pr = x; }; DR.wireCommands(); return pr; })();
+      const res = prov.search('quarter');
+      expect(res.map((r) => r.title)).toEqual(['quarterly report.txt']);
+      res[0].run();
+      expect([...DR.S.sel][0]).toBe('f:' + [...DR.S.files.keys()][0]);
+      DR.setView('grid');
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: commands' });
+  </script>
+</body>
+</html>

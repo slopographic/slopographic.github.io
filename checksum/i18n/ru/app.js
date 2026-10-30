@@ -1,0 +1,28 @@
+/* Checksum, Russian: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-ru.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'checksum.app.home': 'Главная Slopographic',
+  'checksum.app.lede': 'Вычислите хеш файла или сверьте его с хешем, который дал вам издатель. Файл читается на этом устройстве и никуда не отправляется.',
+  'checksum.app.step_choose': '1. Выберите файл',
+  'checksum.app.drop': 'Выберите файл или перетащите его сюда',
+  'checksum.app.step_hash': '2. Хеш',
+  'checksum.app.hash_label': 'Хеш файла',
+  'checksum.app.settings_label': 'Настройки хеша',
+  'checksum.app.algorithm': 'Алгоритм',
+  'checksum.app.sha1_note': 'SHA-1 оставлен только для совместимости с опубликованными ранее хешами. Для новых проверок используйте SHA-256.',
+  'checksum.app.check_against': 'Сверить с опубликованным хешем',
+  'checksum.app.expected': 'Ожидаемый хеш',
+  'checksum.app.expected_ph': 'Вставьте хеш со страницы загрузки',
+  'checksum.app.copy': 'Копировать хеш',
+  'checksum.app.copied': 'Скопировано',
+  'checksum.app.copy_failed': 'Не удалось скопировать',
+  'checksum.app.settings': 'Настройки',
+  'checksum.app.a_file': 'файл',
+  'checksum.app.reading': 'Чтение {name} ({mb} МБ)…',
+  'checksum.app.hash_of': '{alg} для {name}',
+  'checksum.app.choose_first': 'Сначала выберите файл.',
+  'checksum.app.not_hash': 'Это не похоже на хеш (только цифры и буквы от a до f).',
+  'checksum.app.length_differs': 'Длина не совпадает: хеш {alg} состоит из {n} символов. Проверьте алгоритм.',
+  'checksum.app.match': 'Совпадает: файл тот же, что был опубликован.',
+  'checksum.app.no_match': 'Не совпадает: файл отличается от опубликованного хеша.',
+});

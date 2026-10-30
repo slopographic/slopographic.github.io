@@ -1,0 +1,10 @@
+/* Script fallback for Ethiopic (am), loaded by shared/i18n/i18n.js only when the chosen language uses it (LANGS[].script).
+ * The brand fonts carry Latin only: these @font-face rules add this script's glyphs to the brand families from fonts
+ * already on the device (local() only, nothing is downloaded), so a label mixes the brand Latin with a good system face
+ * instead of the browser's default fallback. Generated once; see shared/i18n/HANDOFF.md (World-ready). */
+@font-face { font-family: 'Inter Tight'; src: local('Nyala'), local('Ebrima'), local('Kefa'), local('Noto Sans Ethiopic'), local('Abyssinica SIL'); unicode-range: U+1200-139F, U+2D80-2DDF, U+AB00-AB2F; font-display: swap; }
+@font-face { font-family: 'Inter'; src: local('Nyala'), local('Ebrima'), local('Kefa'), local('Noto Sans Ethiopic'), local('Abyssinica SIL'); unicode-range: U+1200-139F, U+2D80-2DDF, U+AB00-AB2F; font-display: swap; }
+@font-face { font-family: 'Archivo'; src: local('Nyala'), local('Ebrima'), local('Kefa'), local('Noto Sans Ethiopic'), local('Abyssinica SIL'); unicode-range: U+1200-139F, U+2D80-2DDF, U+AB00-AB2F; font-display: swap; }
+@font-face { font-family: 'Slopographic Sans'; src: local('Nyala'), local('Ebrima'), local('Kefa'), local('Noto Sans Ethiopic'), local('Abyssinica SIL'); unicode-range: U+1200-139F, U+2D80-2DDF, U+AB00-AB2F; font-display: swap; }
+@font-face { font-family: 'Slopographic Condensed'; src: local('Nyala'), local('Ebrima'), local('Kefa'), local('Noto Sans Ethiopic'), local('Abyssinica SIL'); unicode-range: U+1200-139F, U+2D80-2DDF, U+AB00-AB2F; font-display: swap; }
+:root:lang(am) { line-height: 1.6; }

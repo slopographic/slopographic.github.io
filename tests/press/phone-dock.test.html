@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press on a phone: the panels drawer</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: press/js/ui/dock.js, press/js/ui/main.js, press/js/ui/commands.js, press/css/responsive.css, press/css/panels.css, press/index.html -->
+  <iframe id="f" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D, S;
+  const esc = () => D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('390 × 844: the dock is a SlopSheet drawer from the right', () => {
+    it('the Panels button opens the drawer at the right edge under the bars; the same button closes it', async () => {
+      W = document.getElementById('f').contentWindow;
+      await waitFor(() => { const a = W.document && W.document.getElementById('app'); return a && a.classList.contains('ready') && W.PR.ui.dockSheet; }, { timeout: 30000 });
+      D = W.document; S = W.PR.ui.dockSheet;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const btn = D.getElementById('panelsToggle'), dock = D.getElementById('dock');
+      expect([S.isPhone(), S.isOpen()]).toEqual([true, false]);
+      btn.click();
+      expect([S.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+      const r = dock.getBoundingClientRect();
+      expect([Math.round(r.right), r.top > 40]).toEqual([390, true]);
+      btn.click();
+      expect(S.isOpen()).toBe(false);
+    });
+    it('the × closes it and gives focus back; Escape closes it and keeps the selection; Window ▸ a panel opens it', () => {
+      const btn = D.getElementById('panelsToggle');
+      btn.focus(); btn.click();
+      const x = D.querySelector('#dock > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close panels');
+      x.click();
+      expect([S.isOpen(), D.activeElement]).toEqual([false, btn]);
+      const first = W.PR.activeItems()[0];
+      W.PR.select([first.id]);
+      btn.click(); esc();
+      expect([S.isOpen(), W.PR.state.sel.length]).toEqual([false, 1]);
+      esc(); expect(W.PR.state.sel.length).toBe(0);   // with the drawer shut, Escape deselects as before
+      W.PR.ui.showPanel('layers');
+      expect(S.isOpen()).toBe(true);
+      W.PR.ui.togglePanels();
+      expect(S.isOpen()).toBe(false);
+    });
+  });
+  SlopTest.run({ name: 'Slop Press: phone panels drawer' });
+  </script>
+</body>
+</html>

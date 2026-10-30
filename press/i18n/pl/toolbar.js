@@ -1,0 +1,25 @@
+/* Slop Press, Polish: the toolbar tips, the colour kit and the guide dialog. Same keys as press/i18n/en/toolbar.js.
+ * Terms: shared/i18n/glossary-pl.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'press.tool.undo_fill': 'Wypełnienie',
+  'press.tool.undo_stroke': 'Obrys',
+  'press.tool.fill_tip': 'Wypełnienie (kliknij, aby wybrać)',
+  'press.tool.fill_label': 'Kolor wypełnienia',
+  'press.tool.stroke_tip': 'Obrys (kliknij, aby wybrać)',
+  'press.tool.stroke_label': 'Kolor obrysu',
+  'press.tool.title_key': '{name} ({key})',
+  'press.kit.colour': 'Kolor',
+  'press.kit.custom_colour': 'Własny kolor…',
+  'press.kit.mode': 'Tryb',
+  'press.kit.mode_cmyk': 'CMYK (procesowy, druk)',
+  'press.kit.ink.c': 'Cyjan',
+  'press.kit.ink.m': 'Magenta',
+  'press.kit.ink.y': 'Żółty',
+  'press.kit.ink.k': 'Czarny',
+  'press.guide.title': 'Utwórz prowadnice',
+  'press.guide.margins': 'Marginesy',
+  'press.guide.page': 'Strona',
+  'press.guide.selection': 'Zaznaczenie',
+  'press.guide.undo_create': 'Utwórz prowadnice',
+  'press.guide.undo_clear': 'Usuń prowadnice',
+});

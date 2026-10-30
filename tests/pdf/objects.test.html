@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: page objects and PDF layers</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Objects mode (images, inline images, forms and vector groups moved, resized, turned, arranged, duplicated, replaced
+       and deleted in the content stream, each one undo step) and the PDF's own layers (show, hide, delete), with PDFs
+       made in the test and read back with pdf.js. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="objects.helpers.js"></script>
+  <script src="pdf.spec-objects.js"></script>
+  <script src="pdf.spec-ocg.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF: page objects and PDF layers' });</script>
+</body>
+</html>

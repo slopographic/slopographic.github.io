@@ -1,0 +1,25 @@
+/* Slop Colors, Simplified Chinese: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'colors.wheel.label': '色轮',
+  'colors.wheel.rule': '配色方案',
+  'colors.wheel.model': '色轮类型',
+  'colors.wheel.bright': '亮度',
+  'colors.wheel.light': '明度',
+  'colors.wheel.bright_text': '亮度 {pct}%',
+  'colors.wheel.light_text': '明度 {pct}%',
+  'colors.wheel.keys': '拖动手柄，或在手柄上使用方向键：左右调整色相，上下调整饱和度，按住 Shift 每次移动十步，Page Up 和 Page Down 调整亮度。',
+  'colors.wheel.base': '基础色',
+  'colors.wheel.handle': '颜色 {n}',
+  'colors.wheel.value': '色相 {hue}°，饱和度 {sat}%，{hex}',
+  'colors.wheel.value_oklch': '色相 {hue}°，彩度 {sat}%，{hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB（美术）',
+  'colors.wheel.oklch': 'OKLCH（感知均匀）',
+  'colors.harmony.brightness': '明暗',
+  'colors.harmony.custom': '自定义',
+  'colors.cmd.g_wheel': '色轮',
+  'colors.cmd.wheel_rule': '色轮：配色方案设为{rule}',
+  'colors.cmd.wheel_model': '色轮：使用 {wheel} 色轮',
+  'colors.cmd.wheel_focus': '色轮：转到色轮',
+});

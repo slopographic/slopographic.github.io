@@ -1,0 +1,19 @@
+/* Slop Gallery: the People bar (ui/people.js), above the grid in the People view. Face boxes are styled by shared/faces/overlay.js. */
+.people-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line, #2a2a2a);
+  background: var(--panel, #161616); font-size: 14px;
+}
+.people-bar[hidden] { display: none; }
+.people-text { margin: 0; flex: 1 1 320px; min-width: 0; }
+.people-status { margin: 0; flex-basis: 100%; font-size: 13px; }
+.people-status:empty { display: none; }
+.people-prog { flex: 1 1 200px; max-width: 360px; height: 8px; accent-color: var(--accent, #d4ff3a); }
+.people-prog[hidden] { display: none; }
+.people-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .people-bar { padding: 10px 12px; }
+  .people-text { flex-basis: 100%; }
+  .people-prog { max-width: none; flex-basis: 100%; }
+}
+.people-mode { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }

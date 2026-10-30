@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables in Swedish</title>
+  <!-- Covers: tables/i18n/index.js, tables/js/i18n.js, tables/js/ui/main.js, tables/js/ui/commands.js, tables/js/ui/chrome.js,
+       tables/js/ui/numfmt.js, tables/js/ui/ctxmenu.js, tables/js/ui/sidebar.js, tables/js/ui/sheets.js, tables/js/ui/objects.js,
+       tables/js/ui/charts.js, tables/js/ui/chart-dialog.js, tables/js/ui/pivot-dialog.js, tables/js/ui/templates.js,
+       tables/js/ui/storage.js, tables/js/ui/tabs.js, tables/js/ui/drop.js, tables/js/ui/editor.js, tables/js/ui/actions.js,
+       tables/js/ui/state.js, tables/js/io/config.js, tables/js/io/native.js, tables/js/io/template.js, tables/js/io/import.js,
+       tables/js/io/import-charts.js, tables/js/io/xlsx-charts.js, tables/js/objects/region.js, tables/js/objects/chart-data.js,
+       tables/js/objects/chart-svg.js, tables/js/objects/pivot.js, tables/js/objects/pivot-write.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop Tables in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../tables/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentWindow && f.contentWindow.SlopTables && f.contentWindow.SlopTables.ready && f.contentDocument.querySelector('#menus .menu-b'), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(tables|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menus .menu-b')].map((b) => b.textContent.trim());
+  const text = (doc, sel) => doc.querySelector(sel).textContent.trim();
+  async function menu(f, i) {
+    f.contentDocument.querySelectorAll('#menus .menu-b')[i].click();
+    const m = await waitFor(() => f.contentDocument.querySelector('.sui-menu'), { timeout: 20000 });
+    const items = [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+    f.contentDocument.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    f.contentDocument.body.click();
+    return items;
+  }
+
+  describe('Slop Tables in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, sidebar, toolbar and status bar, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, T = f.contentWindow.SlopTables;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc)).toEqual(['Arkiv', 'Redigera', 'Format', 'Infoga', 'Visa', 'Blad', 'Hjälp']);
+      expect(text(doc, '#btnSave')).toBe('Spara');
+      expect(text(doc, '#secSheets')).toBe('Blad');
+      expect(text(doc, '#sideAddSheet')).toBe('+ Lägg till blad');
+      expect(text(doc, '#secFn')).toBe('Funktioner');
+      expect(doc.querySelector('#fnFilter').getAttribute('placeholder')).toBe('Filtrera funktioner');
+      expect(doc.querySelector('#nf').options[0].textContent).toBe('Allmänt');
+      expect(doc.querySelector('#sideToggle').getAttribute('aria-label')).toBe('Dölj sidofältet');
+      await waitFor(() => text(doc, '#saveState') === 'Inte sparad än', { timeout: 10000 });
+      T.setCell('A1', '2'); T.setCell('A2', '4');
+      T.S.sel = { r: 0, c: 0, er: 1, ec: 0 }; T.flush();
+      expect(text(doc, '#status')).toContain('Summa 6');
+      expect(text(doc, '#status')).toContain('Medel 3');
+      const file = await menu(f, 0);
+      expect(file.join(' | ')).toContain('Ny arbetsbok');
+      expect(file.join(' | ')).toContain('Från mall…');
+      expect(KEY.test(file.join('\n'))).toBe(false);
+      const edit = await menu(f, 1);
+      expect(edit.join(' | ')).toContain('Radera innehåll');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('the template dialog and the chart dialog are Swedish', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, T = f.contentWindow.SlopTables;
+      T.templates.openTemplates();
+      const dlg = await waitFor(() => doc.querySelector('.tpl-dlg'), { timeout: 20000 });
+      await waitFor(() => dlg.querySelector('.tpl-card h4'), { timeout: 20000 });
+      expect(dlg.textContent).toContain('Inbyggda mallar');
+      expect([...dlg.querySelectorAll('.tpl-card h4')].map((h) => h.textContent)).toContain('Faktura');
+      expect(KEY.test(dlg.innerText)).toBe(false);
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Stäng').click();
+      await waitFor(() => !doc.querySelector('.tpl-dlg'), { timeout: 10000 });
+      T.setCell('A1', 'Month'); T.setCell('B1', 'Sales'); T.setCell('A2', 'Jan'); T.setCell('B2', '10');
+      T.select('A1'); T.command('insert.chart');
+      const cd = await waitFor(() => doc.querySelector('.chart-dialog'), { timeout: 20000 });
+      expect(cd.querySelector('.sui-title').textContent).toBe('Infoga diagram');
+      expect([...cd.querySelectorAll('option')].map((o) => o.textContent)).toContain('Stapel');
+      expect(KEY.test(cd.innerText)).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && text(doc, '#btnSave') === 'Save', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(menuNames(doc)).toEqual(['File', 'Edit', 'Format', 'Insert', 'View', 'Sheets', 'Help']);
+      expect(doc.querySelector('#nf').options[0].textContent).toBe('General');
+      expect(text(doc, '#saveState')).toBe('Not saved yet');
+      expect(doc.querySelector('#sideToggle').getAttribute('aria-label')).toBe('Hide sidebar');
+      expect((await menu(f, 0)).join(' | ')).toContain('New workbook');
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv' && text(doc, '#saveState') === 'Inte sparad än', { timeout: 20000 });
+      expect(doc.querySelector('#nf').options[0].textContent).toBe('Allmänt');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the page does not scroll sideways in Swedish, and the words fit their buttons', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      for (const b of doc.querySelectorAll('#menus .menu-b, #btnSave')) expect(b.scrollWidth <= b.clientWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Tables in Swedish' });
+  </script>
+</body>
+</html>

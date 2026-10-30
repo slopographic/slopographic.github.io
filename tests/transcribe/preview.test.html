@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Transcribe first visit: the steps beside the From → To picture, and the Moon landing sample joins the queue</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: transcribe/index.html, transcribe/js/app.js, transcribe/css/transcribe.css, assets/samples/moon-landing.ogg, assets/samples/moon-landing.txt
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  async function boot(width = 1280) {
+    const old = document.getElementById('app'), f = document.createElement('iframe');
+    f.id = 'app'; f.style.cssText = `width:${width}px;height:860px`;
+    old.replaceWith(f);
+    f.src = '../../transcribe/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopTranscribe && f.contentWindow.document.querySelector('#trSteps .sd-steps'), { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  describe('Slop Transcribe first visit', () => {
+    it('before the model is in, the intro shows three steps and one picture (MP3 → TXT)', async () => {
+      await boot();
+      expect([...D.querySelectorAll('#trSteps .sd-steps li')].map((li) => li.textContent))
+        .toEqual(['Drop audio or video, or press Record', 'Press Transcribe: it runs on this device', 'Correct the text, then save it']);
+      expect(D.querySelectorAll('.sflow').length).toBe(1);
+      expect(D.querySelectorAll('.sd-pic, .sd-steps').length).toBe(1); // no second picture and no second list in the drop zone
+      expect(D.documentElement.scrollWidth <= 1280).toBe(true);
+    });
+    it('the sample button adds the Moon landing recording to the list, and the page reads it as 24 s of sound', async () => {
+      $('trUi').hidden = false;   // the model gate (Get more…) is not part of this test
+      const btn = D.querySelector('#trDrop .sd-sample');
+      expect(btn.textContent).toBe('Try it with a sample: the Moon landing, 24 s');
+      btn.click();
+      await waitFor(() => W.SlopTranscribe.queue.items.length === 1, { timeout: 10000 });
+      const it = W.SlopTranscribe.queue.items[0];
+      expect(it.name).toBe('Moon landing, Apollo 11.ogg');
+      expect(D.querySelector('#trFiles li').textContent).toContain('Moon landing, Apollo 11.ogg');
+      expect($('trRun').disabled).toBe(false);
+      const samples = await W.SlopTranscribe.engine.samples(it.file);   // the same decode Whisper gets (16 kHz mono)
+      expect(Math.round(samples.length / 16000)).toBe(24);
+    }, { timeout: 30000 });
+    it('at 390 px the intro has no sideways scroll', async () => {
+      await boot(390);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Transcribe: first visit' });
+  </script>
+</body>
+</html>

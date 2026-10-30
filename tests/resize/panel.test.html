@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: the right panel (settings and the Resize button), the phone sheet, the keys</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: resize/js/app/layout.js, resize/js/app/main.js, resize/index.html, resize/css/resize.css, shared/frame/panel.js, shared/frame/frame.js, shared/frame/frame.css -->
+  <script>try { localStorage.removeItem('slop-frame:resize'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let f = null;
+  async function open(width, height = 800) {
+    if (f) f.remove();
+    f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../resize/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && f.contentWindow.SlopResize && f.contentWindow.SlopResize.layout && D.querySelector('#rs-drop .sd-msg'); }, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  function picture(W, name, w, h, colour) {
+    const c = W.document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    x.fillStyle = colour; x.fillRect(0, 0, w, h);
+    return new Promise((res) => c.toBlob((b) => res(new W.File([b], name, { type: 'image/png' }))));
+  }
+  const box = (W, sel) => W.document.querySelector(sel).getBoundingClientRect();
+  const $ = (W, id) => W.document.getElementById(id);
+  const set = (W, id, v) => { const e = $(W, id); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
+  const items = (W) => W.SlopResize.queue.items();
+  const allDone = (W) => items(W).length && items(W).every((i) => i.status === 'done') && !W.SlopResize.queue.busy();
+
+  describe('Slop Resize: settings and the Resize button in the right panel', () => {
+    it('at 1280px the panel is on the right with Size, Output, Saved settings, Results and the Resize button at its foot', async () => {
+      const W = await open(1280), D = W.document, panel = $(W, 'rs-panel');
+      expect(box(W, '#rs-panel').left).toBeGreaterThanOrEqual(box(W, '#rs-left').right - 1);
+      expect(Math.round(box(W, '#rs-panel').right)).toBe(1280);
+      expect([...panel.querySelectorAll('.sf-h')].map((h) => h.textContent)).toEqual(['Size', 'Output', 'Saved settings', 'Results']);
+      for (const id of ['rs-mode', 'rs-w', 'rs-mime', 'rs-saved', 'rs-run', 'rs-zip', 'rs-save-all', 'rs-openin', 'rs-clear']) expect(panel.contains($(W, id))).toBe(true);
+      expect(D.querySelector('header').contains($(W, 'rs-run'))).toBe(false);
+      expect($(W, 'rs-run').closest('.sf-p-foot')).toBeTruthy();
+      expect($(W, 'rs-run').disabled).toBe(true);
+      expect($(W, 'rs-run').getBoundingClientRect().bottom).toBeLessThanOrEqual(800);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+    }, { timeout: 40000 });
+
+    it('the panel button resizes two generated pictures to 50% (400 × 300 → 200 × 150, 200 × 200 → 100 × 100)', async () => {
+      const W = await open(1280);
+      await W.SlopResize.queue.add(await picture(W, 'a.png', 400, 300, '#c33'), { name: 'a.png' });
+      await W.SlopResize.queue.add(await picture(W, 'b.png', 200, 200, '#36c'), { name: 'b.png' });
+      set(W, 'rs-mode', 'scale');
+      set(W, 'rs-scale', '50');
+      await waitFor(() => $(W, 'rs-run') && !$(W, 'rs-run').disabled);
+      expect($(W, 'rs-run').textContent).toBe('Resize 2 files');
+      $(W, 'rs-run').click();
+      await waitFor(() => allDone(W), { timeout: 30000 });
+      expect(items(W).map((i) => [i.out.w, i.out.h])).toEqual([[200, 150], [100, 100]]);
+      expect($(W, 'rs-zip').textContent).toBe('Download all (ZIP, 2)');
+      expect($(W, 'rs-zip').disabled).toBe(false);
+    }, { timeout: 60000 });
+
+    it('a setting being typed in keeps its focus when the queue changes (the panel redraw moves it)', async () => {
+      const W = await open(1280), w = $(W, 'rs-w');
+      w.focus();
+      await W.SlopResize.queue.add(await picture(W, 'c.png', 50, 50, '#3a6'), { name: 'c.png' });
+      await sleep(50);
+      expect(W.document.activeElement).toBe(w);
+    }, { timeout: 40000 });
+
+    it('keys: Ctrl+Enter resizes from anywhere on the page', async () => {
+      const W = await open(1280);
+      await W.SlopResize.queue.add(await picture(W, 'k.png', 300, 100, '#963'), { name: 'k.png' });
+      set(W, 'rs-mode', 'scale');
+      set(W, 'rs-scale', '50');
+      W.document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }));
+      await waitFor(() => allDone(W), { timeout: 30000 });
+      expect([items(W)[0].out.w, items(W)[0].out.h]).toEqual([150, 50]);
+    }, { timeout: 60000 });
+  });
+
+  describe('Slop Resize: the phone (390px)', () => {
+    it('the closed sheet shows Settings and Resize at the bottom; Settings opens the rest; nothing scrolls sideways', async () => {
+      const W = await open(390, 844), D = W.document;
+      await W.SlopResize.queue.add(await picture(W, 'p.png', 120, 80, '#c33'), { name: 'p.png' });
+      await sleep(300);
+      const b = $(W, 'rs-run').getBoundingClientRect();
+      expect(b.top).toBeGreaterThan(700);
+      expect(b.bottom).toBeLessThanOrEqual(844);
+      expect($(W, 'rs-mode').getBoundingClientRect().height).toBe(0);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => $(W, 'rs-panel').classList.contains('ssh-on'));
+      await sleep(350);
+      expect($(W, 'rs-mode').getBoundingClientRect().height).toBeGreaterThan(0);
+      set(W, 'rs-mode', 'scale');
+      set(W, 'rs-scale', '50');
+      $(W, 'rs-run').click();
+      await waitFor(() => allDone(W), { timeout: 30000 });
+      expect([items(W)[0].out.w, items(W)[0].out.h]).toEqual([60, 40]);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Resize: the right panel' });
+  </script>
+</body>
+</html>

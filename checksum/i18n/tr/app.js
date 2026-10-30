@@ -1,0 +1,28 @@
+/* Checksum, Turkish: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-tr.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'checksum.app.home': 'Slopographic ana sayfası',
+  'checksum.app.lede': 'Bir dosyanın karma değerini hesaplayın ya da yayımcının verdiği karma değerle karşılaştırın. Dosya bu cihazda okunur ve hiçbir zaman yüklenmez.',
+  'checksum.app.step_choose': '1. Bir dosya seçin',
+  'checksum.app.drop': 'Bir dosya seçin ya da buraya bırakın',
+  'checksum.app.step_hash': '2. Karma değer',
+  'checksum.app.hash_label': 'Dosyanın karma değeri',
+  'checksum.app.settings_label': 'Karma ayarları',
+  'checksum.app.algorithm': 'Algoritma',
+  'checksum.app.sha1_note': 'SHA-1 yalnızca eski yayımlanmış karma değerlerle eşleşmek için tutulur. Yeni denetimlerde SHA-256 kullanın.',
+  'checksum.app.check_against': 'Yayımlanmış bir karma değerle denetle',
+  'checksum.app.expected': 'Beklenen karma değer',
+  'checksum.app.expected_ph': 'Karma değeri indirme sayfasından yapıştırın',
+  'checksum.app.copy': 'Karma değeri kopyala',
+  'checksum.app.copied': 'Kopyalandı',
+  'checksum.app.copy_failed': 'Kopyalama başarısız',
+  'checksum.app.settings': 'Ayarlar',
+  'checksum.app.a_file': 'bir dosya',
+  'checksum.app.reading': '{name} okunuyor ({mb} MB)…',
+  'checksum.app.hash_of': '{name} dosyasının {alg} değeri',
+  'checksum.app.choose_first': 'Önce bir dosya seçin.',
+  'checksum.app.not_hash': 'Bu bir karma değere benzemiyor (yalnızca a ile f arasındaki harfler ve rakamlar).',
+  'checksum.app.length_differs': 'Uzunluk farklı: {alg} karma değeri {n} karakter. Algoritmayı denetleyin.',
+  'checksum.app.match': 'Eşleşiyor: dosya yayımlanan dosyayla aynı.',
+  'checksum.app.no_match': 'Eşleşmiyor: dosya yayımlanmış karma değerden farklı.',
+});

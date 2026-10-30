@@ -1,0 +1,20 @@
+/* Slop AI shared words, French: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-fr.md. */
+window.SlopI18n && window.SlopI18n.add('fr', {
+  'ui.ai.cloud.or_signin': 'Se connecter avec {name}',
+  'ui.ai.cloud.or_note': 'Pas encore de clé ? Connectez-vous et {name} crée une clé pour ce navigateur, payée avec vos propres crédits {name}. Vous pouvez la plafonner ou la révoquer sur {link}.',
+  'ui.ai.cloud.or_privacy': 'La connexion va directement de ce navigateur à {name} ; rien ne passe par les serveurs de {brand}.',
+  'ui.ai.cloud.or_manage': 'Vos clés {name}, créées par connexion ou à la main, peuvent être plafonnées ou révoquées sur {link}. Oublier la clé la retire seulement de ce navigateur.',
+  'ui.ai.cloud.or_going': 'Ouverture de {name}…',
+  'ui.ai.cloud.or_finishing': 'Finalisation de la connexion avec {name}…',
+  'ui.ai.cloud.or_done': 'Connecté avec {name} : la clé de ce navigateur est enregistrée comme une clé collée.',
+  'ui.ai.cloud.or_denied': 'L’accès n’a pas été autorisé chez {name}, donc rien n’a été connecté. Appuyez sur Se connecter avec {name} pour réessayer, ou collez une clé.',
+  'ui.ai.cloud.or_state': 'Cette connexion n’a pas commencé dans cet onglet ; elle a donc été refusée pour protéger votre compte. Appuyez sur Se connecter avec {name} pour recommencer.',
+  'ui.ai.cloud.or_used': 'Ce code de connexion a déjà servi ou a expiré (les codes durent 10 minutes). Appuyez sur Se connecter avec {name} pour recommencer.',
+  'ui.ai.cloud.or_failed': '{name} n’a pas fourni de clé ({why}). Appuyez sur Se connecter avec {name} pour réessayer, ou collez une clé.',
+  'ui.ai.cloud.or_offline': 'Ce navigateur est hors ligne, la connexion n’a donc pas pu aboutir. Connectez-vous à Internet, puis appuyez de nouveau sur Se connecter avec {name}.',
+  'ui.ai.cloud.or_network': 'Impossible de joindre {name} pour finaliser la connexion. Vérifiez votre connexion, puis appuyez de nouveau sur Se connecter avec {name}.',
+  'ui.ai.cloud.or_no_crypto': 'Ce navigateur ne peut pas se connecter avec {name} ici (il faut Web Crypto sur une page https). Collez plutôt une clé.',
+  'ui.ai.cloud.or_key_label': '{brand} dans ce navigateur',
+  'ui.ai.cloud.or_badge': 'Connexion',
+  'ui.ai.cloud.or_badge_t': 'Aucune clé à copier : connectez-vous avec votre compte {name} et une clé est créée pour ce navigateur.',
+});

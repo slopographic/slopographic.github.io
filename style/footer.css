@@ -1,0 +1,55 @@
+/* Slopographic site styles, part 3: footer, responsive rules and the footer wordmark fill (home/footer-mark.js). */
+
+/* ---------- footer ---------- */
+
+.footer { border-top: 1px solid var(--line); padding: 40px 24px 40px; overflow: hidden; }
+.footer-mark {
+  margin: 0 0 28px;
+  font-family: var(--cond);
+  font-stretch: 62%;
+  font-weight: 900;
+  font-size: min(16vw, 240px);
+  line-height: 0.8;
+  text-transform: uppercase;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--bone-faint);
+  white-space: nowrap;
+  text-align: center;
+}
+.footer-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1400px; margin: 0 auto; font-size: 13.5px; color: var(--bone-dim); }
+.footer-cols p { margin: 0; }
+.footer-cols strong { color: var(--bone); font-weight: 600; }
+.footer-cols p:nth-child(2) { font-family: var(--serif); font-style: italic; font-size: 22px; line-height: 1.15; color: var(--bone); }
+.footer .fine { max-width: 1400px; margin: 30px auto 0; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-faint); }
+.footer .fine.legal { margin-top: 8px; }
+.footer .fine a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.footer .fine a:hover { color: var(--bone); }
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 860px) {
+  .footer-cols { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  .nav { padding: 10px 14px; gap: 10px; }
+  .brand-name { display: none; }
+  .tabs { margin-left: auto; }
+  .tab { padding: 6px 7px; font-size: 10.5px; letter-spacing: 0.06em; }
+  .kicker { font-size: 10px; gap: 6px 12px; }
+  .kicker span + span::before { margin-right: 12px; }
+}
+
+/* ================================================================ motion */
+
+/* Footer wordmark fills with slime when it scrolls into view. */
+.footer-mark {
+  background: linear-gradient(to top, var(--slop) 50%, transparent 50%);
+  background-size: 100% 200%;
+  background-position: 0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: background-position 1.6s cubic-bezier(0.6, 0, 0.2, 1);
+}
+.footer-mark.filled { background-position: 0 100%; }
+

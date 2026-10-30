@@ -1,0 +1,6 @@
+Pictures of text for the OCR tests (tests/ocr/languages-real.test.html, tests/ocr/chooser.test.html).
+Rendered for Slopographic with Pillow from short sentences written for these tests, in Noto Sans and Noto Sans Arabic
+(SIL Open Font License 1.1). The pictures are dedicated to the public domain (CC0 1.0).
+  swedish.png  "Smörgåsbord på Öland" / "Älgen äter äpplen i skogen" / "Måndag 12 maj, klockan 14.30"
+  russian.png  "Съешь же ещё этих" / "мягких французских булок" / "Москва, 12 мая 2026"
+  arabic.png   "مرحبا بالعالم" / "هذا نص عربي قصير"

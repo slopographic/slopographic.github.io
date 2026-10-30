@@ -1,0 +1,21 @@
+From: Erik Johansson <erik@exempel.se>
+To: Ann Example <ann@example.com>
+Subject: =?UTF-8?B?QnVkZ2V0IGbDtnIgYW5kcmEga3ZhcnRhbGV0?=
+Date: Mon, 09 Mar 2026 10:20:00 +0100
+Message-ID: <m6@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B6"
+
+--B6
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+SGVqIQ0KDQpIw6RyIMOkciBidWRnZXRlbiBmw7ZyIFEyLiBLb3N0bmFkZXJuYSBmw7ZyIHJlc29y
+IMOkciBsw6RncmUgw6RuIGbDtnJyYSDDpXJldC4NCg0KL0VyaWs=
+--B6
+Content-Type: application/octet-stream; name="budget.xlsx"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="budget.xlsx"
+
+UEsDBCBub3QgYSByZWFsIHdvcmtib29r
+--B6--

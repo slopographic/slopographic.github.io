@@ -1,0 +1,22 @@
+/* Slop Press, Italian: the menu bar's menus and submenus and the command groups. Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'press.menu.layout': 'Impaginazione',
+  'press.menu.type': 'Testo',
+  'press.menu.object': 'Oggetto',
+  'press.menu.window': 'Finestra',
+  'press.menu.tools': 'Strumenti',
+  'press.menu.styles': 'Stili',
+  'press.menu.send_to': 'Invia a',
+  'press.menu.pages': 'Pagine',
+  'press.menu.para_style': 'Stile paragrafo',
+  'press.menu.char_style': 'Stile carattere',
+  'press.menu.alignment': 'Allineamento',
+  'press.menu.special_char': 'Inserisci carattere speciale',
+  'press.menu.composer': 'Impaginatore',
+  'press.menu.arrange': 'Disponi',
+  'press.menu.fitting': 'Adattamento',
+  'press.menu.text_wrap': 'Rientro testo',
+  'press.menu.theme': 'Tema',
+  'press.menu.hub_unavailable': 'Slop Hub non disponibile',
+  'press.menu.none': '(nessuno)',
+});

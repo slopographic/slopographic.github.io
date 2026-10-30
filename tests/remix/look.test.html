@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Reel Remix: the look (header and options at 1440, 1024 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: remix/css/remix.css, remix/css/remix-auto.css, remix/js/ui.js, remix/js/side.js, remix/js/fab.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The app in a fresh iframe of this width, once the bin and the shell's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../remix/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.querySelector('#rm-bin li') && D.querySelector('.rm-top .sh-switch') && D.querySelector('.rm-top .stour-btn'); }, { timeout: 40000 });
+    await sleep(400);   // shared/ui/hbtn.js settles the labels on the next frame
+    return f;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+
+  describe('Reel Remix: the look', () => {
+    for (const w of [1440, 1024, 390]) {
+      it(`at ${w}px the shared buttons match Config, and the header and options stay inside`, async () => {
+        const f = await open(w), D = f.contentDocument, W = f.contentWindow;
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(w);
+        const own = D.getElementById('rm-config').getBoundingClientRect();
+        const cfg = W.getComputedStyle(D.getElementById('rm-config'));
+        for (const n of visible(D, '.rm-top .slop-hbtn')) {
+          const r = n.getBoundingClientRect(), c = W.getComputedStyle(n);
+          expect(r.right).toBeLessThanOrEqual(w + 0.5);
+          if (w > 560) expect(r.height).toBe(own.height);
+          expect(c.borderTopLeftRadius).toBe(cfg.borderTopLeftRadius);
+          expect(c.borderTopColor).toBe(cfg.borderTopColor);
+        }
+        const side = D.querySelector('.rm-side').getBoundingClientRect();
+        for (const n of visible(D, '.rm-side .rm-f select, .rm-side .rm-f input')) expect(n.getBoundingClientRect().right).toBeLessThanOrEqual(side.right + 0.5);
+        f.remove();
+      }, { timeout: 60000 });
+    }
+
+    it('the empty bin does not repeat the drop zone above it', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      expect(D.querySelector('#rm-bin .rm-empty').textContent).toBe('No clips or photos yet.');
+      f.remove();
+    }, { timeout: 60000 });
+
+    // The suite rule (shared/frame/HANDOFF.md): Remix and Export sit in the footer of the options panel on the right
+    async function addStills(W, n) {
+      const dt = new W.DataTransfer();
+      for (let i = 1; i <= n; i++) {
+        const c = W.document.createElement('canvas'); c.width = 320; c.height = 180;
+        const g = c.getContext('2d'); g.fillStyle = 'hsl(' + i * 50 + ' 70% 45%)'; g.fillRect(0, 0, 320, 180);
+        dt.items.add(new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'p' + i + '.png', { type: 'image/png' }));
+      }
+      const input = W.document.querySelector('#rm-drop input[type=file]');
+      input.files = dt.files; input.dispatchEvent(new W.Event('change', { bubbles: true }));
+      await waitFor(() => W.RM.state.items.length >= n, { timeout: 20000 });
+    }
+    it('at 1280px Remix is in the footer of the options panel on the right, in view, and it remixes', async () => {
+      const f = await open(1280), D = f.contentDocument, W = f.contentWindow, btn = D.getElementById('rm-remix'), side = D.querySelector('.rm-side');
+      expect(btn.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(D.getElementById('rm-export').closest('.sf-p-foot')).toBe(btn.closest('.sf-p-foot'));
+      expect(side.getBoundingClientRect().left).toBeGreaterThan(D.getElementById('rm-stage').getBoundingClientRect().right - 1);
+      expect(btn.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      expect(W.getComputedStyle(D.getElementById('rm-fab')).display).toBe('none');   // the footer's Remix took its place
+      await addStills(W, 3);
+      btn.click();
+      await waitFor(() => W.RM.state.plan, { timeout: 20000 });
+      f.remove();
+    }, { timeout: 60000 });
+    it('at 390px the closed options sheet shows Remix and Export at the bottom; Options opens the whole sheet', async () => {
+      const f = await open(390), D = f.contentDocument, W = f.contentWindow, btn = D.getElementById('rm-remix'), side = D.querySelector('.rm-side');
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const no = D.querySelector('.slopc-btn[data-act="reject"]'); if (no) no.click();   // the first-visit consent banner, answered
+      const r = btn.getBoundingClientRect();
+      expect(r.width).toBeGreaterThan(60);
+      expect(r.bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      expect(r.top).toBeGreaterThan(W.innerHeight - 120);
+      expect(D.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).closest('#rm-remix')).toBe(btn);
+      expect(D.getElementById('rm-target').getBoundingClientRect().height).toBe(0);
+      D.querySelector('.rm-side .sf-foot-more').click();
+      await waitFor(() => side.classList.contains('ssh-on'));
+      await sleep(300);
+      expect(D.getElementById('rm-target').getBoundingClientRect().height).toBeGreaterThan(20);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      f.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Reel Remix: the look' });
+  </script>
+</body>
+</html>

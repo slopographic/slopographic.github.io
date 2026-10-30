@@ -1,0 +1,44 @@
+/* The document workspace of Invoices, Quotes, Orders and Purchases (shared/docs/doc-layout.js places the panes). While a
+ * document is open, on screens 721 px and wider: the list on the left (#view-list), the page sheet in the centre (.ws-stage)
+ * and the details on the right (.ws-panel, the record panel: shared/biz/panel.js on SlopFrame, resizable, the main buttons in
+ * its footer). The panes scroll inside the window; the page does not. Below 721 px one view shows at a time and the details
+ * are a bottom sheet whose footer (the main buttons, Details) stays on screen. The router marks the view on .app (data-view). */
+.tabs { flex: none; }
+.ws-stage { min-width: 0; min-height: 0; }
+.ws-panel { min-width: 0; min-height: 0; }
+
+/* The record panel's footer spans the panel (the panel keeps its padding for the rest) */
+.ws-panel > .sf-p-foot { margin-inline: -14px; }
+.ws-panel #eActions:empty { display: none; }
+
+@media (max-width: 720px) {
+  .ws-stage { padding-top: 2px; }
+  /* the page in the view and the form in the Details sheet: the Page / Form switch has nothing to switch */
+  .sf-root .ws-stage #ePage[hidden], .sf-root .ws-panel [data-form-only][hidden] { display: block !important; }
+  .sf-root #eModes { display: none; }
+  .ws-panel.ssh-panel { padding: 0 14px; }
+  .ws-panel.ssh-panel .card, .ws-panel.ssh-panel .totals { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 12px; margin: 0 0 12px; }
+  .ws-panel.ssh-panel > .ssh-x + * { margin-top: 46px; }   /* under the sheet's × */
+}
+
+@media (min-width: 721px) {
+  /* The window holds the menu bar and the app; the app takes what is left, so the window itself never scrolls */
+  body:has(> .app[data-view="edit"]) { height: 100vh; box-sizing: border-box; overflow: hidden; }   /* border-box: the consent strip's padding is inside */
+  .app[data-view="edit"] { flex: 1 1 0; min-height: 0; height: auto; }
+  .app[data-view="edit"] > .main { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0; max-width: none; }
+  .app[data-view="edit"] #eModes { display: none; }
+  #main[data-slop-layout] > #view-list { overflow: auto; min-height: 0; padding: 14px; background: var(--panel); border-right: 1px solid var(--line); }
+  #main[data-slop-layout] > #view-edit { min-height: 0; overflow: hidden; background: var(--bg); }   /* a row: SlopFrame (.sf-root) */
+  /* Both the sheet and the details show at once here: the Page / Form switch is for phones, so it does not hide them */
+  .ws-stage #ePage[hidden], .ws-panel [data-form-only][hidden] { display: block !important; }
+  .ws-stage { overflow: auto; padding: 18px 16px 40px; background-color: var(--bg); background-image: radial-gradient(var(--dots, color-mix(in srgb, var(--ink) 9%, transparent)) 1px, transparent 1.2px); background-size: 18px 18px; }
+  .ws-stage .msg { margin: 0 0 6px; }
+  .ws-panel { overflow: auto; padding: 14px 14px 0; background: var(--panel); border-left: 1px solid var(--line); }
+  .ws-panel:not(.sf-has-foot) { padding-bottom: 14px; }
+  .ws-panel .card { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 12px; margin: 0 0 12px; }
+  .ws-panel .line-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ws-panel .line-grid .full { grid-column: 1 / -1; }
+  .ws-panel .totals { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 10px; }
+  .ws-panel .h2 { margin-top: 14px; }
+}
+

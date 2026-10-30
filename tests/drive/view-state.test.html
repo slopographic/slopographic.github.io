@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: saved place</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const ready = (w) => w.document.body.classList.contains('ready');
+  const step = async (name, fn) => { try { return await fn(); } catch (e) { throw new Error('step ' + name + ': ' + e.message + ' href=' + (document.querySelector('iframe') || {}).src); } };
+  // Navigate the iframe to another page (a real leave: pagehide fires), then back to Drive.
+  async function leaveAndReturn(f) {
+    f.src = './frame.html';
+    await step('away', () => waitFor(() => f.contentWindow && f.contentWindow.location.pathname.endsWith('/frame.html') && f.contentWindow.document.readyState === 'complete', { timeout: 15000 }));
+    await sleep(60);
+    f.src = '../../drive/';
+    await step('back', () => waitFor(() => f.contentWindow && f.contentWindow.location.pathname.endsWith('/drive/') && f.contentWindow.document.readyState === 'complete' && ready(f.contentWindow), { timeout: 20000 }));
+    return f.contentWindow;
+  }
+
+  describe('Slop Drive saved place', () => {
+    it('returns to the same folder and search after leaving Drive and coming back', async () => {
+      let W = await DT.frame('../../drive/', ready);
+      const H = W.SlopHub, DR = W.DR;
+      await H.clear();
+      const pics = await H.createFolder('Pictures');
+      await H.put(DT.text('one'), { name: 'alpha.txt', folderId: pics });
+      await H.put(DT.text('two'), { name: 'beta.txt', folderId: pics });
+      await DR.refresh();
+      DR.go(pics);
+      const search = DR.$('search');
+      search.value = 'alp'; search.dispatchEvent(new W.Event('input'));
+      await sleep(250);
+      expect(DR.S.cwd).toBe(pics);
+      const f = W.__frame;
+      W = await leaveAndReturn(f);
+      await waitFor(() => W.DR && W.DR.S.ready);
+      expect(W.DR.S.section).toBe('folder');
+      expect(W.DR.S.cwd).toBe(pics);
+      expect(W.DR.S.query).toBe('alp');
+      expect(W.DR.$('search').value).toBe('alp');
+    });
+    it('starts at the root when the saved folder has been deleted', async () => {
+      let W = await DT.frame('../../drive/', ready);
+      const H = W.SlopHub, DR = W.DR;
+      const gone = await H.createFolder('Gone soon');
+      await DR.refresh();
+      DR.go(gone);
+      await sleep(400);
+      await H.clear();
+      const f = W.__frame;
+      W = await leaveAndReturn(f);
+      await waitFor(() => W.DR && W.DR.S.ready);
+      expect(W.DR.S.cwd).toBe(null);
+    });
+  });
+  run({ name: 'Slop Drive · saved place' });
+  </script>
+</body>
+</html>

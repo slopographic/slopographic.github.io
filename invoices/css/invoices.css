@@ -1,0 +1,14 @@
+/* Slop Invoices: only what is its own (the empty state inside the list, and the print rules). The base (theme tokens,
+ * inputs, buttons, chips, tabs, toolbars, cards, forms) is shared/biz/app.css; the rows are SlopList (shared/ui/list.css);
+ * line cards, totals and the paper view are shared/docs/lines.css; the workspace layout is workspace.css. */
+.table > .empty { padding: 12px; }
+
+/* The printable sheet is the paper view (shared/docs/paper.css): on screen a white page, and in print only the sheet */
+/* (the page-wide print rules are shared/biz/sheet.css) */
+@media print {
+  .view:not([hidden]) { display: block; }
+}
+
+/* The customer statement (ui/statement.js) is a business sheet (shared/biz/sheet.css); here only its ageing and the reminder */
+.st-age .stat.is-late b { color: var(--danger); }
+.rem .rem-body { width: 100%; min-height: 220px; font: 13px/1.5 ui-monospace, monospace; }

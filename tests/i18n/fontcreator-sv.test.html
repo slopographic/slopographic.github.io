@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Font in Swedish</title>
+  <!-- Covers: fontcreator/i18n/index.js, fontcreator/index.html, fontcreator/js/state.js, fontcreator/js/commands.js, fontcreator/js/main.js -->
+  <!-- Covers (strings): fontcreator/js/grid.js fontcreator/js/panel.js fontcreator/js/panel-more.js fontcreator/js/kerning.js
+        fontcreator/js/tester.js fontcreator/js/editor/toolbar.js fontcreator/js/editor/tools.js fontcreator/js/editor/ops.js
+        fontcreator/js/editor/select.js fontcreator/js/editor/draw.js fontcreator/js/editor/view.js fontcreator/js/io/files.js
+        fontcreator/js/io/svg-ui.js fontcreator/js/io/trace-ui.js fontcreator/js/io/sheet-ui.js fontcreator/js/core/charset.js
+        fontcreator/js/core/sheet.js fontcreator/js/ai-commands.js fontcreator/js/ai-commands-2.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The app in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    localStorage.removeItem('slop-fontcreator');
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../fontcreator/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => { try { const W = f.contentWindow; return W.FC && W.FC.main && W.document.body.classList.contains('ready') && W.document.getElementById('fc-download'); } catch (e) { return false; } }, { timeout: 30000 })
+      .then(() => f.contentWindow.FC.main.ready).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(fontcreator|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-zA-Z0-9_.]*[a-zA-Z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const tabs = (doc) => [...doc.querySelectorAll('#fc-tabs .fc-tab')].map((b) => b.textContent.trim());
+  const tip = (doc, id) => (doc.getElementById(id) || {}).getAttribute && doc.getElementById(id).getAttribute('aria-label');
+
+  describe('Slop Font in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish tabs, toolbar, grid, panel and palette, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(tabs(doc)).toEqual(['Rita', 'Kerning', 'Provtext']);
+      expect(tip(doc, 'fc-tool-pen')).toBe('Penna (P)');
+      expect(doc.getElementById('fc-download').textContent).toContain('Ladda ned teckensnitt');
+      expect(doc.getElementById('fc-add-chars').getAttribute('placeholder')).toContain('Lägg till tecken');
+      expect(doc.getElementById('fc-count').textContent).toContain('glyfer i teckensnittet');
+      expect(doc.getElementById('fc-advance').closest('label').textContent).toContain('Bredd');
+      expect(doc.getElementById('fc-start-pen').textContent).toBe('Rita med pennan');
+      const titles = W.SlopCmd.list().filter((c) => c.id.startsWith('fontcreator.') && !c.hidden).map((c) => c.title);
+      expect(titles).toContain('Nytt teckensnitt…');
+      expect(titles).toContain('Verktyget Penna');
+      expect(KEY.test(titles.join('\n'))).toBe(false);
+      W.FC.main.tab('kerning');
+      await waitFor(() => doc.getElementById('fc-kern-count').textContent, { timeout: 5000 });
+      W.FC.main.tab('test');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow, I = W.SlopI18n;
+      I.set('en');
+      await waitFor(() => tabs(doc)[2] === 'Type test' && tip(doc, 'fc-tool-pen') === 'Pen (P)', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(doc.getElementById('fc-download').textContent).toContain('Download font');
+      expect(W.SlopCmd.list().map((c) => c.title)).toContain('New font…');
+      I.set('sv');
+      await waitFor(() => tabs(doc)[2] === 'Provtext' && tip(doc, 'fc-tool-pen') === 'Penna (P)', { timeout: 20000 });
+      expect(doc.getElementById('fc-download').textContent).toContain('Ladda ned teckensnitt');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the page fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Font in Swedish' });
+  </script>
+</body>
+</html>

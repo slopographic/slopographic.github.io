@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Effects: the look (header and transport at 1440, 1024 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: effects/css/effects.css, effects/js/ui/transport.js, effects/js/main.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The app in a fresh iframe of this width, once the transport and the shell's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../effects/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.querySelector('#fx-transport button') && D.querySelector('.fx-top .sh-switch') && D.querySelector('.fx-top .stour-btn'); }, { timeout: 40000 });
+    await sleep(400);   // shared/ui/hbtn.js settles the labels on the next frame
+    return f;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+
+  describe('Slop Effects: the look', () => {
+    for (const w of [1440, 1024]) {
+      it(`at ${w}px the header is one row, edge to edge, its buttons framed and the shared ones the same`, async () => {
+        const f = await open(w), D = f.contentDocument, W = f.contentWindow;
+        const top = D.querySelector('.fx-top').getBoundingClientRect();
+        expect(top.left).toBe(0);   // no browser margin around the app
+        expect(top.width).toBe(w);
+        const own = D.getElementById('fx-file'), o = own.getBoundingClientRect(), oc = W.getComputedStyle(own);
+        expect(oc.borderTopStyle).toBe('solid');   // .sui-btn outside a dialog gets its --s-* tokens from the page
+        for (const n of visible(D, '.fx-top button, .fx-top input, .fx-top a')) {
+          const r = n.getBoundingClientRect();
+          expect(r.right).toBeLessThanOrEqual(w + 0.5);
+          expect(r.bottom).toBeLessThanOrEqual(o.bottom + 4);   // one row
+        }
+        for (const n of visible(D, '.fx-top .slop-hbtn')) {
+          const r = n.getBoundingClientRect(), c = W.getComputedStyle(n);
+          expect(r.height).toBe(o.height);
+          expect(c.borderTopLeftRadius).toBe(oc.borderTopLeftRadius);
+        }
+        f.remove();
+      }, { timeout: 60000 });
+    }
+
+    it('at 390px nothing scrolls sideways and the shared buttons share the name row', async () => {
+      const f = await open(390), D = f.contentDocument;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const brand = D.querySelector('.fx-brand').getBoundingClientRect();
+      for (const n of visible(D, '.fx-top .slop-hbtn')) {
+        const r = n.getBoundingClientRect();
+        expect(r.right).toBeLessThanOrEqual(390.5);
+        expect(r.top).toBeLessThan(brand.bottom);
+      }
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('the transport steps are drawn with glyphs every font has', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      const text = [...D.querySelectorAll('#fx-transport button')].map((b) => b.textContent).join(' ');
+      expect(/[⏮⏭]/.test(text)).toBe(false);
+      expect(text).toContain('⇤');
+      expect(text).toContain('⇥');
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('at 1280px Render sits at the foot of the Properties panel on the right, not in the header, and opens the render dialog', async () => {
+      const f = await open(1280), D = f.contentDocument, side = D.querySelector('.fx-side'), r = D.getElementById('fx-render');
+      expect(side.getBoundingClientRect().left).toBeGreaterThan(D.querySelector('.fx-stage').getBoundingClientRect().right - 1);
+      expect(D.querySelector('.fx-top').contains(r)).toBe(false);
+      expect(r.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(Math.round(r.getBoundingClientRect().bottom)).toBeLessThanOrEqual(Math.round(side.getBoundingClientRect().bottom));
+      r.click();
+      await waitFor(() => D.querySelector('dialog[open], .sui-back, [role="dialog"]'), { timeout: 5000 });
+      f.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Effects: the look' });
+  </script>
+</body>
+</html>

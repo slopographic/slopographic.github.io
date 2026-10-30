@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AI Tools · the model store: install verifies and keeps a model, then reading it does not ask again</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/firstrun/notice.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/speech-models.js"></script>
+  <script src="../../aitools/model-registry.js"></script>
+  <script src="../../aitools/download.js"></script>
+  <script src="../../aitools/models.js"></script>
+  <script src="../../aitools/get-more.js"></script>
+  <script>
+  // Covers: aitools/models.js, shared/firstrun/notice.js, aitools/get-more.js, aitools/download.js
+  const { describe, it, expect, run } = SlopTest;
+  const R = window.SlopAIModels, M = window.SlopAIManager, F = window.SlopFirstRun;
+  const BYTES = new TextEncoder().encode('test model bytes');
+  let sha = '';
+  /** A small model on an allowed host, served by a stubbed fetch, so install runs without a network. */
+  async function testModel() {
+    sha = await M.sha256Hex(BYTES.buffer.slice(0));
+    const url = 'https://huggingface.co/slop-test/model/resolve/main/a.bin';
+    R.MODELS.push({ id: 'test-model', name: 'Test model', tool: 'speech', licence: 'mit', files: [{ name: 'a.bin', size: BYTES.length, sha256: sha, url }] });
+    const real = window.fetch;
+    window.fetch = async (u, o) => (String(u) === url ? new Response(BYTES.slice(0), { status: 200 }) : real(u, o));
+  }
+
+  describe('first-run notice', () => {
+    it('mark counts the notice as seen, so once resolves at once', async () => {
+      try { localStorage.removeItem('slop-firstrun:probe'); } catch (e) { /* ignore */ }
+      expect(F.seen('probe')).toBe(false);
+      F.mark('probe');
+      expect(F.seen('probe')).toBe(true);
+      expect(await F.once('probe', { title: 'x', lines: [], downloads: [] })).toBe(true);
+      expect(document.querySelector('.sui-dlg')).toBe(null);
+    });
+  });
+
+  describe('the model store', () => {
+    it('the notice lists each file with its real size', async () => {
+      await testModel();
+      try { localStorage.removeItem('slop-firstrun:aitools'); } catch (e) { /* ignore */ }
+      const asked = [];
+      const once = F.once;
+      F.once = async (app, o) => { asked.push(o); return false; };
+      let err = '';
+      try { await M.readAll('test-model'); } catch (e) { err = e.message; }
+      F.once = once;
+      expect(err).toBe('cancelled');
+      expect(asked[0].downloads).toEqual([{ name: 'a.bin', bytes: BYTES.length }]);
+    });
+    it('installing through Get more verifies the file and counts as the first-run consent: reading it asks nothing', async () => {
+      try { localStorage.removeItem('slop-firstrun:aitools'); } catch (e) { /* ignore */ }
+      await M.install('test-model');
+      expect(await M.status('test-model')).toBe('installed');
+      expect(F.seen('aitools')).toBe(true);
+      const files = await M.readAll('test-model');
+      expect(new TextDecoder().decode(files['a.bin'])).toBe('test model bytes');
+      expect(document.querySelector('.sui-dlg')).toBe(null);
+      // the registry changes the model's files (as Whisper's decoder did): the stored model needs downloading again; a new
+      // small file only (Whisper's config.json) is an update, fetched without asking again
+      R.byId('test-model').files.push({ name: 'b.bin', size: 20e6, sha256: sha, url: 'https://huggingface.co/slop-test/model/resolve/main/b.bin' });
+      expect(await M.status('test-model')).toBe('needs-download');
+      R.byId('test-model').files.pop();
+      R.byId('test-model').files.push({ name: 'b.bin', size: 1, sha256: sha, url: 'https://huggingface.co/slop-test/model/resolve/main/b.bin' });
+      expect(await M.status('test-model')).toBe('update');
+      R.byId('test-model').files.pop();
+      await M.remove('test-model');
+      expect(await M.status('test-model')).not.toBe('installed');
+    });
+    it('a file kept in parts is downloaded part by part with progress, joined, checked and stored; a cancel stores nothing', async () => {
+      const whole = new TextEncoder().encode('one model file kept in three parts'), cut = [0, 12, 24, whole.length];
+      const parts = [];
+      for (let i = 0; i < 3; i++) { const b = whole.slice(cut[i], cut[i + 1]); parts.push({ url: `https://raw.githubusercontent.com/slopographic/cdn/c/p${i + 1}`, size: b.length, sha256: await M.sha256Hex(b.buffer.slice(0)), b }); }
+      R.MODELS.push({ id: 'test-parts', name: 'Parts', tool: 'speech', licence: 'MIT', files: [{ name: 'm.onnx', size: whole.length, sha256: await M.sha256Hex(whole.buffer.slice(0)), parts: parts.map(({ url, size, sha256 }) => ({ url, size, sha256 })) }] });
+      const real = window.fetch, asked = [];
+      window.fetch = async (u, o) => { const p = parts.find((x) => x.url === String(u)); if (!p) return real(u, o); asked.push(p.url.slice(-2)); return new Response(p.b.slice(0)); };
+      const ctrl = new AbortController(); ctrl.abort();
+      let err = null;
+      try { await M.install('test-parts', null, { signal: ctrl.signal }); } catch (e) { err = e; }
+      expect(err && err.name).toBe('AbortError');
+      expect(await M.status('test-parts')).toBe('needs-download');
+      const seen = [];
+      await M.install('test-parts', (p) => seen.push(p.loaded));
+      window.fetch = real;
+      expect(asked).toEqual(['p1', 'p2', 'p3']);
+      expect(seen.at(-1)).toBe(whole.length);
+      expect(new TextDecoder().decode((await M.readAll('test-parts'))['m.onnx'])).toBe('one model file kept in three parts');
+      expect(await M.usage(['test-parts'])).toBe(whole.length);
+      await M.remove('test-parts');
+    });
+    it('Get more: Cancel calls onClose; a finished download calls onInstalled and not onClose', async () => {
+      const G = window.SlopAIGetMore, seen = [];
+      G.open('test-model', { onInstalled: () => seen.push('installed'), onClose: () => seen.push('closed') });
+      [...document.querySelectorAll('.ai-dlg button')].find((b) => b.textContent === 'Cancel').click();
+      expect(seen).toEqual(['closed']);
+      G.open('test-model', { onInstalled: () => seen.push('installed'), onClose: () => seen.push('closed') });
+      [...document.querySelectorAll('.ai-dlg button')].find((b) => b.textContent.startsWith('Download')).click();
+      await SlopTest.waitFor(() => seen.length === 2);
+      expect(seen).toEqual(['closed', 'installed']);
+      await M.remove('test-model');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

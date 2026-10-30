@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopIsolate Open in… through the shared outtake</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- No model: two finished pictures are put in the queue by hand; Slop Drive and the encoder are stubbed. -->
+  <script src="../harness.js"></script>
+  <script src="batch.helpers.js"></script>
+  <script>
+  // Covers: slopisolate/js/ui/openin.js, slopisolate/js/ui/menus.js, slopisolate/js/ui/ctxmenu.js, slopisolate/js/ui/bulk-act.js, shared/intake/outtake.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, CO, S, sent = [], layers = [];
+  const labels = (rows) => rows.filter((r) => r !== '-').map((r) => r.label);
+  async function picture(name) {
+    const f = await BT.photo(name.length * 7, 64, 48);
+    const it = S.createItem(new W.File([f], name, { type: 'image/png' }));
+    Object.assign(it, { url: W.URL.createObjectURL(f), status: 'done', w: 64, h: 48, base: new W.Uint8ClampedArray(64 * 48).fill(255), modelUsed: 'fast' });
+    S.items.push(it);
+    return it;
+  }
+
+  describe('Open in… is the shared builder', () => {
+    it('the toolbar, More and the right-click menu list the same items: apps that take a PNG, workflows, Drive, the PhotoSlop layer', async () => {
+      W = await BT.open(); CO = W.CO; S = CO.state;
+      await CO.viewState.clear();
+      W.SlopHub.sendTo = async (to, blob, name) => { sent.push([to, name]); return 'id'; };
+      CO.export.encode = async () => ({ blob: new W.Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }), ext: 'png' });
+      CO.send.layer = async (it) => { layers.push(it.name); };
+      const a = await picture('a.png'); await picture('b.png');
+      S.activeId = a.id; CO.emit('list', S.items); CO.emit('activeItem', a);
+      const l = labels(CO.openIn.items(a));
+      expect(l[0]).toBe('Send to PhotoSlop as a layer (with its mask)');
+      expect(l).not.toContain('Open in PhotoSlop');            // the handover stands in for the plain item
+      expect(l).toContain('Open in Slop Upscale');
+      expect(l).toContain('Run a workflow…');
+      expect(l).toContain('Add to a workflow…');
+      expect(l[l.length - 1]).toBe('Save to Slop Drive…');
+      const more = CO.menus.moreItems().find((r) => r.label === 'Open in');
+      expect(labels(more.sub)).toEqual(l);
+      const ctx = CO.ctxmenu.queueItems(a).find((r) => r.label === 'Open in');
+      expect(labels(ctx.sub)).toEqual(l);
+      expect(W.document.getElementById('btnOpenIn').disabled).toBe(false);
+    });
+    it('an app item sends the finished picture; the PhotoSlop item is the layer handover', async () => {
+      const a = S.items[0];
+      await CO.openIn.items(a).find((r) => r.label === 'Open in Slop Upscale').act();
+      expect(sent).toEqual([['upscale', 'a-cutout.png']]);
+      await CO.openIn.items(a).find((r) => /^Send to PhotoSlop/.test(r.label)).act();
+      expect(layers).toEqual(['a.png']);
+    });
+    it('with two selected, each item is done for both', async () => {
+      sent.length = 0; layers.length = 0;
+      CO.bulk.selectAll();
+      const rows = CO.openIn.bulkItems();
+      expect(labels(rows)).not.toContain('Save to Slop Drive…');   // the selection has its own Save to Slop Drive
+      await rows.find((r) => r.label === 'Open in Slop Upscale').act();
+      expect(sent).toEqual([['upscale', 'a-cutout.png'], ['upscale', 'b-cutout.png']]);
+      await rows.find((r) => /^Send to PhotoSlop/.test(r.label)).act();
+      expect(layers).toEqual(['a.png', 'b.png']);
+      const more = CO.menus.moreItems().find((r) => r.label === 'Open in');
+      expect(labels(more.sub)).toEqual(labels(rows));
+      CO.bulk.clear();
+      for (const it of S.items.slice()) CO.process.remove(it);
+    });
+  });
+  SlopTest.run({ name: 'SlopIsolate Open in…' });
+  </script>
+</body>
+</html>

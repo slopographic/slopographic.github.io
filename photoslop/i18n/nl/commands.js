@@ -1,0 +1,23 @@
+/* PhotoSlop, Dutch: palette titles of the canvas, tool and window commands (app/commands.js). Same keys as photoslop/i18n/en/commands.js. Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'photoslop.cmd.opacity_toast': 'Dekking {pct}%',
+  'photoslop.cmd.cycle_tools': 'Wissel tussen {tools}',
+  'photoslop.cmd.swap_colors': 'Voorgrond- en achtergrondkleur omwisselen',
+  'photoslop.cmd.default_colors': 'Standaardkleuren (zwart / wit)',
+  'photoslop.cmd.brush_bigger': 'Penseelgrootte vergroten',
+  'photoslop.cmd.brush_smaller': 'Penseelgrootte verkleinen',
+  'photoslop.cmd.brush_harder': 'Penseelhardheid vergroten',
+  'photoslop.cmd.brush_softer': 'Penseelhardheid verkleinen',
+  'photoslop.cmd.tool_opacity': 'Dekking van het gereedschap {pct}%',
+  'photoslop.cmd.nudge_left': 'Naar links verschuiven {n} px',
+  'photoslop.cmd.nudge_right': 'Naar rechts verschuiven {n} px',
+  'photoslop.cmd.nudge_up': 'Omhoog verschuiven {n} px',
+  'photoslop.cmd.nudge_down': 'Omlaag verschuiven {n} px',
+  'photoslop.cmd.next_doc': 'Volgend document',
+  'photoslop.cmd.prev_doc': 'Vorig document',
+  'photoslop.cmd.go_to_doc': 'Ga naar document {i}',
+  'photoslop.cmd.restore_aspect': 'Oorspronkelijke beeldverhouding herstellen',
+  'photoslop.cmd.guides_panel': 'Deelvenster Hulplijnen (hulplijnindelingen)',
+  'photoslop.cmd.search_key': 'Opdrachten zoeken ({key})',
+  'photoslop.cmd.nav_preset': 'Navigatievoorinstelling…',
+});

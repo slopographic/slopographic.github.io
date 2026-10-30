@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop PDF: the look (header buttons one height, nothing past the edge, no sideways scroll)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: pdf/index.html -->
+  <!-- Covers: pdf/css/base.css -->
+  <!-- Covers: pdf/css/panels.css -->
+  <!-- Covers: pdf/css/themes.css -->
+  <!-- Covers: pdf/js/ui/icons.js -->
+  <!-- Covers: pdf/js/ui/commands.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The page in a fresh iframe of this width, once it and the shell's header buttons are in. */
+  async function open(width) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = SRC;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-hdr .slop-hbtn') && D.querySelector(READY); }, { timeout: 30000 });
+    await sleep(600);   // the header fit (shared/ui/hbtn.js) runs on the next frame
+    return f.contentDocument;
+  }
+  const box = (n) => n.getBoundingClientRect();
+  const shown = (n) => !!n && box(n).width > 0 && box(n).height > 0;
+  const headers = (D) => [...D.querySelectorAll('header')].filter((n) => shown(n) && !n.parentElement.closest('header'));
+  const hbtns = (D) => [...D.querySelectorAll('.slop-hbtn')].filter(shown);
+  /** The shared header buttons are one height, and the page's own buttons (selectors) match it. */
+  function sameHeight(D, sels) {
+    const hs = hbtns(D).map((n) => Math.round(box(n).height));
+    expect(hs.length).toBeGreaterThan(3);
+    for (const h of hs) expect(h).toBe(hs[0]);
+    for (const sel of sels) {
+      const n = D.querySelector(sel);
+      if (!shown(n)) continue;
+      expect(sel + ' ' + Math.round(box(n).height)).toBe(sel + ' ' + hs[0]);
+    }
+    return hs[0];
+  }
+  /** Nothing in the header ends past its right edge or is clipped by it, and the page does not scroll sideways. */
+  function fits(D) {
+    const h = headers(D)[0], W = D.defaultView.innerWidth;
+    expect(h.scrollWidth).toBeLessThanOrEqual(h.clientWidth + 1);
+    for (const n of h.querySelectorAll('button, a, input, select')) if (shown(n)) expect((n.id || n.className) + ' ' + (box(n).right <= W + 0.5)).toBe((n.id || n.className) + ' true');
+    expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(W);
+  }
+  /** Every shared header button sits on the row of the given element. */
+  function oneRow(D, sel) {
+    const r = box(D.querySelector(sel));
+    for (const n of hbtns(D)) expect(Math.abs((box(n).top + box(n).bottom) / 2 - (r.top + r.bottom) / 2)).toBeLessThan(2);
+  }
+  const SRC = '../../pdf/index.html', READY = '#btnCmd';
+
+  describe('Slop PDF: the look', () => {
+    it('1440: one header row; the file name and the tool buttons are as tall as the shared buttons', async () => {
+      const D = await open(1440);
+      expect(headers(D).length).toBe(1);
+      expect(sameHeight(D, ['#fileName', '#btnUndo', '#btnSplit', '#btnCmd'])).toBe(32);
+      oneRow(D, '#btnCmd');
+      fits(D);
+      // Search commands shows a magnifier, not the zoom-in glass (a plus inside)
+      expect(D.querySelectorAll('#btnCmd svg path').length).toBe(1);
+    }, { timeout: 40000 });
+    it('1024: everything fits on one row', async () => {
+      const D = await open(1024);
+      sameHeight(D, ['#btnMore', '#btnCmd']);
+      oneRow(D, '#btnCmd');
+      fits(D);
+    }, { timeout: 40000 });
+    it('390: the header keeps every shared button on screen and nothing scrolls sideways', async () => {
+      const D = await open(390);
+      fits(D);
+      oneRow(D, '#btnCmd');
+      expect(shown(D.querySelector('.appname'))).toBe(false);
+    }, { timeout: 40000 });
+    it('1280: Download sits at the foot of the properties panel on the right, not in the top bar, and downloads', async () => {
+      const D = await open(1280), W = D.defaultView, dl = D.getElementById('btnDownload'), props = D.getElementById('props');
+      expect(D.querySelector('.topbar').contains(dl)).toBe(false);
+      expect(dl.closest('.sf-p-foot').parentNode).toBe(props);
+      expect(box(props).left).toBeGreaterThan(box(D.getElementById('stage')).right - 1);
+      expect(box(dl).bottom).toBeLessThanOrEqual(box(props).bottom + 0.5);
+      expect(box(props).bottom - box(dl).bottom).toBeLessThan(30);   // at the panel's foot, not under its sections
+      D.getElementById('emptySample').click();
+      await waitFor(() => !dl.disabled, { timeout: 20000 });
+      let n = 0; W.SP.app.download = () => { n++; };
+      dl.click(); await sleep(50);
+      expect(n).toBe(1);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop PDF: the look' });
+  </script>
+</body>
+</html>

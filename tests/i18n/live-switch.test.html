@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Apps opened in English follow a live switch to Swedish</title>
+  <meta name="slop-test-limit" content="600">
+  <!-- Covers: tests/i18n/live-switch.js, shared/watermark/panel.js, shared/drop/panel.js, shared/frame/frame.js -->
+  <!-- Covers: photoslop/js/app/welcome.js, photoslop/js/app/main.js, photoslop/js/io/save.js, photoslop/js/watermark/panel.js -->
+  <!-- Covers: slopcut/js/render/preview.js, slopcut/js/timeline/heads.js, slopcut/js/ui/bin.js, slopcut/js/ui/inspector.js -->
+  <!-- Covers: slopcut/js/ui/layout.js, slopcut/js/ui/main.js, slopcut/js/ui/transport.js, slopcut/js/watermark/panel.js -->
+  <!-- Covers: resize/js/app/layout.js, upscale/js/app/layout.js, img3d/js/app/layout.js, sorter/js/frame.js -->
+  <!-- Covers: watermark/js/settings.js, watermark/js/main.js, drive/js/app/main.js, drive/js/ui/info.js -->
+  <!-- Covers: workflows/js/ui/run.js, workflows/js/ui/mount.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="live-switch.js"></script>
+  <script>
+  // Each app opens in English, then SlopI18n.set('sv') runs in its window: the words it drew once (a welcome card, a
+  // drop zone, a panel's name, buttons and titles) must read the Swedish table value afterwards.
+  const S = LiveSwitch.spec, q = (s) => (doc) => doc.querySelector(s);
+  S({ name: 'PhotoSlop', path: '../../photoslop/index.html', ready: q('#psWelcome .sd-steps li'),
+    checks: [['#psWelcome .sd-steps li', 'photoslop.welcome.step_open'], ['#psWelcomeSample', 'photoslop.welcome.sample'],
+      ['#psWelcome .sd-acts .sd-sample:last-child', 'photoslop.welcome.blank'], ['#sbSaved', 'photoslop.status.local_only']] });
+  S({ name: 'PhotoSlop watermark panel', path: '../../photoslop/index.html', ready: q('.ps-wm .swp-actions button'),
+    checks: [['.ps-wm .swp-actions button', 'photoslop.wm.save_default'], ['.ps-wm .swp-actions button', 'photoslop.wm.save_default_tip', 'title']] });
+  S({ name: 'SlopCut', path: '../../slopcut/index.html', ready: q('.sd-steps li'),
+    checks: [['.sd-steps li', 'slopedit.render.step_drop'], ['.insp-body .ins-note:last-child', 'slopedit.insp.select_a_clip_on_the'],
+      ['.tc', 'slopedit.tr.current_time_click_to_go', 'title'], ['.tl-tc', 'slopedit.tl.current_time_click_to_type', 'title'],
+      ['#btnExport', 'slopedit.lay.export_the_video_ctrl_e', 'title'], ['.bin-tools .btn', 'slopedit.bin.import_files_ctrl_i', 'title'],
+      ['.bin-tab[data-tab="effects"]', 'slopedit.app.effects']] });
+  S({ name: 'Slop Resize', path: '../../resize/index.html', ready: q('#rs-panel'), checks: [], labels: ['resize.app.settings'] });
+  S({ name: 'Slop Upscale', path: '../../upscale/index.html', ready: q('#up-panel'), checks: [], labels: ['ui.settings'] });
+  S({ name: 'Image to 3D', path: '../../img3d/index.html', ready: q('#panel'), checks: [], labels: ['img3d.app.settings'] });
+  S({ name: 'Photo Sorter', path: '../../sorter/index.html', ready: q('#soSide'), checks: [], labels: ['sorter.app.save'] });
+  S({ name: 'Slop Watermark', path: '../../watermark/index.html', ready: q('.swp-actions button'),
+    checks: [['.swp-actions button', 'watermark.set.reset'], ['.swp-actions button', 'watermark.set.reset_title', 'title']], labels: ['watermark.app.watermark'] });
+  S({ name: 'Slop Drive', path: '../../drive/index.html', ready: q('#info .muted'),
+    checks: [['#info .muted', 'drive.info.select_hint'], ['#info', 'drive.info.items_here']] });
+  S({ name: 'Workflows', path: '../../workflows/index.html', ready: q('.wf-file-list'),
+    checks: [['.wf-file-list', 'workflows.run.files_in', 'aria-label']], labels: ['workflows.run.panel'] });
+  SlopTest.run({ name: document.title });
+  </script>
+</body>
+</html>

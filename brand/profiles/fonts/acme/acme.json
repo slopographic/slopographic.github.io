@@ -1,0 +1,94 @@
+{
+  "_": "The made-up sample's family (brand/profiles/sample.json, \"Acme Tools\"): a neutral spec that CI builds into the sample site. Build: python3 tools/fonts/build.py brand/profiles/fonts/acme/acme.json brand/profiles/fonts/acme/dist",
+  "family": "Acme",
+  "slug": "acme",
+  "version": "1.000",
+  "vendor": "ACME",
+  "designer": "Acme Example Ltd",
+  "url": "https://tools.acme.example",
+  "copyright": "Copyright 2026 Acme Example Ltd",
+  "about": "Acme Sans is the made-up sample family of the white-label tooling: one sans made from an open-source (SIL OFL) font, with a serifed capital I, square dots on i and j, and the Acme mark (a plain tile with an A-shaped cut) in the Private Use Area. The sample mascot, Acme Bot, is not in the font.",
+  "changelog": [
+    "1.000 (2026-10-25): the sample release."
+  ],
+  "forbid": [
+    "slop"
+  ],
+  "roles": {
+    "sans": {
+      "name": "Acme Sans",
+      "source": "inter-tight",
+      "fallback": "Inter Tight Fallback",
+      "axes": {
+        "wght": [
+          400,
+          700
+        ]
+      },
+      "features": [
+        "ccmp",
+        "locl",
+        "kern",
+        "mark",
+        "tnum",
+        "pnum"
+      ],
+      "defaults": [
+        "cv08"
+      ],
+      "tittle": "square",
+      "ss": [
+        {
+          "tag": "ss01",
+          "name": "Plain I",
+          "undo": "cv08"
+        },
+        {
+          "tag": "ss02",
+          "name": "Round dots",
+          "undo": "tittle"
+        }
+      ],
+      "pua": [
+        "mark"
+      ]
+    }
+  },
+  "pua": {
+    "mark": {
+      "code": "E000",
+      "name": "Acme mark",
+      "kind": "mark",
+      "drawing": "mark"
+    }
+  },
+  "drawings": {
+    "mark": {
+      "box": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "ops": [
+        [
+          "add",
+          "rect",
+          4,
+          4,
+          56,
+          56,
+          12
+        ],
+        [
+          "sub",
+          "path",
+          "M32 14 L50 50 H41 L32 31 L23 50 H14 Z"
+        ]
+      ]
+    }
+  },
+  "mascots": [
+    "Acme Bot"
+  ]
+}

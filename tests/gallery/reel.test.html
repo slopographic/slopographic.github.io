@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery tests: reels</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real gallery and SlopEdit run in same-origin iframes. Slop Drive is the site's default store (a fresh browser
+       context per page in tests/run.mjs), so the editor opened on a manifest reads the records the gallery wrote. -->
+  <iframe id="app"></iframe>
+  <iframe id="editor"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script src="spec-reel.js"></script>
+  <script>SlopTest.run({ name: 'Slop Gallery · reels' });</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+/* Slop HTML to PDF: the app's own layout. Theme colours come from the --sl-* tokens only.
+ * The sheet and header styles are not here: they travel with the markup (html2pdf/js/sheet.js), so the preview and the print match. */
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--sl-background); }
+/* SlopUI buttons and the menu bar's tools take the theme (the shared --s-* tokens are only set inside dialogs); the
+ * header tools are as tall as the shared header buttons (shared/ui/hbtn.css), the page's buttons 32 px too. */
+.h2p-app, .smb-bar { --s-bg2: var(--sl-surface); --s-input: var(--sl-background); --s-line: var(--sl-border); --s-fg: var(--sl-text);
+  --s-hover: color-mix(in srgb, var(--sl-text) 8%, var(--sl-surface)); --s-accent: var(--sl-accent); --s-accent-ink: var(--sl-on-accent); --s-radius: 6px; }
+.smb-tools .sui-btn { height: var(--slop-hbtn-h, 32px); }
+.h2p-app .sui-btn { height: 32px; }
+.h2p-group > .sui-btn { justify-self: start; }
+.h2p-app {
+  display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; box-sizing: border-box;
+  background: var(--sl-background); color: var(--sl-text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.h2p-app *, .h2p-app *::before, .h2p-app *::after { box-sizing: border-box; }
+
+
+/* Layout: SlopFrame's view (the preview) and the options panel on the right (shared/frame/frame.css); a bottom sheet on a phone */
+.h2p-main { flex: 1 1 auto; min-height: 0; }
+.h2p-group { display: grid; gap: 10px; }
+.h2p-field { display: grid; gap: 4px; font-size: 13px; }
+.h2p-input {
+  width: 100%; padding: 7px 9px; border: 1px solid var(--sl-border); border-radius: 6px;
+  background: var(--sl-background); color: var(--sl-text); font: inherit;
+}
+.h2p-input:disabled { opacity: .5; }
+textarea.h2p-input { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.h2p-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.h2p-note { margin: 0; font-size: 12px; line-height: 1.45; opacity: .75; }
+
+/* Preview stage: the paper sits on the stage, scaled to its width */
+.h2p-stage {
+  position: relative; display: flex; justify-content: center; align-items: flex-start;
+  overflow: auto; padding: 24px; background: var(--sl-surface); min-width: 0;
+}
+.h2p-stage.h2p-over { outline: 2px dashed var(--sl-accent); outline-offset: -12px; }
+.h2p-paper-box { position: relative; width: 100%; overflow: hidden; }
+.h2p-paper {
+  position: absolute; left: 0; top: 0; transform-origin: 0 0; border: 0;
+  box-shadow: 0 2px 14px var(--sl-border); pointer-events: none;
+}
+.h2p-empty { align-self: center; max-width: 420px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.h2p-empty h2 { margin: 0; font-size: 18px; }
+.h2p-empty p { margin: 0; opacity: .75; }
+
+.h2p-status { margin: 0; padding: 8px 16px; font-size: 12px; border-top: 1px solid var(--sl-border); }
+.h2p-status:empty { padding: 0; border: 0; }
+
+@media (max-width: 800px) { .h2p-stage { padding: 16px; } }
+/* On a phone Open and Print are in the header's File menu (and Open in the empty preview), so the bar keeps to one row. */
+@media (max-width: 600px) { .smb-tools > .sui-btn { display: none; } }

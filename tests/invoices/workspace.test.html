@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoices · workspace regions and no sideways scroll at 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real invoices app runs in a same-origin iframe at a set width; the width sets the media queries it sees. -->
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: invoices/js/ui/list.js, invoices/js/ui/app.js, invoices/js/ui/commands.js, invoices/js/core/util.js, invoices/js/ui/layout.js, shared/biz/router.js, shared/biz/panel.js, shared/docs/workspace.css, invoices/css/workspace.css
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let frame = null;
+
+  /** Loads the invoices app at a width on a route, and waits until its boot is done and the view is drawn. */
+  async function openApp(width, hash, view) {
+    if (frame) frame.remove();   // a fresh frame each time: the editor's unsaved-changes guard blocks reloads
+    frame = document.createElement('iframe');
+    frame.style.cssText = `width:${width}px;height:800px;border:0;display:block`;
+    const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+    // the checks read the English words, so the app opens in English whatever language the build starts in
+    try { const pr = JSON.parse(localStorage.getItem('slop-profile') || 'null') || { v: 1, data: {} }; pr.data = pr.data || {}; pr.data.lang = { mode: 'en' }; localStorage.setItem('slop-profile', JSON.stringify(pr)); } catch (e) { /* storage blocked: the build default stays */ }
+    frame.src = `../../invoices/index.html?t=${Date.now()}#${hash}`;
+    document.body.append(frame);
+    await loaded;
+    await waitFor(() => {
+      const W = frame.contentWindow;
+      if (!W || !W.SlopInvoices || !W.document.getElementById('boot').hidden) return false;
+      if (W.SlopInvoices.state.view !== view) return false;
+      return view === 'list' ? W.document.getElementById('iRows') : W.document.querySelector('#ePage .paper');
+    }, { timeout: 20000 });
+    return frame.contentWindow;
+  }
+
+  /** Saves one draft for a new test customer in the frame's store and returns its id. */
+  async function seedDraft(W) {
+    const c = await W.SlopData.store.put('customers', { name: 'Workspace test customer', email: 'ws@test.invalid', stage: 'customer' });
+    const r = await W.SlopInvoices.invoices.saveDraft({ customerId: c.value.id, date: '2026-10-11', dueDate: '2026-11-10', lines: [{ description: 'Widget', qty: 2, unitPrice: 1000, taxRate: 0 }] });
+    if (!r.ok) throw new Error(r.message);
+    return r.value.id;
+  }
+  const shown = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none';
+
+  /** Elements that reach past the window's right edge and are not inside a box that scrolls them. Fixed and hidden parts are skipped. */
+  function sideways(W) {
+    const doc = W.document, vw = W.innerWidth, out = [];
+    for (const el of doc.body.querySelectorAll('*')) {
+      if (!el.getClientRects().length || W.getComputedStyle(el).position === 'fixed') continue;
+      if (el.getBoundingClientRect().right <= vw + 1) continue;
+      let p = el.parentElement, contained = false;
+      while (p && p !== doc.body) {
+        if (/(auto|hidden|scroll)/.test(W.getComputedStyle(p).overflowX) && p.getBoundingClientRect().right <= vw + 1) { contained = true; break; }
+        p = p.parentElement;
+      }
+      if (!contained) out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${typeof el.className === 'string' && el.className ? '.' + el.className.split(' ')[0] : ''}`);
+    }
+    return out;
+  }
+
+  describe('the workspace at 1280 px', () => {
+    it('an open invoice has a top bar, the list on the left, the sheet in the centre and the details on the right', async () => {
+      const W = await openApp(1280, 'new', 'edit');
+      const D = W.document;
+      const bar = D.querySelector('header.smb-bar');
+      expect(!!bar).toBe(true);
+      expect(shown(D.getElementById('eTitle'))).toBe(true);   // the invoice's heading, in the record bar (shared/biz/docbar.js)
+      expect(D.getElementById('eTitle').closest('.biz-docbar')).toBeTruthy();
+      const list = D.getElementById('view-list'), stage = D.querySelector('.ws-stage'), panel = D.querySelector('.ws-panel');
+      expect(!!stage && !!panel).toBe(true);
+      expect(D.getElementById('main').hasAttribute('data-slop-layout')).toBe(true);
+      const L = list.getBoundingClientRect(), S = stage.getBoundingClientRect(), P = panel.getBoundingClientRect();
+      expect(shown(list)).toBe(true);
+      expect(L.right <= S.left + 1).toBe(true);
+      expect(S.right <= P.left + 1).toBe(true);
+      expect(S.width > 300 && P.width > 280).toBe(true);
+      expect(!!D.querySelector('.ws-stage #ePage .paper')).toBe(true);
+      expect(!!D.querySelector('.ws-panel #eLines')).toBe(true);
+      expect(!!D.querySelector('.ws-panel #eTotals')).toBe(true);
+      // the record panel (shared/biz/panel.js): Save draft and Issue… at its foot, not in the record bar
+      const foot = [...panel.querySelectorAll('.sf-p-foot button')].filter(shown).map((b) => b.textContent);
+      expect(foot).toEqual(['Save draft', 'Issue…']);
+      expect(D.querySelector('.biz-docbar').textContent.includes('Save')).toBe(false);
+      // the panes scroll, the window does not: the menu bar, the record bar and the panes fit its height
+      W.scrollTo(0, 200);
+      expect(W.scrollY).toBe(0);
+    });
+
+    it('the open invoice is marked in the list, and the sheet and the details show together (no Page/Form switch on screen)', async () => {
+      const W = await openApp(1280, 'list', 'list');
+      const D = W.document;
+      const id = await seedDraft(W);
+      W.location.hash = `i/${id}`;
+      // the list is SlopList (shared/ui/list.js): the open invoice is the selected row, marked with aria-current
+      await waitFor(() => D.querySelector(`#iRows .sl-row.is-selected[data-key="${id}"]`), { timeout: 15000 });
+      expect(D.querySelector(`#iRows .sl-row.is-selected[data-key="${id}"]`).getAttribute('aria-current')).toBe('true');
+      expect(shown(D.getElementById('eModes'))).toBe(false);
+      expect(shown(D.querySelector('.ws-stage #ePage'))).toBe(true);
+      expect(shown(D.querySelector('.ws-panel #eForm'))).toBe(true);
+    });
+
+    it('the list view has its search, status filter and New invoice action', async () => {
+      const W = await openApp(1280, 'list', 'list');
+      const D = W.document;
+      expect(shown(D.getElementById('iSearch'))).toBe(true);
+      expect(shown(D.getElementById('iStatus'))).toBe(true);
+      expect(shown(D.getElementById('tbNew'))).toBe(true);
+      expect(shown(D.getElementById('tbSave'))).toBe(false);
+    });
+  });
+
+  describe('the workspace at 390 px', () => {
+    it('an open invoice: the page, and the details in a bottom sheet whose footer (Save draft, Issue…) stays on screen; no sideways scroll', async () => {
+      const W = await openApp(390, 'new', 'edit');
+      const D = W.document;
+      expect(!!D.querySelector('header.smb-bar')).toBe(true);
+      expect(shown(D.querySelector('.tabs'))).toBe(true);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      expect(D.body.scrollWidth <= 390).toBe(true);
+      expect(sideways(W)).toEqual([]);
+      expect(shown(D.querySelector('#ePage .paper'))).toBe(true);
+      const foot = D.querySelector('.ws-panel .sf-p-foot').getBoundingClientRect();
+      expect(Math.round(foot.bottom)).toBe(W.innerHeight);
+      expect([...D.querySelectorAll('.ws-panel .sf-p-foot button')].filter(shown).map((b) => b.textContent)).toEqual(['Details', 'Save draft', 'Issue…']);
+      expect(D.getElementById('eForm').getClientRects().length).toBe(0);   // the rest of the sheet waits for Details
+      expect(shown(D.getElementById('view-list'))).toBe(false);
+    });
+
+    it('the list view keeps its tabs and fits the window with no sideways scroll', async () => {
+      const W = await openApp(390, 'list', 'list');
+      const D = W.document;
+      // the sections are the tabs; an open invoice, print view, statement or credit note shows in the record bar instead
+      expect([...D.querySelectorAll('.tabs .tab:not([hidden])')].map((t) => t.textContent)).toEqual(['Invoices', 'Repeating', 'Data']);
+      expect(shown(D.getElementById('iRows'))).toBe(true);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      expect(sideways(W)).toEqual([]);
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

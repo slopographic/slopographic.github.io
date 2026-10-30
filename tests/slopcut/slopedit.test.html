@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #app { width: 1280px; height: 760px; } #phone { width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <!-- The real app runs in same-origin iframes (desktop and phone size); tests drive window.SE inside. -->
+  <iframe id="app"></iframe>
+  <iframe id="phone"></iframe>
+  <script src="../harness.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script src="slopedit.spec-model.js"></script>
+  <script src="slopedit.spec-render.js"></script>
+  <script src="slopedit.spec-media.js"></script>
+  <script src="slopedit.spec-ui.js"></script>
+  <script src="slopedit.spec-tpl.js"></script>
+  <script src="slopedit.spec-video.js"></script>
+  <script src="slopedit.spec-anim.js"></script>
+  <script src="slopedit.spec-context.js"></script>
+  <script src="slopedit.spec-mask.js"></script>
+  <script src="slopedit.spec-grid.js"></script>
+  <script>SlopTest.run({ name: 'SlopCut' });</script>
+</body>
+</html>

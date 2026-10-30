@@ -1,0 +1,25 @@
+/* Slop Colors, Brazilian Portuguese: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'colors.wheel.label': 'Roda de cores',
+  'colors.wheel.rule': 'Harmonia',
+  'colors.wheel.model': 'Roda',
+  'colors.wheel.bright': 'Brilho',
+  'colors.wheel.light': 'Luminosidade',
+  'colors.wheel.bright_text': 'Brilho {pct}%',
+  'colors.wheel.light_text': 'Luminosidade {pct}%',
+  'colors.wheel.keys': 'Arraste uma alça ou use as setas nela: esquerda e direita giram o matiz, cima e baixo mudam a saturação, Shift move dez passos, Page Up e Page Down mudam o brilho.',
+  'colors.wheel.base': 'Cor base',
+  'colors.wheel.handle': 'Cor {n}',
+  'colors.wheel.value': 'Matiz {hue}°, saturação {sat}%, {hex}',
+  'colors.wheel.value_oklch': 'Matiz {hue}°, croma {sat}%, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (de artista)',
+  'colors.wheel.oklch': 'OKLCH (perceptual)',
+  'colors.harmony.brightness': 'Tons',
+  'colors.harmony.custom': 'Personalizada',
+  'colors.cmd.g_wheel': 'Roda de cores',
+  'colors.cmd.wheel_rule': 'Roda: harmonia {rule}',
+  'colors.cmd.wheel_model': 'Roda: usar a roda {wheel}',
+  'colors.cmd.wheel_focus': 'Roda: ir para a roda de cores',
+});

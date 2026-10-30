@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Time converter tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. The city list and my working pattern are written to this origin's localStorage
+       first, so the converter's rows are the same on every machine. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const LON = 'Europe/London', NY = 'America/New_York', TYO = 'Asia/Tokyo';
+  const SRC = '../../time/index.html#conv';
+
+  /** Writes this app's saved state in the versioned envelope format (the same origin as the app). */
+  function seed() {
+    localStorage.setItem('slop.time.cities', JSON.stringify({ v: 1, data: [LON, NY, TYO].map((zone) => ({ zone })) }));
+    localStorage.setItem('slop.time.prefs', JSON.stringify({ v: 1, data: { zone: LON, days: [1, 2, 3, 4, 5], start: 9, end: 17 } }));
+    localStorage.removeItem('slop.time.offset');
+  }
+
+  /** Loads the app fresh (about:blank first), at the given width, and waits for the converter to be ready. */
+  async function open(width = 1280) {
+    seed();
+    f.style.width = width + 'px';
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = SRC;
+    await waitFor(() => W() && W().document.readyState === 'complete' && W().document.getElementById('st-conv-out'), { timeout: 8000 });
+    await waitFor(() => W().SlopTimeApp && W().SlopTimeApp.active === 'conv', { timeout: 5000 });
+    return W();
+  }
+
+  /** Types into a converter field the way a person does: set the value, then fire input. */
+  function type(id, value) {
+    const el = q('#' + id);
+    el.value = value;
+    el.dispatchEvent(new (W().Event)('input', { bubbles: true }));
+  }
+  const rowFor = (zone) => q(`#st-conv-out tr[data-zone="${zone}"]`);
+  const timeIn = (zone) => rowFor(zone) && rowFor(zone).querySelector('.st-conv-time').textContent;
+
+  describe('converter: one time, every city', () => {
+    it('shows 09:00 London as 04:00 in New York and 17:00 in Tokyo (summer)', async () => {
+      await open();
+      type('st-conv-from', LON);
+      type('st-conv-date', '2026-07-01');
+      type('st-conv-time', '09:00');
+      expect(timeIn(LON)).toBe('09:00');
+      expect(timeIn(NY)).toBe('04:00');
+      expect(timeIn(TYO)).toBe('17:00');
+      expect(rowFor(TYO).textContent).toContain('GMT+9');
+      expect(q('#st-conv-caption').textContent).toContain('09:00 on 2026-07-01 in London');
+    }, { timeout: 30000 });
+
+    it('marks the day shift when the time lands on another calendar day', async () => {
+      await open();
+      type('st-conv-from', TYO);
+      type('st-conv-date', '2026-07-01');
+      type('st-conv-time', '07:00');
+      expect(timeIn(LON)).toBe('23:00');
+      expect(rowFor(LON).textContent).toContain('(-1 day)');
+      expect(rowFor(TYO).textContent).not.toContain('day)');
+    }, { timeout: 30000 });
+
+    it('uses the offset in force on that day (New York in the spring-forward gap)', async () => {
+      await open();
+      type('st-conv-from', NY);
+      type('st-conv-date', '2026-03-08');
+      type('st-conv-time', '03:30');
+      expect(timeIn(NY)).toBe('03:30');
+      expect(timeIn(LON)).toBe('07:30');
+      expect(timeIn(TYO)).toBe('16:30');
+      expect(rowFor(NY).querySelector('td:last-child').textContent).toBe('GMT-4');
+    }, { timeout: 30000 });
+  });
+
+  describe('converter: errors and the difference between two zones', () => {
+    it('refuses a bad time and shows no rows', async () => {
+      await open();
+      type('st-conv-from', LON);
+      type('st-conv-date', '2026-07-01');
+      type('st-conv-time', 'nine');
+      expect(q('#st-conv-err').textContent).toContain('Type a time of day');
+      expect(qa('#st-conv-out tr').length).toBe(0);
+      type('st-conv-time', '25:00');
+      expect(qa('#st-conv-out tr').length).toBe(0);
+    }, { timeout: 30000 });
+
+    it('refuses a zone that is not in the list', async () => {
+      await open();
+      type('st-conv-from', 'Mars/Olympus');
+      expect(q('#st-conv-err').textContent).toContain('Choose the zone');
+    }, { timeout: 30000 });
+
+    it('names the difference between two zones', async () => {
+      await open();
+      type('st-diff-a', LON);
+      type('st-diff-b', TYO);
+      const text = q('#st-diff-out').textContent;
+      expect(text).toMatch(/^Tokyo is (8|9) hours ahead of London right now/);
+    }, { timeout: 30000 });
+  });
+
+  describe('converter: layout and network', () => {
+    it('has no sideways scroll at phone width (390 px)', async () => {
+      await open(390);
+      await sleep(200);
+      const doc = W().document;
+      expect(doc.documentElement.scrollWidth <= 390).toBe(true);
+      expect(qa('#st-conv-table th, #st-conv-table td').length).toBeGreaterThan(0);
+      f.style.width = '1280px';
+    }, { timeout: 30000 });
+
+    it('loads only files from this site (no network calls to other hosts)', async () => {
+      await open();
+      await sleep(300);
+      const origin = W().location.origin;
+      const foreign = W().performance.getEntriesByType('resource').filter((e) => !e.name.startsWith(origin));
+      expect(foreign.length).toBe(0);
+    }, { timeout: 30000 });
+  });
+
+  run({ name: 'Slop Time · converter' });
+  </script>
+</body>
+</html>

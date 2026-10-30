@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopTabs (view tabs)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <nav id="tl" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-list" data-view="list">List</button>
+    <button type="button" role="tab" id="tab-edit" data-view="edit" hidden>Edit</button>
+    <button type="button" role="tab" id="tab-data" data-view="data">Data</button>
+  </nav>
+  <section id="view-list" role="tabpanel">list</section>
+  <section id="view-edit" role="tabpanel">edit</section>
+  <section id="view-data" role="tabpanel">data</section>
+  <script src="../harness.js"></script>
+  <script src="../../shared/ui/tabs.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const $ = (id) => document.getElementById(id);
+  const key = (t, k) => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  let shown, selected, T;
+
+  describe('SlopTabs', () => {
+    beforeEach(() => {
+      shown = []; selected = [];
+      const fresh = $('tl').cloneNode(true); $('tl').replaceWith(fresh); // drop the listeners of the previous mount
+      T = SlopTabs.mount($('tl'), { onShow: (n) => shown.push(n) });
+      T.show('list');
+    });
+    it('show(name) shows that panel, hides the others, and marks its tab as the one selected and tabbable', () => {
+      expect(T.show('data')).toBe(true);
+      expect($('view-data').hidden).toBe(false);
+      expect($('view-list').hidden).toBe(true);
+      expect($('view-edit').hidden).toBe(true);
+      expect($('tab-data').getAttribute('aria-selected')).toBe('true');
+      expect($('tab-list').getAttribute('aria-selected')).toBe('false');
+      expect($('tab-data').tabIndex).toBe(0);
+      expect($('tab-list').tabIndex).toBe(-1);
+      expect(T.current()).toBe('data');
+      expect(shown).toEqual(['list', 'data']);
+    });
+    it('an unknown view changes nothing; a hidden tab can still be shown by the app', () => {
+      expect(T.show('nope')).toBe(false);
+      expect(T.current()).toBe('list');
+      expect(T.show('edit')).toBe(true);
+      expect($('view-edit').hidden).toBe(false);
+    });
+    it('a click on a tab selects its view', () => {
+      $('tab-data').click();
+      expect(T.current()).toBe('data');
+    });
+    it('the arrows move to the next visible tab (skipping hidden ones and wrapping); Home and End go to the ends', () => {
+      $('tab-list').focus();
+      key($('tab-list'), 'ArrowRight');
+      expect(document.activeElement).toBe($('tab-data'));
+      expect(T.current()).toBe('data');
+      key($('tab-data'), 'ArrowRight');
+      expect(T.current()).toBe('list');
+      key($('tab-list'), 'End');
+      expect(T.current()).toBe('data');
+      key($('tab-data'), 'Home');
+      expect(T.current()).toBe('list');
+    });
+    it('with select, the app routes the choice (a #hash) and show is left to it', () => {
+      const fresh = $('tl').cloneNode(true); $('tl').replaceWith(fresh);
+      T = SlopTabs.mount($('tl'), { select: (n) => selected.push(n) });
+      T.show('list');
+      $('tab-data').click();
+      expect(selected).toEqual(['data']);
+      expect(T.current()).toBe('list');
+      expect(T.names()).toEqual(['list', 'edit', 'data']);
+    });
+  });
+
+  run({ name: 'Shared · SlopTabs' });
+  </script>
+</body>
+</html>

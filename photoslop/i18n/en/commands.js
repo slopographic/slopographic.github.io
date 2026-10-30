@@ -1,0 +1,23 @@
+/* PhotoSlop, English: palette titles of the canvas, tool and window commands (app/commands.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'photoslop.cmd.opacity_toast': 'Opacity {pct}%',
+  'photoslop.cmd.cycle_tools': 'Cycle {tools}',
+  'photoslop.cmd.swap_colors': 'Swap foreground and background colours',
+  'photoslop.cmd.default_colors': 'Default colours (black / white)',
+  'photoslop.cmd.brush_bigger': 'Brush size up',
+  'photoslop.cmd.brush_smaller': 'Brush size down',
+  'photoslop.cmd.brush_harder': 'Brush hardness up',
+  'photoslop.cmd.brush_softer': 'Brush hardness down',
+  'photoslop.cmd.tool_opacity': 'Tool opacity {pct}%',
+  'photoslop.cmd.nudge_left': 'Nudge left {n} px',
+  'photoslop.cmd.nudge_right': 'Nudge right {n} px',
+  'photoslop.cmd.nudge_up': 'Nudge up {n} px',
+  'photoslop.cmd.nudge_down': 'Nudge down {n} px',
+  'photoslop.cmd.next_doc': 'Next document',
+  'photoslop.cmd.prev_doc': 'Previous document',
+  'photoslop.cmd.go_to_doc': 'Go to document {i}',
+  'photoslop.cmd.restore_aspect': 'Restore original aspect ratio',
+  'photoslop.cmd.guides_panel': 'Guides panel (guide layouts)',
+  'photoslop.cmd.search_key': 'Search commands ({key})',
+  'photoslop.cmd.nav_preset': 'Navigation preset…',
+});

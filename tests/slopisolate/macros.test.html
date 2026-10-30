@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopIsolate macros: the model and look as one command, recorded from the panel, played, and run as a Workflows step</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 1280px; height: 800px; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../workflows/helpers.js"></script>
+  <script type="module">
+  // Covers: slopisolate/js/ui/macros.js, slopisolate/js/ui/kit.js, slopisolate/js/ui/panel.js, slopisolate/js/ui/menus.js, shared/ops/macros.js, shared/macros/macros.js
+  import * as R from '../../shared/ops/all.js';
+  import { loadMacros, foldOptions } from '../../shared/ops/macros.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, SM, m;
+
+  describe('SlopIsolate macros', () => {
+    it('records the model picked in the panel and a look command, a slider drag being one step', async () => {
+      // start with no macros, through the store: deleting the database would leave this page's open store on the deleted one
+      for (const x of await window.SlopMacroStore.list()) await window.SlopMacroStore.remove(x.id);
+      const f = document.createElement('iframe'); f.id = 'app'; f.src = '../../slopisolate/index.html'; document.body.append(f);
+      await waitFor(() => f.contentWindow.SlopMacros && f.contentWindow.SlopMacros.app === 'slopisolate' && f.contentDocument.querySelector('input[name="cutout-model"]'), { timeout: 30000 });
+      W = f.contentWindow; SM = W.SlopMacros;
+      expect(!!W.SlopCmd.get('co.look')).toBe(true);
+      expect(W.SlopCmd.get('co.look').args.map((a) => a.name)).toEqual(['model', 'background', 'color', 'blur', 'shadow', 'crop', 'pad']);
+      SM.record();
+      const quality = f.contentDocument.querySelector('input[name="cutout-model"][value="quality"]');
+      quality.click();
+      W.CO.macroLook(null); W.CO.macroLook(null);   // what a drag notes on each move: kept as one step
+      await W.SlopCmd.exec('co.look', { model: 'quality', background: 'color', color: '#ff0000', shadow: true });
+      expect(SM.steps().map((s) => s.cmd)).toEqual(['co.look', 'co.look']);
+      expect(SM.steps()[0].args.model).toBe('quality');
+      expect(W.CO.state.defaults.bg.mode).toBe('color');
+      const p = SM.stop();
+      const input = await waitFor(() => W.document.querySelector('.sui-dlg input.sui-input'));
+      input.value = 'Red background, quality';
+      [...W.document.querySelectorAll('.sui-dlg .sui-btn')].find((b) => b.textContent === 'Save').click();
+      m = await p;
+      expect(m.steps.length).toBe(2);
+    }, { timeout: 40000 });
+
+    it('is a step under SlopIsolate in Workflows: its looks fold into Remove background, which runs on the file', async () => {
+      await loadMacros();
+      const op = R.byId('macro:slopisolate:' + m.id);
+      expect(!!op).toBe(true);
+      expect(R.apps().find((g) => g.app === 'slopisolate').ops.map((o) => o.id)).toContain(op.id);
+      const fo = await foldOptions('slopisolate', m.steps);
+      expect([fo.op.id, fo.options.model, fo.options.background, fo.options.color, fo.options.shadow]).toEqual(['slopisolate.remove-bg', 'quality', 'color', '#ff0000', true]);
+      const calls = WFT.stubCutout(window);
+      const file = await WFT.picture('cat.png', 120, 100);
+      const out = await op.run([{ name: 'cat.png', file, kind: 'png' }], {}, {});
+      expect(calls[0].model).toBe('quality');
+      expect(out[0].name).toBe('cat.png');
+      const px = await WFT.pixels(out[0].blob);
+      const [r, g, b, a] = px.at(1, 1);
+      expect(r > 200 && g < 60 && b < 60 && a === 255).toBe(true);   // outside the subject: the red background
+      let msg = '';
+      try { await foldOptions('slopisolate', [{ cmd: 'co.tool-keep', args: {}, title: 'Keep brush' }]); } catch (e) { msg = e.message; }
+      expect(msg).toMatch(/Keep brush.*only works in SlopIsolate itself/);
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+/* Slop Tables, Simplified Chinese: opening, importing and saving files, the drop strip and the Config kind. Rules: shared/i18n/APPS-HOWTO.md. Terms: shared/i18n/glossary-zh-CN.md. No plural forms (the #one keys are left out). */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'tables.file.open_failed': '无法打开该文件',
+  'tables.file.save_failed': '无法保存',
+  'tables.file.left_out': '已打开，但部分内容被省略',
+  'tables.file.left_out_body': '保存会将其保留为 Slop Drive 中的 Slop Tables 文件；“文件 ▸ 下载 ▸ XLSX”会写入一个新的 Excel 文件。',
+  'tables.file.opened': '已打开 {name}',
+  'tables.file.opened_it': '已打开该文件',
+  'tables.file.not_ours': '这不是 Slop Tables 文件。',
+  'tables.file.kinds': 'Slop Tables 可以打开 .stab、.xlsx、.ods、.csv 和 .tsv 文件。',
+  'tables.file.damaged': '此 Slop Tables 文件已损坏（{what}）。',
+  'tables.file.newer': '此 Slop Tables 文件来自更新版本的 Slop Tables。',
+  'tables.import.unknown_fn': '{n} 个公式使用了 Slop Tables 尚不支持的函数，因此显示为 #NAME?。',
+  'tables.import.skipped': '未导入：{list}。',
+  'tables.import.chart_kind': '未导入 {n} 个 {kind} 图表：Slop Tables 可绘制柱形图、条形图、折线图和饼图。',
+  'tables.import.chart_shape': '未导入 {n} 个图表：它们的数据系列不是一块连续的单元格区域。',
+  'tables.drop.label': '拖放电子表格以打开',
+  'tables.drop.noun': '一个电子表格',
+  'tables.config.label': '工作簿',
+  'tables.config.desc': '工作表及其单元格内容；公式以 = 开头的文字形式写入',
+  'tables.config.kept': '已保留当前打开的工作簿',
+});

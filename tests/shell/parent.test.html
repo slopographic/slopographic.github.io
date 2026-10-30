@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shell · a single-app site: links to hidden apps go to the parent, More free tools, the app at the root</title></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shared/parent/parent.js, shared/parent/i18n/index.js, shell/header.js, shell/shell.js
+  // A single-app site (brand profile mainApp, parent, apps.hide; brand/README.md "Single-app sites"): a link into a hidden
+  // app's folder goes to the same path on the parent site, whether it is on the page at load or made later; the header
+  // gets "More free tools" only when the profile names a parent; and a page with a base in an app's folder (the site's
+  // root, tools/seo/mainapp.mjs) is that app's page for the shell.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const REG = JSON.stringify([{ id: 'pdf', path: 'pdf/' }, { id: 'ocr', path: 'ocr/' }, { id: 'paint', path: 'paint/' }, { id: 'classic', path: 'paint/classic/' }]);
+  /** A bare page with a registry stub, the parent (or none) and links, then parent.js and the header. */
+  async function page(parent) {
+    const f = document.createElement('iframe');
+    const stub = `window.SLOP_ALL_APPS = window.SLOP_APPS = ${REG}; window.SLOP_HIDDEN_APPS = ['ocr', 'paint']; window.SLOP_PARENT = ${JSON.stringify(parent)};`
+      + 'window.SlopNotify = { mountBell() {} };';
+    f.srcdoc = `<!doctype html><body><header id="top"><b>App</b></header>
+      <a id="hid" href="../../ocr/x/?q=1#h">OCR</a><a id="own" href="../../pdf/">PDF</a><a id="cls" href="../../paint/classic/">Classic</a>
+      <a id="ext" href="https://other.example/ocr/">Other</a><a id="hash" href="#top">Top</a>
+      <script>${stub}<\/script><script src="../../shared/parent/parent.js"><\/script><script src="../../shell/header.js"><\/script>
+      <script>SlopHeader.mount(); window.done = true;<\/script></body>`;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.done && f.contentDocument.readyState === 'complete');
+    return f;
+  }
+  describe('with a parent', () => {
+    it('links into a hidden app\'s folder go to the parent, the same path; the others stay', async () => {
+      const f = await page({ name: 'Example Tools', url: 'https://example.com' }), D = f.contentDocument, W = f.contentWindow;
+      expect(D.getElementById('hid').href).toBe('https://example.com/ocr/x/?q=1#h');
+      expect(D.getElementById('own').href).toBe(new URL('/pdf/', location.href).href);
+      expect(D.getElementById('cls').href).toBe(new URL('/paint/classic/', location.href).href);   // a shown app in a hidden one's folder
+      expect(D.getElementById('ext').href).toBe('https://other.example/ocr/');
+      expect(D.getElementById('hash').getAttribute('href')).toBe('#top');
+      expect(W.SlopParent.href(new URL('/paint/', location.href).href)).toBe('https://example.com/paint/');
+      // a link made after the page was parsed: sent to the parent as it is clicked
+      const a = D.createElement('a'); a.href = '../../ocr/'; a.textContent = 'late'; D.body.append(a);
+      W.addEventListener('click', (e) => e.preventDefault());
+      a.click();
+      expect(a.href).toBe('https://example.com/ocr/');
+      f.remove();
+    });
+    it('the header has More free tools, a shared header button that folds into More on a phone', async () => {
+      const f = await page({ name: 'Example Tools', url: 'https://example.com' }), D = f.contentDocument;
+      const m = D.querySelector('.sh-hdr .sh-parent');
+      expect(!!m).toBe(true);
+      expect(m.href).toBe('https://example.com/');
+      expect(m.classList.contains('slop-hbtn')).toBe(true);
+      expect(m.textContent).toContain('More free tools');
+      expect(m.dataset.hbtnLabel).toContain('More free tools');   // its label in the More menu
+      expect(m.getAttribute('aria-label')).toContain('Example Tools');
+      f.remove();
+    });
+  });
+  describe('without a parent', () => {
+    it('nothing changes: every link stays, no More free tools', async () => {
+      const f = await page(null), D = f.contentDocument, W = f.contentWindow;
+      expect(D.getElementById('hid').href).toBe(new URL('/ocr/x/?q=1#h', location.href).href);
+      expect(W.SlopParent.href('../../ocr/')).toBe('../../ocr/');
+      expect(W.SlopParent.headerLink()).toBe(null);
+      expect(D.querySelector('.sh-parent')).toBe(null);
+      expect(!!D.querySelector('.sh-hdr .sh-switch')).toBe(true);
+      f.remove();
+    });
+  });
+  describe('the app at the root', () => {
+    it('a page with a base in the PDF app\'s folder is the PDF app\'s page for the shell', async () => {
+      const f = document.createElement('iframe');
+      f.srcdoc = `<!doctype html><html><head><base href="${location.origin}/pdf/"></head><body><script src="../shell/shell.js" data-no-header><\/script></body></html>`;
+      document.body.append(f);
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopShell && f.contentWindow.SlopShell.ready);
+      const S = await f.contentWindow.SlopShell.ready;
+      expect(S.currentApp && S.currentApp.id).toBe('pdf');
+      expect(!!f.contentWindow.SlopParent).toBe(true);   // the shell loads parent.js after the registry
+      f.remove();
+    }, { timeout: 30000 });
+  });
+  run({ name: 'Single-app site: parent links' });
+</script>
+</body>
+</html>

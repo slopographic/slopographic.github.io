@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopculator in Swedish</title>
+  <!-- Covers: calculator/i18n/index.js, calculator/index.html, calculator/css/calc.css, calculator/js/app.js, calculator/js/panels.js, calculator/js/calendar.js, calculator/js/commands.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slopculator', path: '../../calculator/index.html', ns: 'calculator',
+    ready: (doc, win) => win.SlopCalcApp && doc.querySelector('#sc-rate-list li'),
+    checks: [
+      ['#sc-copy', 'Kopiera resultat', 'Copy result'],
+      ['#sc-tape-h', 'Pappersremsa', 'Paper tape'],
+      ['#sc-hq', 'Sök i historiken', 'Search history', 'placeholder'],
+      ['#sc-rate-list', 'Inga manuella kurser', 'No manual rates'],
+      ['#sc-preview', 'Resultatet visas här', 'The result shows here', 'data-empty'],
+      ['#sc-enter', 'Beräkna', 'Calculate', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slopculator in Swedish' });
+  </script>
+</body>
+</html>

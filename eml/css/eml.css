@@ -1,0 +1,120 @@
+/* Slop EML: layout for the theme. Colours are the theme's --sl-* tokens only; the print rules at the end are the one place
+ * with fixed black and white. The mail itself is shown on white paper inside its frame (set in eml/js/frame.js). */
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--sl-background); color: var(--sl-text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+.em-noscript { padding: 16px; }
+.em-app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.em-frame-root { flex: 1 1 auto; min-height: 0; }
+.sui-btn[aria-pressed="true"] { background: var(--sl-accent); color: var(--sl-on-accent); border-color: var(--sl-accent); }
+
+/* SlopUI buttons and the menu bar's tools take the theme (the shared --s-* tokens are only set inside dialogs), and the
+ * header tools are as tall as the shared header buttons (shared/ui/hbtn.css). */
+.em-app, .smb-bar { --s-bg2: var(--sl-surface); --s-input: var(--sl-background); --s-line: var(--sl-border); --s-fg: var(--sl-text);
+  --s-hover: color-mix(in srgb, var(--sl-text) 8%, var(--sl-surface)); --s-accent: var(--sl-accent); --s-accent-ink: var(--sl-on-accent); --s-radius: 8px; }
+.smb-tools .sui-btn { height: var(--slop-hbtn-h, 32px); }
+.em-empty-b .sui-btn, .em-msg .sui-btn { height: 32px; }
+.em-side .sui-btn { height: auto; min-height: 32px; }
+/* The drop strip under the header (shared/drop, compact), outlined as in Slop Hex. */
+.em-dropstrip:not(:empty) { margin: 6px 10px 0; padding: 6px 10px; border: 1px dashed var(--sl-border); border-radius: 8px; }
+
+/* Open messages */
+.em-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 8px 14px; border-bottom: 1px solid var(--sl-border); }
+.em-tab { display: flex; align-items: center; flex: 0 0 auto; min-width: 0; max-width: 280px; border: 1px solid var(--sl-border); border-radius: 999px; background: var(--sl-surface); }
+.em-tab.em-on { border-color: var(--sl-accent); }
+.em-tab-pick { min-width: 0; max-width: 240px; padding: 5px 4px 5px 12px; border: 0; background: none; color: inherit; font: inherit; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.em-tab-pick[aria-current="true"] { font-weight: 700; }
+.em-tab-x { flex: 0 0 auto; padding: 3px 10px 3px 6px; border: 0; background: none; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+
+/* Main */
+.em-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.em-main.sf-view { display: flex; }
+.em-empty { margin: auto; width: 100%; max-width: 640px; box-sizing: border-box; padding: 24px; text-align: center; }
+.em-empty-t { margin: 0 0 8px; font-size: 18px; }
+.em-empty-s { margin: 0 auto 16px; max-width: 460px; color: color-mix(in srgb, var(--sl-text) 72%, transparent); }
+.em-empty-b { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.em-empty .sd-preview { margin-bottom: 14px; }
+.em-msg { display: flex; flex: 1 0 auto; flex-direction: column; gap: 10px; min-width: 0; padding: 14px; }
+.em-subject { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+.em-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 14px; margin: 0; font-size: 13px; }
+.em-head > div { display: contents; }
+.em-head dt { color: color-mix(in srgb, var(--sl-text) 62%, transparent); }
+.em-head dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.em-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.em-seg { display: inline-flex; gap: 6px; }
+
+/* Notices and body */
+.em-notice { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--sl-border); border-radius: 8px; background: var(--sl-surface); font-size: 13px; }
+.em-notice-t { margin: 0; }
+.em-body { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 360px; }
+.em-frame { flex: 1 1 auto; width: 100%; min-height: 360px; border: 1px solid var(--sl-border); border-radius: 8px; }
+.em-plain { flex: 1 1 auto; min-height: 240px; margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--sl-border); border-radius: 8px; background: var(--sl-surface); font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.em-none { color: color-mix(in srgb, var(--sl-text) 72%, transparent); }
+
+/* Warnings */
+.em-warn { font-size: 13px; }
+.em-warn summary { cursor: pointer; color: color-mix(in srgb, var(--sl-text) 80%, transparent); }
+.em-warn ul { margin: 6px 0 0; padding-left: 20px; overflow-wrap: anywhere; }
+.em-chip { margin-inline-start: auto; }
+
+/* List · message · actions (shared/frame). The list: a bar (tick all, count, sort, search), then one row per message. */
+.em-frame-root { --sf-list-w: 340px; }
+.em-list-bar { display: grid; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--sl-border); }
+.em-list-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.em-all { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; white-space: nowrap; }
+.em-sort { width: auto; max-width: 150px; height: 30px; font-size: 12.5px; }
+.em-search { width: 100%; box-sizing: border-box; height: 32px; }
+.em-rows { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.em-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--sl-border) 70%, transparent);
+  border-inline-start: 3px solid transparent; }
+.em-row.em-checked { background: color-mix(in srgb, var(--sl-accent) 9%, transparent); }
+.em-row.em-on { border-inline-start-color: var(--sl-accent); background: color-mix(in srgb, var(--sl-accent) 15%, transparent); }
+.em-row-check { flex: none; margin: 3px 0 0; width: 16px; height: 16px; }
+.em-row-open { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.em-row-open:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 3px; border-radius: 4px; }
+.em-row-top, .em-row-bottom { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.em-row-from { flex: 1 1 auto; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.em-row-date { flex: none; font-size: 12px; color: color-mix(in srgb, var(--sl-text) 62%, transparent); }
+.em-row-subj { flex: 1 1 auto; min-width: 0; font-size: 13px; color: color-mix(in srgb, var(--sl-text) 82%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.em-row-att { flex: none; display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: color-mix(in srgb, var(--sl-text) 62%, transparent); }
+.em-row-att svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.em-noresults { margin: 16px; color: color-mix(in srgb, var(--sl-text) 72%, transparent); }
+.em-phonebar, .em-list-actions { display: none; }
+.sf-phone .em-list-actions { display: inline-flex; align-items: center; height: 30px; padding-block: 0; }
+.sf-phone .em-phonebar { display: flex; justify-content: space-between; }
+.sf-phone.sf-nolist .em-back { visibility: hidden; }
+
+/* Attachment preview (eml/js/preview.js): a modal with the file in a sandboxed frame or a block */
+.sui-dlg.em-prev-dlg { width: min(960px, 94vw); max-width: 94vw; }
+.sui-dlg.em-prev-dlg .sui-title { overflow-wrap: anywhere; }
+.em-prev { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.em-prev-meta { margin: 0; font-size: 12px; color: color-mix(in srgb, var(--sl-text) 62%, transparent); overflow-wrap: anywhere; }
+.em-prev-body { display: flex; flex-direction: column; min-width: 0; }
+.em-prev-frame { width: 100%; height: min(70vh, 640px); min-height: 280px; border: 1px solid var(--sl-border); border-radius: 8px; }
+.em-prev-pre { min-height: 0; height: min(70vh, 640px); }
+.em-prev-sheet { min-width: 0; max-height: min(70vh, 640px); overflow: auto; }
+.em-prev-note { margin: 0; color: color-mix(in srgb, var(--sl-text) 72%, transparent); }
+
+/* Export dialog */
+.em-exdlg { display: flex; flex-direction: column; gap: 12px; min-width: min(420px, 80vw); }
+.em-help { margin: 0; }
+
+/* Phone: the header's Open, Convert to PDF and Print are in its File menu, so the bar keeps to one row; the page itself
+ * does not scroll sideways */
+@media (max-width: 600px) {
+  .smb-tools > .sui-btn { display: none; }
+  .em-msg { padding: 10px; }
+  .em-head { grid-template-columns: minmax(0, 1fr); }
+  .em-head dt { margin-top: 4px; }
+}
+
+/* Print: headers and body only, no toolbar, tabs, notices or dialogs. Printing from this page uses these fixed colours. */
+@media print {
+  html, body { height: auto; overflow: visible; background: #fff; color: #000; }
+  .smb-bar, .em-dropstrip, .em-tabs, .em-bar, .em-notice, .em-warn, .em-list, .em-side, .em-empty, .sui-toast, .sui-back { display: none !important; }
+  .em-app, .em-frame-root, .em-main, .em-msg, .em-body { display: block; height: auto; min-height: 0; overflow: visible; padding: 0; border: 0; }
+  .em-msg { display: block; }
+  .em-head dt, .em-head dd, .em-subject { color: #000; }
+  .em-frame { width: 100%; min-height: 0; height: auto; border: 0; }
+  .em-plain { display: block; min-height: 0; padding: 0; border: 0; background: none; color: #000; overflow: visible; }
+}

@@ -1,0 +1,39 @@
+/* The Language and model dialog (shared/speech/models-ui.js). SlopUI's tokens (--s-*: the page theme, light or dark). */
+.sui-dlg.spm-dlg { width: min(640px, 100%); max-height: calc(100vh - 32px); }
+.spm-dlg .sui-body { overflow: auto; }
+.spm { display: grid; gap: 8px; font-size: 13px; }
+.spm [hidden] { display: none !important; }
+.spm-step { margin: 6px 0 0; font-size: 13px; font-weight: 600; }
+.spm-search { font: inherit; color: var(--s-fg); background: var(--s-input); border: 1px solid var(--s-line); border-radius: var(--s-radius); padding: 7px 9px; min-height: 36px; width: 100%; box-sizing: border-box; }
+.spm-langs { list-style: none; margin: 0; padding: 4px; max-height: 168px; overflow: auto; border: 1px solid var(--s-line); border-radius: var(--s-radius); display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px; }
+.spm-lang { padding: 6px 8px; border-radius: 4px; cursor: pointer; min-height: 20px; }
+.spm-lang:hover { background: var(--s-hover); }
+.spm-lang.is-on { background: var(--s-sel); font-weight: 600; outline: 1px solid var(--s-accent); }
+.spm-none { padding: 6px 8px; color: var(--s-dim); }
+.spm-pin { display: flex; align-items: flex-start; gap: 6px; color: var(--s-dim); }
+.spm-models { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.spm-model { border: 1px solid var(--s-line); border-radius: var(--s-radius); padding: 10px; display: grid; gap: 4px; background: var(--s-bg2); }
+.spm-model.is-on { border-color: var(--s-accent); box-shadow: inset 3px 0 0 var(--s-accent); }
+.spm-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; }
+.spm-badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--s-line); color: var(--s-dim); }
+.spm-badge.is-recommended { background: var(--s-accent); color: var(--s-accent-ink); border-color: transparent; font-weight: 600; }
+.spm-by, .spm-meters { color: var(--s-dim); font-size: 12px; }
+.spm-note { margin: 0; }
+.spm-meters { display: flex; gap: 14px; flex-wrap: wrap; }
+.spm-dots { letter-spacing: 1px; color: var(--s-fg); }
+.spm-act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.spm-prog { flex: 1 1 120px; min-width: 80px; height: 8px; }
+.spm-pct { font-variant-numeric: tabular-nums; }
+.spm-usage, .spm-status { margin: 4px 0 0; color: var(--s-dim); font-size: 12px; }
+.spm-usage a { color: inherit; }
+.spm-status:empty { display: none; }
+/* the Text recognition engine select beside the button (shared/ocr/choose.js engineSelect) */
+.ocr-engine { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; font-size: 13px; }
+.ocr-engine[hidden] { display: none; }
+.ocr-engine select { font: inherit; max-width: 100%; min-height: 32px; }
+@media (max-width: 520px) {
+  .sui-back:has(.spm-dlg) { padding: 0; place-items: end stretch; }
+  .sui-dlg.spm-dlg { width: 100%; max-height: 92vh; border-radius: 12px 12px 0 0; }
+  .spm-langs { grid-template-columns: 1fr 1fr; max-height: 140px; }
+  .spm-act .sui-btn { min-height: 40px; }
+}

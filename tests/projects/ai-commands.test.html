@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Projects: the commands with arguments (palette, macros, AI): project, tasks, moves, edits, waits for, columns, list, Slop Drive</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: projects/js/ui/ai-commands.js, projects/js/ui/ai-ops.js, projects/js/ui/commands.js, projects/js/ui/project.js, projects/index.html
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const P = () => W.SlopProjects;
+  const task = (title) => P().state.tasks.find((t) => t.title === title);
+  const exec = async (id, args) => { const r = await W.SlopCmd.exec(id, args); if (!r.ok) throw new Error(`${id}: ${r.error}`); return r; };
+  async function boot() {
+    const f = document.getElementById('app');
+    f.src = '../../projects/index.html#board';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopProjects && f.contentWindow.SlopProjects.app && f.contentWindow.SlopProjects.app.reload
+      && f.contentWindow.document.getElementById('boot').hidden && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('projects.moveTask'), { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  function loadKit() {
+    return new Promise((res, rej) => { const s = D.createElement('script'); s.src = '../shared/ai/cmdtools.js'; s.onload = res; s.onerror = rej; D.head.appendChild(s); });
+  }
+
+  describe('Slop Projects commands with arguments', () => {
+    it('the commands are in the palette (not hidden), with descriptions and argument schemas', async () => {
+      await boot();
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      try { W.localStorage.removeItem('slop-projects.project'); } catch (e) { /* blocked */ }
+      await boot();
+      const ids = ['projects.newProject', 'projects.openProject', 'projects.newTask', 'projects.moveTask', 'projects.editTask', 'projects.setDependency',
+        'projects.deleteTask', 'projects.addColumn', 'projects.listTasks', 'projects.saveToDrive'];
+      for (const id of ids) {
+        const c = W.SlopCmd.list().find((x) => x.id === id);
+        expect(!!c).toBe(true, id);
+        expect(c.hidden).toBe(false, id);
+        expect(!!(c.args && c.description && c.tool)).toBe(true, id);
+      }
+      expect(W.SlopCmd.keyFor('projects.newTask')).toBeTruthy();   // the n key stayed
+    });
+    it('a task command with no project says what to do', async () => {
+      const r = await W.SlopCmd.exec('projects.saveToDrive', { format: 'json' });
+      expect(r.ok).toBe(false);
+    });
+    it('new_project makes and opens a project with the columns given; the last holds finished work', async () => {
+      const r = await exec('projects.newProject', { name: 'Office move', columns: 'Ideas, Doing, Review, Shipped' });
+      expect(r.value).toContain('Office move');
+      const p = P().state.project;
+      expect(p.name).toBe('Office move');
+      expect(p.columns.map((c) => c.name)).toEqual(['Ideas', 'Doing', 'Review', 'Shipped']);
+      expect(p.columns[3].done).toBe(true);
+      expect(W.SlopCmd.get('projects.newProject').destructive).toBe(false);
+    });
+    it('add_task adds tasks with dates, assignee, notes, checklist and what they wait for', async () => {
+      await exec('projects.newTask', { title: 'Pack boxes', column: 'ideas', start: '2026-03-02', end: '2026-03-04', assignee: 'Ana', notes: 'Ask for tape', checklist: 'Kitchen; [x] Books', priority: 'high' });
+      const a = task('Pack boxes');
+      expect(a.column).toBe('ideas');
+      expect([a.start, a.end, a.assignee, a.description, a.priority]).toEqual(['2026-03-02', '2026-03-04', 'Ana', 'Ask for tape', 'high']);
+      expect(a.checklist).toEqual([{ text: 'Kitchen', done: false }, { text: 'Books', done: true }]);
+      const r = await exec('projects.newTask', { title: 'Move van', column: 'Doing', due: '2026-03-10', waits_for: 'Pack boxes' });
+      expect(r.value).toContain(task('Move van').id);
+      expect(task('Move van').deps).toEqual([a.id]);
+      expect(task('Move van').due).toBe('2026-03-10');
+      await exec('projects.newTask', { title: 'Clean up' });
+      expect(task('Clean up').column).toBe('ideas');
+      const bad = await W.SlopCmd.exec('projects.newTask', { title: 'X', start: 'next week' });
+      expect(bad.ok).toBe(false); expect(bad.error).toContain('day like');
+    });
+    it('move_task moves a task to a column and a place', async () => {
+      await exec('projects.moveTask', { task: 'Clean up', order: 1 });
+      expect(P().board.inColumn(P().state.tasks, 'ideas').map((t) => t.title)).toEqual(['Clean up', 'Pack boxes']);
+      await exec('projects.moveTask', { task: task('Clean up').id, column: 'Shipped' });
+      expect(task('Clean up').column).toBe('shipped');
+    });
+    it('edit_task changes only the fields given, ticks an item, and moves later tasks on with new dates', async () => {
+      await exec('projects.setDependency', { task: 'Clean up', waits_for: 'Pack boxes' });
+      await exec('projects.editTask', { task: 'Clean up', start: '2026-03-05', end: '2026-03-05' });
+      await exec('projects.editTask', { task: 'Pack boxes', end: '2026-03-06', tick: 'kitchen', assignee: 'Bo' });
+      const a = task('Pack boxes');
+      expect([a.start, a.end, a.assignee, a.description]).toEqual(['2026-03-02', '2026-03-06', 'Bo', 'Ask for tape']);
+      expect(a.checklist.every((c) => c.done)).toBe(true);
+      expect(task('Clean up').start).toBe('2026-03-07');   // moved on after the longer task
+      const none = await W.SlopCmd.exec('projects.editTask', { task: 'Pack boxes' });
+      expect(none.ok).toBe(false);
+    });
+    it('set_dependency refuses a loop and can remove a link', async () => {
+      const loop = await W.SlopCmd.exec('projects.setDependency', { task: 'Pack boxes', waits_for: 'Move van' });
+      expect(loop.ok).toBe(false); expect(loop.error).toContain('already waits');
+      await exec('projects.setDependency', { task: 'Move van', waits_for: 'Pack boxes', mode: 'remove' });
+      expect(task('Move van').deps).toEqual([]);
+    });
+    it('add_column adds a column at a place', async () => {
+      await exec('projects.addColumn', { name: 'Blocked', wip: 2, position: 2 });
+      expect(P().state.project.columns.map((c) => c.name)).toEqual(['Ideas', 'Blocked', 'Doing', 'Review', 'Shipped']);
+      expect(P().state.project.columns[1].wip).toBe(2);
+    });
+    it('list_tasks and the app state give ids; the state lists projects and columns', async () => {
+      const r = await exec('projects.listTasks', { column: 'Ideas' });
+      expect(r.value.map((t) => t.title)).toEqual(['Pack boxes']);
+      expect(r.value[0].id).toBe(task('Pack boxes').id);
+      expect(r.value[0].checklist).toBe('2/2');
+      const s = W.SlopCmd.state();
+      expect(s.project.id).toBe(P().state.project.id);
+      expect(s.projects.length).toBe(1);
+      expect(s.tasks.length).toBe(3);
+      expect(s.tasks.every((t) => typeof t.id === 'string' && t.id)).toBe(true);
+      expect(s.tasks.find((t) => t.title === 'Clean up').done).toBe(true);
+    });
+    it('export_to_drive saves the JSON backup and the CSV to Slop Drive', async () => {
+      const r = await exec('projects.saveToDrive', { format: 'json' });
+      const id = r.value.match(/id ([^)]+)\)/)[1];
+      const f = await W.SlopHub.get(id);
+      const b = JSON.parse(await f.blob.text());
+      expect(b.format).toBe('slop-projects');
+      expect(b.tasks.length).toBe(3);
+      expect(f.name).toBe('Office move.json');
+      const c = await exec('projects.saveToDrive', { format: 'csv' });
+      const g = await W.SlopHub.get(c.value.match(/id ([^)]+)\)/)[1]);
+      expect(await g.blob.text()).toContain('Pack boxes');
+    });
+    it('delete_task is destructive (and for the AI kit too); the checkpoint undoes every AI change', async () => {
+      expect(W.SlopCmd.get('projects.deleteTask').destructive).toBe(true);
+      await loadKit();
+      expect(W.SlopAIKit.cmdTools.isDestructive(W.SlopCmd.get('projects.deleteTask'))).toBe(true);
+      expect(W.SlopAIKit.cmdTools.isDestructive(W.SlopCmd.get('projects.newProject'))).toBe(false);
+      const names = W.SlopAIKit.cmdTools.build(W.SlopCmd).map((t) => t.name);
+      for (const n of ['app_state', 'new_project', 'add_task', 'move_task', 'edit_task', 'set_dependency', 'delete_task', 'list_tasks', 'export_to_drive']) expect(names).toContain(n);
+      const back = W.SlopCmd.checkpoint();
+      await exec('projects.deleteTask', { task: 'Move van' });
+      await exec('projects.newTask', { title: 'Extra' });
+      expect(!!task('Move van')).toBe(false);
+      expect(!!task('Extra')).toBe(true);
+      await back();
+      expect(!!task('Move van')).toBe(true);
+      expect(!!task('Extra')).toBe(false);
+    });
+    it('a palette run (no arguments) opens the task panel', async () => {
+      W.SlopCmd.run('projects.newTask', { source: 'palette' });
+      await waitFor(() => D.querySelector('.pj-task #peTitle'));
+      [...D.querySelectorAll('.pj-task .sf-p-foot button')].find((b) => b.textContent === 'Cancel').click();
+      await waitFor(() => !W.SlopProjects.taskPanel.isOpen());
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

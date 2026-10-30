@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · UI &amp; hub tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const doc = () => W.document;
+  // SlopUI fades a closed dialog out for ~140 ms; wait until it has left the DOM so the next lookup can't hit it.
+  const closed = () => waitFor(() => W.SlopUI.openDialogs === 0 && !doc().querySelector('.sui-back'));
+  const svgDoc = (fill) => new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect x="10" y="10" width="80" height="40" fill="${fill}"/></svg>`], { type: 'image/svg+xml' });
+  async function pngBlob(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').fillRect(0, 0, w, h); return new Promise((r) => c.toBlob(r, 'image/png')); }
+
+  describe('SlopUI from Vector', () => {
+    it('opens Document Setup as a SlopUI dialog and applies it', async () => {
+      blank(); SV.runAction('file.docSetup');
+      await waitFor(() => doc().querySelector('.sui-dlg #f-w'));
+      expect(W.SlopUI.openDialogs).toBe(1);
+      expect(doc().querySelector('.sui-dlg .sui-title').textContent).toBe('Document Setup');
+      doc().getElementById('f-w').value = '640'; doc().getElementById('f-h').value = '480';
+      doc().querySelector('.sui-dlg .sui-primary').click();
+      await closed();
+      expect([SV.state.doc.width, SV.state.doc.height]).toEqual([640, 480]);
+    });
+    it('keeps a dialog open when validation fails', async () => {
+      SV.runAction('file.new');
+      await waitFor(() => doc().getElementById('f-w'));
+      doc().getElementById('f-w').value = '0';
+      doc().querySelector('.sui-dlg .sui-primary').click();
+      await sleep(50);
+      expect(W.SlopUI.openDialogs).toBe(1);
+      doc().querySelector('.sui-dlg .sui-x').click(); await closed();
+    });
+    it('shows the shortcut editor wide, closes on Escape, and blocks app keys meanwhile', async () => {
+      SV.runAction('help.shortcuts');
+      await waitFor(() => doc().querySelector('.sui-dlg.sui-wide.scmd-km-dlg'));
+      W.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'm', code: 'KeyM', bubbles: true }));
+      expect(SV.state.tool).toBe('select');
+      doc().querySelector('.sui-dlg').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await closed();
+    });
+    it('transform dialog offers a left-aligned Copy that duplicates', async () => {
+      const L = SV.activeLayer(); L.children.push(SV.mk.rect(0, 0, 10, 10, 0, { fill: '#000' })); SV.commit('r'); SV.select([L.children[0].id]);
+      SV.runAction('transform.move');
+      await waitFor(() => doc().getElementById('f-h'));
+      const copy = [...doc().querySelectorAll('.sui-dlg .sui-btn')].find((b) => b.textContent === 'Copy');
+      expect(copy.classList.contains('sv-left')).toBe(true);
+      doc().getElementById('f-h').value = '25'; copy.click(); await closed();
+      expect(SV.state.doc.layers[0].children.map((o) => o.x)).toEqual([0, 25]);
+    });
+    it('Save As uses SlopUI.prompt (cancel leaves the name alone)', async () => {
+      SV.runAction('file.saveAs');
+      await waitFor(() => doc().querySelector('.sui-dlg input.sui-input'));
+      expect(doc().querySelector('.sui-dlg input.sui-input').value).toBe(SV.state.doc.name);
+      doc().querySelector('.sui-dlg .sui-btn:not(.sui-primary)').click(); await closed();
+      expect(SV.state.doc.name).toBe('Test');
+    });
+    it('toasts through SlopUI', () => {
+      SV.toast('Hello from Vector');
+      const t = doc().querySelector('.sui-toast');
+      expect(t.textContent).toBe('Hello from Vector'); expect(t.classList.contains('sui-show')).toBe(true);
+    });
+    it('right-click menus are SlopUI menus wired to app actions', () => {
+      const m = UI.canvasMenu(200, 200);
+      expect(m.classList.contains('sui-menu')).toBe(true);
+      const rows = [...m.querySelectorAll('.sui-lbl')].map((r) => r.textContent);
+      expect(rows).toContain('Undo'); expect(rows).toContain('Pathfinder');
+      [...m.querySelectorAll('.sui-row')].find((r) => r.textContent.includes('Duplicate')).click();
+      expect(SV.state.doc.layers[0].children.length).toBe(3);
+      expect(doc().querySelector('.sui-menu')).toBe(null);
+      const lm = UI.layerMenu(SV.state.doc.layers[0].id, 900, 300);
+      expect([...lm.querySelectorAll('.sui-lbl')].map((x) => x.textContent)).toContain('Delete Layer');
+      W.SlopUI.closeMenu();
+    });
+    it('Classic 98 theme gives SlopUI dialogs a Win98 title bar', async () => {
+      UI.setTheme('classic'); SV.runAction('help.about');
+      await waitFor(() => doc().querySelector('.sui-dlg .about'));
+      expect(W.getComputedStyle(doc().querySelector('.sui-dlg .sui-head')).backgroundImage).toContain('linear-gradient');
+      doc().querySelector('.sui-dlg .sui-primary').click(); await closed();
+      UI.setTheme('pro');
+    });
+  });
+
+  describe('context menus (Vector)', () => {
+    const ctxAt = (el) => { const r = el.getBoundingClientRect(); const ev = new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }); el.dispatchEvent(ev); return ev.defaultPrevented; };
+    const labels = () => [...doc().querySelectorAll('.sui-menu .sui-lbl')].map((x) => x.textContent);
+    const clickItem = (label) => { const row = [...doc().querySelectorAll('.sui-menu .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === label); expect(!!row).toBe(true); row.click(); };
+    const key = (el, k, shiftKey = false) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
+    const rowOf = (id) => { UI.update(); return doc().querySelector('.lrow[data-id="' + id + '"]'); };
+    it('layer rows open the layer menu, and its items act', () => {
+      blank(); W.SlopUI.closeMenu();
+      const L = SV.state.doc.layers[0];
+      expect(ctxAt(rowOf(L.id))).toBe(true);
+      expect(labels()).toContain('Rename…'); expect(labels()).toContain('Delete Layer');
+      const n = SV.state.doc.layers.length;
+      clickItem('New Layer');
+      expect(SV.state.doc.layers.length).toBe(n + 1);
+    });
+    it('Paste is not offered without a clipboard', () => {
+      W.SlopUI.closeMenu(); const saved = SV.state.clipboard; SV.state.clipboard = null;
+      try { UI.canvasMenu(200, 200); expect(labels()).not.toContain('Paste'); W.SlopUI.closeMenu(); }
+      finally { SV.state.clipboard = saved; }
+    });
+    it('a group row offers Select Group Contents', () => {
+      blank(); W.SlopUI.closeMenu();
+      SV.loadDoc(SV.sampleDoc(), { fit: false }); SV.resetHistory();
+      const L = SV.state.doc.layers.find((l) => l.children.length >= 2);
+      SV.select(L.children.slice(0, 2).map((o) => o.id)); SV.runAction('object.group');
+      const g = L.children.find((o) => o.type === 'group');
+      expect(!!g).toBe(true);
+      expect(ctxAt(rowOf(g.id))).toBe(true);
+      clickItem('Select Group Contents');
+      expect(SV.state.sel.length).toBe(2);
+    });
+    it('swatches: right-click, then Delete Swatch removes it', () => {
+      W.SlopUI.closeMenu();
+      const sw = doc().querySelector('#swgrid .sw'), before = doc().querySelectorAll('#swgrid .sw').length;
+      expect(ctxAt(sw)).toBe(true);
+      expect(labels()).toContain('Apply as Fill'); expect(labels()).toContain('Delete Swatch');
+      clickItem('Delete Swatch'); UI.update();
+      expect(doc().querySelectorAll('#swgrid .sw').length).toBe(before - 1);
+    });
+    it('dock tabs: the Collapse Group item collapses and expands the group', () => {
+      W.SlopUI.closeMenu();
+      const tab = doc().querySelector('.dock-tab'), gid = tab.parentNode.parentNode.id.replace(/^dg-/, '');
+      expect(ctxAt(tab)).toBe(true);
+      clickItem('Collapse Group');
+      expect(!!UI.st.collapsed[gid]).toBe(true);
+      expect(ctxAt(tab)).toBe(true);
+      clickItem('Expand Group');
+      expect(!!UI.st.collapsed[gid]).toBe(false);
+      W.SlopUI.closeMenu();
+    });
+    it('the Menu key opens the focused layer row menu', () => {
+      W.SlopUI.closeMenu();
+      const eye = rowOf(SV.state.doc.layers[0].id).querySelector('.leye'); eye.focus();
+      key(eye, 'ContextMenu');
+      expect(labels()).toContain('Rename…');
+      W.SlopUI.closeMenu();
+      key(eye, 'F10', true);
+      expect(labels()).toContain('Lock');
+      W.SlopUI.closeMenu();
+    });
+  });
+
+  describe('Slop Hub', () => {
+    it('registers as "vector" against the shared app registry', () => {
+      expect(W.SLOP_APPS.find((a) => a.id === 'vector').path).toBe('slopvector/');
+      expect(W.SlopHub.self.app).toBe('vector');
+    });
+    it('offers Send to (SVG) and Send PNG items, also in File ▸ Send to', async () => {
+      const labels = HUB.sendItems().map((i) => i === '-' ? '-' : i.label);
+      ['Send to PhotoSlop', 'Send to Slop PDF', 'Send PNG to PhotoSlop', 'Send PNG to Slop PDF'].forEach((l) => expect(labels).toContain(l));
+      expect(labels).not.toContain('Send to SlopVector');
+      const btn = doc().querySelector('.menu-btn[data-menu="File"]');
+      btn.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+      const drop = doc().querySelector('.sui-menu.sv-dropdown[data-menu="File"]');
+      expect(btn.classList.contains('open')).toBe(true);
+      expect([...drop.querySelectorAll('.sui-lbl')].map((x) => x.textContent)).toContain('Open from Slop Drive…');
+      const row = [...drop.querySelectorAll('.sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === 'Send to');
+      row.dispatchEvent(new W.PointerEvent('pointerenter'));
+      // The flyout opens after a short hover delay (SlopUI SUB_DELAY), so wait for it.
+      await waitFor(() => [...doc().querySelectorAll('.sui-menu')].some((m) => m.dataset.level === '1'));
+      const sub = [...doc().querySelectorAll('.sui-menu')].find((m) => m.dataset.level === '1');
+      expect([...sub.querySelectorAll('.sui-lbl')].map((x) => x.textContent)).toContain('Send PNG to Slop PDF');
+      expect(UI.closeMenus()).toBe(true);
+      expect(doc().querySelector('.sui-menu')).toBe(null); expect(btn.classList.contains('open')).toBe(false);
+    });
+    it('menubar dropdowns are SlopUI menus that run actions and switch on hover', () => {
+      const file = doc().querySelector('.menu-btn[data-menu="File"]'), edit = doc().querySelector('.menu-btn[data-menu="Edit"]');
+      file.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+      edit.dispatchEvent(new W.MouseEvent('mouseenter'));
+      expect(doc().querySelectorAll('.sui-menu').length).toBe(1);
+      expect(doc().querySelector('.sui-menu').dataset.menu).toBe('Edit');
+      SV.runAction('select.none');
+      [...doc().querySelectorAll('.sui-menu .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === 'All').click();
+      expect(SV.state.sel.length).toBeGreaterThan(0);
+      expect(doc().querySelector('.sui-menu')).toBe(null); expect(UI.st.openMenu).toBe(null);
+    });
+    it('builds SVG and 2× PNG payloads', async () => {
+      SV.loadDoc(SV.sampleDoc(), { fit: false });
+      const svg = HUB.svgBlob(); expect(svg.type).toBe('image/svg+xml');
+      expect(await svg.text()).toContain('slopvector-document');
+      const png = await HUB.pngBlob(); expect(png.type).toBe('image/png');
+      const bmp = await createImageBitmap(png); expect([bmp.width, bmp.height]).toEqual([2400, 1600]);
+    });
+    it('sends the artwork through Slop Drive and opens the target app', async () => {
+      let opened = null; const realOpen = W.open; W.open = (u) => { opened = u; return {}; };
+      try { await HUB.sendItems().find((i) => i.label === 'Send PNG to PhotoSlop').act(); } finally { W.open = realOpen; }
+      expect(opened).toMatch(/\/photoslop\/\?drive=/);
+      const rec = await W.SlopHub.get(new URL(opened).searchParams.get('drive'));
+      expect([rec.type, rec.from, rec.name]).toEqual(['image/png', 'vector', 'Sloppo' + '.png']);
+    });
+    // Drive records come in through the one intake (slopvector/js/io/intake.js): mode 'new' opens, no mode places.
+    const openRec = async (rec) => W.SlopIntake.take([rec], { to: 'vector', mode: 'new', source: 'drive' });
+    const placeRec = async (rec) => { const r = await W.SlopIntake.take([rec], { to: 'vector', source: 'drive' }); return r.added[0] && r.added[0].value; };
+    it('opens Drive SVGs as documents and places Drive images as image objects', async () => {
+      const sid = await W.SlopHub.put(svgDoc('#ff3d8b'), { name: 'Drive art.svg', from: 'test' });
+      await openRec(await W.SlopHub.get(sid));
+      expect([SV.state.doc.name, SV.state.doc.width]).toEqual(['Drive art', 300]);
+      expect(SV.state.doc.layers[0].children[0].style.fill).toBe('#ff3d8b');
+      const pid = await W.SlopHub.put(await pngBlob(64, 32), { name: 'chip.png', from: 'test' });
+      const o = await placeRec(await W.SlopHub.get(pid));
+      expect([o.type, o.w, o.h, o.name]).toEqual(['image', 64, 32, 'chip']);
+      await openRec(await W.SlopHub.get(pid));
+      expect([SV.state.doc.width, SV.state.doc.height, SV.state.doc.layers[0].children[0].type]).toEqual([64, 32, 'image']);
+    });
+    it('Open from Slop Drive… picks a file in the shared picker', async () => {
+      const id = await W.SlopHub.put(svgDoc('#7a5cff'), { name: 'Picked.svg', from: 'test' });
+      SV.runAction('file.openDrive');
+      const item = await waitFor(() => [...doc().querySelectorAll('.hub-item')].find((b) => b.textContent.includes('Picked.svg')));
+      item.click(); await waitFor(() => SV.state.doc.name === 'Picked');
+      expect(SV.state.doc.layers[0].children[0].style.fill).toBe('#7a5cff');
+      await W.SlopHub.remove(id);
+    });
+    it('Save writes back to the Drive file a document was opened from, and a new document unlinks', async () => {
+      const id = await W.SlopHub.put(svgDoc('#123456'), { name: 'Saved back.svg', from: 'test' });
+      await openRec(await W.SlopHub.get(id));
+      expect(HUB.linked).toBe(id);
+      SV.state.doc.layers[0].children[0].style.fill = '#abcdef';
+      await HUB.save();
+      const rec = await W.SlopHub.get(id);
+      expect([rec.id, (await rec.blob.text()).includes('#abcdef')]).toEqual([id, true]);
+      SV.loadDoc(SV.sampleDoc(), { fit: false });
+      expect(HUB.linked).toBe(null);
+      await W.SlopHub.remove(id);
+    });
+    it('opens a file it was launched with (?drive=<id>) and tidies the URL', async () => {
+      const id = await W.SlopHub.put(svgDoc('#00c2b8'), { name: 'Launched.svg', from: 'photoslop' });
+      const f = await frameApp('../../slopvector/index.html?drive=' + id);
+      await waitFor(() => f.contentWindow.SV.state.doc.name === 'Launched');
+      expect(f.contentWindow.SV.state.doc.layers[0].children[0].style.fill).toBe('#00c2b8');
+      expect(f.contentWindow.location.search).toBe('');
+      f.remove();
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'SlopVector · UI & hub' });
+  </script>
+</body>
+</html>

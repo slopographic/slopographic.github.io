@@ -1,0 +1,27 @@
+#FLAGGA 0
+#PROGRAM "Hemmabygge" 0.9
+#FORMAT PC8
+#GEN 2026-01-31
+#sietyp 4
+#FNAMN "Påhittade Konsult HB"
+#ORGNR 969999-0002
+#RAR 0 20250701 20260630
+#KONTO 1930 "Bankkonto"
+#KONTO 3041 "Försäljning tjänster"
+#KONTO 2611 "Utgående moms"
+#KONTO 4010 "Inköp material"
+#KONTO 19301 "Bank, sparkonto"
+#IB 0 1930 1000,50
+#IB 0 19301 -1000,50
+#VER "A" "7" 20250801 "Konsultarvode, augusti" {
+#TRANS 1930 6250,00
+#TRANS 3041 {} -5000,00
+#TRANS 2611 "" -1250,00 "" "Moms"
+}
+#VER A 8 20250805 "Material, kvitto saknar moms"
+{
+#TRANS 4010 {} 400.00
+#TRANS 1930 {} -399.00
+}
+#VER A 9 20250810 "Okänd"
+#XYZ "okänd etikett ignoreras"

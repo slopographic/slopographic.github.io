@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Gallery: the panel on the right with Import at its foot (1280 and 390)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 844px; }</style></head>
+<body>
+  <!-- Covers: gallery/js/ui/panel.js, gallery/js/ui/main.js, gallery/css/gallery.css, gallery/index.html, shared/tour/tours/gallery.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D, G;
+  async function open(width) {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = '../../gallery/index.html'; document.body.append(F);
+    W = F.contentWindow;
+    await waitFor(() => W.SlopGallery && W.SlopGallery.ready && W.SlopGallery.panel.frame, { timeout: 30000 });
+    D = W.document; G = W.SlopGallery;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+    await sleep(100);
+  }
+  const stubPick = () => { let n = 0; W.SlopIntake.pick = () => { n++; return Promise.resolve(null); }; return () => n; };
+
+  describe('Slop Gallery: the right panel', () => {
+    it('at 1280 the panel is right of the photos, holds the library tools, and Import photos at its foot imports', async () => {
+      await open(1280);
+      const imp = D.getElementById('topImport'), panel = D.getElementById('gPanel'), main = D.querySelector('main.grid-area');
+      expect(imp.closest('.sf-p-foot').parentNode).toBe(panel);
+      expect(D.querySelector('header.topbar').contains(imp)).toBe(false);
+      expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(main.getBoundingClientRect().right - 1);
+      expect(imp.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      for (const id of ['btnDupes', 'btnBackup', 'btnRestore', 'topSort', 'btnActions']) expect(panel.contains(D.getElementById(id))).toBe(true);
+      expect(D.getElementById('side').contains(D.getElementById('fYear'))).toBe(true);   // the filters stay on the left
+      const picked = stubPick();
+      imp.click();
+      expect(picked()).toBe(1);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+    }, { timeout: 60000 });
+
+    it('the selection names its count', async () => {
+      G.state.select(['a', 'b']);
+      expect(D.querySelector('#gPanel .sf-h').textContent).toBe('Selection (2)');
+      G.state.clearSelection();
+      expect(D.querySelector('#gPanel .sf-h').textContent).toBe('Selection');
+    });
+
+    it('at 390 the closed sheet shows Import photos at the bottom; Library opens the sheet; no sideways scroll', async () => {
+      await open(390);
+      const imp = D.getElementById('topImport'), r = imp.getBoundingClientRect();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(r.height).toBeGreaterThan(0);
+      expect(r.bottom).toBeLessThanOrEqual(844.5);
+      expect(r.top).toBeGreaterThan(844 - 120);
+      const picked = stubPick();
+      imp.click();
+      expect(picked()).toBe(1);
+      D.querySelector('#gPanel .sf-foot-more').click();
+      await waitFor(() => D.getElementById('gPanel').classList.contains('ssh-on'));
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Gallery: the right panel' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: the header (1440 and 390 wide)</title></head>
+<body>
+  <!-- Covers: code/index.html, code/css/base.css -->
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  async function open(width) {
+    const W = await CT.frame('../../code/', { width, height: 760 });
+    await waitFor(() => W.document.querySelector('header .sh-switch'), { timeout: 15000 });
+    return W;
+  }
+  const box = (D, s) => D.querySelector(s).getBoundingClientRect();
+
+  describe('Slop Code header', () => {
+    it('has the brand home link and the app name', async () => {
+      const W = await open(1440), D = W.document;
+      const brand = D.querySelector('header.cd-top a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.querySelector('.brand-app')).toBeTruthy();
+      expect(D.querySelector('header h1').textContent).toBe('Slop Code');
+      CT.close(W);
+    });
+    it('draws the toolbar buttons with a border, at the height of the shell buttons, on one row', async () => {
+      const W = await open(1440), D = W.document;
+      expect(W.getComputedStyle(D.getElementById('cd-open')).borderTopWidth).toBe('1px');
+      expect(box(D, '#cd-open').height).toBe(box(D, 'header .sh-switch').height);
+      expect(box(D, '#cd-open').top).toBe(box(D, 'header .sh-switch').top);
+      expect(box(D, 'header.cd-top').height).toBeLessThan(60);
+      CT.close(W);
+    });
+    it('fits 390px: brand and shell buttons on the first row, the file buttons on the second', async () => {
+      const W = await open(390), D = W.document;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(Math.abs(box(D, '#cd-files').top - box(D, 'header .sh-switch').top)).toBeLessThan(4);
+      expect(box(D, '#cd-open').top).toBeGreaterThan(box(D, '#cd-files').bottom - 1);
+      expect(box(D, 'header.cd-top').height).toBeLessThan(100);
+      expect(box(D, 'header .sn-bell').right).toBeLessThanOrEqual(390);
+      CT.close(W);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: header' });
+  </script>
+</body>
+</html>

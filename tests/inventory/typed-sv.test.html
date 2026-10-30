@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Inventory · a price typed in Swedish ("12,50")</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1100px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/data/money.js, inventory/js/ui/product-form.js, shared/i18n/i18n.js
+  // The UI language is Swedish (the stored choice, as the language menu saves it): the product form reads "12,50" and "12,5"
+  // as 12.50 and 12.5 %, stores 1250 and 1250, and shows them again for editing with the Swedish decimal comma.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } }));
+  const frame = document.createElement('iframe');
+  frame.src = '../../inventory/index.html';
+  document.body.append(frame);
+  const W = () => frame.contentWindow, D = () => frame.contentDocument;
+  const $ = (id) => D().getElementById(id);
+  const ready = () => W() && W().SlopInv && W().SlopInv.productForm && D() && $('boot') && $('boot').hidden && !$('view-products').hidden;
+  const type = (input, v) => { input.focus(); input.value = v; input.dispatchEvent(new (W().Event)('input', { bubbles: true })); };
+
+  describe('a price typed in Swedish', () => {
+    it('the page is in Swedish and its money parser reads the decimal comma', async () => {
+      await waitFor(ready, { timeout: 30000 });
+      await waitFor(() => D().documentElement.getAttribute('lang') === 'sv', { timeout: 15000 });
+      expect(W().SlopData.money.uiLang()).toBe('sv');
+      expect(W().SlopData.money.parseTyped('12,50', 'USD')).toBe(1250);
+    }, { timeout: 60000 });
+
+    it('"12,50" in the product price is stored as 1250, and shows as "12,50" for editing', async () => {
+      $('pAdd').click();
+      await waitFor(() => D().querySelectorAll('#pFields input').length >= 5);
+      const [sku, , name, price, tax] = [...D().querySelectorAll('#pFields input')];
+      type(sku, 'SV-1'); type(name, 'Bricka'); type(price, '12,50'); type(tax, '12,5');
+      $('pSave').click();
+      let p = null;
+      await waitFor(async () => { const r = await W().SlopData.store.list('products'); p = r.ok ? r.value.find((x) => x.sku === 'SV-1') : null; return !!p; }, { timeout: 10000 });
+      expect(p.price).toBe(1250);
+      expect(p.taxRate).toBe(1250);
+      await W().SlopInv.productForm.open({ product: p, show: false });
+      const again = [...D().querySelectorAll('#pFields input')];
+      expect(again[3].value).toBe('12,50');
+      expect(again[4].value).toBe('12,50');
+    }, { timeout: 60000 });
+
+    it('an English-style "1,5" stays refused in English, and is 1.50 in Swedish', async () => {
+      const M = W().SlopData.money;
+      expect(M.parseTyped('1,5', 'USD', 'en')).toBe(null);
+      expect(M.parseTyped('1,5', 'USD')).toBe(150);
+      localStorage.removeItem('slop-profile');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

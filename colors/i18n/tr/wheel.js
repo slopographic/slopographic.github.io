@@ -1,0 +1,25 @@
+/* Slop Colors, Turkish: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'colors.wheel.label': 'Renk çemberi',
+  'colors.wheel.rule': 'Uyum',
+  'colors.wheel.model': 'Çember',
+  'colors.wheel.bright': 'Parlaklık',
+  'colors.wheel.light': 'Açıklık',
+  'colors.wheel.bright_text': 'Parlaklık %{pct}',
+  'colors.wheel.light_text': 'Açıklık %{pct}',
+  'colors.wheel.keys': 'Bir tutamağı sürükleyin ya da üzerindeyken ok tuşlarını kullanın: sol ve sağ renk tonunu çevirir, yukarı ve aşağı doygunluğu değiştirir, Shift on adım atar, Page Up ve Page Down parlaklığı değiştirir.',
+  'colors.wheel.base': 'Ana renk',
+  'colors.wheel.handle': 'Renk {n}',
+  'colors.wheel.value': 'Ton {hue}°, doygunluk %{sat}, {hex}',
+  'colors.wheel.value_oklch': 'Ton {hue}°, kroma %{sat}, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (ressam)',
+  'colors.wheel.oklch': 'OKLCH (algısal)',
+  'colors.harmony.brightness': 'Tonlar',
+  'colors.harmony.custom': 'Özel',
+  'colors.cmd.g_wheel': 'Renk çemberi',
+  'colors.cmd.wheel_rule': 'Çember: uyumu {rule} yap',
+  'colors.cmd.wheel_model': 'Çember: {wheel} çemberini kullan',
+  'colors.cmd.wheel_focus': 'Çember: renk çemberine git',
+});

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Projects timeline: bars and arrows, drag to move and resize (later tasks move on), keys, schedule, zoom, undo, 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: projects/js/ui/timeline.js, projects/js/ui/timeline-drag.js, projects/js/core/bars.js, projects/js/core/deps.js, projects/css/timeline.css
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, T, start;
+  const $ = (id) => D.getElementById(id);
+  const P = () => W.SlopProjects;
+  const task = (title) => P().state.tasks.find((t) => t.title === title);
+  const bar = (title) => D.querySelector(`.tl-bar[data-id="${task(title).id}"]`);
+  const d = (n) => T.addDays(start, n);   // the sample's day n
+  const fire = (target, type, x, y) => target.dispatchEvent(new W.PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true, pointerType: 'mouse' }));
+  const key = (target, k, o = {}) => target.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+  async function drag(el, dx) {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    fire(el, 'pointerdown', x, y); fire(el, 'pointermove', x + dx / 2, y); fire(el, 'pointermove', x + dx, y); fire(el, 'pointerup', x + dx, y);
+  }
+  async function boot(hash) {
+    const f = document.getElementById('app');
+    f.src = '../../projects/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopProjects && f.contentWindow.SlopProjects.app && f.contentWindow.SlopProjects.app.reload && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document; T = W.SlopTime;
+  }
+
+  describe('Slop Projects timeline', () => {
+    it('shows a bar per dated task, an arrow per dependency, today, and the undated task aside', async () => {
+      await boot('#timeline');
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      try { W.localStorage.removeItem('slop-projects.zoom'); W.localStorage.removeItem('slop-projects.project'); } catch (e) { /* blocked */ }
+      await boot('#timeline');
+      await P().files.trySample();
+      await waitFor(() => D.querySelectorAll('.tl-bar').length === 9);
+      start = task('Write the brief').start;
+      expect(D.querySelectorAll('.tl-arrow').length).toBe(9);
+      expect(D.querySelectorAll('.tl-arrow.bad').length).toBe(0);
+      expect(!!D.querySelector('.tl-today')).toBe(true);
+      expect($('tlSide').textContent).toContain('Tell the newsletter');
+      expect(bar('Build the pages').getBoundingClientRect().width).toBe(9 * 36);
+    });
+
+    it('dragging a bar moves the task by whole days and the tasks after it move on, as one undo step', async () => {
+      await drag(bar('Build the pages'), 72);
+      await waitFor(() => task('Build the pages').start === d(16));
+      expect(task('Build the pages').end).toBe(d(24));
+      expect([task('Test on phones and browsers').start, task('Test on phones and browsers').end]).toEqual([d(25), d(28)]);
+      expect(task('Launch').start).toBe(d(29));   // still after Test ends: it stays
+      expect($('pLive').textContent).toContain('and 1 later task');
+      await P().actions.undo();
+      await waitFor(() => task('Build the pages').start === d(14) && task('Test on phones and browsers').start === d(23));
+    });
+
+    it('dragging the end changes only the end; a press without a drag opens the task', async () => {
+      const h = bar('Choose photos').querySelector('.tl-h.e');
+      const r = h.getBoundingClientRect();
+      fire(h, 'pointerdown', r.left + 2, r.top + 4); fire(h, 'pointermove', r.left + 40, r.top + 4); fire(h, 'pointerup', r.left + 40, r.top + 4);
+      await waitFor(() => task('Choose photos').end === d(13));
+      expect(task('Choose photos').start).toBe(d(9));
+      const b = bar('Choose photos'), m = b.getBoundingClientRect();
+      fire(b, 'pointerdown', m.left + 30, m.top + 5); fire(b, 'pointerup', m.left + 30, m.top + 5);
+      // the task opens in the panel on the right (projects/js/ui/task-panel.js); Escape closes it
+      await waitFor(() => W.SlopProjects.taskPanel.isOpen() && $('peTitle').value === 'Choose photos');
+      expect(D.querySelector('.pj-task').getBoundingClientRect().left).toBeGreaterThan(D.querySelector('.pj-views').getBoundingClientRect().left);
+      $('peTitle').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await waitFor(() => !W.SlopProjects.taskPanel.isOpen());
+    });
+
+    it('keys on a focused bar: arrows move a day, Shift changes the end; the focus stays', async () => {
+      bar('Write the page copy').focus();
+      key(bar('Write the page copy'), 'ArrowLeft');
+      await waitFor(() => task('Write the page copy').start === d(5));
+      await waitFor(() => D.activeElement && D.activeElement.dataset.id === task('Write the page copy').id);
+      key(D.activeElement, 'ArrowRight', { shiftKey: true });
+      await waitFor(() => task('Write the page copy').end === d(13));
+      expect(task('Write the page copy').start).toBe(d(5));
+    });
+
+    it('Schedule puts an undated task on the timeline from today', async () => {
+      [...$('tlSide').querySelectorAll('button')].find((b) => b.textContent === 'Schedule').click();
+      await waitFor(() => !!task('Tell the newsletter').start);
+      expect(task('Tell the newsletter').start).toBe(P().state.today);
+      expect(task('Tell the newsletter').end).toBe(T.addDays(P().state.today, 2));
+      await waitFor(() => D.querySelectorAll('.tl-bar').length === 10);
+      expect($('tlSide').textContent).toContain('Every task shown has dates');
+    });
+
+    it('zoom to weeks narrows the bars and is remembered', async () => {
+      D.querySelector('[data-zoom="week"]').click();
+      await waitFor(() => D.querySelector('[data-zoom="week"]').getAttribute('aria-pressed') === 'true');
+      expect(bar('Build the pages').getBoundingClientRect().width).toBe(9 * 16);
+      expect(W.localStorage.getItem('slop-projects.zoom')).toBe('week');
+      D.querySelector('[data-zoom="day"]').click();
+    });
+
+    it('at 390 px the timeline scrolls inside its box and the page has no sideways scroll', async () => {
+      document.getElementById('app').style.width = '390px';
+      await waitFor(() => W.innerWidth === 390);
+      await P().app.reload();
+      const sc = D.querySelector('.tl-scroll');
+      expect(sc.scrollWidth > sc.clientWidth).toBe(true);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+      document.getElementById('app').style.width = '1280px';
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

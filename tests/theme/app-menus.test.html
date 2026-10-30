@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Theme · the apps' own theme menus</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/theme/theme.js"></script>
+  <script>
+  /* Covers: drive/js/ui/shell.js, ai/js/ui/shell.js, label/js/ui/app.js, slopcut/js/ui/app.js, pdf/js/ui/menus.js,
+   * slopisolate/js/ui/menus.js, slopisolate/js/ui/commands.js, press/js/ui/commands2.js, slopvector/js/ui/actions.js,
+   * shared/theme/theme.js (SlopTheme.has)
+   * The apps that have a theme menu of their own (Pro, Light, Classic 98) offer only the themes the site offers: a brand
+   * profile can hide Classic 98 (themes.hide; tests/brand-facts.js themes), and then no app shows it as a menu row or a
+   * command. Pro is the app's name for Dark. */
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const SHARED = { pro: 'dark', light: 'light', classic: 'classic' };
+  const WANT = ['pro', 'light', 'classic'].filter((id) => BRAND_FACTS.themes.includes(SHARED[id]));
+  const ids = (rows) => [...rows].map((r) => r[0]);
+  const theme = (list) => list.filter((id) => /^theme\./.test(id)).map((id) => id.slice(6));
+  // each app: its folder and how to read the native theme ids its menu offers (null while it is still starting)
+  const APPS = [
+    ['drive', (W) => W.DR && W.DR.THEMES && ids(W.DR.THEMES)],
+    ['ai', (W) => W.AI && W.AI.THEMES && ids(W.AI.THEMES)],
+    ['label', (W) => { try { return ids(W.eval('THEMES')); } catch (e) { return null; } }],
+    ['slopcut', (W) => W.SE && W.SE.app && W.SE.app.THEMES && ids(W.SE.app.THEMES)],
+    ['pdf', (W) => W.SP && W.SP.app && W.SP.app.THEMES && ids(W.SP.app.THEMES)],
+    ['slopisolate', (W) => W.CO && W.CO.THEMES && ids(W.CO.THEMES)],
+    ['press', (W) => W.PR && W.PR.actions && W.PR.actions.defs['theme.light'] && theme(W.PR.actions.order)],
+    ['slopvector', (W) => W.SV && W.SV.actions && W.SV.actions['theme.light'] && theme(Object.keys(W.SV.actions))],
+  ];
+
+  describe('the apps\' own theme menus', () => {
+    it('SlopTheme.has: the offered themes, with an app\'s Pro as Dark', () => {
+      for (const id of ['light', 'dark', 'classic', 'lime']) expect(SlopTheme.has(id)).toBe(BRAND_FACTS.themes.includes(id));
+      expect(SlopTheme.has('pro')).toBe(BRAND_FACTS.themes.includes('dark'));
+      expect(SlopTheme.has('mauve')).toBe(false);
+    });
+    for (const [app, read] of APPS) it(`${app}: the menu offers the site's themes only`, async () => {
+      const f = document.createElement('iframe');
+      f.src = `../../${app}/index.html`;
+      document.body.appendChild(f);
+      try {
+        const got = await waitFor(() => { try { return f.contentWindow && read(f.contentWindow); } catch (e) { return null; } }, { timeout: 30000 });
+        expect([...got]).toEqual(WANT);
+      } finally { f.remove(); }
+    }, { timeout: 45000 });
+  });
+  run({ name: 'Theme · the apps\' own theme menus' });
+  </script>
+</body>
+</html>

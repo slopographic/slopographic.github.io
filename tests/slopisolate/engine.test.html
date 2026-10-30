@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cutout engine tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- Pure pipeline math (shared/cutout/pipeline.js + refine.js + models.js) and the worker RPC (cutout.js ↔ worker.js). -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/cutout/pipeline.js"></script>
+  <script src="../../shared/cutout/refine.js"></script>
+  <script src="../../shared/cutout/models.js"></script>
+  <script src="../../shared/cutout/cutout.js"></script>
+  <script src="engine.spec-pipeline.js"></script>
+  <script src="engine.spec-refine.js"></script>
+  <script src="engine.spec-worker.js"></script>
+  <script>SlopTest.run({ name: 'Slop Cutout engine' });</script>
+</body>
+</html>

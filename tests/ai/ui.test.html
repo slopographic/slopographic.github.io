@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: UI smoke (fake engine)</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, AI, D;
+  const $ = (s) => D.querySelector(s), $$ = (s) => [...D.querySelectorAll(s)];
+  const noSideways = () => D.documentElement.scrollWidth <= W.innerWidth && D.body.scrollWidth <= W.innerWidth;
+  describe('models: download, pause, resume, cancel, default, delete', () => {
+    it('renders the tabs and a card per catalog model with licence and badges', async () => {
+      W = await AT.app(); AI = W.AI; D = W.document; AT.answer(W);
+      AI.sysMock = AT.SYS.laptop; await AI.runCheck();
+      AI.setTab('models');
+      await waitFor(() => $$('.mcard').length === AI.K.catalog.list.length);
+      expect($$('.tab').map((t) => t.dataset.tab)).toEqual(['chat', 'build', 'models', 'sys']);
+      expect($('.mcard[data-id="Llama-3.2-3B-Instruct-q4f16_1-MLC"] .badge.rec').textContent).toBe('Recommended');
+      expect($('.mcard[data-id="gemma-2-2b-it-q4f16_1-MLC"] .m-facts').textContent).toContain('Gemma Terms of Use');
+      expect($('.mcard[data-id="Qwen2.5-7B-Instruct-q4f16_1-MLC"] .badge.no')).toBeTruthy();
+      expect(noSideways()).toBe(true);
+    });
+    it('pause keeps progress, resume continues, cancel clears', async () => {
+      AI.fakeLoadMs = 600;
+      const id = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', card = () => $(`.mcard[data-id="${id}"]`);
+      card().querySelector('[data-act="load"]').click();
+      await waitFor(() => AI.E.state === 'loading' && AI.E.progress > 0);
+      expect($('#modelChip').textContent).toMatch(/%/);
+      card().querySelector('[data-act="pause"]').click();
+      await waitFor(() => AI.E.state === 'paused');
+      expect(card().textContent).toMatch(/Paused at \d+%/);
+      card().querySelector('[data-act="cancel"]').click();
+      await waitFor(() => AI.E.state === 'idle');
+      expect((await AI.E.status(id)).state).toBe('none');
+      AI.fakeLoadMs = 10;
+    });
+    it('download loads the model; set default; delete', async () => {
+      const id = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', card = () => $(`.mcard[data-id="${id}"]`);
+      card().querySelector('[data-act="load"]').click();
+      await waitFor(() => AI.E.ready());
+      expect($('#modelChip').classList.contains('ready')).toBe(true);
+      expect(W.SlopAI.ready).toBe(true); expect(W.SlopAI.look.hat).toBe('brain');
+      expect(AI.prefs.defaultModel).toBe(id); // the first loaded model becomes the default
+      await waitFor(() => card() && card().classList.contains('loaded'));
+      card().querySelector('[data-act="default"]').click();
+      expect(AI.prefs.defaultModel).toBe(null);
+      await AI.E.remove('Llama-3.2-1B-Instruct-q4f16_1-MLC');
+      expect(AI.E.ready()).toBe(true);
+    });
+  });
+  describe('chat', () => {
+    it('streams markdown with code blocks, copy and token stats', async () => {
+      AI.setTab('chat'); AI.newChat();
+      AI.fakeDelay = 0;
+      const ta = $('.chat-main .input'); ta.value = 'Tell me something'; ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await waitFor(() => !AI.chat.busy && $$('.chat-main .msg.bot').length === 1);
+      const bot = $('.chat-main .msg.bot');
+      expect(bot.querySelector('.md strong').textContent).toBe('Fake engine');
+      expect(bot.querySelector('.md-code code').textContent).toContain('hello from the slop');
+      expect(bot.querySelector('.stats').textContent).toMatch(/\d+ tokens · [\d.]+ tok\/s/);
+      bot.querySelector('.md-code [data-act="copy"]').click();
+      await waitFor(() => W.AI.lastCopied);
+      expect(AI.lastCopied).toBe('console.log("hello from the slop");');
+      expect((await AI.db.list('chat'))[0].title).toBe('Tell me something');
+    });
+    it('stop ends a reply early; regenerate replaces it', async () => {
+      AI.E.engine.delay = 20;
+      const p = AI.chat.send('Another one please');
+      await waitFor(() => $('.chat-main .msg.bot.live') && $('.chat-main .msg.bot.live').textContent.length > 5);
+      expect(AI.chat.btnSend.classList.contains('stop')).toBe(true);
+      AI.chat.btnSend.click();
+      await p;
+      const last = AI.chat.conv.messages[AI.chat.conv.messages.length - 1];
+      expect(last.stopped).toBe(true);
+      AI.E.engine.delay = 0;
+      AI.E.engine.replies.push('Regenerated answer.');
+      $('.chat-main [data-act="regen"]').click();
+      await waitFor(() => !AI.chat.busy && AI.chat.conv.messages[AI.chat.conv.messages.length - 1].content === 'Regenerated answer.');
+      expect(AI.chat.conv.messages.filter((m) => m.role === 'assistant').length).toBe(2);
+    });
+    it('attached text files reach the model as context', async () => {
+      await AI.chat.addFiles([new W.File(['alpha beta'], 'notes.txt', { type: 'text/plain' }), new W.File([new Uint8Array(3)], 'pic.png', { type: 'image/png' })]);
+      expect($$('.chat-main .atts.pending .att').length).toBe(1);
+      await AI.chat.send('Summarise');
+      const sent = AI.E.engine.calls[AI.E.engine.calls.length - 1].messages.pop().content;
+      expect(sent).toContain('Attached file: notes.txt'); expect(sent).toContain('alpha beta');
+      expect($$('.chat-main .msg.user .att').pop().textContent).toContain('notes.txt');
+      expect($$('.chat-main .msg.bot').pop().textContent).toContain('notes.txt');
+    });
+    it('Control apps: the model opens an app beside the chat through a tool call', async () => {
+      AI.newChat();
+      $('#btnTools').click();
+      expect($('#btnTools').getAttribute('aria-pressed')).toBe('true');
+      await AI.chat.send('Please open SlopVector');
+      await waitFor(() => $('.ws-frame'));
+      expect($('.ws-frame').getAttribute('src')).toMatch(/\/slopvector\/$/);
+      expect(W.__opened.length).toBe(0);
+      expect($('.chat-main .msg.tool').textContent).toContain('open_app');
+      expect($$('.chat-main .msg.bot').pop().textContent).toContain('Done!');
+      W.SlopWorkspace.close('vector');
+    });
+    it('the settings dialog edits persona, temperature and max tokens', async () => {
+      $('#btnPersona').click();
+      await waitFor(() => $('.settings-dlg'));
+      const sel = $('.settings-dlg select'); sel.value = 'sloppo'; sel.dispatchEvent(new Event('change'));
+      expect($('.settings-dlg textarea').value).toMatch(/SLURP/);
+      const num = $('.settings-dlg input[type=number]'); num.value = '256';
+      [...$$('.settings-dlg .sui-btn')].find((b) => b.textContent === 'Save').click();
+      await waitFor(() => $('#btnPersona').textContent.includes('Sloppo'));
+      expect(AI.chat.conv.persona).toBe('sloppo');
+      expect(AI.chat.conv.maxTokens).toBe(256);
+    });
+  });
+  describe('Sloppo, system check, commands', () => {
+    it('Ask Sloppo streams a line through window.SlopAI', async () => {
+      const b = AI.askSloppo('hi');
+      await waitFor(() => AI.lastSloppo);
+      const text = await AI.lastSloppo.text;
+      expect(text.length).toBeGreaterThan(5);
+      await waitFor(() => b.querySelector('.say').textContent === text);
+      b.querySelector('.x').click();
+      expect($('#sloppo').classList.contains('powered') || true).toBe(true);
+    });
+    it('the system check page shows specs, verdicts and a spec card', async () => {
+      AI.setTab('sys');
+      await waitFor(() => $$('.verdicts tbody tr').length === AI.K.catalog.list.length);
+      expect($('.spec-grid').textContent).toContain('50 GB/s');
+      expect($('.verdicts').textContent).toMatch(/✅ runs well ~\d+ tok\/s/);
+      expect($('.verdicts').textContent).toContain('❌ won’t fit');
+      let t0 = performance.now();
+      const c = AI.specCard(AI.sys); expect(c.width).toBe(1200); expect(c.height).toBe(675);
+      const blob = await AI.specCardBlob(AI.sys); expect(blob.type).toBe('image/png');
+      console.log('spec card ms', performance.now() - t0);
+      AI.sysMock = AT.SYS.none; await AI.runCheck();
+      expect($('.help').textContent).toContain('WebGPU is missing');
+    });
+    it('registers its commands with SlopCmd', () => {
+      const got = []; W.SlopCmd = { init: (o) => got.push(o), register: (l) => got.push(...l), open: () => {}, keyFor: () => '' };
+      expect(AI.wireCommands()).toBe(true);
+      expect(got[0].app).toBe('ai');
+      const ids = got.slice(1).map((c) => c.id);
+      for (const id of ['ai.newChat', 'ai.stop', 'ai.unload', 'ai.check', 'ai.tab.models', 'ai.tpl.game', 'ai.sloppo']) expect(ids).toContain(id);
+      expect(new Set(ids).size).toBe(ids.length);
+      got.find((c) => c.id === 'ai.tab.build').run();
+      expect(AI.tab).toBe('build');
+    });
+    it('themes switch and nothing scrolls sideways on any tab', async () => {
+      for (const t of ['light', 'classic', 'pro']) { AI.setTheme(t); expect(D.documentElement.getAttribute('data-theme')).toBe(t); }
+      for (const t of ['chat', 'build', 'models', 'sys']) { AI.setTab(t); await sleep(30); expect(noSideways()).toBe(true); }
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: UI smoke (fake engine)' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · the app globe follows the finder; icon sizes from the registry</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="hero-boot.js"></script>
+  <script>
+  // Covers: home/globe/globe.js, home/globe/sphere.js, home/browse.js, shared/apps.js
+  /* The globe reacts to the finder's own result (home/browse.js sends it; the globe never matches by itself): typing makes
+   * the finder's matches the bright, larger icons and dims the rest; one match comes to the front with its name; no match
+   * dims the globe with a note; clearing brings back the turn; reduced motion goes there at once. The heavier apps
+   * (weight in shared/apps.js) are drawn larger and lead the finder's list when nothing is searched. */
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let win, doc;
+  const ready = HeroTest.open({ width: 1280 }).then((w) => { win = w; doc = w.document; });
+  const type = (q) => { const i = doc.querySelector('#app-finder .fd-input'); i.value = q; i.dispatchEvent(new win.Event('input', { bubbles: true })); win.scrollTo(0, 0); };
+  const finderIds = () => [...doc.querySelectorAll('#app-finder .fd-results .fd-row[data-id]')].map((n) => n.dataset.id);
+  const settled = () => waitFor(() => win.SlopGlobe.icons().every((i) => Math.abs(i.em - i.emT) < 0.01), { timeout: 6000 });
+
+  describe('the globe follows the finder', () => {
+    it('typing "pdf": the finder\'s matches are the bright, larger icons; the rest dim and shrink', async () => {
+      await ready;
+      type('pdf');
+      await settled();
+      const want = new Set(win.SlopHomeBrowse.result().ids);
+      expect(want.has('pdf')).toBe(true);
+      expect(finderIds()).toEqual(win.SlopHomeBrowse.result().ids);   // the finder's own list is the result the globe got
+      const icons = win.SlopGlobe.icons();
+      const on = icons.filter((i) => want.has(i.id)), off = icons.filter((i) => !want.has(i.id));
+      expect(on.length).toBe(want.size);
+      expect(on.every((i) => i.em > 0.95) && off.every((i) => i.em < 0.05)).toBe(true);
+      expect(win.SlopGlobe.view().match.sort()).toEqual([...want].sort());
+      // compare like with like: the front-most match against the front-most non-match of the same weight
+      const front = (list) => list.filter((i) => i.k === 1).sort((a, b) => b.z - a.z)[0];
+      const a = front(on), b = front(off);
+      expect(a.el.getBoundingClientRect().width).toBeGreaterThan(b.el.getBoundingClientRect().width);
+      expect(Number(a.el.style.opacity)).toBeGreaterThan(Number(b.el.style.opacity));
+    }, { timeout: 30000 });
+
+    it('one match comes to the front, large, with its name; the globe leans in', async () => {
+      await ready;
+      type('kanban');
+      await waitFor(() => win.SlopHomeBrowse.result().ids.length === 1, { timeout: 4000 });
+      const id = win.SlopHomeBrowse.result().ids[0];
+      await waitFor(() => { const i = win.SlopGlobe.icons().find((x) => x.id === id); return i && i.z > 0.9; }, { timeout: 8000 });
+      const ic = win.SlopGlobe.icons().find((x) => x.id === id);
+      expect(ic.el.classList.contains('is-pick')).toBe(true);
+      expect(win.getComputedStyle(ic.el.querySelector('.gx-name')).visibility).toBe('visible');
+      await waitFor(() => Math.abs(win.SlopGlobe.view().zoom - win.SlopGlobeMath.zoomFor(1)) < 0.01, { timeout: 6000 });
+    }, { timeout: 30000 });
+
+    it('no match: every icon dims and a short note shows; clearing the search brings back the turn', async () => {
+      await ready;
+      type('zzqxw');
+      await waitFor(() => !doc.querySelector('.gx-hint').hidden, { timeout: 4000 });
+      expect(doc.querySelector('.gx-hint').textContent).toBe(SlopTest.said(win, 'hero.no_match', 'No apps match'));
+      await settled();
+      expect(win.SlopGlobe.icons().every((i) => Math.abs(i.em - 0.45) < 0.02)).toBe(true);
+      type('');
+      await waitFor(() => win.SlopGlobe.view().match === null && doc.querySelector('.gx-hint').hidden, { timeout: 4000 });
+      await settled();
+      expect(win.SlopGlobe.icons().every((i) => i.em > 0.98)).toBe(true);
+      expect(doc.querySelectorAll('.gx-i.is-pick').length).toBe(0);
+      await waitFor(() => Math.abs(win.SlopGlobe.view().zoom - 1) < 0.01, { timeout: 6000 });
+      const y = win.SlopGlobe.view().yaw;
+      await waitFor(() => win.SlopGlobe.view().yaw - y > 0.01, { timeout: 8000 });   // the idle turn again
+    }, { timeout: 40000 });
+
+    it('reduced motion: the result shows at once, without easing or zoom animation', async () => {
+      await ready;
+      win.SlopGlobe.reduce(true);
+      type('kanban');
+      const v = win.SlopGlobe.view();
+      expect(v.zoom).toBe(win.SlopGlobeMath.zoomFor(1));
+      const id = win.SlopHomeBrowse.result().ids[0], ic = win.SlopGlobe.icons().find((x) => x.id === id);
+      expect(ic.em).toBe(1);
+      expect(ic.z).toBeGreaterThan(0.9);
+      expect(win.SlopGlobe.icons().filter((x) => x.id !== id).every((x) => x.em === 0)).toBe(true);
+      type('');
+      expect(win.SlopGlobe.icons().every((x) => x.em === 1)).toBe(true);
+      expect(win.SlopGlobe.view().zoom).toBe(1);
+      win.SlopGlobe.reduce(false);
+    }, { timeout: 30000 });
+  });
+
+  describe('icon sizes come from the registry', () => {
+    it('apps with weight 2 in shared/apps.js are drawn about 1.7 times larger; the others at the base size', async () => {
+      await ready;
+      const heavy = new Set(win.SLOP_APPS.filter((a) => (a.weight || 1) > 1).map((a) => a.id));
+      expect(heavy.size).toBeGreaterThan(4);
+      for (const id of ['pdf', 'photoslop', 'slopedit', 'convert']) expect(heavy.has(id)).toBe(true);
+      const icons = win.SlopGlobe.icons();
+      const big = icons.filter((i) => heavy.has(i.id)), small = icons.filter((i) => !heavy.has(i.id));
+      expect(big.length).toBe(heavy.size);
+      const w = (i) => i.el.offsetWidth;   // the layout size, before perspective
+      for (const b of big) expect(Math.abs(w(b) / w(small[0]) - 1.7)).toBeLessThan(0.05);
+      expect(new Set(small.map(w)).size).toBe(1);
+    });
+    it('with nothing searched, the finder lists the heavier apps first (after the featured ones)', async () => {
+      await ready;
+      type('');
+      await sleep(100);
+      const ids = finderIds(), rank = (id) => { const a = win.SLOP_APPS.find((x) => x.id === id); return (a.featured ? 2 : 0) + ((a.weight || 1) > 1 ? 1 : 0); };
+      for (let i = 1; i < ids.length; i++) if (rank(ids[i]) > rank(ids[i - 1])) throw new Error(`${ids[i]} after ${ids[i - 1]}`);
+      expect(rank(ids[0]) >= 1).toBe(true);
+    });
+  });
+
+  ready.then(() => run({ name: 'Homepage · the app globe follows the finder; icon sizes from the registry' }));
+  </script>
+</body>
+</html>

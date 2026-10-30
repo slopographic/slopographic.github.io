@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCmd in the single-file apps</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 900px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Slop Paint Classic loads SlopCmd and registers its actions.
+  const { describe, it, expect, waitFor } = SlopTest;
+  async function load(src, id) {
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.append(f);
+    const w = f.contentWindow;
+    await waitFor(() => w.SlopCmd && w.SlopCmd.list().some((c) => c.id === id), { timeout: 20000 });
+    w.SlopCmd.resetKeys();
+    const key = (k, o = {}) => w.document.body.dispatchEvent(new w.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o)));
+    return { f, w, C: w.SlopCmd, key, $: (s) => w.document.querySelector(s) };
+  }
+  describe('single-file apps', () => {
+    it('Slop Paint Classic: menu actions, tools, Win98 palette and Help entries', async () => {
+      const { f, w, C, key, $ } = await load('../../photoslop/classic/index.html', 'paint.invert');
+      expect(C.app).toBe('paint-classic');
+      const P = w.slopPaint;
+      key('i', { ctrlKey: true, code: 'KeyI' });
+      expect(P.undoDepth()).toBe(1);
+      key('z', { ctrlKey: true, code: 'KeyZ' });
+      expect(P.undoDepth()).toBe(0);
+      C.run('tool.brush');
+      expect(P.state.tool).toBe('brush');
+      C.setKeys('paint.invert', ['Mod+Shift+I']);
+      key('i', { ctrlKey: true, code: 'KeyI' });
+      expect(P.undoDepth()).toBe(0);
+      expect(w.document.documentElement.dataset.theme).toBe('paint');
+      const openMenu = (name) => [...w.document.querySelectorAll('.mb-item')].find((b) => b.textContent === name).dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+      openMenu('Help');
+      const labels = [...w.document.querySelectorAll('.menu .mi')].map((b) => b.textContent);
+      expect(labels.some((t) => t.startsWith('Search Commands'))).toBe(true);
+      expect(labels.some((t) => t.startsWith('Keyboard Shortcuts'))).toBe(true);
+      key('Escape');
+      openMenu('Image');
+      expect([...w.document.querySelectorAll('.menu .mi')].find((b) => b.textContent.startsWith('Invert')).textContent).toContain('Ctrl+Shift+I');
+      key('Escape');
+      C.resetKeys(); f.remove();
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'SlopCmd in the single-file apps' });
+  </script>
+</body>
+</html>

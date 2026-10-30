@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Code in Swedish</title>
+  <!-- Covers: code/i18n/index.js, code/js/commands.js, code/js/dialogs.js, code/js/dom.js, code/js/explorer.js, code/js/extensions.js, code/js/lang.js, code/js/main.js, code/js/ops.js, code/js/tabs.js, code/js/tree.js, code/js/ui.js, code/js/viewers.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Code', path: '../../code/index.html', ns: 'code',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#cd-ext-list .cd-ext-name'),
+    checks: [
+      ['#cd-empty-new', 'Ny fil…', 'New file…'],
+      ['[data-sec-toggle="explorer"]', 'Utforskaren', 'Explorer'],
+      ['#cd-ext-list .cd-ext-name', 'Formaterare', 'Formatter'],
+      ['#cd-run', 'Kör förhandsgranskning', 'Run preview', 'title'],
+      ['#cd-tree', 'Utforskaren', 'Explorer', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Code in Swedish' });
+  </script>
+</body>
+</html>

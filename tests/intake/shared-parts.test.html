@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake: the shared components' files come in as parts</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shared/intake/sources.js, shared/commands/recorder.js, shared/guides/panel-tabs.js, shared/presets/ui.js, shared/backup/ui.js, shared/backup/central-ui.js
+  // On a page with the intake (PhotoSlop), the shared components' file pickers are parts of the one intake
+  // (SlopIntake.part): Import shortcuts (keys.import), the guides' Import Presets (guides.presets), the presets dialog's
+  // Import… (presets.import), Backup & restore's Choose backup file… (backup.import) and Export everything's Choose backup
+  // file… (backup.everything). Each pick reaches its part's reader.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const json = (name, text = '{}') => new W.File([text], name, { type: 'application/json' });
+  const spy = (id) => { const s = W.SlopIntake.spec(id), r = s.process, got = []; s.process = (f, ctx) => { got.push(ctx.source); return r(f, ctx); }; return got; };
+  const button = (text) => waitFor(() => [...D.querySelectorAll('button, .sui-row')].find((b) => b.textContent.trim() === text));
+  describe('Shared components on the one intake', () => {
+    it('SlopIntake.part registers a part once, not main, no paste', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../photoslop/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopIntake.part && fr.contentWindow.SlopCmd && fr.contentWindow.SlopPresets; } catch (e) { return false; } }, { timeout: 30000 });
+      W = fr.contentWindow; D = W.document;
+      const id = W.SlopIntake.part({ id: 'test.part', process: (f) => f.name });
+      expect(W.SlopIntake.part({ id: 'test.part', process: () => 'other' })).toBe(id);
+      const s = W.SlopIntake.spec('test.part');
+      expect([s.main, s.paste, s.toast]).toEqual([false, false, false]);
+    }, { timeout: 40000 });
+    it('Import shortcuts (keys.import)', async () => {
+      W.SlopUI.pickFiles = async () => [json('keys.json', JSON.stringify({ app: W.SlopCmd.app || 'photoslop', keys: {} }))];
+      // a file from another app asks first ("Import them here anyway?"): yes (the page's app id can differ in a build)
+      const ask = W.SlopUI.confirm; W.SlopUI.confirm = async () => true;
+      const p = W.SlopCmd._parts.recorder.importFile().finally(() => { W.SlopUI.confirm = ask; });
+      await waitFor(() => W.SlopIntake.spec('keys.import'));
+      await p;
+      expect(!!W.SlopIntake.spec('keys.import')).toBe(true);
+    });
+    it("the presets dialog's Import… (presets.import)", async () => {
+      W.SlopPresets.openPicker({ title: 'Presets', onApply: () => {} });
+      // the dialog's own Import… (a panel of the page, Brushes, has a button of that name too)
+      const b = await waitFor(() => [...D.querySelectorAll('.sp-dlg button')].find((x) => x.textContent.trim() === 'Import…'));
+      W.SlopUI.pickFiles = async () => [json('preset.json')];
+      b.click();
+      await waitFor(() => W.SlopIntake.spec('presets.import'));
+      await waitFor(() => /Imported|not|could|missing|error|format/i.test((D.querySelector('.sp-status') || {}).textContent || ''));
+      for (const x of D.querySelectorAll('.sui-back .sui-x')) x.click();
+    });
+    it("Backup & restore's Choose backup file… (backup.import) and Export everything's (backup.everything), in Slop Drive", async () => {
+      const fr = document.createElement('iframe'); fr.src = '../../drive/index.html'; document.body.append(fr);
+      await waitFor(() => { try { return fr.contentDocument.body.classList.contains('ready') && fr.contentWindow.SlopBackup; } catch (e) { return false; } }, { timeout: 30000 });
+      W = fr.contentWindow; D = W.document;
+      W.SlopUI.alert = async () => {};
+      W.SlopBackup.openDialog(); // resolves when the dialog closes
+      const b = await waitFor(() => D.querySelector('[data-act="import"]'));
+      W.SlopUI.pickFiles = async () => [new W.File(['not a zip'], 'x.slop')];
+      b.click();
+      await waitFor(() => W.SlopIntake.spec('backup.import'));
+      for (const x of D.querySelectorAll('.sui-back .sui-x')) x.click();
+      W.SlopBackup.openEverything();
+      const b2 = await waitFor(() => D.querySelector('[data-act="import-all"]'), { timeout: 15000 });
+      W.SlopUI.pickFiles = async () => [json('all.slop-backup.json', '{"nope":1}')];
+      b2.click();
+      await waitFor(() => W.SlopIntake.spec('backup.everything'));
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Shared intake: shared components as parts' });
+</script>
+</body>
+</html>

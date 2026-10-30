@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Photo Sorter: add photos, swipe with the keys, filter, tag, download the liked ZIP and the CSV; at 1280 and 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: assets/shots/sorter.jpg, sorter/index.html, sorter/js/app.js, sorter/js/model.js, shared/drop/folders.js, sorter/css/sorter.css, sorter/js/frame.js, shared/deck/deck.js, shared/deck/deck.css
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  let W, D, A, got;
+  const $ = (id) => D.getElementById(id);
+  async function boot(width = 1280) {
+    const old = document.getElementById('app'), f = document.createElement('iframe');
+    f.id = 'app'; f.style.cssText = `width:${width}px;height:860px`;
+    old.replaceWith(f);
+    f.src = '../../sorter/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopSorter && f.contentWindow.SlopSorter.app && f.contentWindow.document.querySelector('.smb-bar'), { timeout: 20000 });
+    W = f.contentWindow; D = W.document; A = W.SlopSorter.app; got = [];
+    W.SlopUI.download = (blob, name) => got.push({ blob, name });
+  }
+  /** A small PNG of one colour, made on a canvas in the page. */
+  async function png(name, colour) {
+    const c = D.createElement('canvas'); c.width = 40; c.height = 30;
+    const x = c.getContext('2d'); x.fillStyle = colour; x.fillRect(0, 0, 40, 30);
+    const b = await new Promise((r) => c.toBlob(r, 'image/png'));
+    return new W.File([b], name, { type: 'image/png' });
+  }
+  const key = (k) => { A.deck.element.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); return sleep(60); };
+  const filter = (label) => [...$('soFilters').children].find((b) => b.textContent.startsWith(label));
+
+  describe('Slop Photo Sorter', () => {
+    it('starts with one drop zone and the work area hidden; a non-photo is left out', async () => {
+      await boot();
+      expect(D.querySelector('header.smb-bar .smb-app').textContent).toBe('Photo Sorter');
+      expect(D.querySelectorAll('.sdrop, #soDrop').length >= 1).toBe(true);
+      expect($('soWork').hidden).toBe(true);
+      A.add([new W.File(['x'], 'notes.txt', { type: 'text/plain' })]);
+      expect($('soWork').hidden).toBe(true);
+      expect($('soMsg').textContent).toContain('No photos');
+    });
+    it('adds photos, shows a thumbnail each and a count on Start sorting', async () => {
+      A.add([await png('a.png', 'red'), await png('b.png', 'green'), await png('c.png', 'blue'), new W.File(['x'], 'x.txt')]);
+      expect($('soWork').hidden).toBe(false);
+      expect($('soGrid').children.length).toBe(3);
+      expect($('soMsg').textContent).toContain('3 photos added; 1 other file left out');
+      expect($('soStart').textContent).toBe('Start sorting (3)');
+      expect($('soZip').disabled).toBe(true);
+    });
+    it('swipes: up likes, down dislikes, a typed letter tags; Escape closes and the grid shows the decisions', async () => {
+      $('soStart').click();
+      await waitFor(() => A.deck.state().open);
+      expect(A.deck.state().length).toBe(3);
+      await key('ArrowUp'); await key('ArrowDown');
+      await key('b');
+      const q = A.deck.element.querySelector('.s-quick input');
+      expect(D.activeElement).toBe(q);
+      q.value = 'beach';
+      q.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await sleep(80);
+      // Past the last photo: the end card sums up, and the counts at the top agree.
+      const E = A.deck.element;
+      expect(A.deck.state().end).toBe(true);
+      expect(E.querySelector('.s-end-sum').textContent).toBe('You have been through all 3 photos: 1 liked, 1 disliked, 1 not sorted yet.');
+      expect(E.querySelector('[data-act="rest"]').textContent).toBe('Sort the 1 left');
+      expect(E.querySelector('.s-tally').textContent).toBe('♥ 1 · ✕ 1 · 1 left');
+      expect(E.querySelector('.s-count').textContent).toBe('Photo 3 of 3');
+      await key('ArrowLeft');
+      expect(A.deck.state().end).toBe(false);
+      await key('Escape');
+      expect(A.deck.state().open).toBe(false);
+      const cards = [...$('soGrid').children];
+      expect(cards[0].classList.contains('is-liked')).toBe(true);
+      expect(cards[1].classList.contains('is-disliked')).toBe(true);
+      expect(cards[2].querySelector('.so-name').textContent).toContain('#beach');
+      expect($('soZip').disabled).toBe(false);
+    });
+    it('filters by decision and by tag, with counts', async () => {
+      expect(filter('Liked').textContent).toBe('Liked 1');
+      filter('Liked').click();
+      expect($('soGrid').children.length).toBe(1);
+      expect(filter('Liked').getAttribute('aria-pressed')).toBe('true');
+      filter('#beach').click();
+      expect($('soGrid').children.length).toBe(1);
+      filter('Not sorted').click();
+      expect($('soGrid').children.length).toBe(1);
+      filter('All').click();
+      expect($('soGrid').children.length).toBe(3);
+    });
+    it('a click on a thumbnail opens the deck at that photo', async () => {
+      $('soGrid').children[1].querySelector('.so-thumb').click();
+      await waitFor(() => A.deck.state().open);
+      expect(A.deck.state().pos).toBe(1);
+      const E = A.deck.element;
+      expect(E.querySelector('.s-mark').textContent).toBe('✕ Disliked');   // the photo's decision shows on it
+      await key('ArrowUp');
+      expect(E.querySelector('.s-stamp').textContent).toBe('♥ Liked');
+      await key('Escape');
+      expect(filter('Liked').textContent).toBe('Liked 2');
+    });
+    it('Sort the ones left: a second round with only the photos not decided', async () => {
+      $('soStart').click();
+      await waitFor(() => A.deck.state().open);
+      expect(A.deck.state().length).toBe(1);
+      await key('ArrowUp');
+      await waitFor(() => A.deck.state().end);
+      const E = A.deck.element;
+      expect(E.querySelector('[data-act="rest"]').hidden).toBe(true);
+      E.querySelector('.s-end .s-big').click();
+      expect(A.deck.state().open).toBe(false);
+      expect(filter('Liked').textContent).toBe('Liked 3');
+    });
+    it('downloads the liked photos as a ZIP and every decision as CSV', async () => {
+      await A.zipLiked();
+      expect(got[0].name).toBe('liked-photos.zip');
+      const head = new Uint8Array(await got[0].blob.slice(0, 2).arrayBuffer());
+      expect(String.fromCharCode(...head)).toBe('PK');
+      $('soCsv').click();
+      const text = await got[1].blob.text();
+      expect(got[1].name).toBe('photo-decisions.csv');
+      expect(text.split(/\r?\n/).filter(Boolean).length).toBe(4);
+      expect(text).toContain('beach');
+    });
+    it('Clear empties it again', async () => {
+      $('soClear').click();
+      expect($('soWork').hidden).toBe(true);
+      expect(W.getComputedStyle(D.querySelector('#soDrop .sd-preview')).display).toBe('flex');   // the preview is back
+      expect(A.set.items.length).toBe(0);
+    });
+    it('a dropped folder is read whole, sub-folders too, and each photo keeps its folder path', async () => {
+      // A fake drop: one folder (Trip, with Day 1 inside, read in two batches) and a loose photo, as webkitGetAsEntry gives them.
+      const fileEntry = (f) => ({ isFile: true, isDirectory: false, name: f.name, file: (ok) => ok(f) });
+      const dirEntry = (name, batches) => ({ isFile: false, isDirectory: true, name, createReader: () => { let i = 0; return { readEntries: (ok) => setTimeout(() => ok(batches[i++] || []), 5) }; } });
+      const day = dirEntry('Day 1', [[fileEntry(await png('a.png', 'red')), fileEntry(new W.File(['x'], 'notes.txt', { type: 'text/plain' }))], [fileEntry(await png('b.png', 'green'))]]);
+      const trip = dirEntry('Trip', [[day, fileEntry(await png('c.png', 'blue'))]]);
+      const loose = await png('loose.png', 'gold');
+      const dt = { types: ['Files'], files: [loose], items: [
+        { kind: 'file', webkitGetAsEntry: () => trip, getAsFile: () => null },
+        { kind: 'file', webkitGetAsEntry: () => fileEntry(loose), getAsFile: () => loose },
+      ] };
+      const ev = new W.Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'dataTransfer', { value: dt });
+      $('soDrop').dispatchEvent(ev);
+      await waitFor(() => A.set.items.length === 4, { timeout: 10000 });
+      expect(A.set.items.map((x) => x.path).sort()).toEqual(['Trip/Day 1/a.png', 'Trip/Day 1/b.png', 'Trip/c.png', 'loose.png']);
+      $('soCsv').click();
+      expect(await got[got.length - 1].blob.text()).toContain('Trip/Day 1');
+      $('soClear').click();
+    });
+    it('the empty page shows what it makes and how, and Try it with sample photos fills it', async () => {
+      await boot();
+      expect(D.querySelectorAll('#soDrop .sd-steps li').length).toBe(3);
+      SlopTest.shot(D.querySelector('#soDrop .sd-pic img'), '../assets/shots/sorter.jpg');
+      D.querySelector('#soDrop .sd-sample').click();
+      await waitFor(() => A.set.items.length === 8, { timeout: 15000 });
+      expect($('soStart').textContent).toBe('Start sorting (8)');
+    });
+    it('at 390 px: no sideways scroll, and the deck fits', async () => {
+      await boot(390);
+      A.add([await png('a.png', 'red'), await png('b.png', 'green')]);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      $('soStart').click();
+      await waitFor(() => A.deck.state().open);
+      const r = A.deck.element.querySelector('.s-bar').getBoundingClientRect();
+      expect(r.right <= 391 && r.bottom <= 861).toBe(true);
+    });
+    it('the panel on the right holds the downloads, with Start sorting at its foot (1280); on a phone the foot stays at the bottom', async () => {
+      await boot(1280);
+      A.add([await png('c.png', 'blue')]);
+      const side = $('soSide');
+      expect(side.getBoundingClientRect().left >= $('soView').getBoundingClientRect().right - 1).toBe(true);
+      for (const id of ['soZip', 'soDrive', 'soCsv', 'soClear']) expect(side.contains($(id))).toBe(true);
+      expect($('soStart').closest('.sf-p-foot').parentNode).toBe(side);
+      expect($('soStart').getBoundingClientRect().bottom <= 860).toBe(true);
+      await boot(390);
+      A.add([await png('d.png', 'red')]);
+      const b = $('soStart').getBoundingClientRect();
+      expect(b.top > 760 && b.bottom <= 860).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

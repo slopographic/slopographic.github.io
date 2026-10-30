@@ -1,0 +1,23 @@
+/* PhotoSlop, Arabic (ar): the keyboard commands and their on-screen messages (brush size, nudge, documents). Same keys as photoslop/i18n/en/commands.js. Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-ar.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'photoslop.cmd.opacity_toast': "العتامة {pct}%",
+  'photoslop.cmd.cycle_tools': "التنقل بين {tools}",
+  'photoslop.cmd.swap_colors': "تبديل لوني المقدمة والخلفية",
+  'photoslop.cmd.default_colors': "الألوان الافتراضية (أسود / أبيض)",
+  'photoslop.cmd.brush_bigger': "تكبير حجم الفرشاة",
+  'photoslop.cmd.brush_smaller': "تصغير حجم الفرشاة",
+  'photoslop.cmd.brush_harder': "زيادة صلابة الفرشاة",
+  'photoslop.cmd.brush_softer': "تقليل صلابة الفرشاة",
+  'photoslop.cmd.tool_opacity': "عتامة الأداة {pct}%",
+  'photoslop.cmd.nudge_left': "دفع لليسار {n} px",
+  'photoslop.cmd.nudge_right': "دفع لليمين {n} px",
+  'photoslop.cmd.nudge_up': "دفع لأعلى {n} px",
+  'photoslop.cmd.nudge_down': "دفع لأسفل {n} px",
+  'photoslop.cmd.next_doc': "المستند التالي",
+  'photoslop.cmd.prev_doc': "المستند السابق",
+  'photoslop.cmd.go_to_doc': "الانتقال إلى المستند {i}",
+  'photoslop.cmd.restore_aspect': "استعادة نسبة الأبعاد الأصلية",
+  'photoslop.cmd.guides_panel': "لوحة الأدلة (تخطيطات الأدلة)",
+  'photoslop.cmd.search_key': "بحث في الأوامر ({key})",
+  'photoslop.cmd.nav_preset': "إعداد التنقل المسبق…",
+});

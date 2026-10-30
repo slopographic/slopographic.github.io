@@ -1,0 +1,32 @@
+{
+  "name": "slopographic-mcp",
+  "version": "0.1.0",
+  "description": "Slopographic MCP: let an AI app on your computer (Claude Code, Codex, Gemini CLI, Cursor, VS Code, Claude Desktop) use the Slopographic apps open in your browser. Local only, paired with a code, no dependencies.",
+  "type": "module",
+  "bin": {
+    "slopographic-mcp": "server/index.mjs"
+  },
+  "files": [
+    "server/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "author": "Slopographic (https://slopographic.com)",
+  "homepage": "https://slopographic.com/how-it-works/#ai-apps",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/slopographic/claude-plugin.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "slopographic",
+    "photo-editor",
+    "pdf",
+    "browser"
+  ]
+}

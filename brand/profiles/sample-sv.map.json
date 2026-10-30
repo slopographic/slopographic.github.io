@@ -1,0 +1,71 @@
+{
+  "_": "The rename map: every token and folder rename of this profile's build, in one file. tools/whitelabel/build.mjs applies it, tools/whitelabel/import.mjs reverses it. Targets must not occur in the source (the build checks), so the reverse is exact.",
+  "stem": [
+    "slop",
+    "tlbx"
+  ],
+  "compounds": [
+    {
+      "from": "slopographic",
+      "to": "worksuite",
+      "fromCamel": "Slopographic",
+      "toCamel": "WorkSuite"
+    },
+    {
+      "from": "photoslop",
+      "to": "imageeditor",
+      "fromCamel": "PhotoSlop",
+      "toCamel": "ImageEditor"
+    },
+    {
+      "from": "slopisolate",
+      "to": "bgremover",
+      "fromCamel": "SlopIsolate",
+      "toCamel": "BgRemover"
+    },
+    {
+      "from": "slopcut",
+      "to": "videostudio",
+      "fromCamel": "SlopCut",
+      "toCamel": "VideoStudio"
+    },
+    {
+      "from": "slopedit",
+      "to": "videoedit",
+      "fromCamel": "SlopEdit",
+      "toCamel": "VideoEdit"
+    },
+    {
+      "from": "slopvector",
+      "to": "vectoreditor",
+      "fromCamel": "SlopVector",
+      "toCamel": "VectorEditor"
+    },
+    {
+      "from": "sloplabel",
+      "to": "labeldesigner",
+      "fromCamel": "SlopLabel",
+      "toCamel": "LabelDesigner"
+    },
+    {
+      "from": "slopculator",
+      "to": "tapecalc",
+      "fromCamel": "Slopculator",
+      "toCamel": "TapeCalc"
+    },
+    {
+      "from": "slop-365",
+      "to": "businessapps"
+    },
+    {
+      "from": "creative-slop-pro",
+      "to": "creativepro"
+    },
+    {
+      "from": "sloppo",
+      "to": "helpbot",
+      "fromCamel": "Sloppo",
+      "toCamel": "Helpbot"
+    }
+  ]
+}

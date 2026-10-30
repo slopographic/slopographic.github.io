@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Video operations through SlopCut's hidden copy</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #app { width: 640px; height: 480px; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="slopedit.helpers.js"></script>
+  <script src="ai.helpers.js"></script>
+  <script type="module">
+  // The headless video operations (Slop Workflows and the AI's run_operation): each runs SlopCut's own commands in its
+  // hidden copy (slopcut/?macro-host=1) and renders with SlopCut's export. A fake Whisper stands in for the speech model.
+  // Covers: shared/ops/video.js, shared/ops/speech.js, shared/ops/macros.js, shared/macros/frame.js, shared/macros/macros.js, slopcut/js/ai/host.js
+  import * as R from '../../shared/ops/all.js';
+  const { describe, it, expect } = SlopTest;
+  let clip, can = true;
+  const run = (id, files, o = {}) => R.byId(id).run(files, R.validateOptions(R.byId(id), o).options, {});
+  const item = (file) => ({ name: file.name, file, kind: (/\.(\w+)$/.exec(file.name) || [])[1] });
+  const text = (name, s, type) => item(new File([s], name, { type }));
+  window.SlopSpeechEngine = { transcribe: async () => [{ start: 0.2, end: 1, text: 'HELLO' }] };
+  describe('video operations', () => {
+    it('makes a source clip in SlopCut', async () => {
+      const win = await ST.boot('app'); can = await ST.canEncode();
+      if (!can) return;
+      clip = await AIT.clip(ST.SE, win, { frames: 20, fps: 10, w: 192, h: 108, name: 'src' });
+      clip = new File([clip], clip.name, { type: clip.type });   // this page's own File
+      expect(clip.size).toBeGreaterThan(1000);
+    }, { timeout: 40000 });
+    it('Edit list → video renders the list with its media', async () => {
+      if (!can) return;
+      const edl = { name: 'two cuts', width: 192, height: 108, fps: 10, clips: [{ source: 'src', in: 0, out: 1 }, { source: clip.name, in: 1, out: 2, transition: 'cross' }], titles: [{ text: 'HI', start: 0.2, dur: 1 }] };
+      const out = await run('slopedit.edl', [text('list.json', JSON.stringify(edl), 'application/json'), item(clip)], { format: 'mp4' });
+      expect(out[0].name).toBe('two cuts.mp4');
+      const d = await AIT.decode(out[0].blob);
+      expect([d.w, d.h]).toEqual([192, 108]); expect(Math.abs(d.dur - 2)).toBeLessThan(0.25); d.close();
+    }, { timeout: 120000 });
+    it('Reframe video makes a vertical 9:16 copy', async () => {
+      if (!can) return;
+      const out = await run('slopedit.reframe', [item(clip)], { aspect: '9:16', width: 108, height: 192 });
+      const d = await AIT.decode(out[0].blob);
+      expect([d.w, d.h]).toEqual([108, 192]);
+      const px = [...(await d.frame(0.5)).getContext('2d').getImageData(54, 6, 1, 1).data];
+      if (!(px[2] > 40)) throw new Error('not filled: ' + px);
+      d.close();
+    }, { timeout: 120000 });
+    it('Add captions to video burns an SRT in at its times', async () => {
+      if (!can) return;
+      const srt = '1\n00:00:00,200 --> 00:00:00,900\nHELLO WORLD\n';
+      const out = await run('slopedit.captions', [item(clip), text('src.srt', srt, 'application/x-subrip')], { captionSize: 15 });
+      const d = await AIT.decode(out[0].blob);
+      const on = AIT.bright(await d.frame(0.5)), off = AIT.bright(await d.frame(1.5));
+      if (!(on > off + 40)) throw new Error(`caption pixels ${on} / ${off}`);
+      d.close();
+    }, { timeout: 120000 });
+    it('Remix to reel cuts the clips into a reel of the length asked, with transcribed captions', async () => {
+      if (!can) return;
+      const out = await run('slopedit.reel', [item(clip)], { target: 1.5, pace: 'fast', seed: 'abc', width: 90, height: 160, captions: 'transcribe', captionSize: 12 });
+      const d = await AIT.decode(out[0].blob);
+      expect([d.w, d.h]).toEqual([90, 160]); expect(Math.abs(d.dur - 1.5)).toBeLessThan(0.25); d.close();
+    }, { timeout: 120000 });
+    it('Video → transcript writes SRT (Slop Transcribe\'s engine)', async () => {
+      const out = await run('transcribe.text', [item(clip || new File(['x'], 'a.mp4'))], { format: 'srt' });
+      expect(out[0].name.endsWith('.srt')).toBe(true);
+      expect(await out[0].blob.text()).toBe('1\n00:00:00,200 --> 00:00:01,000\nHELLO\n');
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Video operations' });
+  </script>
+</body>
+</html>

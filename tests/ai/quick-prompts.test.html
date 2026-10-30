@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI ready-made prompts in Slop Tables: chips, the "/" filter, the form, the text sent (fake engine)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../tables/tables.helpers.js"></script>
+  <script>
+  // Covers: shared/ai/quick/ui.js, shared/ai/quick/context.js, shared/ai/quick/engine.js, shared/ai/quick/shared.js,
+  //   shared/ai/quick/apps/tables.js, shared/ai/i18n/index.js, shared/ai/panel.js, shared/commands/commands.js,
+  //   tables/js/ui/ai-commands.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, D, K, T;
+  const q = (s) => D.querySelector(s);
+  const users = () => W.SlopAIPanel.messages.filter((m) => m.role === 'user').map((m) => m.content);
+  const key = (el, k) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  async function start(width) {
+    document.getElementById('app').style.width = width + 'px';
+    try { localStorage.removeItem('slop-ai.quick'); localStorage.setItem('slop-ai.open', '0'); } catch (e) { /* private window */ }
+    W = await TB.boot(); D = W.document; T = TB.T;
+    [['Item', 'Price'], ['Pear', 3], ['Fig', 1]].forEach((row, r) => row.forEach((v, c) => T.setCell('AB'[c] + (r + 1), String(v))));
+    await waitFor(() => W.SlopHeader, { timeout: 20000 });
+    await W.SlopHeader.openAI(); await W.SlopAIPanel.ready;
+    K = W.SlopAIKit;
+    const eng = new K.FakeEngine({ delay: 0, loadMs: 0, replies: ['Done.', 'Done.', 'Done.', 'Done.'] });
+    await eng.load('fake'); await W.SlopAIPanel.use(eng);
+    await waitFor(() => K.quickUI && q('.sap-qbtn'));
+    await waitFor(() => W.SlopCmd.context());   // the app's AI part, with its context, came in with the prompts
+  }
+  /** The send goes through the panel's kit promise: wait for the message, then for the reply. */
+  const sent = async (n) => { await waitFor(() => users().length > n); await waitFor(() => !K.panel.busy); };
+
+  describe('Slop Tables, 1280 px: a prompt with a choice, from "/" to the text sent', () => {
+    it('shows chips on an empty chat, this app\'s prompts first', async () => {
+      await start(1280);
+      const chips = await waitFor(() => q('.sap-q-chips'));
+      const names = [...chips.querySelectorAll('.sap-q-chip')].map((b) => b.textContent);
+      expect(names[0]).toBe('Write a formula');
+      expect(names[names.length - 1]).toBe('All prompts…');
+    }, { timeout: 60000 });
+
+    it('"/chart" filters, ↓ ↑ move, Enter opens the form; the chosen type is in the text sent, in the page\'s language', async () => {
+      const ta = q('.sap-comp textarea');
+      ta.focus(); ta.value = '/chart'; ta.dispatchEvent(new W.Event('input'));
+      expect(K.quickUI.mode).toBe('list');
+      expect(K.quickUI.shown[0]).toBe('tables.chart');
+      expect(ta.getAttribute('aria-activedescendant')).toBe('sap-q-o0');
+      key(ta, 'ArrowDown'); key(ta, 'ArrowUp');
+      expect(ta.getAttribute('aria-activedescendant')).toBe('sap-q-o0');
+      key(ta, 'Enter');
+      expect(K.quickUI.mode).toBe('form');
+      expect(users()).toEqual([]);   // Enter picked the prompt; it did not send "/chart"
+      const sel = q('.sap-qf select[name="chart"]');
+      expect([...sel.options].map((o) => o.textContent)).toEqual(['Bar', 'Line', 'Pie', 'Scatter']);
+      sel.value = 'line';
+      q('.sap-qf button[type="submit"]').click();
+      await sent(0);
+      expect(users()).toEqual(['Make a chart of the table on the open sheet. Chart type: Line. Pick the columns that give the most useful comparison and say which ones you used.']);
+      expect(ta.value).toBe('');
+      expect(K.quickUI.mode).toBe(null);
+    }, { timeout: 30000 });
+
+    it('the type chosen last comes back; the prompt is first under Recent', async () => {
+      K.quickUI.list('', true);
+      expect(K.quickUI.shown[0]).toBe('tables.chart');
+      expect(q('.sap-q-h').textContent).toBe('Recent');
+      K.quickUI.pick(K.quickUI.engine.all('tables', K.quickLists).find((p) => p.key === 'tables.chart'));
+      expect(q('.sap-qf select[name="chart"]').value).toBe('line');
+      key(q('.sap-qf select'), 'Escape');
+      expect(K.quickUI.mode).toBe(null);
+    });
+
+    it('a required field left empty sends nothing and is marked', async () => {
+      const n = users().length;
+      K.quickUI.pick(K.quickUI.engine.all('tables', K.quickLists).find((p) => p.key === 'tables.formula'));
+      q('.sap-qf button[type="submit"]').click();
+      await sleep(50);
+      expect(users().length).toBe(n);
+      expect(q('.sap-qf input[name="goal"]').getAttribute('aria-invalid')).toBe('true');
+      K.quickUI.close();
+    });
+
+    it('the selected cells fill {range} and {selection}; with nothing in them the selection prompts are disabled, with the reason', async () => {
+      T.S.sel = { r: 0, c: 0, er: 2, ec: 1 };
+      const n = users().length;
+      K.quickUI.pick(K.quickUI.engine.all('tables', K.quickLists).find((p) => p.key === 'tables.describe_range'));
+      await sent(n);
+      expect(users()[n]).toBe('Here are the cells A1:B3 of my sheet, tab-separated. Describe what they show: totals, highs and lows, and anything odd.\n\nItem\tPrice\nPear\t3\nFig\t1');
+      T.S.sel = { r: 9, c: 3, er: 9, ec: 3 };
+      K.quickUI.list('', true);
+      const i = K.quickUI.shown.indexOf('all.translate'), row = q('#sap-q-o' + i);
+      expect(row.getAttribute('aria-disabled')).toBe('true');
+      expect(row.querySelector('.sap-q-w').textContent).toBe('Select some text in the app first');
+      row.click();
+      expect(K.quickUI.mode).toBe('list');   // a disabled prompt does nothing
+      K.quickUI.close();
+    });
+  });
+
+  describe('Slop Tables, a 390 px phone: the list and the form fit the bottom sheet', () => {
+    it('the prompts button opens the list inside the screen; a form fits too', async () => {
+      await start(390);
+      q('.sap-qbtn').click();
+      const box = q('.sap-q').getBoundingClientRect();
+      expect(K.quickUI.mode).toBe('list');
+      expect(box.left >= 0 && box.right <= 390).toBe(true);
+      expect(W.document.documentElement.scrollWidth <= 390).toBe(true);
+      K.quickUI.pick(K.quickUI.engine.all('tables', K.quickLists).find((p) => p.key === 'all.draft'));
+      const f = q('.sap-qf').getBoundingClientRect();
+      expect(f.right <= 390).toBe(true);
+      expect([...D.querySelectorAll('.sap-qf select')].map((s) => s.name)).toEqual(['tone', 'length']);
+    }, { timeout: 60000 });
+  });
+
+  SlopTest.run({ name: 'Slop AI ready-made prompts' });
+  </script>
+</body>
+</html>

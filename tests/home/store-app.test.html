@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · no development stages in the iPhone/iPad app, the website keeps them</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; width: 1280px; height: 900px; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: home/sections.js, home/catalog.js, home/browse.js, index.html, shared/native-app.js, shared/i18n/switcher.js, shell/switcher.js
+  /* App Review 2.2: an App Store app must not look like a beta or a demo. In the iPhone/iPad app (shared/native-app.js; the
+   * flag window.SLOP_NATIVE = 'ios' stands in for it here, set before the helper loads, the way the app's bundle loads it
+   * first) the homepage has no Status section or tab, no Beta or Preview badge on a card, no "Preview" link, no Experiments
+   * shelf and no Status filter, and the language menu tags no language "beta". The website (the same page without the
+   * flag) keeps its Status board. */
+  const { describe, it, expect, waitFor } = SlopTest;
+  const ROOT = new URL('../../', location.href).href;
+  const shown = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[hidden]');
+  const STAGE_WORDS = /\b(beta|preview|in development|experimental|experiments?)\b/i;
+
+  /** The homepage in a frame; native: as the store app loads it (the flag and the helper first in <head>). */
+  async function open(native) {
+    const old = document.getElementById('home-frame');
+    if (old) old.remove();
+    const f = document.createElement('iframe');
+    f.id = 'home-frame';
+    if (!native) {
+      f.src = ROOT + 'index.html';
+      document.body.prepend(f);
+      await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    } else {
+      document.body.prepend(f);
+      const html = await (await fetch(ROOT + 'index.html')).text();
+      const head = `<head><base href="${ROOT}"><script>window.SLOP_NATIVE = 'ios';<\/script><script src="shared/native-app.js"><\/script>`;
+      const doc = f.contentDocument;
+      doc.open();
+      doc.write(html.replace(/<head>/i, head));
+      doc.close();
+    }
+    const win = f.contentWindow;
+    await waitFor(() => win.document.querySelector('#app-sections .shelf .app-card'), { timeout: 30000 });
+    return win;
+  }
+
+  describe('homepage in the iPhone/iPad app', () => {
+    it('shows no Status board, badges, Preview links, Experiments or Status filter', async () => {
+      const win = await open(true), doc = win.document;
+      expect(doc.documentElement.classList.contains('store-app')).toBe(true);
+      expect(win.SlopHomeSections.STORE).toBe(true);
+      expect(shown(doc.getElementById('status'))).toBe(false);
+      expect(shown(doc.querySelector('.nav a[href="#status"]'))).toBe(false);
+      expect(doc.querySelectorAll('#status-board .status-row').length).toBe(0);
+      expect([...doc.querySelectorAll('.badge, [data-stage]')].filter(shown).length).toBe(0);
+      expect([...doc.querySelectorAll('.app-card .go')].some((g) => /preview/i.test(g.textContent))).toBe(false);
+      expect(!!doc.getElementById('experiments')).toBe(false);
+      for (const n of doc.querySelectorAll('#app-finder legend, #app-finder label')) expect(/^\s*Status\b/.test(n.textContent)).toBe(false);
+      for (const n of [...doc.querySelectorAll('.nav, .app-card .app-name, .app-card .go')].filter(shown)) expect(STAGE_WORDS.test(n.textContent)).toBe(false);
+    });
+    it('tags no language "beta" in the language menu', async () => {
+      const win = await open(true);
+      await waitFor(() => win.SlopLangSwitch && win.SlopI18n, { timeout: 10000 });
+      const I = { get: () => 'en', t: () => 'beta', langs: () => [{ code: 'en', name: 'English' }, { code: 'xx', name: 'Test', quality: 'beta' }] };
+      expect(win.SlopLangSwitch.items(I).every((r) => !r.tag)).toBe(true);
+    });
+  });
+
+  describe('homepage on the website', () => {
+    it('keeps the Status board and its tab', async () => {
+      const win = await open(false), doc = win.document;
+      expect(doc.documentElement.classList.contains('store-app')).toBe(false);
+      await waitFor(() => doc.querySelector('#status-board .status-row'), { timeout: 10000 });
+      expect(shown(doc.getElementById('status'))).toBe(true);
+      expect(shown(doc.querySelector('.nav a[href="#status"]'))).toBe(true);
+      const I = { get: () => 'en', t: () => 'beta', langs: () => [{ code: 'xx', name: 'Test', quality: 'beta' }] };
+      if (win.SlopLangSwitch) expect(win.SlopLangSwitch.items(I)[0].tag).toBe('beta');
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

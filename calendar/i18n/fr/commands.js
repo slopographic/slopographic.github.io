@@ -1,0 +1,22 @@
+/* Slop Calendar, français : la palette de commandes. Mêmes clés que calendar/i18n/en/commands.js. Termes : shared/i18n/glossary-fr.md. */
+window.SlopI18n && window.SlopI18n.add('fr', {
+  'calendar.cmd.g_cal': 'Calendrier',
+  'calendar.cmd.g_goto': 'Aller à',
+  'calendar.cmd.prev': 'Calendrier : période précédente',
+  'calendar.cmd.next': 'Calendrier : période suivante',
+  'calendar.cmd.today': 'Calendrier : aller à aujourd’hui',
+  'calendar.cmd.year': 'Calendrier : vue annuelle',
+  'calendar.cmd.month': 'Calendrier : vue mensuelle',
+  'calendar.cmd.split': 'Calendrier : vue partagée',
+  'calendar.cmd.undo': 'Calendrier : annuler le dernier déplacement',
+  'calendar.cmd.week': 'Calendrier : vue hebdomadaire',
+  'calendar.cmd.day': 'Calendrier : vue journalière',
+  'calendar.cmd.agenda': 'Calendrier : agenda',
+  'calendar.cmd.new': 'Calendrier : nouvel événement',
+  'calendar.cmd.tasks': 'Calendrier : afficher ou masquer les tâches',
+  'calendar.cmd.import': 'Calendrier : importer un .ics',
+  'calendar.cmd.export': 'Calendrier : exporter un .ics',
+  'calendar.cmd.todo': 'Aller à Slop To-do',
+  'calendar.cmd.reminders': 'Aller à Slop Reminders',
+  'calendar.cmd.crm': 'Aller à Slop CRM',
+});

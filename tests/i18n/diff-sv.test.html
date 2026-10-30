@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Compare in Swedish</title>
+  <!-- Covers: diff/index.html, diff/i18n/index.js, diff/js/ui/i18n.js, diff/js/ui/main.js, diff/js/ui/bar.js, diff/js/ui/panel.js, diff/js/ui/view.js, diff/js/ui/slots.js, diff/js/ui/picture.js, diff/js/ui/export.js, diff/js/ui/commands.js, diff/js/io/files.js, diff/js/core/render.js, diff/js/core/kind.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Compare', path: '../../diff/index.html', ns: 'diff',
+    ready: (doc) => doc.querySelector('#df-panel .sf-h') && doc.querySelector('#df-compare'),
+    checks: [
+      ['#df-compare', 'Jämför', 'Compare'],
+      ['#df-b-h', 'Ändrad', 'Changed'],
+      ['#df-a-text', 'Klistra in eller skriv originaltexten', 'Paste or type the original', 'placeholder'],
+      ['#df-panel .df-check span', 'Ignorera blanksteg', 'Ignore whitespace'],
+      ['#df-swap', 'Byt plats', 'Swap A and B', 'title'],
+      ['#df-drop .sd-msg', 'Släpp två filer', 'Drop two files'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Compare in Swedish' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <title>Buddy · in apps (toggle, tips, pointer, Restore)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { openApp, turnOn, prefs } = BuddyTest;
+  const strip = (doc) => { const c = doc.body.cloneNode(true); c.querySelectorAll('.sloppo-layer, .sloppo-hud, .buddy-toggle, .sloppo-fx').forEach((n) => n.remove()); return c.innerHTML; };
+
+  describe('toggle', () => {
+    it('is off by default inside apps and loads nothing until switched on', async () => {
+      const win = await openApp('', { clear: true });
+      await sleep(300);
+      expect(win.SlopBuddyBoot.on).toBe(false);
+      expect(win.document.querySelector('.sloppo-layer')).toBe(null);
+      expect(win.SlopBuddyBoot.engine).toBe(null);
+      expect(win.document.querySelector('.buddy-toggle .bt-main').getAttribute('aria-pressed')).toBe('false');
+      const loaded = win.performance.getEntriesByType('resource').some((e) => /shared\/buddy\/engine\.js/.test(e.name));
+      expect(loaded).toBe(false);
+    });
+    it('the toggle turns him on and the choice is remembered per app and globally', async () => {
+      let win = await openApp('', { clear: true });
+      await turnOn(win);
+      expect(prefs().apps.label).toBe(true);
+      expect(prefs().global).toBe(true);
+      win = await openApp();                       // reload: still on
+      await waitFor(() => win.SlopBuddyBoot.on && win.SlopBuddy && win.SlopBuddy.visible, { timeout: 8000 });
+      win.document.querySelector('.buddy-toggle .bt-main').click();
+      await waitFor(() => !win.SlopBuddy.visible);
+      expect(prefs().apps.label).toBe(false);
+      win = await openApp();
+      await sleep(300);
+      expect(win.SlopBuddyBoot.on).toBe(false);
+      win = await openApp('?app=pdf');             // another app follows the last global choice (off)
+      await sleep(300);
+      expect(win.SlopBuddyBoot.on).toBe(false);
+    });
+    it('Alt+Shift+S toggles him', async () => {
+      const win = await openApp('', { clear: true });
+      win.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'S', code: 'KeyS', altKey: true, shiftKey: true, bubbles: true }));
+      await waitFor(() => win.SlopBuddy && win.SlopBuddy.visible, { timeout: 8000 });
+      win.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'S', code: 'KeyS', altKey: true, shiftKey: true, bubbles: true }));
+      await waitFor(() => !win.SlopBuddy.visible);
+      expect(win.document.querySelector('.sloppo-layer').hidden).toBe(true);
+    });
+    it('the toggle button can be dragged and remembers where', async () => {
+      const win = await openApp('', { clear: true });
+      const b = win.document.querySelector('.buddy-toggle .bt-main'), r = b.getBoundingClientRect();
+      const ev = (type, x, y) => b.dispatchEvent(new win.PointerEvent(type, { pointerId: 3, clientX: x, clientY: y, bubbles: true }));
+      ev('pointerdown', r.left + 20, r.top + 20); ev('pointermove', r.left - 100, r.top - 80); ev('pointerup', r.left - 100, r.top - 80);
+      b.click();                                   // the click after a drag does not toggle
+      expect(win.SlopBuddyBoot.on).toBe(false);
+      expect(prefs().btn.right).toBeGreaterThan(100);
+    });
+  });
+
+  describe('in an app', () => {
+    it('perches on toolbars and panel edges, not in the work area', async () => {
+      const win = await openApp('', { clear: true });
+      const S = await turnOn(win);
+      expect(S.M.perch && S.M.perch.el.matches('.panel, .toolbar, header, h2')).toBe(true);
+      expect(S.M.perch.el.closest('canvas')).toBe(null);
+    });
+    it('never blocks the pointer: a ghost while you work, and clicks around him reach the app', async () => {
+      const win = await openApp();
+      const S = await turnOn(win), doc = win.document;
+      const canvas = doc.getElementById('work'), cr = canvas.getBoundingClientRect();
+      canvas.dispatchEvent(new win.PointerEvent('pointerdown', { pointerId: 9, clientX: cr.left + 50, clientY: cr.top + 50, bubbles: true }));
+      await waitFor(() => S.M.layer.classList.contains('is-ghost'), { timeout: 2000 });   // set on his next frame
+      expect(win.getComputedStyle(S.M.hit).pointerEvents).toBe('none');
+      const h = S.M.hit.getBoundingClientRect();
+      const under = doc.elementFromPoint(h.left + h.width / 2, h.top + h.height / 2);
+      expect(!!under.closest('.sloppo-layer')).toBe(false);
+      canvas.dispatchEvent(new win.PointerEvent('pointerup', { pointerId: 9, bubbles: true }));
+      await waitFor(() => !S.M.layer.classList.contains('is-ghost'), { timeout: 2000 });
+      const tb = doc.getElementById('tool-a').getBoundingClientRect();
+      expect(doc.elementFromPoint(tb.left + 5, tb.top + 5).id).toBe('tool-a');
+      expect(doc.querySelector('.sloppo-hud').hidden).toBe(false);   // the collapsed toggle is there
+      expect(doc.querySelector('.sh-panel').hidden).toBe(true);      // and the card stays folded until asked for
+    });
+    it('rage does not start chaos by itself in apps', async () => {
+      const win = await openApp();
+      const S = await turnOn(win);
+      S.enrage(800);
+      expect(S.M.chaos).toBe(false);
+      await waitFor(() => !S.M.raging, { timeout: 3000 });
+      S.M.rage = 0;
+    });
+    it('Unleash works when asked for, and Restore page undoes it', async () => {
+      const win = await openApp();
+      const S = await turnOn(win), doc = win.document;
+      const before = strip(doc);
+      let n = 0;
+      for (const a of ['bite', 'blast', 'goo', 'eat']) if (await S.act(a)) n++;
+      expect(n).toBeGreaterThan(1);
+      expect(S.journal).toBeGreaterThan(0);
+      S.toggleHud(true);                                              // Restore is in the card
+      expect(doc.querySelector('.sh-restore').hidden).toBe(false);
+      doc.querySelector('.sh-restore').click();
+      await sleep(80);
+      expect(S.journal).toBe(0);
+      expect(strip(doc)).toBe(before);
+    }, { timeout: 25000 });
+  });
+
+  describe('HUD card', () => {
+    const key = (win, k) => win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true }));
+    it('is a small toggle with his level; H opens the card, Escape closes it', async () => {
+      const win = await openApp('', { clear: true });
+      const S = await turnOn(win), doc = win.document;
+      const tog = doc.querySelector('.sloppo-hud .sh-toggle');
+      expect(tog.textContent.trim()).toBe('Lv ' + S.level);
+      expect(doc.querySelector('.sh-panel').hidden).toBe(true);
+      key(win, 'h');
+      expect(doc.querySelector('.sh-panel').hidden).toBe(false);
+      expect(tog.getAttribute('aria-expanded')).toBe('true');
+      key(win, 'Escape');
+      expect(doc.querySelector('.sh-panel').hidden).toBe(true);
+    });
+    it('the Give section opens only when pressed, and a click outside closes the card', async () => {
+      const win = await openApp('', { clear: true });
+      const S = await turnOn(win), doc = win.document;
+      doc.querySelector('.sloppo-hud .sh-toggle').click();
+      expect(doc.querySelector('.sh-panel').hidden).toBe(false);
+      S.M.rage = 1.2; S.care.tick(0, 0);
+      await sleep(300);
+      expect(doc.querySelector('.sh-give').hidden).toBe(false);
+      expect(doc.querySelector('.sh-give-body').hidden).toBe(true);
+      doc.querySelector('.sh-give-l').click();
+      expect(doc.querySelector('.sh-give-body').hidden).toBe(false);
+      doc.body.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, pointerId: 4, clientX: 5, clientY: 5 }));
+      expect(doc.querySelector('.sh-panel').hidden).toBe(true);
+      S.M.rage = 0; S.care.tick(0, 0);
+    });
+    it('the collapsed toggle fades after 6 quiet seconds, and comes back on hover', async () => {
+      const win = await openApp('', { clear: true });
+      await turnOn(win);
+      const doc = win.document, hud = doc.querySelector('.sloppo-hud'), tog = hud.querySelector('.sh-toggle');
+      await SlopTest.waitFor(() => hud.classList.contains('is-faded'), { timeout: 9000 });
+      await sleep(700);
+      expect(win.getComputedStyle(tog).opacity).toBe('0.4');
+      hud.dispatchEvent(new win.PointerEvent('pointerenter'));
+      expect(hud.classList.contains('is-faded')).toBe(false);
+      await sleep(700);
+      expect(win.getComputedStyle(tog).opacity).toBe('1');
+    }, { timeout: 15000 });
+  });
+
+  run();
+  </script>
+</body>
+</html>

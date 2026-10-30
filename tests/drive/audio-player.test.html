@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: audio player</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, D, P, tone, wave, view;
+  const file = (n) => [...DR.S.files.values()].find((x) => x.name === n);
+  /** A PCM WAV: a 440 Hz tone, `sec` seconds long, 8 kHz 16-bit mono. */
+  function wav(sec = 12, rate = 8000) {
+    const n = sec * rate, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin(2 * Math.PI * 440 * i / rate) * 16000), true);
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  const keyOn = (el, key) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+  describe('audio player', () => {
+    it('boots the Drive and adds a 12-second WAV', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; D = W.document; P = DR.player;
+      await H.clear();
+      await H.put(wav(12), { name: 'tone.wav', from: 'upload' });
+      await H.put(wav(3), { name: 'short.wav', from: 'upload' });
+      await DR.refresh(); DR.render();
+      tone = file('tone.wav');
+      expect(tone).toBeTruthy();
+    });
+
+    it('a WAV shows a full waveform (1000 peaks, decoded once and kept with the thumbnail)', async () => {
+      const view0 = DR.audioView(tone);
+      D.body.append(view0);
+      const peaks = await DR.audioPeaks(tone);
+      expect(peaks.length).toBe(1000);
+      expect(Math.max(...peaks)).toBeGreaterThan(0.3);
+      expect(DR.mediaInfo(tone).duration).toBeCloseTo(12, 0.1);
+      wave = view0.querySelector('.ap-wave');
+      expect(wave.width).toBeGreaterThan(0);
+      view0.remove();
+    });
+
+    it('clicking the waveform seeks, and the playhead moves to that point', async () => {
+      view = DR.audioView(tone);
+      D.body.append(view);
+      wave = view.querySelector('.ap-wave');
+      P.load(tone, { autoplay: false });
+      await waitFor(() => isFinite(P.audio.duration) && P.audio.duration > 11, { timeout: 10000 });
+      const b = wave.getBoundingClientRect();
+      wave.dispatchEvent(new W.PointerEvent('pointerdown', { clientX: b.left + b.width * 0.5, bubbles: true, pointerId: 1 }));
+      await waitFor(() => Math.abs(P.audio.currentTime - 6) < 0.25, { timeout: 8000 });
+      await waitFor(() => Math.abs(Number(wave.dataset.pos) - 0.5) < 0.03, { timeout: 4000 });
+      expect(Math.abs(P.audio.currentTime - 6)).toBeLessThan(0.25);
+    });
+
+    it('Space plays and pauses while the player has focus; the arrows seek 5 seconds', async () => {
+      const box = view;
+      P.audio.pause();
+      keyOn(box, ' ');
+      await waitFor(() => !P.audio.paused, { timeout: 5000 });
+      keyOn(box, ' ');
+      await waitFor(() => P.audio.paused, { timeout: 5000 });
+      P.seek(6);
+      await waitFor(() => Math.abs(P.audio.currentTime - 6) < 0.25, { timeout: 5000 });
+      keyOn(box, 'ArrowLeft');
+      await waitFor(() => Math.abs(P.audio.currentTime - 1) < 0.25, { timeout: 5000 });
+      keyOn(box, 'ArrowRight');
+      await waitFor(() => Math.abs(P.audio.currentTime - 6) < 0.25, { timeout: 5000 });
+    });
+
+    it('speed and volume and the time readout follow the controls', async () => {
+      const rate = view.querySelector('.ap-rate');
+      rate.value = '2'; rate.dispatchEvent(new Event('change'));
+      expect(P.audio.playbackRate).toBe(2);
+      P.setVolume(0.4);
+      expect(P.audio.volume).toBeCloseTo(0.4, 0.01);
+      expect(view.querySelector('.ap-time').textContent).toMatch(/\d+:\d\d \/ 0:12/);
+      rate.value = '1'; rate.dispatchEvent(new Event('change'));
+    });
+
+    it('playback keeps going when Quick look closes; the mini bar shows it, and Stop ends it', async () => {
+      view.remove();
+      P.load(tone, { autoplay: true });
+      await waitFor(() => !P.audio.paused, { timeout: 5000 });
+      const ql = DR.quickLook(tone);
+      await waitFor(() => D.querySelector('.ql'), { timeout: 3000 });
+      ql.close(false);
+      await waitFor(() => !D.querySelector('.ql'), { timeout: 3000 });
+      expect(P.audio.paused).toBe(false);
+      const bar = D.querySelector('.mini-player');
+      expect(bar.hidden).toBe(false);
+      expect(bar.querySelector('.mp-name').textContent).toBe('tone.wav');
+      bar.querySelector('button[aria-label="Stop playback"]').click();
+      expect(P.cur).toBe(null);
+      expect(bar.hidden).toBe(true);
+    });
+
+    it('Next moves through the audio files of the list in order', async () => {
+      P.load(file('tone.wav'), { autoplay: false });
+      P.step(1);
+      expect(P.cur.name).toBe('short.wav');
+      P.step(1);
+      expect(P.cur.name).toBe('tone.wav');
+      P.stop();
+    });
+
+    it('a file the browser cannot play says which format failed', async () => {
+      await H.put(new Blob(['not really audio'], { type: 'audio/mpeg' }), { name: 'bad.mp3', from: 'upload' });
+      await DR.refresh();
+      P.load(file('bad.mp3'), { autoplay: false });
+      await waitFor(() => P.error && /MP3/.test(P.error), { timeout: 8000 });
+      P.stop();
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: audio player' });
+  </script>
+</body>
+</html>

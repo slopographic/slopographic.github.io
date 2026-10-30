@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Notes in Swedish</title>
+  <!-- Covers: notes/i18n/index.js, notes/js/actions.js, notes/js/blocks.js, notes/js/commands.js, notes/js/dom.js, notes/js/editor.js, notes/js/list.js, notes/js/main.js, notes/js/menus.js, notes/js/side.js, notes/js/tabs.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Notes', path: '../../notes/index.html', ns: 'notes',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#nt-books .nt-name'),
+    checks: [
+      ['#nt-new', 'Ny anteckning', 'New note'],
+      ['#nt-q', 'Sök i titel', 'Search title', 'placeholder'],
+      ['.nt-head span', 'Anteckningsböcker', 'Notebooks'],
+      ['#nt-books .nt-name', 'Alla anteckningar', 'All notes'],
+      ['#nt-empty-note', 'Välj en anteckning', 'Pick a note'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Notes in Swedish' });
+  </script>
+</body>
+</html>

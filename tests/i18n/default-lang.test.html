@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">
+  <title>Default language of the build</title>
+  <!-- Covers: shared/i18n/i18n.js, shared/i18n/sv.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // A visitor with nothing stored gets the build's default language (the brand profile's defaultLang, written into
+  // i18n.js by the white-label build: English here, Swedish in a build whose profile says so). Choosing English sticks.
+  const NAV = { en: 'Apps', sv: 'Appar', es: 'Aplicaciones', fr: 'Applications', de: 'Apps', it: 'App', 'pt-BR': 'Apps', ar: 'التطبيقات' };
+  const frames = [];
+  function open(src) {
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentWindow.SlopI18n && f.contentDocument.querySelector('[data-i18n="nav.apps"]'), { timeout: 20000 }).then(() => f);
+  }
+  const nav = (f) => f.contentDocument.querySelector('[data-i18n="nav.apps"]').textContent;
+
+  describe('the default language', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('with nothing stored, the homepage starts in the build default', async () => {
+      const h = await open('../../index.html');
+      const def = h.contentWindow.SlopI18n.DEFAULT_CHOICE;
+      expect(h.contentWindow.SlopI18n.get()).toBe(def);
+      expect(h.contentDocument.documentElement.getAttribute('lang')).toBe(def);
+      if (NAV[def]) expect(nav(h)).toBe(h.contentWindow.SlopI18n.t('nav.apps'));
+    });
+
+    it('choosing English is kept, whatever the default', async () => {
+      const h = await open('../../index.html');
+      expect(h.contentWindow.SlopI18n.set('en').ok).toBe(true);
+      const again = await open('../../index.html');
+      expect(again.contentWindow.SlopI18n.get()).toBe('en');
+      expect(nav(again)).toBe('Apps');
+      expect(again.contentDocument.documentElement.getAttribute('lang')).toBe('en');
+    });
+  });
+  run({ name: 'Default language of the build' });
+  </script>
+</body>
+</html>

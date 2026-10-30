@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopViewMode: view modes</title>
+<style>body { margin: 0; } .fx { display: block; min-height: 20px; }</style>
+</head>
+<body>
+  <div id="top" class="fx"><span class="bar">top</span></div>
+  <div id="side" class="fx" style="width:100px;height:100px">side</div>
+  <div id="panels" class="fx">panels</div>
+  <div id="content" class="fx" style="height:300px">content</div>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/viewmode/grid.js"></script><script src="../../shared/viewmode/viewmode.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  const V = window.SlopViewMode;
+  const $ = (id) => document.getElementById(id);
+  const off = (id) => $(id).classList.contains('slopvm-off');
+  const KEY = 'slop.viewmode';
+  const LKEY = 'slop.viewmode.layout.';
+  const reset = () => { try { localStorage.removeItem(KEY); localStorage.removeItem(LKEY + 'vm-a'); localStorage.removeItem(LKEY + 'vm-b'); } catch (e) { /* ignore */ } V.set('full'); };
+  const key = (k, opts = {}) => document.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true, ctrlKey: true, shiftKey: true }, opts)));
+  const move = (x, y) => document.dispatchEvent(new MouseEvent('pointermove', { clientX: x, clientY: y, bubbles: true }));
+
+  describe('SlopViewMode', () => {
+    it('is loaded with register, mode, set, cycle, saveLayout and the shortcuts', () => {
+      expect(typeof V.register).toBe('function');
+      expect(typeof V.mode).toBe('function');
+      expect(typeof V.set).toBe('function');
+      expect(typeof V.cycle).toBe('function');
+      expect(V.modes).toEqual(['full', 'focus', 'content']);
+      expect(V.shortcuts.cycle).toBe('Ctrl+Shift+F');
+    });
+
+    it('cycles full, focus, content and back, and saves the mode', () => {
+      reset();
+      const h = V.register('vm-a', { regions: { toolbar: '#top', sidebar: '#side', panels: '#panels' } });
+      expect(h.mode()).toBe('full');
+      h.cycle();
+      expect(h.mode()).toBe('focus');
+      expect(localStorage.getItem(KEY)).toBe('focus');
+      h.cycle();
+      expect(h.mode()).toBe('content');
+      h.cycle();
+      expect(h.mode()).toBe('full');
+      reset();
+    });
+
+    it('hides the regions each mode names, and skips a region the page does not have', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top', sidebar: '#side', panels: '#panels', missing: '#nope' } });
+      V.set('focus');
+      expect(off('top')).toBe(true);
+      expect(off('side')).toBe(true);
+      expect(off('panels')).toBe(false);
+      V.set('content');
+      expect(off('panels')).toBe(true);
+      expect(off('top')).toBe(true);
+      V.set('full');
+      expect(off('top')).toBe(false);
+      expect(off('side')).toBe(false);
+      expect(off('panels')).toBe(false);
+    });
+
+    it('lets an app change which regions each mode hides', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top', panels: '#panels' }, hides: { focus: ['panels'], content: [] } });
+      V.set('focus');
+      expect(off('panels')).toBe(true);
+      expect(off('top')).toBe(false);
+      V.set('content');
+      expect(off('top')).toBe(false);
+      V.set('full');
+    });
+
+    it('marks the page with the current mode', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top' } });
+      V.set('focus');
+      expect(document.documentElement.dataset.slopvm).toBe('focus');
+      reset();
+    });
+
+    it('adds a mode button to the mount element and shows the mode on it', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top' }, mount: '#top' });
+      const b = $('top').querySelector('.slopvm-btn');
+      expect(b).toBeTruthy();
+      expect(b.querySelector('.slopvm-txt').textContent).toBe('Full');
+      expect(b.getAttribute('aria-label')).toContain('View: Full');
+      b.click();   // no SlopUI on this page: the button goes to the next mode
+      expect(b.querySelector('.slopvm-txt').textContent).toBe('Focus');
+      reset();
+    });
+
+    it('Ctrl+Shift+F cycles the mode, and the event does not reach the app', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top' } });
+      let reached = false;
+      const spy = (e) => { reached = true; };
+      document.addEventListener('keydown', spy);
+      key('F');
+      document.removeEventListener('keydown', spy);
+      expect(V.mode()).toBe('focus');
+      expect(reached).toBeFalsy();
+      key('f');
+      expect(V.mode()).toBe('content');
+      reset();
+    });
+
+    it('Ctrl+Shift+L shows the hidden regions until pressed again', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top' } });
+      V.set('focus');
+      expect(off('top')).toBe(true);
+      key('L');
+      expect(off('top')).toBe(false);
+      key('L');
+      expect(off('top')).toBe(true);
+      reset();
+    });
+
+    it('a plain F or Ctrl+F without Shift does nothing', () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top' } });
+      key('f', { shiftKey: false });
+      expect(V.mode()).toBe('full');
+      reset();
+    });
+
+    it('the pointer at the top edge reveals a hidden toolbar, and it hides again when the pointer leaves', async () => {
+      reset();
+      V.register('vm-a', { regions: { toolbar: '#top' } });
+      V.set('focus');
+      expect(off('top')).toBe(true);
+      move(300, 2);
+      expect(off('top')).toBe(false);
+      expect($('top').classList.contains('slopvm-peek')).toBe(true);
+      move(300, 200);
+      await waitFor(() => off('top'), { timeout: 3000 });
+      expect(off('top')).toBe(true);
+      reset();
+    });
+
+    it('the pointer at the left edge reveals a hidden sidebar', () => {
+      reset();
+      V.register('vm-a', { regions: { sidebar: '#side' } });
+      V.set('focus');
+      move(1, 150);
+      expect(off('side')).toBe(false);
+      reset();
+    });
+
+    it('a sidebar the app sets on the right edge is revealed there, not on the left', () => {
+      reset();
+      V.register('vm-a', { regions: { panels: '#panels' }, edges: { panels: 'right' } });
+      V.set('content');
+      move(2, 150);
+      expect(off('panels')).toBe(true);
+      move(window.innerWidth - 2, 150);
+      expect(off('panels')).toBe(false);
+      reset();
+    });
+
+    it('saves the layout of an app and restores it on register', () => {
+      reset();
+      let open = 'none';
+      const h = V.register('vm-b', { regions: {}, layout: { get: () => ({ panel: open }), set: (o) => { open = o.panel; } } });
+      open = 'history';
+      expect(h.saveLayout()).toBe(true);
+      expect(JSON.parse(localStorage.getItem(LKEY + 'vm-b')).panel).toBe('history');
+      open = 'none';
+      V.register('vm-b', { regions: {}, layout: { get: () => ({ panel: open }), set: (o) => { open = o.panel; } } });
+      expect(open).toBe('history');
+      localStorage.removeItem(LKEY + 'vm-b');
+      reset();
+    });
+
+    it('ignores a saved layout that is not valid JSON', () => {
+      reset();
+      localStorage.setItem(LKEY + 'vm-b', '{not json');
+      let called = false;
+      V.register('vm-b', { regions: {}, layout: { get: () => ({}), set: () => { called = true; } } });
+      expect(called).toBeFalsy();
+      localStorage.removeItem(LKEY + 'vm-b');
+    });
+  });
+
+  run({ name: 'SlopViewMode: view modes' });
+  </script>
+</body>
+</html>

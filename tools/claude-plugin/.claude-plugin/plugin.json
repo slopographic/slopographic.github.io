@@ -1,0 +1,23 @@
+{
+  "name": "slopographic",
+  "displayName": "Slopographic",
+  "version": "0.1.0",
+  "description": "Use the Slopographic apps open in your browser (photo editing, PDF, video, conversions, workflows) from Claude Code: their real commands, your files in and results out. Local only, paired with a code.",
+  "author": {
+    "name": "Slopographic",
+    "url": "https://slopographic.com"
+  },
+  "homepage": "https://slopographic.com/how-it-works/#ai-apps",
+  "repository": "https://github.com/slopographic/claude-plugin",
+  "license": "MIT",
+  "keywords": [
+    "slopographic",
+    "mcp",
+    "photo-editor",
+    "pdf",
+    "image",
+    "video",
+    "workflows",
+    "browser"
+  ]
+}

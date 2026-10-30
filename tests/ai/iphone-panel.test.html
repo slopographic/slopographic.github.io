@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop AI on an iPhone (390 × 844, no WebGPU): the kit loads at once, the model menu, your own account, a part that fails</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <iframe id="f"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // The owner on an iPhone: the AI panel said "no model yet" over an empty model choice (no models, no "Use your own AI
+  // account"), so there was no way to switch the AI or add a key; and the AI took long to load on every page (the kit came
+  // file after file). Now the kit is asked for at once, the chat is there first, the own account comes first without
+  // WebGPU, the header's model menu opens with a finger, and a part that does not load says so.
+  // Covers: shared/ai/panel.js, shared/ai/slopai.js, shared/ai/picker.js, shared/ai/model-menu.js, shared/ai/imagegen/index.js,
+  //   shared/ai/panel.css
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const KEY = 'sk-ant-api03-TESTKEY-0123456789abcdef', fr = document.getElementById('f');
+  let W, D, log, F;
+  const q = (s) => D.querySelector(s);
+  const shown = (n) => { if (!n || n.hidden) return false; const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < 844 && r.left >= -0.5 && r.right <= 390.5; };
+  /** The app in the frame, as an iPhone without WebGPU; kit scripts are logged as they are inserted and as they load. */
+  async function boot(app, before) {
+    fr.src = 'about:blank';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.location.href === 'about:blank');
+    fr.src = '../../' + app + '/index.html';
+    await waitFor(() => { const w = fr.contentWindow; return w && w.document.querySelector('header .sh-ai') && w.SlopHbtn; }, { timeout: 40000 });
+    W = fr.contentWindow; D = W.document; log = [];
+    window.scrollTo(0, 0);   // a scrollIntoView in the frame scrolls this page too; the taps aim at the frame
+    if (W.SlopBanner) W.SlopBanner.remove();
+    D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; animation: none !important; }' }));
+    Object.defineProperty(W.Navigator.prototype, 'gpu', { get: () => undefined, configurable: true });
+    new W.MutationObserver((recs) => { for (const r of recs) for (const n of r.addedNodes) if (n.dataset && n.dataset.slopai) log.push('insert:' + n.dataset.slopai); }).observe(D.head, { childList: true });
+    D.addEventListener('load', (e) => { if (e.target.dataset && e.target.dataset.slopai) log.push('load:' + e.target.dataset.slopai); }, true);
+    if (before) before(W);
+  }
+  async function openAI() {
+    const t0 = W.performance.now();
+    await TouchKit.tap(q('header .sh-ai'));
+    const input = await waitFor(() => { const i = q('.sap-comp textarea'); return shown(i) ? i : null; }, { timeout: 15000 });
+    const composer = W.performance.now() - t0;
+    await waitFor(() => !!(W.SlopAIPanel && W.SlopAIPanel.chatReady), { timeout: 15000 });
+    await W.SlopAIPanel.chatReady;
+    const chat = W.performance.now() - t0;
+    await W.SlopAIPanel.ready;
+    return { input, composer: Math.round(composer), chat: Math.round(chat), all: Math.round(W.performance.now() - t0) };
+  }
+
+  describe('Slop AI on an iPhone without WebGPU (PhotoSlop)', () => {
+    it('the kit is asked for at once: every file of the chat part is requested before the first of them is in', async () => {
+      await boot('photoslop');
+      F = CU.install(W, 'anthropic');
+      const t = await openAI();
+      console.log(`Slop AI panel: composer on screen ${t.composer} ms, chat ready ${t.chat} ms, whole kit ${t.all} ms`);
+      const core = W.SlopAIKit.panelKit.CORE.filter((n) => log.includes('insert:' + n));
+      expect(core.length).toBeGreaterThan(8);
+      const lastInsert = Math.max(...core.map((n) => log.indexOf('insert:' + n))), firstLoad = Math.min(...core.map((n) => log.indexOf('load:' + n)).filter((i) => i >= 0));
+      expect(lastInsert < firstLoad).toBe(true, log.join(' '));
+      // the later part (model menu, permission settings, pictures) is not what the chat waits for
+      expect(log.indexOf('insert:model-menu') > log.indexOf('insert:panel-run')).toBe(true);
+    }, { timeout: 90000 });
+
+    it('the model menu opens with a finger and offers your own account; that opens the key form first, in view', async () => {
+      const st = q('.sap-status');
+      expect(st.textContent).toBe('no model yet');
+      await TouchKit.tap(st);
+      const row = await waitFor(() => [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')].find((r) => r.textContent === 'Use your own AI account…' && shown(r)), { timeout: 10000 });
+      await TouchKit.tap(row);
+      const det = await waitFor(() => { const d = q('.sap details.sap-cloud'); return d && d.open ? d : null; }, { timeout: 15000 });
+      const box = det.closest('.sap-empty');
+      expect(box.firstElementChild.contains(det)).toBe(true);   // before the device's models (there are none here)
+      await waitFor(() => /WebGPU/.test(box.textContent), { timeout: 10000 });
+      for (const s of ['.sap-cloud .sap-pp-btn', '.sap-cloud-key', '.sap-cloud-test']) { q(s).scrollIntoView({ block: 'nearest' }); expect(shown(q(s))).toBe(true, s); }
+      expect(q('.sap-kit-error')).toBe(null);
+    }, { timeout: 60000 });
+
+    it('a key and a model, then a message: the answer comes (fake fetch)', async () => {
+      const prov = q('.sap-cloud-provider'); prov.value = 'anthropic'; prov.dispatchEvent(new W.Event('change'));
+      await waitFor(() => /platform\.claude\.com/.test(q('.sap-cloud-help a') && q('.sap-cloud-help a').href));
+      q('.sap-cloud-key').value = KEY; q('.sap-cloud-test').click();
+      await waitFor(() => /Connected to Claude/.test(q('.sap-cloud-msg').textContent), { timeout: 10000 });
+      q('.sap-cloud-model').value = 'claude-sonnet-5-5'; q('.sap-cloud-use').click();
+      await waitFor(() => /Claude/.test(q('.sap-status').textContent));
+      F.replies.push(CU.anthropic.text('Hello from the iPhone.'));
+      const done = W.SlopAIPanel.send('hello');
+      const dlg = await waitFor(() => [...D.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop(), { timeout: 10000 }).catch(() => null);
+      if (dlg) [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Continue').click();
+      await done;
+      expect(q('.sap-list').textContent).toContain('Hello from the iPhone.');
+      for (const k of Object.keys(W.sessionStorage)) if (/^slop-ai\.cloud/.test(k)) W.sessionStorage.removeItem(k);
+      for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    }, { timeout: 60000 });
+
+    it('a part of the kit that does not load says so in the panel, instead of an empty view', async () => {
+      await boot('photoslop', (w) => { w.SlopAIKit = { base: new URL('/no-such-folder/', w.location.href).href }; });
+      await TouchKit.tap(q('header .sh-ai'));
+      const err = await waitFor(() => q('.sap-kit-error'), { timeout: 20000 });
+      expect(err.textContent).toMatch(/did not load \(Could not load shared\/ai\/\w+/);
+      expect(shown(q('.sap-comp textarea'))).toBe(true);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop AI · iPhone' });
+  </script>
+</body>
+</html>

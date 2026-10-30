@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF · text tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; } #app2 { width: 640px; height: 400px; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; tests drive window.SP inside it. The Slop PDF specs are split over four
+       pages (pdf, pdf-view, pdf-text, pdf-workspace) so they run in parallel; this one: the selection bar, markup, edit text and its fonts, colour, block. -->
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <!-- the specs of this page expect the app booted, as the specs before them did when they shared one page -->
+  <script>SlopTest.describe('setup', () => SlopTest.it('boots the app', () => PT.boot(), { timeout: 60000 }));</script>
+  <script src="pdf.spec-selbar.js"></script>
+  <script src="pdf.spec-markup-toggle.js"></script>
+  <script src="pdf.spec-edit-fonts.js"></script>
+  <script src="pdf.spec-edit-standard.js"></script>
+  <script src="pdf.spec-edit-inplace.js"></script>
+  <script src="pdf.spec-colour.js"></script>
+  <script src="pdf.spec-block.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF · text' });</script>
+</body>
+</html>

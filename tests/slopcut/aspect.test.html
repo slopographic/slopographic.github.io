@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cut restore original aspect ratio</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1280px; height: 760px; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  /** Ratio of the visible box of a clip: its source (1600 × 900) with the crop taken off. */
+  const visibleRatio = (c) => ((1 - c.cropL - c.cropR) * 1600) / ((1 - c.cropT - c.cropB) * 900);
+  /** A 1600 × 900 video on V1, cropped at the sides so the box is no longer 16 : 9. */
+  function clipWithCrop(cropL, cropR, kind = 'video') {
+    const p = ST.SE.doc;
+    p.media.push({ id: 'm' + Math.random().toString(36).slice(2, 7), name: 'clip.mp4', kind: 'video', w: 1600, h: 900, dur: 10 });
+    const media = p.media[p.media.length - 1];
+    const track = p.tracks.find((t) => t.kind === 'video');
+    const c = ST.M.newClip({ kind, media: kind === 'title' ? null : media.id, track: track.id, start: 0, dur: 5, cropL, cropR, text: kind === 'title' ? ST.M.TEXT : null });
+    p.clips.push(c);
+    ST.SE.app.select([c.id]);
+    return c;
+  }
+
+  describe('Slop Cut: restore original aspect ratio', () => {
+    it('boots and starts a project', async () => {
+      await ST.boot('app');
+      await ST.reset();
+      expect(!!ST.SE.aspect).toBe(true);
+    }, { timeout: 40000 });
+
+    it('a clip cropped at the sides gets its 16 : 9 box back, keeping the visible width', () => {
+      const c = clipWithCrop(0.25, 0.25);
+      expect(visibleRatio(c) < 1).toBe(true); // 0.5 × 1600 over 1 × 900: about 0.89
+      expect(!!ST.SE.aspect.targetOf(ST.SE.doc, c)).toBe(true);
+      const w0 = (1 - c.cropL - c.cropR) * 1600;
+      ST.SE.aspect.restore(c.id);
+      const after = ST.M.clip(ST.SE.doc, c.id);
+      expect(Math.abs(visibleRatio(after) - 1600 / 900) < 1e-6).toBe(true);
+      expect(Math.abs((1 - after.cropL - after.cropR) * 1600 - w0) < 1e-6).toBe(true);
+      expect(after.cropL).toBe(0.25); expect(after.cropR).toBe(0.25);
+      expect(Math.abs(after.cropT - 0.25) < 1e-9 && Math.abs(after.cropB - 0.25) < 1e-9).toBe(true);
+    });
+
+    it('the restore is one undo step', () => {
+      const c = ST.M.clip(ST.SE.doc, ST.SE.app.primary().id);
+      const before = { t: c.cropT, b: c.cropB };
+      ST.SE.history.undo();
+      const u = ST.M.clip(ST.SE.doc, c.id);
+      expect(u.cropT).toBe(0); expect(u.cropB).toBe(0);
+      ST.SE.history.redo();
+      expect(ST.M.clip(ST.SE.doc, c.id).cropT).toBeCloseTo(before.t, 9);
+    });
+
+    it('titles and colour clips have no source ratio, so there is nothing to restore', () => {
+      const t = clipWithCrop(0, 0, 'title');
+      expect(ST.SE.aspect.targetOf(ST.SE.doc, t)).toBe(null);
+      expect(ST.SE.aspect.restore(t.id)).toBe(false);
+    });
+
+    it('the command palette runs the same action', () => {
+      const c = clipWithCrop(0.25, 0.25);
+      expect(!!ST.SE.cmd.list.find((x) => x.id === 'clip.restoreAspect')).toBe(true);
+      ST.SE.app.select([c.id]);
+      ST.SE.cmd.list.find((x) => x.id === 'clip.restoreAspect').run();
+      expect(Math.abs(visibleRatio(ST.M.clip(ST.SE.doc, c.id)) - 1600 / 900) < 1e-6).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Cut restore aspect ratio' });
+  </script>
+</body>
+</html>

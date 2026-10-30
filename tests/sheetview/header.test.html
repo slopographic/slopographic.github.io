@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Sheets: the header (1440 and 390 wide)</title></head>
+<body>
+  <!-- Covers: sheetview/index.html, sheetview/css/sheetview.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a frame of the given width, once brand.js has put the app's icon in the brand link. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${width}px;height:800px;border:0;display:block`;
+    f.src = '../../sheetview/?t=' + Date.now();
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.querySelector('header a.brand .brand-app') && f.contentDocument.querySelector('#sv-style option'), { timeout: 15000 });
+    return f;
+  }
+  const box = (D, s) => D.querySelector(s).getBoundingClientRect();
+
+  describe('Slop Sheets header', () => {
+    it('has the brand home link with the app icon, then the app name', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      const brand = D.querySelector('header.sv-top a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(box(D, 'header a.brand .brand-tile').width).toBe(26);
+      expect(D.querySelector('header h1').textContent).toBe('Slop Sheets');
+      f.remove();
+    });
+    it('keeps one row at 1440px, its buttons at one height; Export and the pickers are in the panel (tests/sheetview/panel.test.html)', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      expect(box(D, 'header.sv-top').height).toBeLessThan(60);
+      for (const id of ['#sv-export', '#sv-hub', '#sv-style', '#sv-palette']) expect(D.querySelector('header').contains(D.querySelector(id))).toBe(false);
+      const heights = ['#sv-open', '#sv-cmd', '#sv-menu'].map((s) => box(D, s).height);
+      expect(new Set(heights).size).toBe(1);
+      f.remove();
+    });
+    it('fits 390px: the tools take one row inside the header', async () => {
+      const f = await open(390), D = f.contentDocument;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(box(D, '#sv-menu').top).toBe(box(D, '#sv-open').top);
+      expect(box(D, 'header.sv-top').height).toBeLessThan(110);
+      const tools = D.querySelector('.sv-tools');
+      expect(tools.scrollWidth).toBeLessThanOrEqual(tools.clientWidth + 1);
+      f.remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Sheets: header' });
+  </script>
+</body>
+</html>

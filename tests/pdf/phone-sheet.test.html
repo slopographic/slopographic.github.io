@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF on a phone: the tool panel is a bottom sheet (SlopSheet)</title>
+  <!-- Covers: pdf/js/ui/app.js, pdf/js/ui/menus.js, shared/ui/sheet.js, pdf/css/themes.css -->
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <iframe id="f"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const fr = document.getElementById('f');
+  let W, D;
+  async function boot(query) {
+    fr.src = 'about:blank';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.location.href === 'about:blank');
+    fr.src = '../../pdf/index.html' + (query || '');
+    await waitFor(() => { const w = fr.contentWindow; return w && w.SP && w.SP.app && w.SP.app.isReady && w.document.documentElement.classList.contains('ready'); }, { timeout: 30000 });
+    W = fr.contentWindow; D = W.document;
+    if (W.SlopBanner) W.SlopBanner.remove();
+    D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+  }
+  const S = () => W.SP.app._;
+  const open = () => S().els.app.classList.contains('sheet-open');
+  const rail = (tool) => D.querySelector('#rail .rail-b[data-tool="' + tool + '"]');
+  // a tap: the pointerdown (the sheet notes whether the tool was the open one) and the click
+  const tap = (el) => { el.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); el.click(); };
+  const settle = () => sleep(30);
+  const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+  describe('Slop PDF at 390 px: the tool panel is a bottom sheet', () => {
+    it('tapping a tool opens its sheet; tapping the same tool again closes it', async () => {
+      await boot();
+      expect([S().sheet.isPhone(), open()]).toEqual([true, false]);
+      tap(rail('sign')); await settle();
+      expect([open(), W.SP.app.tool, D.querySelector('#props .pp-title h2').textContent]).toEqual([true, 'sign', 'Sign']);
+      expect(W.getComputedStyle(D.getElementById('props')).visibility).toBe('visible');
+      tap(rail('sign')); await settle();
+      expect(open()).toBe(false);
+      tap(rail('sign')); await settle();
+      expect(open()).toBe(true);
+      tap(rail('watermark')); await settle();   // another tool keeps the sheet open, with its own panel
+      expect([open(), W.SP.app.tool]).toEqual([true, 'watermark']);
+    }, { timeout: 60000 });
+
+    it('the × at the top of the sheet closes it and gives focus back to the tool; Escape closes it', async () => {
+      const sign = rail('sign');
+      sign.focus(); tap(sign); await settle();
+      expect(open()).toBe(true);
+      const x = D.querySelector('#props > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close tool panel');
+      const r = x.getBoundingClientRect();
+      expect([Math.round(r.width), Math.round(r.height)]).toEqual([44, 44]);
+      x.click(); await settle();
+      expect([open(), D.activeElement === sign]).toEqual([false, true]);
+      tap(sign); await settle();
+      expect(open()).toBe(true);
+      esc(); await settle();
+      expect(open()).toBe(false);
+    }, { timeout: 30000 });
+
+    it('the panel button and View > Properties panel open and close it (A.togglePanel)', async () => {
+      const btn = D.getElementById('btnPanel');
+      btn.click(); await settle();
+      expect([open(), btn.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+      btn.click(); await settle();
+      expect([open(), btn.getAttribute('aria-expanded')]).toEqual([false, 'false']);
+      W.SP.app.togglePanel(); expect(open()).toBe(true);
+      W.SP.app.togglePanel(false); expect(open()).toBe(false);
+      expect(S().els.app.classList.contains('no-panel')).toBe(false);   // the desktop side panel is not hidden by it
+    }, { timeout: 30000 });
+
+    it('?tool=sign opens on Sign, the sheet closed until a tap; a tap on Sign then opens it', async () => {
+      await boot('?tool=sign');
+      await waitFor(() => W.SP.app.tool === 'sign', { timeout: 15000 });
+      expect(open()).toBe(false);
+      expect(rail('sign').classList.contains('on')).toBe(true);
+      tap(rail('sign')); await settle();
+      expect(open()).toBe(true);
+      tap(rail('sign')); await settle();
+      expect(open()).toBe(false);
+    }, { timeout: 60000 });
+
+    it('the closed sheet still shows its footer above the rail: Download, and Properties that opens the sheet; no sideways scroll', async () => {
+      await boot();
+      const props = D.getElementById('props'), dl = D.getElementById('btnDownload'), foot = props.querySelector('.sf-p-foot');
+      expect(open()).toBe(false);
+      expect(foot.contains(dl)).toBe(true);
+      const f = foot.getBoundingClientRect(), r = D.getElementById('rail').getBoundingClientRect();
+      expect(f.height).toBeGreaterThan(40);
+      expect(Math.round(f.bottom)).toBeLessThanOrEqual(Math.round(r.top) + 1);   // above the rail, on screen
+      expect(W.getComputedStyle(props).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');   // opaque
+      expect(props.querySelector('.pp-main').getBoundingClientRect().height).toBe(0);   // only the footer while closed
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      D.getElementById('emptySample').click();
+      await waitFor(() => !dl.disabled, { timeout: 20000 });
+      let n = 0; W.SP.app.download = () => { n++; };
+      dl.click(); await settle();
+      expect(n).toBe(1);
+      foot.querySelector('.sf-foot-more').click(); await settle();
+      expect(open()).toBe(true);
+      expect(props.querySelector('.pp-main').getBoundingClientRect().height).toBeGreaterThan(0);
+      esc(); await settle();
+      expect(open()).toBe(false);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop PDF · phone sheet' });
+  </script>
+</body>
+</html>

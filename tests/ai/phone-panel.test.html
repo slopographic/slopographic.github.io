@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop AI on a phone (390 × 844): the header button, the full-height sheet, your own key with the keyboard up</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <iframe id="f"></iframe>
+  <script src="../harness.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // The owner on an iPhone: "where is the AI button on mobile?" It gave way first in a full header and sat in the Theme
+  // menu. Now it stays as an icon while Theme, the bell, Drive and Apps fold into More (⋯); with no room at all it is in
+  // More with its label: never more than two taps.
+  // Covers: shared/ui/hbtn.js, shell/header.js, shell/shell.js, shared/ai/panel.css, shared/ai/panel.js, shared/ui/sheet.js,
+  //   shared/input/keyboard.js, shared/ui/menubutton.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const KEY = 'sk-ant-api03-TESTKEY-0123456789abcdef', KB = 336, fr = document.getElementById('f');
+  let W, D;
+  const q = (s) => D.querySelector(s);
+  const shown = (n) => { if (!n || n.hidden) return false; const r = n.getBoundingClientRect(); return r.width > 0 && r.left >= -0.5 && r.right <= 390.5 && r.top >= -0.5 && r.bottom <= 844.5; };
+  const tap = (n) => { n.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); n.click(); };
+  function alpha(c) { const m = /\/\s*([\d.]+)\s*\)$/.exec(c) || /^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)$/.exec(c); return c === 'transparent' ? 0 : m ? parseFloat(m[1]) : 1; }
+  async function boot(app) {
+    fr.src = 'about:blank';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.location.href === 'about:blank');
+    fr.src = '../../' + app + '/index.html';
+    await waitFor(() => { const w = fr.contentWindow; return w && w.document.querySelector('header .sh-ai') && w.SlopHbtn && w.SlopNotify; }, { timeout: 40000 });
+    await sleep(500);
+    W = fr.contentWindow; D = W.document;
+    if (W.SlopBanner) W.SlopBanner.remove();
+    D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; animation: none !important; }' }));
+  }
+  /** Opens Slop AI from the header as a finger would; returns how many taps it took. */
+  async function openAI() {
+    const ai = q('header .sh-ai');
+    if (shown(ai)) { tap(ai); return 1; }
+    const more = q('header .slop-hmore');
+    expect(shown(more)).toBe(true);
+    tap(more);
+    const row = await waitFor(() => [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')].find((r) => r.textContent.includes('Ask Slop AI')));
+    row.click();
+    return 2;
+  }
+
+  describe('Slop AI from the header at 390 px', () => {
+    for (const app of ['photoslop', 'pdf', 'convert']) {
+      it(app + ': the AI button is on screen (or in More: two taps at most); its panel opens full height and opaque', async () => {
+        await boot(app);
+        const ai = q('header .sh-ai');
+        expect(ai.title).toMatch(/^Slop AI: ask, or let it work in /);
+        expect(q('header').getBoundingClientRect().height).toBeLessThan(80);   // the header is still one row
+        const taps = await openAI();
+        expect(taps <= 2).toBe(true);
+        expect(taps).toBe(1);   // at 390 px it stays as an icon: the other buttons fold into More first
+        const panel = await waitFor(() => { const p = q('.sap'); return p && !p.hidden && p.classList.contains('ssh-on') ? p : null; }, { timeout: 15000 });
+        // it slides up (.22 s) and is sized to the visual viewport: wait for it to settle, then check it
+        await waitFor(() => { const b = panel.getBoundingClientRect(); return Math.round(b.bottom) === 844 && b.height > 844 * 0.9; }, { timeout: 3000 }).catch(() => null);
+        const r = panel.getBoundingClientRect(), cs = W.getComputedStyle(panel);
+        expect([Math.round(r.bottom), r.height > 844 * 0.9, alpha(cs.backgroundColor), cs.opacity]).toEqual([844, true, 1, '1']);
+        expect(shown(q('.sap-comp textarea')) && shown(q('.sap-send'))).toBe(true);
+      }, { timeout: 90000 });
+    }
+  });
+
+  describe('your own key on a phone, with the keyboard up (Slop PDF)', () => {
+    it('the key form fits; the composer stays above the keyboard; a message is sent and answered (fake fetch)', async () => {
+      await boot('pdf');
+      const F = CU.install(W, 'anthropic');
+      await openAI();
+      await waitFor(() => W.SlopAIPanel, { timeout: 15000 });
+      await W.SlopAIPanel.ready;
+      const box = await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+      if (!box.open) q('.sap-cloud summary').click();
+      // the provider is the picker's button (cloud/pick.js); the select it drives is hidden
+      for (const s of ['.sap-cloud .sap-pp-btn', '.sap-cloud-key', '.sap-cloud-test']) { q(s).scrollIntoView({ block: 'nearest' }); expect(shown(q(s))).toBe(true, s); }
+      expect(D.documentElement.scrollWidth <= 390 && q('.sap').scrollWidth <= 391).toBe(true);
+      const prov = q('.sap-cloud-provider'); prov.value = 'anthropic'; prov.dispatchEvent(new W.Event('change'));
+      await waitFor(() => /platform\.claude\.com/.test(q('.sap-cloud-help a') && q('.sap-cloud-help a').href));
+      q('.sap-cloud-key').value = KEY; q('.sap-cloud-test').click();
+      await waitFor(() => /Connected to Claude/.test(q('.sap-cloud-msg').textContent), { timeout: 10000 });
+      q('.sap-cloud-model').value = 'claude-sonnet-5-5'; q('.sap-cloud-use').click();
+      await waitFor(() => /Claude/.test(q('.sap-status').textContent));
+      // the keyboard: a stand-in visual viewport that shrinks by its height (Playwright cannot raise a real one)
+      const vv = new W.EventTarget(), H = D.documentElement.clientHeight;
+      Object.assign(vv, { width: 390, height: H, offsetTop: 0, offsetLeft: 0, scale: 1 });
+      W.SlopKeyboard._viewport(vv);
+      const input = q('.sap-comp textarea'); input.focus({ preventScroll: true });
+      vv.height = H - KB; vv.dispatchEvent(new W.Event('resize')); await sleep(100);
+      const ir = input.getBoundingClientRect(), list = q('.sap-list');
+      expect([ir.top >= 0, ir.bottom <= H - KB, q('.sap').getBoundingClientRect().bottom <= H - KB + 1]).toEqual([true, true, true]);
+      expect(list.getBoundingClientRect().height > 60 && W.getComputedStyle(list).overflowY).toBe('auto');   // the chat scrolls above it
+      expect(parseFloat(W.getComputedStyle(input).fontSize) >= 16).toBe(true);   // no iOS zoom into it
+      F.replies.push(CU.anthropic.text('Hello from the phone.'));
+      const done = W.SlopAIPanel.send('hello');
+      const dlg = await waitFor(() => [...D.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop(), { timeout: 10000 });
+      const dr = dlg.getBoundingClientRect();
+      expect(dr.left >= 0 && dr.right <= 390 && dr.top >= 0 && dr.bottom <= 844).toBe(true);   // the prompt fits the phone
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Continue').click();
+      await done;
+      expect(list.textContent).toContain('Hello from the phone.');
+      expect(F.requests.some((x) => /\/v1\/messages$/.test(x.url))).toBe(true);
+      vv.height = H; vv.dispatchEvent(new W.Event('resize'));
+      for (const k of Object.keys(W.sessionStorage)) if (/^slop-ai\.cloud/.test(k)) W.sessionStorage.removeItem(k);
+      for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    }, { timeout: 90000 });
+  });
+  SlopTest.run({ name: 'Slop AI · phone' });
+  </script>
+</body>
+</html>

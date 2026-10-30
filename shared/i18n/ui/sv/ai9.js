@@ -1,0 +1,20 @@
+/* Slop AI shared words, Swedish: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-sv.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'ui.ai.cloud.or_signin': 'Logga in med {name}',
+  'ui.ai.cloud.or_note': 'Ingen nyckel än? Logga in så skapar {name} en nyckel för den här webbläsaren, betald med dina egna {name}-krediter. Du kan sätta ett tak för den eller återkalla den på {link}.',
+  'ui.ai.cloud.or_privacy': 'Inloggningen går direkt från den här webbläsaren till {name}; inget passerar genom {brand}s servrar.',
+  'ui.ai.cloud.or_manage': 'Dina {name}-nycklar, skapade genom inloggning eller för hand, kan begränsas eller återkallas på {link}. Glöm nyckeln tar bara bort en nyckel från den här webbläsaren.',
+  'ui.ai.cloud.or_going': 'Öppnar {name}…',
+  'ui.ai.cloud.or_finishing': 'Slutför inloggningen hos {name}…',
+  'ui.ai.cloud.or_done': 'Inloggad med {name}: nyckeln för den här webbläsaren är sparad som en inklistrad nyckel.',
+  'ui.ai.cloud.or_denied': 'Åtkomst tilläts inte hos {name}, så inget anslöts. Tryck på Logga in med {name} för att försöka igen, eller klistra in en nyckel.',
+  'ui.ai.cloud.or_state': 'Den här inloggningen startade inte i den här fliken, så den nekades för att skydda ditt konto. Tryck på Logga in med {name} för att börja om.',
+  'ui.ai.cloud.or_used': 'Inloggningskoden har redan använts eller har gått ut (koder gäller i 10 minuter). Tryck på Logga in med {name} för att börja om.',
+  'ui.ai.cloud.or_failed': '{name} gav ingen nyckel ({why}). Tryck på Logga in med {name} för att försöka igen, eller klistra in en nyckel.',
+  'ui.ai.cloud.or_offline': 'Webbläsaren är offline, så inloggningen kunde inte slutföras. Anslut till internet och tryck sedan på Logga in med {name} igen.',
+  'ui.ai.cloud.or_network': 'Kunde inte nå {name} för att slutföra inloggningen. Kontrollera anslutningen och tryck sedan på Logga in med {name} igen.',
+  'ui.ai.cloud.or_no_crypto': 'Den här webbläsaren kan inte logga in med {name} här (det kräver Web Crypto på en https-sida). Klistra in en nyckel i stället.',
+  'ui.ai.cloud.or_key_label': '{brand} i den här webbläsaren',
+  'ui.ai.cloud.or_badge': 'Logga in',
+  'ui.ai.cloud.or_badge_t': 'Ingen nyckel att kopiera: logga in med ditt {name}-konto så skapas en nyckel för den här webbläsaren.',
+});

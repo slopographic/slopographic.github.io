@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press fonts panel</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const panel = () => W.document.querySelector('.sf-ov');
+  const rowOf = (name) => panel() && panel().querySelector(`.sf-row[data-family="${name}"]`);
+  const btnIn = (root, text) => root && [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+  const closePanel = () => { const b = btnIn(panel(), 'Close'); if (b) b.click(); };
+
+  describe('Slop Press: Fonts panel', () => {
+    it('Load Font File opens the panel with your own file and no library download', async () => {
+      await bootPress();
+      closePanel();
+      PR.ui.loadFont();
+      await waitFor(() => panel() && btnIn(panel(), 'Drop your own font'), { timeout: 10000 });
+      expect(!!btnIn(panel(), 'Download from the library')).toBe(false);
+      expect(panel().textContent.includes('Downloads from the library are off in Slop Press')).toBe(true);
+      closePanel();
+    });
+
+    it('a missing family offers the closest font Press embeds (Liberation Sans), not a download', async () => {
+      await bootPress();
+      closePanel();
+      PR.ui.openFonts(['Gill Sans']);
+      await waitFor(() => rowOf('Gill Sans'), { timeout: 10000 });
+      const row = rowOf('Gill Sans');
+      expect(row.textContent.includes('Missing')).toBe(true);
+      expect(!!btnIn(row, 'Drop your own font')).toBe(true);
+      expect(!!btnIn(row, 'Use the closest font instead (Liberation Sans)')).toBe(true);
+      expect(!!btnIn(panel(), 'Download from the library')).toBe(false);
+      closePanel();
+    });
+  });
+  run({ name: 'Slop Press · fonts panel' });
+  </script>
+</body>
+</html>

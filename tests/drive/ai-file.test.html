@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: Illustrator (.ai) files</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H;
+  /** A small Illustrator-style file: a PostScript header, then one PDF page (a blue box), as Illustrator writes them. */
+  function aiFile(withPdf = true) {
+    const content = '0 0 1 rg 10 10 80 40 re f\n';
+    const pdf = '%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n' +
+      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 100 60] /Contents 4 0 R /Resources << >> >> endobj\n' +
+      `4 0 obj << /Length ${content.length} >> stream\n${content}endstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n`;
+    const head = '%!PS-Adobe-3.0\n%%Creator: Adobe Illustrator(R) 27.0\n%AI9_PrivateData\n';
+    return new Blob([head + (withPdf ? pdf : 'no drawing here\n')], { type: '' });
+  }
+  describe('Slop Drive: .ai files', () => {
+    it('boots and names the type as an Illustrator design file', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub;
+      expect(W.DR.guessType('poster.ai', '')).toBe('application/illustrator');
+      expect(W.DR.guessType('poster.ai', 'application/postscript')).toBe('application/illustrator');
+      expect(W.DR.kindOf({ name: 'poster.ai', type: 'application/illustrator' })).toBe('design');
+      expect(W.DR.kindLabel({ name: 'poster.ai', type: 'application/illustrator' })).toBe('Illustrator design file');
+    });
+    it('gets a preview card with the first page of the PDF inside it', async () => {
+      const blob = aiFile(true);
+      const id = await H.put(blob, { name: 'poster.ai', from: 'upload', meta: {} });
+      const r = { id, name: 'poster.ai', type: 'application/illustrator', size: blob.size, blob };
+      const thumb = await DR.makeThumb(r);
+      expect(thumb.blob).toBeTruthy();
+      expect(thumb.info.kind).toBe('pdf');
+      expect(thumb.info.pages).toBe(1);
+      expect(thumb.info.w).toBe(100);
+      const sink = [];
+      const viewer = DR.viewerFor(r, false, sink);
+      document.body.append(viewer.el);
+      await waitFor(() => viewer.el.querySelector('canvas'), { timeout: 15000 });
+      expect(viewer.el.querySelector('canvas').width).toBeGreaterThan(0);
+      viewer.el.remove(); sink.forEach((u) => URL.revokeObjectURL(u));
+    }, { timeout: 40000 });
+    it('falls back to a card when the file has no PDF data', async () => {
+      const blob = aiFile(false);
+      const thumb = await DR.makeThumb({ name: 'bare.ai', type: 'application/illustrator', size: blob.size, blob });
+      expect(thumb.info.kind).toBe('card');
+    });
+    it('shows up in the Open with list of SlopVector', async () => {
+      const r = { name: 'poster.ai', type: 'application/illustrator', size: 10, blob: aiFile(true) };
+      const ids = DR.appsFor(r).map((a) => a.id);
+      expect(ids).toContain('vector');
+      const vector = W.SlopHub.appById('vector');
+      expect(vector.name).toBe('SlopVector');
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'Slop Drive: .ai files' });</script>
+</body>
+</html>

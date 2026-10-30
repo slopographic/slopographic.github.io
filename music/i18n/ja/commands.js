@@ -1,0 +1,28 @@
+/* Slop Music, Japanese: the command palette entries. Same keys as music/i18n/en/commands.js.
+ * Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'music.cmd.play': '再生',
+  'music.cmd.pause': '一時停止',
+  'music.cmd.play_pause': '再生または一時停止',
+  'music.cmd.play_track': 'トラックを再生…',
+  'music.cmd.play_playlist': 'プレイリストを再生…',
+  'music.cmd.next': '次のトラック',
+  'music.cmd.previous': '前のトラック',
+  'music.cmd.seek': '再生位置',
+  'music.cmd.volume': '音量を設定',
+  'music.cmd.speed': '再生速度を設定',
+  'music.cmd.shuffle': 'シャッフル',
+  'music.cmd.repeat': 'リピート',
+  'music.cmd.queue_track': 'トラックをキューに追加…',
+  'music.cmd.find_tracks': 'トラックを検索…',
+  'music.cmd.tag_track': 'トラックにタグを付ける…',
+  'music.cmd.create_playlist': '新しいプレイリスト…',
+  'music.cmd.rename_playlist': 'プレイリスト名を変更…',
+  'music.cmd.add_to_playlist': 'トラックをプレイリストに追加…',
+  'music.cmd.remove_from_playlist': 'トラックをプレイリストから削除…',
+  'music.cmd.delete_playlist': 'プレイリストを削除…',
+  'music.cmd.export_playlist': 'プレイリストを書き出し…',
+  'music.cmd.group_player': 'プレーヤー',
+  'music.cmd.group_library': 'ライブラリ',
+  'music.cmd.group_playlists': 'プレイリスト',
+});

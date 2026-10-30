@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Settings: the look (one header, the tabs and the shared buttons together at the right)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: settings/settings.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The page in a fresh iframe of this width, once it and the shell's header buttons are in. */
+  async function open(width, src = '../../settings/index.html') {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = src;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-hdr .slop-hbtn'); }, { timeout: 30000 });
+    await sleep(400);   // the header fit (shared/ui/hbtn.js) runs on the next frame
+    return f.contentDocument;
+  }
+  const box = (n) => n.getBoundingClientRect();
+  const shown = (n) => !!n && box(n).width > 0 && box(n).height > 0;
+  /** Every header on screen (the menu bar is a header too). */
+  const headers = (D) => [...D.querySelectorAll('header')].filter((n) => shown(n) && !n.parentElement.closest('header'));
+  /** The heights of the shared header buttons on screen. */
+  const hbtnHeights = (D) => [...D.querySelectorAll('header .slop-hbtn')].filter(shown).map((n) => Math.round(box(n).height));
+  /** The page's own buttons (selectors) are as tall as the shared ones. */
+  function sameHeight(D, sels) {
+    const hs = hbtnHeights(D);
+    expect(hs.length).toBeGreaterThan(2);
+    for (const h of hs) expect(h).toBe(hs[0]);
+    for (const sel of sels) {
+      const n = D.querySelector(sel);
+      if (!shown(n)) continue;
+      expect(sel + ' ' + Math.round(box(n).height)).toBe(sel + ' ' + hs[0]);
+    }
+  }
+  const noSideScroll = (D) => expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(D.defaultView.innerWidth);
+
+  describe('Settings: the look', () => {
+    it('one header; the tabs and the shared buttons sit at the right, one height', async () => {
+      const D = await open(1440);
+      expect(headers(D).length).toBe(1);
+      sameHeight(D, ['.nav .tab']);
+      expect(box(D.querySelector('.nav .tabs')).left).toBeGreaterThan(1440 / 2);
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways', async () => {
+      const D = await open(390);
+      noSideScroll(D);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Settings: the look' });
+  </script>
+</body>
+</html>

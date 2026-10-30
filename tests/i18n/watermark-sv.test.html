@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Watermark in Swedish</title>
+  <!-- Covers: watermark/i18n/index.js, watermark/js/util.js, watermark/js/main.js, watermark/js/list.js, watermark/js/groups.js, watermark/js/groups-ui.js, watermark/js/settings.js, watermark/js/export.js, watermark/js/probe.js, watermark/js/items.js, watermark/js/commands.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Watermark', path: '../../watermark/index.html', ns: 'watermark',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#wm-drop .sd-msg') && doc.querySelector('#wm-panel .swp-actions'),
+    checks: [
+      ['#wm-drop .sd-msg', 'Släpp foton, videor eller PDF:er här', 'Drop photos, videos or PDFs here'],
+      ['#wm-drop .sd-sample', 'Prova med 4 exempelfoton', 'Try it with 4 sample photos'],
+      ['#wm-panel', 'Vattenstämpla filer', 'Watermark files'],
+      ['#wm-panel-open', 'Inställningar för vattenstämpel', 'Watermark settings'],
+      ['#wm-panel .swp-actions', 'Återställ standardvärden', 'Reset to defaults'],
+      ['#wm-files', 'Filer', 'Files', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Watermark in Swedish' });
+  </script>
+</body>
+</html>

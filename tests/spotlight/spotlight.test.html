@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Spotlight: Home link and all apps</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="../drive/util.js"></script>
+<script>
+// Covers: shared/spotlight/spotlight.js
+const { describe, it, expect, waitFor } = SlopTest;
+let W, D;
+describe('Spotlight: a Home link and an all-apps search on every app page', () => {
+  it('a page without the shell (Img3D) shows the All apps button and a Home link in the corner', async () => {
+    const C = await DT.frame('../../img3d/', (w) => w.document.readyState === 'complete' && !!w.document.querySelector('.sps-pill'), { width: 1280, height: 780 });
+    expect(C.document.querySelector('button.sps-pill span').textContent).toBe('All apps');
+    expect([...C.document.querySelectorAll('a.sps-pill')].some((a) => /home/i.test(a.textContent))).toBe(true);
+  });
+  it('a page whose header has the brand and Apps (Reports) shows no corner pills: they would repeat the header', async () => {
+    const R = await DT.frame('../../reports/', (w) => w.document.readyState === 'complete' && !!w.document.querySelector('.sps-back') && !!w.document.querySelector('.sh-switch'), { width: 1280, height: 780 });
+    expect(R.document.querySelector('.sps-pill')).toBe(null);
+    expect(!!R.document.querySelector('header .smb-brand')).toBe(true);
+  });
+  it('QR (the brand and Apps in its bar) shows no pills either', async () => {
+    W = await DT.frame('../../qr/', (w) => w.document.readyState === 'complete' && !!w.document.querySelector('.sps-back') && !!w.document.querySelector('.sh-switch'), { width: 1280, height: 780 });
+    D = W.document;
+    expect(D.querySelector('.sps-pill')).toBe(null);
+  });
+  it('on a page with the command palette, the palette lists the apps: "barcode" finds SlopLabel', async () => {
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
+    await waitFor(() => D.querySelector('.scmd-back') || D.querySelector('.sps-back.on'), { timeout: 8000 });
+    const input = D.querySelector('.scmd-back input, .scmd-bar input, .sps-in');
+    expect(!!input).toBe(true);
+    input.value = 'barcode';
+    input.dispatchEvent(new W.Event('input', { bubbles: true }));
+    await waitFor(() => D.body.textContent.includes('SlopLabel'), { timeout: 5000 });
+    expect(D.body.textContent.includes('SlopLabel')).toBe(true);
+  });
+  it('Escape closes it', async () => {
+    (D.activeElement || D).dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await waitFor(() => !D.querySelector('.scmd-back') && !D.querySelector('.sps-back.on'), { timeout: 3000 });
+    expect(!!D.querySelector('.sps-back.on')).toBe(false);
+  });
+});
+SlopTest.run({ name: 'Spotlight: a Home link and an all-apps search on every app page' });
+</script>
+</body>
+</html>

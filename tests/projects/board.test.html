@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Projects: empty page and sample, board drag and drop, keyboard moves, WIP, filters, undo, 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: projects/index.html, projects/js/ui/app.js, projects/js/ui/board.js, projects/js/ui/board-drag.js, projects/js/ui/card.js
+  // Covers: projects/js/ui/actions.js, projects/js/ui/toolbar.js, projects/js/ui/files.js, projects/js/ui/commands.js, projects/js/core/store.js
+  // Covers: shared/ui/undo.js, shared/tour/tours/projects.js, projects/css/projects.css
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const P = () => W.SlopProjects;
+  const col = (id) => [...D.querySelectorAll(`.pcol[data-col="${id}"] .pcard`)].map((c) => c.querySelector('.pc-title').textContent);
+  const card = (title) => [...D.querySelectorAll('.pcard')].find((c) => c.querySelector('.pc-title').textContent === title);
+  const task = (title) => P().state.tasks.find((t) => t.title === title);
+  const fire = (target, type, x, y, o = {}) => target.dispatchEvent(new W.PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true, pointerType: 'mouse', ...o }));
+  const key = (target, k, o = {}) => target.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+  const mid = (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  async function boot(hash = '#board') {
+    const f = document.getElementById('app');
+    f.src = '../../projects/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopProjects && f.contentWindow.SlopProjects.app && f.contentWindow.SlopProjects.app.reload && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+
+  describe('Slop Projects board', () => {
+    it('with no project it shows the empty page with Try a sample, and no project bar', async () => {
+      await boot();
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      try { W.localStorage.removeItem('slop-projects.project'); } catch (e) { /* blocked */ }
+      await boot();
+      await waitFor(() => !$('pEmpty').hidden);
+      expect($('pBar').hidden).toBe(true);
+      expect($('view-board').hidden).toBe(true);
+      const btn = [...D.querySelectorAll('#pDrop button')].find((b) => /sample/i.test(b.textContent));
+      expect(!!btn).toBe(true);
+      btn.click();
+      await waitFor(() => P().state.project && D.querySelectorAll('.pcard').length === 10, { timeout: 10000 });
+      expect($('pEmpty').hidden).toBe(true);
+      expect(P().state.project.name).toBe('Website launch');
+      expect(col('todo')[0]).toBe('Build the pages');
+    });
+
+    it('shows the WIP count against the limit and flags a full column', async () => {
+      const doing = D.querySelector('.pcol[data-col="doing"] .wip');
+      expect(doing.textContent).toBe('2 / 3');
+      expect(D.querySelector('.pcol[data-col="review"] .wip').textContent).toBe('1 / 2');
+    });
+
+    it('dragging a card to another column places it where it is dropped, and Undo puts it back', async () => {
+      const from = card('Launch'), target = card('Choose photos');
+      const a = mid(from), b = target.getBoundingClientRect();
+      fire(from, 'pointerdown', a.x, a.y);
+      fire(D, 'pointermove', a.x + 10, a.y + 10);
+      fire(D, 'pointermove', b.left + 20, b.top + 4);   // above the middle of Choose photos: before it
+      expect(!!D.querySelector('.pph')).toBe(true);
+      fire(D, 'pointerup', b.left + 20, b.top + 4);
+      await waitFor(() => col('doing').join('|') === 'Write the page copy|Launch|Choose photos');
+      expect(D.querySelector('.pcol[data-col="doing"] .wip').textContent).toBe('3 / 3');
+      expect(task('Launch').column).toBe('doing');
+      expect(col('todo')).toEqual(['Build the pages', 'Titles, descriptions and redirects', 'Test on phones and browsers', 'Tell the newsletter']);
+      key(D.body, 'z', { ctrlKey: true });
+      await waitFor(() => task('Launch').column === 'todo' && col('todo')[3] === 'Launch');
+      expect(col('doing')).toEqual(['Write the page copy', 'Choose photos']);
+    });
+
+    it('dragging within a column reorders it; a press without a drag opens the card', async () => {
+      const from = card('Tell the newsletter'), to = card('Build the pages');
+      const a = mid(from), b = to.getBoundingClientRect();
+      fire(from, 'pointerdown', a.x, a.y);
+      fire(D, 'pointermove', a.x, a.y - 20);
+      fire(D, 'pointermove', b.left + 20, b.top + 3);
+      fire(D, 'pointerup', b.left + 20, b.top + 3);
+      await waitFor(() => col('todo')[0] === 'Tell the newsletter');
+      card('Tell the newsletter').querySelector('.pc-title').click();
+      // the task opens in the panel on the right (projects/js/ui/task-panel.js); Escape closes it
+      await waitFor(() => W.SlopProjects.taskPanel.isOpen() && D.getElementById('peTitle').value === 'Tell the newsletter');
+      expect(D.querySelector('.pj-task').getBoundingClientRect().left).toBeGreaterThan(D.querySelector('.pj-views').getBoundingClientRect().left);
+      D.getElementById('peTitle').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await waitFor(() => !W.SlopProjects.taskPanel.isOpen());
+    });
+
+    it('Shift with an arrow moves a focused card between and within columns; the focus stays on it', async () => {
+      card('Write the page copy').focus();
+      key(card('Write the page copy'), 'ArrowRight', { shiftKey: true });
+      await waitFor(() => task('Write the page copy').column === 'review');
+      await waitFor(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.id === task('Write the page copy').id);
+      expect(D.querySelector('.pcol[data-col="review"]').classList.contains('is-over')).toBe(false);
+      expect(col('review')).toEqual(['Write the page copy', 'Design the home page']);   // at the same place it had
+      key(D.activeElement, 'ArrowDown', { shiftKey: true });
+      await waitFor(() => col('review')[1] === 'Write the page copy');
+      await waitFor(() => D.activeElement && D.activeElement.dataset && D.activeElement.dataset.id === task('Write the page copy').id);
+      expect($('pLive').textContent).toContain('Moved "Write the page copy" to place 2 in Review');
+      key(D.activeElement, 'ArrowUp');
+      expect(D.activeElement.querySelector('.pc-title').textContent).toBe('Design the home page');
+    });
+
+    it('the card menu moves a card to a column; a full column turns red', async () => {
+      P().boardView.cardMenu(task('Choose photos')).find((i) => i.label === 'Move to').sub.find((i) => i.label === 'Review').act();
+      await waitFor(() => task('Choose photos').column === 'review');
+      await waitFor(() => D.querySelector('.pcol[data-col="review"]').classList.contains('is-over'));
+      expect(D.querySelector('.pcol[data-col="review"] .wip').textContent).toBe('3 / 2');
+    });
+
+    it('Delete removes a card and unlinks it; Undo brings both back', async () => {
+      const id = task('Test on phones and browsers').id;
+      card('Test on phones and browsers').focus();
+      key(card('Test on phones and browsers'), 'Delete');
+      await waitFor(() => !task('Test on phones and browsers'));
+      expect(task('Launch').deps.includes(id)).toBe(false);
+      await P().actions.undo();
+      await waitFor(() => !!task('Test on phones and browsers'));
+      expect(task('Launch').deps.includes(id)).toBe(true);
+    });
+
+    it('Add a task in a column adds it at the end; the filters narrow the cards', async () => {
+      const input = D.querySelector('.pcol[data-col="done"] .pcol-add input');
+      input.value = 'Celebrate';
+      input.closest('form').dispatchEvent(new W.Event('submit', { bubbles: true, cancelable: true }));
+      await waitFor(() => col('done').slice(-1)[0] === 'Celebrate');
+      $('fWho').value = 'Chen'; $('fWho').dispatchEvent(new W.Event('change'));
+      await waitFor(() => D.querySelectorAll('.pcard').length === 3);
+      $('fWho').value = ''; $('fWho').dispatchEvent(new W.Event('change'));
+      $('fText').value = 'brief'; $('fText').dispatchEvent(new W.Event('input'));
+      await waitFor(() => D.querySelectorAll('.pcard').length === 1);
+      $('fText').value = ''; $('fText').dispatchEvent(new W.Event('input'));
+      await waitFor(() => D.querySelectorAll('.pcard').length === 11);
+    });
+
+    it('at 390 px the board scrolls inside itself and the page has no sideways scroll', async () => {
+      document.getElementById('app').style.width = '390px';
+      await waitFor(() => W.innerWidth === 390);
+      await P().app.reload();
+      const b = $('board');
+      expect(b.scrollWidth > b.clientWidth).toBe(true);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+      document.getElementById('app').style.width = '1280px';
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

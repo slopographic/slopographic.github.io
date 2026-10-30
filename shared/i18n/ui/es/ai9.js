@@ -1,0 +1,20 @@
+/* Slop AI shared words, Spanish: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-es.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'ui.ai.cloud.or_signin': 'Iniciar sesión con {name}',
+  'ui.ai.cloud.or_note': '¿Aún no tienes clave? Inicia sesión y {name} crea una clave para este navegador, pagada con tus propios créditos de {name}. Puedes limitarla o revocarla en {link}.',
+  'ui.ai.cloud.or_privacy': 'El inicio de sesión va directamente de este navegador a {name}; nada pasa por los servidores de {brand}.',
+  'ui.ai.cloud.or_manage': 'Tus claves de {name}, creadas al iniciar sesión o a mano, se pueden limitar o revocar en {link}. Olvidar la clave solo la quita de este navegador.',
+  'ui.ai.cloud.or_going': 'Abriendo {name}…',
+  'ui.ai.cloud.or_finishing': 'Terminando el inicio de sesión con {name}…',
+  'ui.ai.cloud.or_done': 'Sesión iniciada con {name}: la clave de este navegador se guarda como una pegada.',
+  'ui.ai.cloud.or_denied': 'No se permitió el acceso en {name}, así que no se conectó nada. Pulsa Iniciar sesión con {name} para intentarlo de nuevo, o pega una clave.',
+  'ui.ai.cloud.or_state': 'Este inicio de sesión no empezó en esta pestaña, así que se rechazó para proteger tu cuenta. Pulsa Iniciar sesión con {name} para empezar de nuevo.',
+  'ui.ai.cloud.or_used': 'Ese código de inicio de sesión ya se usó o ha caducado (los códigos duran 10 minutos). Pulsa Iniciar sesión con {name} para empezar de nuevo.',
+  'ui.ai.cloud.or_failed': '{name} no dio ninguna clave ({why}). Pulsa Iniciar sesión con {name} para intentarlo de nuevo, o pega una clave.',
+  'ui.ai.cloud.or_offline': 'El navegador no tiene conexión, así que el inicio de sesión no pudo terminar. Conéctate a internet y pulsa de nuevo Iniciar sesión con {name}.',
+  'ui.ai.cloud.or_network': 'No se pudo contactar con {name} para terminar el inicio de sesión. Comprueba la conexión y pulsa de nuevo Iniciar sesión con {name}.',
+  'ui.ai.cloud.or_no_crypto': 'Este navegador no puede iniciar sesión con {name} aquí (necesita Web Crypto en una página https). Pega una clave en su lugar.',
+  'ui.ai.cloud.or_key_label': '{brand} en este navegador',
+  'ui.ai.cloud.or_badge': 'Iniciar sesión',
+  'ui.ai.cloud.or_badge_t': 'Sin clave que copiar: inicia sesión con tu cuenta de {name} y se crea una clave para este navegador.',
+});

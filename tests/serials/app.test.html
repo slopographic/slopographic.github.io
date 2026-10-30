@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Serial counter · the page: export through the AI tools' one download</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../serials/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: serials/js/app.js, serials/index.html, aitools/common.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  describe('Slop Serial counter page', () => {
+    it('Export photos saves photos.csv through SlopAITools.download', async () => {
+      // module scripts have run (the buttons are wired) once the document is complete; the tables wait for the OCR model,
+      // which a fresh browser does not have, but adding and exporting photos do not need it
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopAITools && f.contentWindow.SlopFirstRun && f.contentDocument.readyState === 'complete', { timeout: 20000 });
+      const W = f.contentWindow, got = [];
+      W.SlopAITools.download = (name, text, type) => got.push({ name, text, type });
+      // one photo added through the picker, as a person would (it is not read; the export lists it as Not read)
+      const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+      const dt = new W.DataTransfer(); dt.items.add(new W.File([png], 'shelf.png', { type: 'image/png' }));
+      if (W.SlopFirstRun) W.SlopFirstRun.once = async () => true;   // the first-run notice is answered yes
+      W.SlopIntake.pickFiles = async () => [...dt.files]; // the box is the intake's picker
+      f.contentDocument.getElementById('drop').click();
+      await waitFor(() => f.contentDocument.getElementById('photos').textContent.includes('shelf.png'), { timeout: 10000 });
+      f.contentDocument.getElementById('export-photos').click();
+      await waitFor(() => got.length === 1);
+      expect(got[0].name).toBe('photos.csv');
+      expect(got[0].text.split(/\r?\n/)[0]).toBe('Photo,Status,Serials');
+      expect(got[0].text).toContain('shelf.png');
+      expect(got[0].type).toBe('text/csv;charset=utf-8');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

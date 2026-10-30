@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides own fonts</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Opens Slop Slides in a fresh iframe (a new page: nothing from an earlier open is registered) and waits for the deck. */
+  async function open() {
+    const want = new URL('../../slides/index.html', location.href).pathname;
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../slides/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const panel = (W) => W.document.querySelector('.sf-ov');
+  const rowOf = (W, name) => panel(W) && panel(W).querySelector(`.sf-row[data-family="${name}"]`);
+  const fontsButton = (W) => [...W.document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Fonts…');
+  const hasOption = (W, name) => [...W.document.querySelectorAll('select option')].some((o) => o.value === name);
+
+  describe('Slop Slides: your own font', () => {
+    it('a TTF dropped on a missing row is listed in the font menu, measured and drawn in that font, and kept with the deck', async () => {
+      const W = await open();
+      const A = W.SS.app, TH = W.SS.themes, F = W.SS.fonts;
+      const file = await (await fetch('../pdf/fixtures/Barlow-Regular.ttf')).arrayBuffer();
+      A.deck.theme = Object.assign({}, TH.of(A.deck), { fonts: { body: 'Gill Sans', heading: 'Inter Tight' } });
+      await waitFor(() => fontsButton(W), { timeout: 10000 });
+      fontsButton(W).click();
+      await waitFor(() => rowOf(W, 'Gill Sans'), { timeout: 10000 });
+      const picked = new W.File([file], 'Barlow-Regular.ttf', { type: 'font/ttf' });
+      W.SlopUI.pickFiles = async () => [picked]; // the row's Drop your own font… is the intake's picker (part fonts.file)
+      [...rowOf(W, 'Gill Sans').querySelectorAll('button')].find((b) => /Drop your own font/.test(b.textContent)).click();
+      await waitFor(() => rowOf(W, 'Gill Sans') && rowOf(W, 'Gill Sans').textContent.includes('Installed from your file'), { timeout: 15000 });
+      expect(A.deck.fonts.length).toBe(1);
+      expect(F.LIST.includes('Gill Sans')).toBe(true);
+      W.SS.ops.addText(); // a selected text box shows the Font menu in the inspector
+      await waitFor(() => hasOption(W, 'Gill Sans'), { timeout: 10000 });
+      expect(hasOption(W, 'Gill Sans')).toBe(true);
+      const face = F.face('Gill Sans');
+      expect(F.bytes(face.key).byteLength).toBe(file.byteLength);
+      const inter = F.face('Inter Tight');
+      expect(F.measure(face, 'Wiw', 20)).not.toBe(F.measure(inter, 'Wiw', 20));
+      // kept with the deck: a fresh page that reads the saved deck registers the same font
+      const saved = JSON.stringify(A.deck);
+      A.dirty = false; // the page is left on purpose: no unsaved-changes prompt
+      const W2 = await open();
+      W2.SS.native.normalize(JSON.parse(saved));
+      expect(W2.SS.fonts.face('Gill Sans').font).toBeTruthy();
+      expect(W2.SS.fonts.bytes(W2.SS.fonts.face('Gill Sans').key).byteLength).toBe(file.byteLength);
+    });
+
+    it('a WOFF file is refused with a message that says WOFF is not supported in Slop Slides', async () => {
+      const W = await open();
+      const A = W.SS.app, TH = W.SS.themes;
+      A.deck.theme = Object.assign({}, TH.of(A.deck), { fonts: { body: 'Gill Serif', heading: 'Inter Tight' } });
+      await waitFor(() => fontsButton(W), { timeout: 10000 });
+      fontsButton(W).click();
+      await waitFor(() => rowOf(W, 'Gill Serif'), { timeout: 10000 });
+      const before = (A.deck.fonts || []).length;
+      const picked = new W.File([new Uint8Array([119, 79, 70, 50])], 'Gill.woff2', { type: 'font/woff2' });
+      W.SlopUI.pickFiles = async () => [picked]; // the row's Drop your own font… is the intake's picker (part fonts.file)
+      [...rowOf(W, 'Gill Serif').querySelectorAll('button')].find((b) => /Drop your own font/.test(b.textContent)).click();
+      await waitFor(() => rowOf(W, 'Gill Serif').textContent.includes('WOFF2 fonts cannot be used in Slop Slides'), { timeout: 10000 });
+      expect((A.deck.fonts || []).length).toBe(before);
+    });
+  });
+  run({ name: 'Slop Slides · own fonts' });
+  </script>
+</body>
+</html>

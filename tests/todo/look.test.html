@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop To-do: the look (header and list head, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: todo/css/todo.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menu bar, the shell's buttons and the sidebar are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../todo/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn') && D.querySelector('#tSide .side-btn'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+  const h = (n) => n.getBoundingClientRect().height;
+
+  describe('Slop To-do: the look', () => {
+    it('one header, and the buttons and fields of the list head are as tall as the header buttons', async () => {
+      const D = await open(1440);
+      expect(visible(D, 'header').length).toBe(1);
+      expect(D.querySelector('.smb-bar .local-badge')).toBeTruthy();
+      const hb = h([...D.querySelectorAll('.smb-bar .slop-hbtn')].find((n) => n.getBoundingClientRect().width));
+      for (const id of ['tConfig', 'tAddBtn', 'tNew', 'tSearch', 'tAdd']) expect(h(D.getElementById(id))).toBe(hb);
+    }, { timeout: 40000 });
+
+    it('the sidebar reaches the bottom of the window', async () => {
+      const D = await open(1440);
+      expect(D.getElementById('tSide').getBoundingClientRect().bottom).toBeGreaterThanOrEqual(D.defaultView.innerHeight - 1);
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways, the sidebar is only as tall as its buttons, and the head fits in two rows', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const side = D.getElementById('tSide'), last = [...side.querySelectorAll('button')].pop();
+      expect(side.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom).toBeLessThan(20);
+      expect(D.getElementById('tConfig').getBoundingClientRect().top).toBe(D.getElementById('tSearch').getBoundingClientRect().top);
+      expect(D.getElementById('tNew').getBoundingClientRect().top).toBe(D.getElementById('tAdd').getBoundingClientRect().top);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop To-do: the look' });
+  </script>
+</body>
+</html>

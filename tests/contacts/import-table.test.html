@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Contacts import, table and drag tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; the tests drop files, click and drag in it, and read the shared store. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="contacts.helpers.js"></script>
+  <script src="contacts.spec-import-table.js"></script>
+  <script>SlopTest.run({ name: 'Slop Contacts import, table and drag' });</script>
+</body>
+</html>

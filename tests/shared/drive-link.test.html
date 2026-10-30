@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · Slop Drive link</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } #host { padding: 8px; }</style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/drive-link.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const driveHref = () => new URL('../../drive/', location.href).href;
+  const fresh = () => { const d = document.createElement('div'); document.getElementById('host').append(d); return d; };
+  /** Load an app page in an iframe and wait until its Drive link is mounted. */
+  async function appFrame(src) {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:1000px;height:700px;border:0';
+    f.src = src; document.body.append(f);
+    await waitFor(() => { try { return f.contentDocument && f.contentDocument.readyState === 'complete' && !!f.contentDocument.querySelector('[data-sdl]'); } catch (e) { return false; } }, { timeout: 30000 });
+    return f;
+  }
+  /** Click with the given init and report what the link did: the window.open calls, and whether the page navigated. */
+  function clickWith(a, init, type = 'click') {
+    const calls = [], orig = window.open;
+    window.open = (...args) => { calls.push(args); return null; };
+    const here = location.href;
+    try { a.dispatchEvent(new MouseEvent(type, Object.assign({ bubbles: true, cancelable: true, button: 0 }, init))); }
+    finally { window.open = orig; }
+    return { calls, navigated: location.href !== here };
+  }
+
+  describe('Slop Drive link: rendering', () => {
+    it('renders one link with the Drive icon and the label "Slop Drive"', () => {
+      const a = (() => { const h = fresh(); return SlopDriveLink.mount(h); })();
+      expect(a.tagName).toBe('A');
+      expect(a.textContent.trim()).toBe('Slop Drive');
+      expect(!!a.querySelector('svg')).toBe(true);
+      expect(a.classList.contains('sdl')).toBe(true);
+    });
+
+    it('points to the Drive path from the registry (SLOP_APPS "drive")', () => {
+      expect(SlopDriveLink.href()).toBe(driveHref());
+      const a = SlopDriveLink.mount(fresh());
+      expect(a.getAttribute('href')).toBe(driveHref());
+    });
+
+    it('mounting twice in one place adds one link', () => {
+      const h = fresh();
+      SlopDriveLink.mount(h); SlopDriveLink.mount(h);
+      expect(h.querySelectorAll('[data-sdl]').length).toBe(1);
+    });
+
+    it('accepts a selector, and places the link before a given element', () => {
+      const h = fresh(); h.id = 'bar-test';
+      h.innerHTML = '<span id="first">menu</span>';
+      SlopDriveLink.mount('#bar-test', { before: '#first' });
+      expect(h.firstElementChild.dataset.sdl !== undefined).toBe(true);
+      expect(h.lastElementChild.id).toBe('first');
+    });
+
+    it('wears the shared header-button look, with its label as the text an icon-only button drops', () => {
+      const a = SlopDriveLink.mount(fresh());
+      expect(a.classList.contains('slop-hbtn')).toBe(true);
+      expect(a.querySelector('.slop-hbtn-txt').textContent).toBe('Slop Drive');
+    });
+  });
+
+  describe('Slop Drive link: clicks', () => {
+    it('a plain click is left to the browser: it stays in this tab and does not open a new one', () => {
+      const a = SlopDriveLink.mount(fresh());
+      let prevented = null;
+      const probe = (e) => { prevented = e.defaultPrevented; e.preventDefault(); }; // stop the real navigation here
+      a.addEventListener('click', probe);
+      const r = clickWith(a, {});
+      a.removeEventListener('click', probe);
+      expect(prevented).toBe(false);
+      expect(r.calls.length).toBe(0);
+    });
+
+    it('Shift-click opens Drive in a new tab and does not change this tab', () => {
+      const a = SlopDriveLink.mount(fresh());
+      const r = clickWith(a, { shiftKey: true });
+      expect(r.calls.length).toBe(1);
+      expect(r.calls[0][0]).toBe(driveHref());
+      expect(r.calls[0][1]).toBe('_blank');
+      expect(r.navigated).toBe(false);
+    });
+
+    it('Ctrl- and Cmd-click also open a new tab', () => {
+      const a = SlopDriveLink.mount(fresh());
+      expect(clickWith(a, { ctrlKey: true }).calls.length).toBe(1);
+      expect(clickWith(a, { metaKey: true }).calls.length).toBe(1);
+    });
+
+    it('middle-click opens Drive in a new tab and does not change this tab', () => {
+      const a = SlopDriveLink.mount(fresh());
+      const r = clickWith(a, { button: 1 }, 'auxclick');
+      expect(r.calls.length).toBe(1);
+      expect(r.calls[0][0]).toBe(driveHref());
+      expect(r.navigated).toBe(false);
+    });
+  });
+
+  describe('Slop Drive link: in the app pages', () => {
+    it('resolves to the Drive path from a shallow page (contacts/)', async () => {
+      const f = await appFrame('../../contacts/');
+      expect(f.contentDocument.querySelector('[data-sdl]').href).toBe(driveHref());
+      f.remove();
+    }, { timeout: 40000 });
+
+    it('resolves to the Drive path from a deeper page (photoslop/classic/)', async () => {
+      const f = await appFrame('../../photoslop/classic/');
+      expect(f.contentDocument.querySelector('[data-sdl]').href).toBe(driveHref());
+      f.remove();
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'Slop Drive link' });
+  </script>
+</body>
+</html>

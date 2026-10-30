@@ -1,0 +1,27 @@
+/* The support card. Small and quiet: a corner card (after an export) or an inline card (inside the progress dialog).
+ * Colours follow the page's tokens when present. No overlay, nothing covers the page. */
+.slopsup-corner { position: fixed; inset-inline-end: 16px; bottom: 16px; z-index: 900; }
+.slopsup-card { box-sizing: border-box; width: min(340px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 10px;
+  background: var(--paper, #f1ede4); color: var(--ink, #0a0a0a); border: 1px solid rgba(0,0,0,.18);
+  box-shadow: 0 6px 24px rgba(0,0,0,.18); font: 13px/1.4 system-ui, sans-serif; }
+.slopsup-inline { width: 100%; margin-top: 12px; }
+.slopsup-head { display: flex; align-items: center; gap: 10px; }
+.slopsup-sloppo { flex: 0 0 auto; width: 64px; height: 64px; }
+.slopsup-sloppo canvas { display: block; }
+.slopsup-title { flex: 1; margin: 0; font-size: 15px; }
+.slopsup-x { border: 0; background: none; color: inherit; font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+.slopsup-body p { margin: 8px 0 0; }
+.slopsup-fine { font-size: 12px; opacity: .75; }
+.slopsup-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.slopsup-btn { flex: 1 1 0; text-align: center; padding: 7px 10px; border-radius: 8px; border: 1px solid currentColor;
+  background: transparent; color: inherit; font: inherit; cursor: pointer; text-decoration: none; }
+.slopsup-btn:focus-visible, .slopsup-x:focus-visible, .slopsup-link:focus-visible, .slopsup-slider input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.slopsup-adsrow { margin-top: 10px; }
+.slopsup-slider { display: grid; grid-template-columns: 1fr; gap: 2px; }
+.slopsup-slider-ends { display: flex; justify-content: space-between; font-size: 11px; opacity: .75; }
+.slopsup-link { border: 0; background: none; color: inherit; text-decoration: underline; padding: 0; margin-top: 6px; cursor: pointer; font: inherit; }
+.slopsup-ad { border: 1px dashed currentColor; border-radius: 8px; padding: 8px; min-height: 60px; }
+.slopsup-ad-label, .slopsup-ad-empty { margin: 0; font-size: 11px; opacity: .75; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .slopsup-card { background: #1b1b1b; color: #f1ede4; border-color: rgba(255,255,255,.2); }
+}

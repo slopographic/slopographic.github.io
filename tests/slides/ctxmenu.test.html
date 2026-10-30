@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides context menus</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let w, doc;
+  const rows = () => [...doc.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const labels = () => rows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const pick = (label) => { const r = rows().find((x) => x.querySelector('.sui-lbl').textContent === label); if (!r) throw new Error('no menu row ' + label + ' in ' + labels().join(' | ')); r.click(); };
+  const contextAt = (target, cx, cy) => target.dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, detail: 1 }));
+  const contextOnSlide = (x, y) => { const c = w.SS.stage.toClient(x, y); contextAt(doc.getElementById('canvas'), c.x, c.y); };
+  const keyOn = (el, key, shiftKey = false) => { const ev = new w.KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+  const objs = () => w.SS.app.slide().objects;
+  const rect = () => objs().find((o) => o.type === 'shape');
+  const text = () => objs().find((o) => o.type === 'text');
+
+  describe('Slop Slides context menus', () => {
+    it('opens the editor with a blank slide and adds a rectangle and a text box', async () => {
+      w = await ST.open('../../slides/');
+      doc = w.document;
+      w.SS.app.change('Add shape', () => { w.SS.app.slide().objects.push(w.SS.objects.make('shape', { x: 40, y: 40, w: 100, h: 60 })); });
+      w.SS.app.change('Add text', () => { w.SS.app.slide().objects.push(w.SS.objects.make('text', { x: 300, y: 40, w: 300, h: 80, text: w.SS.objects.defaultText('Hello') })); });
+      w.SS.app.select([]);
+      expect(!!rect() && !!text()).toBe(true);
+    }, { timeout: 30000 });
+
+    it('right-click on a slide thumbnail offers slide actions, and Duplicate slide adds a slide', () => {
+      const first = doc.querySelector('.thumb');
+      contextAt(first, 10, 10);
+      expect(labels()).toContain('New slide after');
+      expect(labels()).toContain('Duplicate slide');
+      expect(labels()).toContain('Hide slide');
+      pick('Duplicate slide');
+      expect(w.SS.app.deck.slides.length).toBe(2);
+    });
+
+    it('right-click on a rectangle selects it and offers arrange and delete, and Bring to front reorders it', () => {
+      const r = rect(), c = w.SS.stage.toClient(r.x + 10, r.y + 10);
+      contextAt(doc.getElementById('canvas'), c.x, c.y);
+      expect(w.SS.app.sel).toEqual([r.id]);
+      expect(labels()).toContain('Bring to front');
+      expect(labels()).toContain('Delete');
+      pick('Bring to front');
+      expect(objs()[objs().length - 1].id).toBe(r.id);
+    });
+
+    it('right-click on a text box offers Edit text, and Edit text opens the editor', () => {
+      const t = text(), c = w.SS.stage.toClient(t.x + 10, t.y + 10);
+      contextAt(doc.getElementById('canvas'), c.x, c.y);
+      expect(labels()).toContain('Edit text');
+      pick('Edit text');
+      expect(!!w.SS.textEdit.editing).toBe(true);
+      w.SS.textEdit.commit();
+    });
+
+    it('right-click on the empty slide offers insert items, and Add rectangle adds one', () => {
+      const before = objs().length, c = w.SS.stage.toClient(600, 450);
+      contextAt(doc.getElementById('canvas'), c.x, c.y);
+      expect(labels()).toContain('Add text');
+      expect(labels()).toContain('Add rectangle');
+      expect(labels()).not.toContain('Delete');
+      pick('Add rectangle');
+      expect(objs().length).toBe(before + 1);
+    });
+
+    it('right-click on the selected rectangle and Delete removes it', () => {
+      const r = rect(), id = r.id, before = objs().length, c = w.SS.stage.toClient(r.x + 10, r.y + 10);
+      contextAt(doc.getElementById('canvas'), c.x, c.y);
+      pick('Delete');
+      expect(objs().length).toBe(before - 1);
+      expect(objs().some((o) => o.id === id)).toBe(false);
+    });
+
+    it('the Menu key on a focused thumbnail opens the slide menu', () => {
+      const thumb = doc.querySelector('.thumb');
+      thumb.focus();
+      const ev = keyOn(thumb, 'ContextMenu');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Duplicate slide');
+      doc.querySelector('.sui-menu').remove();
+    });
+
+    it('Shift+F10 on the focused canvas opens the object menu for the selection', () => {
+      w.SS.app.select([text().id]);
+      const canvas = doc.getElementById('canvas');
+      canvas.focus();
+      const ev = keyOn(canvas, 'F10', true);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Edit text');
+      doc.querySelector('.sui-menu').remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Slides context menus' });
+  </script>
+</body>
+</html>

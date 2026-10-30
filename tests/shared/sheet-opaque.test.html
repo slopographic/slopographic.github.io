@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Every app's phone sheets are opaque, in light and dark</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style>
+</head>
+<body>
+<iframe id="f"></iframe>
+<script src="../harness.js"></script>
+<script>
+// Each app with a side panel that is a sheet on a phone (shared/ui/sheet.js), at 390 × 844: every sheet it attaches, open,
+// has an opaque background (alpha 1), no fade on it or its ancestors and no backdrop blur, in the Light and Dark themes;
+// and only one of them is open at a time.
+// Covers: shared/ui/sheet.js, pdf/css/base.css
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+const APPS = ['pdf', 'photoslop', 'slides', 'press', 'slopvector', 'label', '3d', 'drive', 'code', 'gallery', 'tables', 'effects', 'docs', 'notes', 'ai', 'slopisolate'];
+const fr = document.getElementById('f');
+
+function alpha(c) {
+  if (!c || c === 'transparent') return 0;
+  const m = /\/\s*([\d.]+%?)\s*\)$/.exec(c) || /^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)$/.exec(c);
+  return m ? (m[1].endsWith('%') ? parseFloat(m[1]) / 100 : parseFloat(m[1])) : 1;
+}
+async function boot(app) {
+  fr.src = 'about:blank';
+  await waitFor(() => fr.contentWindow && fr.contentWindow.location.href === 'about:blank');
+  fr.src = '../../' + app + '/index.html';
+  await waitFor(() => { const w = fr.contentWindow; return w && w.document.readyState === 'complete' && w.SlopSheet && w.SlopSheet.list && w.SlopSheet.list().length; }, { timeout: 40000 });
+  await sleep(300);   // sheets an app attaches after its first paint
+  const w = fr.contentWindow;
+  if (w.SlopBanner) w.SlopBanner.remove();
+  w.document.head.append(Object.assign(w.document.createElement('style'), { textContent: '* { transition: none !important; }' }));
+  return w;
+}
+/** What is wrong with an open sheet's look: [] when it is opaque. */
+function faults(w, s) {
+  const cs = w.getComputedStyle(s.panel), out = [];
+  if (alpha(cs.backgroundColor) < 1) out.push('background ' + cs.backgroundColor);
+  let o = 1; for (let n = s.panel; n && n.nodeType === 1; n = n.parentElement) o *= parseFloat(w.getComputedStyle(n).opacity);
+  if (o < 1) out.push('opacity ' + o);
+  const bf = cs.backdropFilter || cs.webkitBackdropFilter || 'none';
+  if (bf !== 'none') out.push('backdrop-filter ' + bf);
+  return out;
+}
+
+describe('phone sheets are opaque', () => {
+  for (const app of APPS) {
+    it(app + ': every sheet, open, is opaque in Light and Dark; one open at a time', async () => {
+      const w = await boot(app), sheets = w.SlopSheet.list().filter((s) => s.isPhone());
+      expect(sheets.length > 0).toBe(true);
+      const bad = [];
+      for (const theme of ['light', 'dark']) {
+        if (w.SlopTheme) w.SlopTheme.apply(theme);
+        for (const s of sheets) {
+          s.open(); await sleep(20);
+          if (!s.isOpen()) continue;   // a sheet the app keeps shut in this state (nothing to show)
+          expect(sheets.filter((x) => x.isOpen()).length).toBe(1);
+          for (const f of faults(w, s)) bad.push(theme + ' ' + (s.panel.id || s.panel.className) + ': ' + f);
+          s.close();
+        }
+      }
+      expect(bad).toEqual([]);
+    }, { timeout: 90000 });
+  }
+});
+SlopTest.run({ name: 'shared/ui sheet: opaque on phones' });
+</script>
+</body>
+</html>

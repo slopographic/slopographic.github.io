@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop: open camera RAW files through the Develop dialog</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script src="../raw/build.js"></script>
+  <script>
+  // Covers: photoslop/js/io/raw.js, photoslop/js/io/formats.js, photoslop/js/io/files.js, photoslop/js/app/tabs.js, photoslop/css/raw.css
+  // A NEF-like file with a real JPEG preview (no engine needed), and the CC0 DNG from raw.pixls.us (tests/raw/fixtures),
+  // developed by the real LibRaw engine from the pinned cdn commit.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, W;
+  const dlg = () => [...win.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const button = (label) => [...dlg().querySelectorAll('button')].find((b) => b.textContent === label);
+  const dng = async () => new win.File([await (await fetch('../raw/fixtures/canon-5d3-crop.dng')).arrayBuffer()], 'IMG_0001.dng');
+  async function nef() {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 32;
+    const g = c.getContext('2d'); g.fillStyle = '#f00'; g.fillRect(0, 0, 64, 32);
+    const jpg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95))).arrayBuffer());
+    const t = RawBuild.tiff({ ifd0: [[0x10f, 2, 'NIKON CORPORATION'], [0x110, 2, 'NIKON Z 6'], [0x112, 3, 6], [0x14a, 4, [{ ifd: 1 }]]],
+      subs: [[[0x201, 4, { blob: 'p' }], [0x202, 4, { len: 'p' }]]], blobs: { p: jpg } });
+    return new win.File([t], 'DSC_0042.NEF');
+  }
+
+  describe('PhotoSlop camera RAW', () => {
+    it('the Open picker and the drop zone take RAW extensions', async () => {
+      ({ win, W } = await freshApp());
+      try { win.localStorage.removeItem('slop-firstrun:raw-engine'); } catch (e) { /* none */ }
+      await (await win.SlopRaw.engine()).forget();
+      expect(W.OPENABLE).toContain('.cr2');
+      expect(W.OPENABLE).toContain('.nef');
+      expect(W.OPENABLE).toContain('.dng');
+    });
+    it('a RAW file opens the Develop dialog with the camera preview; declining the engine still opens the preview', async () => {
+      const before = W.DOCS.length;
+      const done = W.handleFiles([await nef()], false);
+      await waitFor(() => dlg() && /Download the camera RAW engine/.test(dlg().textContent));
+      button('Cancel').click();   // the engine notice
+      await waitFor(() => dlg() && /Develop DSC_0042/.test(dlg().textContent));
+      expect(dlg().textContent).toContain('Nikon NEF');
+      expect(dlg().textContent).toContain('NIKON Z 6');
+      await waitFor(() => /not downloaded/.test(dlg().querySelector('.raw-status').textContent));
+      button('Use embedded preview').click();
+      await done;
+      expect(W.DOCS.length).toBe(before + 1);
+      expect(W.D.w).toBe(32);     // 64 × 32 turned upright by orientation 6
+      expect(W.D.h).toBe(64);
+      expect(W.D.layers.length).toBe(1);
+      expect(W.D.name).toBe('DSC_0042');
+    });
+    it('a RAW file dropped on the canvas (no MIME type) goes to the Develop dialog', async () => {
+      const dt = new win.DataTransfer(); dt.items.add(await nef());
+      const el = win.document.querySelector('#view'), r = el.getBoundingClientRect(), at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+      for (const type of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new win.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, ...at }));
+      await waitFor(() => dlg() && /Download the camera RAW engine|Develop DSC_0042/.test(dlg().textContent));
+      if (/Download the camera RAW engine/.test(dlg().textContent)) button('Cancel').click();
+      await waitFor(() => dlg() && /Develop DSC_0042/.test(dlg().textContent));
+      button('Cancel').click();
+      await waitFor(() => !dlg());
+    });
+    it('Cancel in the Develop dialog opens nothing and shows no error', async () => {
+      const before = W.DOCS.length;
+      const done = W.handleFiles([await nef()], false);
+      await waitFor(() => dlg() && /Download the camera RAW engine/.test(dlg().textContent));
+      button('Cancel').click();
+      await waitFor(() => dlg() && /Develop DSC_0042/.test(dlg().textContent));
+      button('Cancel').click();
+      const failed = await done;
+      expect(failed.length).toBe(0);
+      expect(W.DOCS.length).toBe(before);
+    });
+    it('a real DNG: the engine downloads after the notice, the preview follows the controls, Open gives a full-size layer', async () => {
+      const done = W.handleFiles([await dng()], false);
+      await waitFor(() => dlg() && /Download the camera RAW engine/.test(dlg().textContent), { timeout: 20000 });
+      button('Continue').click();
+      await waitFor(() => dlg() && /Preview at half size/.test(dlg().textContent), { timeout: 60000 });
+      expect(button('Use embedded preview')).toBe(undefined);   // this DNG has no embedded preview
+      const view = dlg().querySelector('.raw-view');
+      const mean = () => { const d = view.getContext('2d').getImageData(0, 0, view.width, view.height).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; return s / (d.length / 4); };
+      const m0 = mean();
+      const ev = dlg().querySelector('input[aria-label="Exposure"]');
+      ev.value = '1.5'; ev.dispatchEvent(new win.Event('input'));
+      await waitFor(() => mean() > m0 * 1.2, { timeout: 30000 });
+      const wb = dlg().querySelector('select[aria-label="White balance"]');
+      wb.value = 'daylight'; wb.dispatchEvent(new win.Event('change'));
+      await SlopTest.sleep(400);
+      await waitFor(() => /Preview at half size/.test(dlg().textContent), { timeout: 30000 });
+      button('Open').click();
+      await done;
+      expect(W.D.w).toBe(1920);
+      expect(W.D.h).toBe(818);
+      expect(W.D.name).toBe('IMG_0001');
+      const px = SlopTest.pixel(W.D.layers[0].canvas, 960, 400);
+      expect(px[3]).toBe(255);
+      expect(px[0] + px[1] + px[2]).toBeGreaterThan(30);
+      window.__shot = true;
+    }, { timeout: 120000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

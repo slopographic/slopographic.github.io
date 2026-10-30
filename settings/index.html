@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow">
+  <script src="../shared/profile/profile.js" data-src="shared/profile/profile.js"></script>
+  <script src="../shared/theme/theme.js" data-app="settings" data-src="shared/theme/theme.js"></script>
+  <script src="../shared/i18n/i18n.js" data-src="shared/i18n/i18n.js"></script>
+  <script src="i18n/index.js" data-src="settings/i18n/index.js"></script>
+  <script src="../privacy/i18n/index.js" data-src="privacy/i18n/index.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Profile and settings: Slopographic</title>
+  <meta name="description" content="Slopographic settings: your privacy choices for analytics, ads and exchange rates, your defaults, and how the site handles your data.">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="../favicon.ico" type="image/x-icon">
+  <link rel="canonical" href="https://slopographic.com/settings/">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="../shared/fonts/fonts.css" data-offline="strip">
+  <link rel="stylesheet" href="../style/base.css">
+  <link rel="stylesheet" href="../style/footer.css">
+  <link rel="stylesheet" href="../shared/consent/banner.css">
+  <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="../shared/slopui.css">
+  <link rel="stylesheet" href="../shared/review/review.css">
+</head>
+<body data-consent="off">
+  <header class="nav">
+    <a class="brand" href="../" aria-label="Slopographic, home" data-i18n-attr="aria-label:settings.page.home_aria">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2C16 2 6 13.5 6 20a10 10 0 0 0 20 0C26 13.5 16 2 16 2z"/><path class="shine" d="M11.5 20.5a4.5 4.5 0 0 0 3.5 4.4" /></svg>
+      <span class="brand-name">Slopographic</span>
+    </a>
+    <nav class="tabs" aria-label="Sections" data-i18n-attr="aria-label:settings.page.sections">
+      <a class="tab" href="../#apps" data-i18n="nav.apps">Apps</a>
+      <a class="tab" href="../#status" data-i18n="nav.status">Status</a>
+      <a class="tab" href="./" aria-current="page" data-i18n="nav.profile">Profile</a>
+    </nav>
+  </header>
+
+  <main class="settings-main">
+    <div class="settings-hero">
+      <p class="kicker"><span>Slopographic</span><span data-i18n="settings.page.kicker">Settings</span></p>
+      <h1 class="page-title"><span data-i18n="settings.page.title_lead">Your</span> <em data-i18n="settings.page.title_em">choices</em></h1>
+    </div>
+
+    <section aria-labelledby="appearance-title">
+      <h2 id="appearance-title" data-i18n="settings.appearance">Appearance</h2>
+      <p data-i18n="settings.appearance_lede">One theme for every Slopographic app and for this site. Pick it here and it applies at once. Each app uses the same choice when it opens.</p>
+      <fieldset class="theme-picker">
+        <legend class="sr" data-i18n="settings.theme">Theme</legend>
+        <div id="theme-options" class="theme-options"></div>
+      </fieldset>
+      <p id="theme-note" class="settings-note" role="status" aria-live="polite"></p>
+      <div class="set-row set-row-field">
+        <div>
+          <h3><label for="lang-select" data-i18n="settings.language">Language</label></h3>
+        </div>
+        <select id="lang-select" class="set-select"></select>
+      </div>
+      <p id="lang-note" class="settings-note" role="status" aria-live="polite"></p>
+    </section>
+
+    <section aria-labelledby="privacy-title">
+      <h2 id="privacy-title" data-i18n="settings.privacy">Privacy</h2>
+      <p class="privacy" data-i18n="settings.page.privacy">Slopographic runs in your browser and your files never leave your device. Your choices on this page are stored in this browser's local storage and nowhere else. Analytics and ads are off until you turn them on, and no third-party script loads until you do. You can change this at any time.</p>
+      <p><a class="btn" href="../privacy/" data-i18n="privacy.link">Privacy policy</a></p>
+    </section>
+
+    <section id="agents" data-web-only aria-labelledby="agents-title">
+      <h2 id="agents-title" data-i18n="settings.page.agents">AI agents</h2>
+      <div class="privacy" data-slop-agents-note></div>
+    </section>
+
+    <section id="choices" aria-labelledby="choices-title">
+      <h2 id="choices-title" data-i18n="settings.analytics_ads">Analytics and ads</h2>
+      <div class="set-row">
+        <div>
+          <h3 id="set-analytics-label" data-i18n="settings.consent.analytics">Analytics</h3>
+          <p data-i18n="settings.consent.analytics_help">Google Analytics 4 counts page views, so we can see which apps people use. Off by default.</p>
+        </div>
+        <label class="set-switch"><input type="checkbox" id="set-analytics" aria-labelledby="set-analytics-label"><span class="track" aria-hidden="true"></span></label>
+      </div>
+      <div class="set-row">
+        <div>
+          <h3 id="set-ads-label" data-i18n="settings.consent.ads">Ads</h3>
+          <p data-i18n="settings.consent.ads_help">Google AdSense may show ads on some pages. Off by default.</p>
+        </div>
+        <label class="set-switch"><input type="checkbox" id="set-ads" aria-labelledby="set-ads-label"><span class="track" aria-hidden="true"></span></label>
+      </div>
+      <p id="settings-note" class="settings-note" role="status" aria-live="polite"></p>
+    </section>
+
+    <section aria-labelledby="defaults-title">
+      <h2 id="defaults-title" data-i18n="settings.defaults">Defaults</h2>
+      <p data-i18n="settings.defaults.lede">Used for new invoices, orders and journal entries, and for numbers, currencies and dates. Language of the app text is not changed by these.</p>
+      <div class="set-row set-row-field">
+        <div>
+          <h3><label for="set-currency" data-i18n="settings.defaults.currency">Default currency</label></h3>
+          <p data-i18n="settings.defaults.currency_help">The ledger's base currency. Entries in other currencies keep their own amounts and are converted at the rate on their date.</p>
+        </div>
+        <select id="set-currency" class="set-select" disabled></select>
+      </div>
+      <div class="set-row set-row-field">
+        <div>
+          <h3><label for="set-locale" data-i18n="settings.defaults.locale">Locale</label></h3>
+          <p data-i18n="settings.defaults.locale_help">How numbers, currencies and dates are written. Starts as your browser's language.</p>
+        </div>
+        <select id="set-locale" class="set-select" disabled></select>
+      </div>
+      <p id="defaults-note" class="settings-note" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="folder" data-web-only aria-labelledby="folder-title">
+      <h2 id="folder-title" data-i18n="settings.folder.title">Local folder</h2>
+      <p data-i18n="settings.folder.lede">Keep a copy of your Slopographic settings in a folder on this computer. It is the same folder Slop Drive uses, so you can connect it in either place. Files are written only into that folder, and nothing is sent anywhere.</p>
+      <div id="folder-box" class="folder-box"></div>
+      <div id="folder-ask" class="folder-ask" hidden></div>
+      <div id="folder-preview" class="folder-ask" hidden></div>
+      <p id="folder-note" class="settings-note" role="status" aria-live="polite"></p>
+      <p class="settings-note"><span data-i18n="settings.folder.see_files">To see the files in this folder:</span> <a href="../drive/" data-i18n="settings.folder.open_drive">Open Slop Drive</a></p>
+    </section>
+
+    <section id="native-files" hidden aria-labelledby="native-files-title"></section>
+
+    <section id="storage" aria-labelledby="storage-title">
+      <h2 id="storage-title" data-i18n="settings.storage.title">Storage</h2>
+      <p data-i18n="settings.storage.lede">How much room this site uses in your browser, and what uses it. Your files, documents and saved projects are stored here too. Clearing a cache removes only what is made again when needed.</p>
+      <div id="storage-box" class="storage-box"></div>
+      <p id="storage-note" class="settings-note" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="updates" data-web-only aria-labelledby="updates-title">
+      <h2 id="updates-title" data-i18n="settings.updates.title">Updates</h2>
+      <p><span data-i18n="settings.updates.lede">Slopographic checks for a new version each time you open a page. If a page still looks old, load the latest version: the offline copies are fetched again and the page reloads. Your files, documents, settings and downloaded packs are kept.</span> <span data-i18n="settings.updates.fresh" data-i18n-vars='{"fresh":"?fresh"}'>On any page, adding ?fresh to the address does the same.</span></p>
+      <p id="updates-version" class="settings-note"></p>
+      <button type="button" class="btn" id="updates-refresh" data-i18n="settings.updates.refresh">Load the latest version</button>
+    </section>
+
+    <section aria-labelledby="rates-title">
+      <h2 id="rates-title" data-i18n="settings.exchange_rates">Exchange rates</h2>
+      <p data-i18n="settings.rates.lede">Rates are entered by you, or downloaded on purpose from the European Central Bank. Nothing is downloaded unless you turn this on and press the button, or tick "Update on open".</p>
+      <div class="set-row">
+        <div>
+          <h3 id="set-rates-label" data-i18n="settings.exchange_rates">Exchange rates</h3>
+          <p data-i18n="settings.rates.switch_help">Allows the Update button below to download the ECB's daily reference rates. Off by default.</p>
+        </div>
+        <label class="set-switch"><input type="checkbox" id="set-rates" aria-labelledby="set-rates-label"><span class="track" aria-hidden="true"></span></label>
+      </div>
+      <div class="set-row">
+        <div>
+          <h3 id="set-rates-open-label" data-i18n="settings.rates.on_open">Update on open</h3>
+          <p data-i18n="settings.rates.on_open_help">Download the ECB rates each time this page opens. Needs Exchange rates on.</p>
+        </div>
+        <label class="set-switch"><input type="checkbox" id="set-rates-open" aria-labelledby="set-rates-open-label" disabled><span class="track" aria-hidden="true"></span></label>
+      </div>
+      <div class="rates-update">
+        <button type="button" class="btn" id="rates-update" data-i18n="settings.rates.update" disabled>Update rates from the European Central Bank</button>
+        <p id="rates-status" class="settings-note" role="status" aria-live="polite"></p>
+      </div>
+
+      <h3 class="sub-title" data-i18n="settings.rates.add_title">Add a rate</h3>
+      <form id="rate-form" class="rate-form" novalidate>
+        <label><span data-i18n="settings.rates.base">Base</span> <select id="rate-base"></select></label>
+        <label><span data-i18n="settings.rates.quote">Quote</span> <select id="rate-quote"></select></label>
+        <label><span data-i18n="settings.rates.date">Date</span> <input type="date" id="rate-date" required></label>
+        <label><span data-i18n="settings.rates.rate">Rate</span> <input type="text" id="rate-value" inputmode="decimal" placeholder="1.0842" autocomplete="off" required></label>
+        <label class="rate-note"><span data-i18n="settings.rates.note">Note</span> <input type="text" id="rate-note" maxlength="300" autocomplete="off"></label>
+        <button type="submit" class="btn" data-i18n="settings.rates.save">Save rate</button>
+      </form>
+      <p class="settings-note" data-i18n="settings.rates.explain">One unit of the base currency equals the rate in the quote currency. Saved rates cannot be edited; to correct one, add a new row for the date.</p>
+      <p id="rate-msg" class="settings-note" role="status" aria-live="polite"></p>
+      <div class="rate-table-wrap">
+        <table class="rate-table">
+          <caption data-i18n="settings.rates.recent">Recent rates</caption>
+          <thead><tr><th scope="col" data-i18n="settings.rates.pair">Pair</th><th scope="col" data-i18n="settings.rates.date">Date</th><th scope="col" data-i18n="settings.rates.rate">Rate</th><th scope="col" data-i18n="settings.rates.source">Source</th><th scope="col" data-i18n="settings.rates.note">Note</th></tr></thead>
+          <tbody id="rate-list"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="apps-title">
+      <h2 id="apps-title" data-i18n="settings.app_settings">App settings</h2>
+      <p data-i18n="settings.apps.lede">Options for each app. Changing one here only changes that app, unless its section says it is shared (face detection is shared by Slop Drive and Slop Gallery). Reset an app to go back to its own defaults.</p>
+      <div id="app-settings"></div>
+    </section>
+
+    <section id="donate" data-donate aria-labelledby="donate-title" hidden>
+      <h2 id="donate-title" data-i18n="settings.donate">Tip jar</h2>
+      <p data-i18n="settings.donate.lede">Slopographic is free to use. If you want to help keep it going, you can leave a tip in the Tip jar.</p>
+    </section>
+    <div class="promo-slot" data-promo-slot="settings" hidden></div><!-- the brand profile's promo line, if any (shared/promo/promo.js) -->
+  </main>
+
+  <footer class="footer">
+    <p class="footer-mark" aria-hidden="true">Slopographic</p>
+    <div class="footer-cols">
+      <p><strong>Slopographic</strong><br><span data-i18n="footer.creative">Creative software that runs in your browser.</span></p>
+      <p><span data-i18n="footer.offline">Everything works offline-first. Your files never leave your device.</span></p>
+      <p data-third-party><span data-i18n="footer.accounts_settings">No accounts. Analytics and ads are off unless you turn them on in Settings.</span></p>
+    </div>
+    <p class="fine">© 2026 Slopographic.</p>
+    <p class="fine made" data-i18n="footer.made">Made with ❤️ in Sweden</p>
+    <p class="fine legal"><a href="../privacy/" data-i18n="privacy.link">Privacy policy</a> · <a href="https://github.com/slopographic/apps/blob/main/LICENSE" data-i18n="footer.code_license">Code MIT</a> · <a href="https://github.com/slopographic/apps/blob/main/TRADEMARKS.md" data-i18n="footer.trademarks">Sloppo™ and Slopographic™ are trademarks</a></p>
+  </footer>
+
+  <script src="../shared/consent/config.js"></script>
+  <script src="../shared/consent/state.js"></script>
+  <script src="../shared/consent/consent-mode.js"></script>
+  <script src="../shared/consent/donate.js"></script>
+  <script src="../shared/data/money.js"></script>
+  <script src="../shared/data/barcode.js"></script>
+  <script src="../shared/data/schema-checks.js"></script><script src="../shared/data/schema-defs.js"></script>
+  <script src="../shared/data/schema.js"></script>
+  <script src="../shared/data/currency.js"></script>
+  <script src="../shared/data/store.js"></script>
+  <script src="../shared/data/numbering.js"></script>
+  <script src="../shared/data/ledger.js"></script>
+  <script src="../shared/data/fx.js"></script>
+  <script src="../shared/data/rates-ecb.js"></script>
+  <script src="../shared/config/schema.js"></script>
+  <script src="../shared/config/validate.js"></script>
+  <script src="../shared/config/io.js"></script>
+  <script src="../shared/config/kinds.js"></script>
+  <script src="../shared/config/folder.js"></script>
+  <script src="../shared/sync/providers/local.js"></script>
+  <script src="../shared/apps.js"></script>
+  <script src="../shared/faces/copy.js"></script>
+  <script src="../shared/slopui.js"></script>
+  <script src="../shared/review/model.js"></script>
+  <script src="../shared/review/review.js"></script>
+  <script src="../shared/cache/regen.js"></script>
+  <script src="../shared/storage/quota.js"></script>
+  <script src="../shared/storage/classify.js"></script>
+  <script src="../shared/storage/storage.js"></script>
+  <script src="../shared/db/query.js"></script>
+  <script src="../shared/db/db.js"></script>
+  <script src="../shared/storage/clear.js"></script>
+  <script src="../shared/profile/app-options.js"></script>
+  <script src="say.js"></script>
+  <script src="appearance.js"></script>
+  <script src="language.js"></script>
+  <script src="settings.js"></script>
+  <script src="defaults.js"></script>
+  <script src="rates.js"></script>
+  <script src="folder.js"></script>
+  <script src="storage-keep.js"></script>
+  <script src="storage.js"></script>
+  <script src="../shared/native/words.js"></script>
+  <script src="../shared/native/settings.js"></script>
+  <script src="../shared/pwa.js"></script>
+  <script src="updates.js"></script>
+  <script src="app-settings.js"></script>
+  <script src="../shared/agent/boot.js"></script>
+  <script src="../shared/agent/about.js"></script>
+  <script src="../shared/promo/promo.js"></script>
+  <script src="../shell/shell.js"></script>
+</body>
+</html>

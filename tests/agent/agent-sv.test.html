@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">   <!-- the page chooses Swedish itself: the harness leaves the language alone -->
+  <title>AI agents in Swedish</title>
+  <!-- Covers: shared/agent/about.js, shared/agent/bridge-ui.js, shared/agent/tools.js, shared/agent/clients-help.js, shared/agent/clients.js, shared/i18n/ui/en/agent.js, shared/i18n/ui/sv/agent.js -->
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <div data-slop-agents-note></div>
+  <div data-slop-ai-clients></div>
+  <script src="../../shared/slopui.js"></script>
+  <script>
+  // The AI agents note, the "Connect an AI app" dialog, the connected indicator, the question before a destructive
+  // agent call and the AI apps help were English in every language. They are keys now (ui.agent.*).
+  let state = 'idle'; const subs = new Set();
+  window.SlopAgents = { enabled: () => false, supported: () => true, set() {}, start() {} };
+  window.SlopBridge = { client: () => 'Claude Code', tools: () => [1, 2, 3], state: () => state, detail: () => ({}), disconnect() {},
+    on(fn) { subs.add(fn); return () => subs.delete(fn); }, connect: async () => { state = 'need-code'; return state; },
+    pair: async () => ({ ok: false, left: 1 }) };
+  </script>
+  <script src="../../shared/agent/about.js"></script>
+  <script src="../../shared/agent/bridge-ui.js"></script>
+  <script src="../../shared/agent/tools.js"></script>
+  <script src="../../shared/agent/clients.js"></script>
+  <script src="../../shared/agent/clients-help.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n;
+  const noKey = (s) => expect(/ui\.agent\./.test(s)).toBe(false);
+  describe('AI agents in Swedish', () => {
+    it('the Settings note and its setting read Swedish, and follow a switch to English', async () => {
+      await I.ready();
+      expect(I.get()).toBe('sv');
+      const host = document.querySelector('[data-slop-agents-note]');
+      expect(host.textContent).toContain('Låt AI-agenter använda appen');
+      expect(host.textContent).toContain('Av: inga verktyg erbjuds agenter.');
+      noKey(host.textContent);
+      I.set('en');
+      await waitFor(() => /Let AI agents use this app/.test(host.textContent));
+      I.set('sv');
+      await waitFor(() => /Låt AI-agenter/.test(host.textContent));
+    });
+    it('the connect dialog: title, buttons, the code prompt and a wrong code', async () => {
+      SlopBridgeUI.dialog();
+      const dlg = await waitFor(() => document.querySelector('.sbr-dialog'));
+      expect(dlg.textContent).toContain('Anslut en AI-app');
+      await waitFor(() => /Claude Code är där/.test(dlg.querySelector('.sbr-status').textContent));
+      expect([...dlg.querySelectorAll('.sui-btn')].map((b) => b.textContent)).toEqual(['Avbryt', 'Anslut']);
+      dlg.querySelector('.sbr-code').value = 'ABC-DEF';
+      dlg.querySelector('.sui-primary').click();
+      await waitFor(() => /Koden stämmer inte\. 1 försök kvar/.test(dlg.querySelector('.sbr-status').textContent));
+      noKey(dlg.textContent);
+      dlg.querySelectorAll('.sui-btn')[0].click();
+    });
+    it('the connected indicator', async () => {
+      SlopBridgeUI.pill();
+      state = 'paired'; for (const fn of subs) fn('paired');
+      const p = await waitFor(() => document.querySelector('.sbr-pill'));
+      expect(p.textContent).toContain('Claude Code är ansluten');
+      expect(p.textContent).toContain('Koppla från');
+      expect(p.title).toContain('flikens verktyg (3)');
+    });
+    it('the question before a destructive call', async () => {
+      let asked = '';
+      const tool = SlopAgentTools.toWebMCP({ name: 'wipe', title: 'Wipe', description: 'x', destructive: true, run: () => 'ok' }, { confirm: async (text) => { asked = text; return false; } });
+      await tool.execute({});
+      expect(asked).toBe('En AI-agent vill köra ”Wipe”. Det kan ändra eller ta bort ditt arbete.');
+    });
+    it('the AI apps help: Copy and the note', () => {
+      const host = document.querySelector('[data-slop-ai-clients]');
+      expect(host.querySelector('.sac-copy').textContent).toBe('Kopiera');
+      expect(host.textContent).toContain('kontrollerat i oktober 2026');
+      noKey(host.textContent);
+    });
+  });
+  run({ name: 'AI agents in Swedish' });
+  </script>
+</body>
+</html>

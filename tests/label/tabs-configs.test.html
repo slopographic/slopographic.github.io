@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel tabs, configs and presets</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The designer runs in one same-origin iframe. The tests drive it through its own globals, click its dialogs, and reload it. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  let W = null, WIN = null; // W: the designer's globals, read through its eval
+
+  /** Loads the designer (fresh page each time) and waits for its boot to finish. */
+  async function bootApp() {
+    f.src = '../../label/index.html';
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname.endsWith('/label/index.html') && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 30000 });
+    WIN = f.contentWindow;
+    W = new Proxy({}, { get: (_, k) => WIN.eval(String(k)) }); // not returned: a proxy would be probed for "then" by await
+  }
+  const tabsNow = () => W.LabelTabs.api.tabs();
+  const activeTab = () => tabsNow().find((t) => t.active);
+  /** The button with this label in the open dialog's footer. */
+  const dialogButton = (label) => [...W.document.querySelectorAll('.sui-dlg .sui-foot .sui-btn')].find((b) => b.textContent === label);
+  const dialogInput = () => W.document.querySelector('.sui-dlg .sui-input');
+  /** The preset tile with this name in the gallery. */
+  const presetTile = (name) => [...W.document.querySelectorAll('.tpl')].find((t) => t.querySelector('b') && t.querySelector('b').textContent === name);
+
+  describe('label tabs', () => {
+    it('boots with one tab holding the starter label', async () => {
+      await bootApp();
+      expect(!!W.LabelTabs.api).toBe(true);
+      expect(tabsNow().length).toBe(1);
+      expect(activeTab().active).toBe(true);
+      expect(W.App.doc.objects.length).toBeGreaterThan(0);
+    }, { timeout: 40000 });
+
+    it('opens labels in new tabs after the current one', async () => {
+      W.openDocTab(W.docFromConfig(W.presetById('stock-avery-l7160').body, 'Sheet A'), { label: 'New from preset', dirty: true });
+      W.openDocTab(W.newDoc({ name: 'Blank B' }), { label: 'New label' });
+      const tabs = tabsNow();
+      expect(tabs.length).toBe(3);
+      expect(tabs[1].title).toBe('Sheet A');
+      expect(tabs[2].title).toBe('Blank B');
+      expect(tabs[2].active).toBe(true);
+      expect(W.App.doc.name).toBe('Blank B');
+      expect(W.document.title).toContain('Blank B');
+    });
+
+    it('each tab keeps its own label, undo history and selection', async () => {
+      const [, sheet, blank] = tabsNow().map((t) => t.doc);
+      W.LabelTabs.api.activate(blank);
+      W.insertCentered('text');
+      expect(W.App.doc.objects.length).toBe(1);
+      expect(W.App.hist.undoLabel).toBe('Add Text');
+      W.LabelTabs.api.activate(sheet);
+      expect(W.App.doc.name).toBe('Sheet A');
+      expect(W.App.doc.objects.length).toBe(0);
+      expect(W.App.hist.canUndo).toBe(false);
+      W.LabelTabs.api.activate(blank);
+      expect(W.App.doc.objects.length).toBe(1);
+      W.undo();
+      expect(W.App.doc.objects.length).toBe(0);
+      W.redo();
+      expect(W.App.doc.objects.length).toBe(1);
+    });
+
+    it('a label file opened on the tab strip opens in a new tab', async () => {
+      const before = tabsNow().length;
+      const file = new W.File([W.serializeProject(W.newDoc({ name: 'Dropped shelf' }))], 'Dropped shelf.sloplabel', { type: 'application/json' });
+      await W.openFiles([file]);
+      expect(tabsNow().length).toBe(before + 1);
+      expect(activeTab().title).toBe('Dropped shelf');
+      expect(activeTab().original).toBe('Dropped shelf.sloplabel');
+    });
+    it('renaming a tab renames its label', async () => {
+      const blank = tabsNow()[2].doc;
+      W.LabelTabs.api.activate(blank);
+      await W.LabelTabs.api.rename(blank, 'Renamed B');
+      expect(W.App.doc.name).toBe('Renamed B');
+      expect(activeTab().title).toBe('Renamed B');
+      expect(W.document.title).toContain('Renamed B');
+    });
+  });
+
+  describe('label configs', () => {
+    it('saves the open label as a config by name', async () => {
+      const first = tabsNow()[0].doc;
+      W.LabelTabs.api.activate(first);
+      const starter = W.configFromDoc(W.App.doc);
+      W.saveConfigDialog();
+      await waitFor(() => dialogInput());
+      dialogInput().value = 'Starter size';
+      dialogButton('Save').click();
+      await waitFor(() => W.LabelConfigs.configs.some((c) => c.name === 'Starter size'));
+      expect(W.LabelConfigs.configs.find((c) => c.name === 'Starter size').body.label.w).toBeCloseTo(starter.label.w, 1e-6);
+      expect(starter.stock.kind).toBe('roll');
+    }, { timeout: 20000 });
+
+    it('applies a saved config to another tab as one undo step, and undo takes it back', async () => {
+      const sheet = tabsNow()[1].doc;
+      W.LabelTabs.api.activate(sheet);
+      expect(W.App.doc.stock.kind).toBe('sheet');
+      const sheetW = W.App.doc.label.w;
+      W.configsDialog();
+      const row = await waitFor(() => [...W.document.querySelectorAll('.cfg-row')].find((r) => r.querySelector('b').textContent === 'Starter size'));
+      row.querySelector('.cfg-acts button').click(); // Apply
+      await waitFor(() => W.App.doc.stock.kind === 'roll');
+      expect(W.App.hist.undoLabel).toBe('Apply config “Starter size”');
+      expect(W.App.doc.label.w).not.toBe(sheetW);
+      W.undo();
+      expect(W.App.doc.stock.kind).toBe('sheet');
+      expect(W.App.doc.label.w).toBe(sheetW);
+      W.redo();
+      expect(W.App.doc.stock.kind).toBe('roll');
+    }, { timeout: 20000 });
+
+    it('a configs file with a negative size is refused; the other configs in it are imported', async () => {
+      const file = { format: 'sloplabel-configs', version: 1, configs: [
+        { name: 'From file', body: W.configFromDoc(W.docFromConfig(W.presetById('round-50').body, 'Round')) },
+        { name: 'Negative', body: { label: { w: -40, h: 30 } } },
+      ] };
+      const r = W.importConfigsText(JSON.stringify(file));
+      expect(r.added).toBe(1);
+      expect(r.rejected.length).toBe(1);
+      expect(r.rejected[0].error).toContain('label.w must be from');
+      expect(W.LabelConfigs.configs.some((c) => c.name === 'Negative')).toBe(false);
+      await waitFor(() => W.document.querySelector('.sui-dlg'));
+      [...W.document.querySelectorAll('.sui-dlg .sui-btn')][0].click();
+    }, { timeout: 20000 });
+    it('a new text takes the text font and ink of the label style', async () => {
+      W.LabelTabs.api.activate(tabsNow()[2].doc);
+      W.editDoc((d) => { d.style = { font: 'serif', colour: 'white', fill: 'none', stroke: 0.5 }; }, 'Style');
+      W.insertCentered('text');
+      const o = W.selOne();
+      expect(o.font).toBe('serif');
+      expect(o.color).toBe('white');
+    });
+  });
+
+  describe('label presets', () => {
+    it('a preset from the gallery opens in a new tab with its sheet layout', async () => {
+      const before = tabsNow().length;
+      W.presetsDialog();
+      const tile = await waitFor(() => presetTile('Avery L7651: 65 per A4 sheet'));
+      tile.querySelectorAll('button')[0].click(); // New tab
+      await waitFor(() => tabsNow().length === before + 1);
+      const doc = W.App.doc;
+      expect(doc.stock.id).toBe('avery-l7651');
+      expect(W.slotsPerPage(W.stockOf(doc))).toBe(65);
+      expect(doc.label.w).toBe(38.1);
+      expect(W.App.dirty).toBe(true);
+      expect(activeTab().active).toBe(true);
+    }, { timeout: 20000 });
+
+    it('a preset applied to this tab is one undo step', async () => {
+      W.presetsDialog();
+      const tile = await waitFor(() => presetTile('Avery L7159: 24 per A4 sheet'));
+      tile.querySelectorAll('button')[1].click(); // This tab
+      await waitFor(() => W.App.doc.stock.id === 'avery-l7159');
+      expect(W.App.hist.undoLabel).toBe('Apply config “Avery L7159: 24 per A4 sheet”');
+      W.undo();
+      expect(W.App.doc.stock.id).not.toBe('avery-l7159');
+      W.redo();
+      expect(W.App.doc.stock.id).toBe('avery-l7159');
+    }, { timeout: 20000 });
+  });
+
+  describe('reload', () => {
+    it('the tabs, each tab state and the saved configs come back after a reload', async () => {
+      const titles = tabsNow().map((t) => t.title);
+      const active = activeTab().title;
+      const undo = W.App.hist.undoLabel;
+      const w = W.App.doc.label.w;
+      const stock = W.App.doc.stock.id;
+      await W.flushTabs();
+      WIN.__beforeReload = true;
+      WIN.location.reload();
+      await waitFor(() => { const x = f.contentWindow; return x && !x.__beforeReload && x.document && x.document.body && x.document.body.classList.contains('ready'); }, { timeout: 30000 });
+      WIN = f.contentWindow;
+      W = new Proxy({}, { get: (_, k) => WIN.eval(String(k)) });
+      expect(tabsNow().map((t) => t.title)).toEqual(titles);
+      expect(activeTab().title).toBe(active);
+      expect(W.App.hist.undoLabel).toBe(undo);
+      expect(W.App.doc.label.w).toBe(w);
+      expect(W.App.doc.stock.id).toBe(stock);
+      expect(W.LabelConfigs.configs.some((c) => c.name === 'Starter size')).toBe(true);
+    }, { timeout: 60000 });
+  });
+
+  run({ name: 'SlopLabel · tabs, configs and presets' });
+  </script>
+</body>
+</html>

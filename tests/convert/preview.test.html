@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: live preview</title></head>
+<body>
+<script src="../../shared/intake/rules.js"></script>
+<script src="../../shared/intake/normalize.js"></script>
+<script src="../../shared/intake/pipeline.js"></script>
+<script src="../../shared/intake/intake.js"></script>
+<script src="../../shared/intake/sources.js"></script>
+<script src="../../shared/drop/panel.js"></script>
+<script src="../../shared/drop/drop.js"></script>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import { ConvertTool } from '../../convert/js/ui/tool.js';
+import { PreviewPanel } from '../../convert/js/preview/controller.js';
+import { pngOf } from './fixtures.js';
+const { describe, it, expect } = SlopTest;
+
+const until = async (fn, ms = 6000) => {
+  const t0 = Date.now();
+  for (;;) {
+    const v = fn();
+    if (v) return v;
+    if (Date.now() - t0 > ms) throw new Error('timed out waiting for the preview');
+    await new Promise((r) => setTimeout(r, 40));
+  }
+};
+const mountPage = (preset) => {
+  const wrap = document.createElement('div');
+  const root = document.createElement('div');
+  root.setAttribute('data-convert-root', '');
+  const block = document.createElement('section');
+  wrap.append(root, block);
+  document.body.append(wrap);
+  const tool = new ConvertTool(root, preset);
+  root.convertTool = tool;
+  const panel = new PreviewPanel(block, tool, root);
+  return { root, block, tool, panel };
+};
+const upToDate = (block) => block.querySelector('.cv-pv-status')?.textContent === 'Up to date.';
+const afterPanel = (block) => block.querySelectorAll('.cv-pv-panel')[1];
+const beforePanel = (block) => block.querySelectorAll('.cv-pv-panel')[0];
+const afterLines = (block) => [...afterPanel(block).querySelectorAll('.cv-pv-line')].map((s) => s.textContent);
+
+describe('PNG to JPG: the preview shows the output and follows the input', () => {
+  it('shows the before and after pictures with their sizes', async () => {
+    const { block, tool } = mountPage({ conv: 'to-jpg', from: ['png'] });
+    await tool.addFiles([new File([await pngOf(30, 20)], 'a.png', { type: 'image/png' })]);
+    await until(() => upToDate(block) && afterPanel(block).querySelector('img') && afterPanel(block).querySelector('img').complete && afterPanel(block).textContent.includes('px'));
+    const img = afterPanel(block).querySelector('img');
+    expect(img.src.startsWith('blob:')).toBeTruthy();
+    expect(afterPanel(block).textContent).toContain('30 × 20 px');
+    expect(beforePanel(block).textContent).toContain('30 × 20 px');
+    expect(afterPanel(block).querySelector('.cv-pv-meta').textContent).toContain('JPG');
+    expect(block.querySelector('.cv-pv-actions').querySelectorAll('button')[0].disabled).toBeFalsy();
+  });
+  it('updates when the input changes', async () => {
+    const { block, tool } = mountPage({ conv: 'to-jpg', from: ['png'] });
+    await tool.addFiles([new File([await pngOf(30, 20)], 'a.png', { type: 'image/png' })]);
+    await until(() => afterPanel(block).textContent.includes('30 × 20 px'));
+    tool.remove(tool.items[0].id);
+    await tool.addFiles([new File([await pngOf(64, 48)], 'b.png', { type: 'image/png' })]);
+    await until(() => afterPanel(block).textContent.includes('64 × 48 px'));
+    expect(afterPanel(block).textContent).toContain('64 × 48 px');
+  });
+});
+
+describe('JSON to CSV: typed text is converted as you type', () => {
+  it('shows the CSV output and updates on each change', async () => {
+    const { block } = mountPage({ conv: 'json-to-csv', from: ['json'] });
+    const ta = block.querySelector('textarea');
+    expect(!!ta).toBeTruthy();
+    ta.value = '[{"a":1}]';
+    ta.dispatchEvent(new Event('input'));
+    await until(() => upToDate(block) && afterLines(block).length === 2);
+    expect(afterLines(block)).toEqual(['a', '1']);
+    expect(beforePanel(block).textContent).toContain('[{"a":1}]');
+    ta.value = '[{"a":1,"b":2}]';
+    ta.dispatchEvent(new Event('input'));
+    await until(() => afterLines(block).join('|') === 'a,b|1,2');
+    expect(afterLines(block)).toEqual(['a,b', '1,2']);
+  });
+  it('shows invalid JSON as an error in place', async () => {
+    const { block } = mountPage({ conv: 'json-to-csv', from: ['json'] });
+    const ta = block.querySelector('textarea');
+    ta.value = '[{"a":';
+    ta.dispatchEvent(new Event('input'));
+    const err = await until(() => afterPanel(block).querySelector('.cv-pv-error'));
+    expect(err.textContent.length).toBeGreaterThan(0);
+  });
+});
+
+SlopTest.run({ name: 'File convert: live preview' });
+</script>
+</body>
+</html>

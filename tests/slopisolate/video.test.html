@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-limit" content="300">
+  <title>Slop Isolate video tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- Video matte on a generated 2-second clip: real frames, real model (WebAssembly) in the worker. -->
+    <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../shared/cutout/pipeline.js"></script>
+  <script src="../../shared/cutout/models.js"></script>
+  <script src="../../shared/cutout/cutout.js"></script>
+  <script src="../../vendor/mp4-muxer/mp4-muxer.js"></script>
+  <script src="../../slopisolate/js/core/util.js"></script>
+  <script src="../../slopisolate/js/io/zip.js"></script>
+  <script src="../../slopisolate/js/video/limits.js"></script>
+  <script src="../../slopisolate/js/video/smooth.js"></script>
+  <script src="../../slopisolate/js/video/source.js"></script>
+  <script src="../../slopisolate/js/video/analyze.js"></script>
+  <script src="../../slopisolate/js/video/matte.js"></script>
+  <script src="../../slopisolate/js/video/webm-alpha.js"></script>
+  <script src="../../slopisolate/js/video/encode.js"></script>
+  <script src="video.spec-core.js"></script>
+  <script>SlopTest.run({ name: "Slop Isolate video" });</script>
+</body>
+</html>

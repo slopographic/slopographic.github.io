@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop start tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const dlg = (win) => [...win.document.querySelectorAll('.sui-dlg')].pop();
+  const dlgBtn = (win, label) => [...dlg(win).querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+
+  describe('PhotoSlop starts empty', () => {
+    it('opens a blank document: one transparent layer, no pixels, nothing to undo', async () => {
+      const { win, W } = await freshApp();
+      expect(W.DOCS.length).toBe(1);
+      expect(W.D.layers.length).toBe(1);
+      expect([W.D.w, W.D.h]).toEqual([1600, 1000]);
+      const data = W.D.layers[0].canvas.getContext('2d').getImageData(0, 0, W.D.layers[0].canvas.width, W.D.layers[0].canvas.height).data;
+      let painted = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i]) painted++;
+      expect(painted).toBe(0);
+      expect(W.Hist.states.length).toBe(1);
+      expect(W.D.dirty).toBe(false);
+      expect(win.document.querySelector('#newBtn')).toBeTruthy();
+    }, { timeout: 40000 });
+
+    it('New in the top bar opens the size presets and creates a document of the chosen size', async () => {
+      const { win, W } = await freshApp();
+      win.document.getElementById('newBtn').click();
+      await waitFor(() => dlg(win) && dlg(win).textContent.includes('New Document'), { timeout: 5000 });
+      const preset = dlg(win).querySelector('select');
+      expect(preset.querySelectorAll('option')[0].textContent).toContain('PhotoSlop default — 1600 × 1000');
+      preset.value = '3';
+      preset.dispatchEvent(new Event('change'));
+      const [name, w, h] = W.PRESETS[3];
+      expect(name).toBe('HD 1080p');
+      dlgBtn(win, 'Create').click();
+      await waitFor(() => W.DOCS.length === 2, { timeout: 5000 });
+      expect([W.D.w, W.D.h, W.D.layers.length]).toEqual([w, h, 1]);
+      expect(W.D.name).toBe('Untitled');
+    }, { timeout: 40000 });
+
+    it('New document can be cancelled without adding a tab', async () => {
+      const { win, W } = await freshApp();
+      win.document.getElementById('newBtn').click();
+      await waitFor(() => dlg(win) && dlg(win).textContent.includes('New Document'), { timeout: 5000 });
+      dlgBtn(win, 'Cancel').click();
+      await waitFor(() => !win.document.querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(W.DOCS.length).toBe(1);
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop start' });
+  </script>
+</body>
+</html>

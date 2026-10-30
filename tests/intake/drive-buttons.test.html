@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Every app's Open from Slop Drive is the one shared picker</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: nodes/js/app.js, nodes/js/projects.js
+  // Each app's "from Slop Drive" button or command opens the one shared picker (shared/drive/picker.js, through
+  // SlopIntake.fromDrive and SlopHub.pickFromDrive), never a list of its own. The picker is replaced by a spy here; the
+  // picker itself is tested in drive-picker.test.html.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const byId = (id) => (W, D) => D.getElementById(id).click();
+  const menu = (top, item) => async (W, D) => {
+    [...D.querySelectorAll('.smb-menu-b')].find((b) => b.textContent === top).click();
+    (await waitFor(() => [...D.querySelectorAll('.smb-item')].find((b) => b.textContent === item))).click();
+  };
+  const APPS = [
+    { app: 'aitools/tags', spec: 'ai-tags', go: byId('pickDrive') },
+    { app: 'hex', spec: 'hex', go: byId('hx-drive') },
+    { app: 'img3d', spec: 'img3d', go: byId('btnDrive') },
+    { app: 'upscale', spec: 'upscale', go: byId('up-drive') },
+    { app: 'resize', spec: 'resize', go: byId('rs-drive') },
+    { app: 'music', spec: 'music.playlist', go: byId('pl-open') },
+    { app: 'code', spec: 'code', go: (W) => W.SlopCode.actions.open() },
+    { app: 'docs', spec: 'docs', go: (W) => W.SlopDocs.openFromDrive() },
+    { app: 'slopvector', spec: 'vector', go: (W) => W.SV.runAction('file.openDrive') },
+    { app: 'nodes', ready: (W) => W.SlopIntake && W.document.querySelector('.smb-menu-b'), go: menu('File', 'Open project…') },
+  ];
+  const fr = document.getElementById('app');
+  for (const a of APPS) {
+    describe('Open from Slop Drive: ' + a.app, () => {
+      it('opens the shared picker, once', async () => {
+        fr.src = '../../' + a.app + '/index.html';
+        await waitFor(() => { try { const W = fr.contentWindow; return W.document.readyState === 'complete' && (a.ready ? a.ready(W) : W.SlopIntake && W.SlopIntake.spec && W.SlopIntake.spec(a.spec)); } catch (e) { return false; } }, { timeout: 25000 });
+        const W = fr.contentWindow, D = W.document, calls = [];
+        // shared/hub.js loads shared/drive/picker.js on first use; it keeps a SlopDrivePicker that is already there
+        W.SlopDrivePicker = { pickFile: async (o) => { calls.push(o || {}); return null; }, pickFolder: async () => undefined };
+        await a.go(W, D);
+        await waitFor(() => calls.length > 0, { timeout: 10000 });
+        expect(calls.length).toBe(1);
+        expect(D.querySelector('.sui-dlg select')).toBe(null); // no hand-made list of Drive files
+      }, { timeout: 40000 });
+    });
+  }
+  run({ name: 'Every app opens the one shared Slop Drive picker' });
+</script>
+</body>
+</html>

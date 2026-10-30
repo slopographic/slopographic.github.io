@@ -1,0 +1,25 @@
+/* Slop Colors, Polish: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'colors.wheel.label': 'Koło barw',
+  'colors.wheel.rule': 'Harmonia',
+  'colors.wheel.model': 'Koło',
+  'colors.wheel.bright': 'Jasność',
+  'colors.wheel.light': 'Luminancja',
+  'colors.wheel.bright_text': 'Jasność {pct}%',
+  'colors.wheel.light_text': 'Luminancja {pct}%',
+  'colors.wheel.keys': 'Przeciągnij uchwyt albo użyj na nim klawiszy strzałek: lewo i prawo obracają odcień, góra i dół zmieniają nasycenie, Shift przesuwa o dziesięć kroków, Page Up i Page Down zmieniają jasność.',
+  'colors.wheel.base': 'Kolor bazowy',
+  'colors.wheel.handle': 'Kolor {n}',
+  'colors.wheel.value': 'Odcień {hue}°, nasycenie {sat}%, {hex}',
+  'colors.wheel.value_oklch': 'Odcień {hue}°, chroma {sat}%, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (malarskie)',
+  'colors.wheel.oklch': 'OKLCH (percepcyjne)',
+  'colors.harmony.brightness': 'Odcienie jasności',
+  'colors.harmony.custom': 'Własna',
+  'colors.cmd.g_wheel': 'Koło barw',
+  'colors.cmd.wheel_rule': 'Koło: ustaw harmonię {rule}',
+  'colors.cmd.wheel_model': 'Koło: użyj koła {wheel}',
+  'colors.cmd.wheel_focus': 'Koło: przejdź do koła barw',
+});

@@ -1,0 +1,20 @@
+/* Slop AI shared words, Turkish: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-tr.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'ui.ai.cloud.or_signin': '{name} ile giriş yap',
+  'ui.ai.cloud.or_note': 'Henüz anahtarınız yok mu? Giriş yapın, {name} bu tarayıcı için kendi {name} krediniz ile ödenen bir anahtar oluştursun. Anahtarı {link} adresinde sınırlayabilir veya iptal edebilirsiniz.',
+  'ui.ai.cloud.or_privacy': 'Giriş doğrudan bu tarayıcıdan {name} hizmetine gider; hiçbir şey {brand} sunucularından geçmez.',
+  'ui.ai.cloud.or_manage': 'Girişle ya da elle oluşturulan {name} anahtarlarınızı {link} adresinde sınırlayabilir veya iptal edebilirsiniz. Anahtarı unut, anahtarı yalnızca bu tarayıcıdan kaldırır.',
+  'ui.ai.cloud.or_going': '{name} açılıyor…',
+  'ui.ai.cloud.or_finishing': '{name} ile giriş tamamlanıyor…',
+  'ui.ai.cloud.or_done': '{name} ile giriş yapıldı: bu tarayıcının anahtarı yapıştırılmış bir anahtar gibi saklandı.',
+  'ui.ai.cloud.or_denied': '{name} üzerinde erişime izin verilmedi, bu yüzden hiçbir şey bağlanmadı. Yeniden denemek için {name} ile giriş yap’a basın ya da bir anahtar yapıştırın.',
+  'ui.ai.cloud.or_state': 'Bu giriş bu sekmede başlamadı, bu yüzden hesabınızı korumak için reddedildi. Baştan başlamak için {name} ile giriş yap’a basın.',
+  'ui.ai.cloud.or_used': 'Bu giriş kodu zaten kullanılmış ya da süresi dolmuş (kodlar 10 dakika geçerlidir). Baştan başlamak için {name} ile giriş yap’a basın.',
+  'ui.ai.cloud.or_failed': '{name} bir anahtar vermedi ({why}). Yeniden denemek için {name} ile giriş yap’a basın ya da bir anahtar yapıştırın.',
+  'ui.ai.cloud.or_offline': 'Tarayıcı çevrimdışı, bu yüzden giriş tamamlanamadı. İnternete bağlanın, sonra yeniden {name} ile giriş yap’a basın.',
+  'ui.ai.cloud.or_network': 'Girişi tamamlamak için {name} hizmetine ulaşılamadı. Bağlantınızı kontrol edin, sonra yeniden {name} ile giriş yap’a basın.',
+  'ui.ai.cloud.or_no_crypto': 'Bu tarayıcı burada {name} ile giriş yapamıyor (https sayfasında Web Crypto gerekir). Bunun yerine bir anahtar yapıştırın.',
+  'ui.ai.cloud.or_key_label': 'Bu tarayıcıdaki {brand}',
+  'ui.ai.cloud.or_badge': 'Giriş',
+  'ui.ai.cloud.or_badge_t': 'Kopyalanacak anahtar yok: {name} hesabınızla giriş yapın, bu tarayıcı için bir anahtar oluşturulur.',
+});

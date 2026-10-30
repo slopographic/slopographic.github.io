@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Serial counter: reading and counting</title></head>
+<body>
+<script src="../harness.js"></script>
+<script type="module">
+import { serialsIn, serialsFor, tally, csvOf } from '../../serials/js/extract.js';
+const { describe, it, expect } = SlopTest;
+
+describe('Serial counter: reading serials from text', () => {
+  it('finds Cisco-shaped serials in OCR text, once each, in upper case', () => {
+    expect(serialsIn('SN: foc2145b0xy\nFDO2210Q1AB and FOC2145B0XY again')).toEqual(['FOC2145B0XY', 'FDO2210Q1AB']);
+  });
+  it('ignores words and short numbers', () => {
+    expect(serialsIn('HELLO WORLD 12345 MODEL C9300')).toEqual([]);
+  });
+  it('typed serials are added and removed serials are left out', () => {
+    const p = { text: 'FOC2145B0XY', manual: new Set(['FDO2210Q1AB']), removed: new Set(['FOC2145B0XY']) };
+    expect(serialsFor(p)).toEqual(['FDO2210Q1AB']);
+  });
+  it('an invalid pattern is reported, not silently ignored', () => {
+    let threw = false;
+    try { serialsIn('x', '('); } catch (e) { threw = true; }
+    expect(threw).toBeTruthy();
+  });
+});
+
+describe('Serial counter: the tables', () => {
+  const photos = [
+    { name: 'a.jpg', read: true, text: 'FOC2145B0XY' },
+    { name: 'b.jpg', read: true, text: 'FOC2145B0XY FDO2210Q1AB' },
+    { name: 'c.jpg', read: true, text: 'nothing here' },
+    { name: 'd.jpg', read: false, text: '' },
+  ];
+  it('lists each unique serial once with its count and photos', () => {
+    const { unique } = tally(photos);
+    expect(unique.map((r) => [r.serial, r.count, r.photos.join('|')])).toEqual([
+      ['FDO2210Q1AB', 1, 'b.jpg'],
+      ['FOC2145B0XY', 2, 'a.jpg|b.jpg'],
+    ]);
+  });
+  it('totals: quantity is the unique count; photos to review are read photos with no serial', () => {
+    const { totals } = tally(photos);
+    expect(totals).toEqual({ photos: 4, read: 3, withSerial: 2, needsReview: 1, hits: 3, quantity: 2, repeats: 1 });
+  });
+  it('CSV quotes commas and quotes, and stops a leading = from running as a formula', () => {
+    expect(csvOf([['Serial', 'Photos'], ['=1+1', 'a, "b".jpg']])).toBe('Serial,Photos\r\n\'=1+1,"a, ""b"".jpg"\r\n');
+  });
+});
+
+describe('Serial counter: the page', () => {
+  it('opens with the default pattern and a photo picker', async () => {
+    const page = document.createElement('iframe');
+    page.src = '../../serials/index.html';
+    page.style.cssText = 'width:900px;height:700px';
+    document.body.append(page);
+    await new Promise((r) => (page.onload = r));
+    const d = page.contentDocument;
+    expect(d.getElementById('pattern').value).toBe('\\b[A-Z]{3}\\d{4}[A-Z0-9]{4}\\b');
+    expect(d.getElementById('drop').tagName).toBe('BUTTON'); // the box is the intake's picker (several photos at once)
+    expect(page.contentWindow.SlopIntake.spec('serials').limit).toBe(undefined);
+    page.remove();
+  });
+});
+
+describe('Serial counter: photos through the page', () => {
+  it('reads two photos, counts a repeated serial once, and totals the quantity', async () => {
+    const page = document.createElement('iframe');
+    page.src = '../../serials/index.html';
+    page.style.cssText = 'width:900px;height:700px';
+    document.body.append(page);
+    await new Promise((r) => (page.onload = r));
+    const w = page.contentWindow, d = page.contentDocument;
+    // Only the recognition engine and the first-use notice are stubbed; the page, its rules and its tables are real.
+    const read = ['SN: FOC2145B0XY', 'FOC2145B0XY and FDO2210Q1AB']; // what the engine reads from label-1, then label-2
+    w.SlopAITools.ensure = async () => {};
+    w.SlopAITools.call = async () => ({ lines: [{ text: read.shift() }] });
+    w.SlopFirstRun.once = async () => true;
+    d.getElementById('ui').hidden = false; // the engine gate needs the model, which a test does not download
+    const picture = async (name) => {
+      const c = d.createElement('canvas'); c.width = 40; c.height = 20;
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      return new w.File([blob], name, { type: 'image/png' });
+    };
+    const dt = new w.DataTransfer();
+    dt.items.add(await picture('label-1.png'));
+    dt.items.add(await picture('label-2.png'));
+      w.SlopIntake.pickFiles = async () => [...dt.files]; // the box is the intake's picker
+      d.getElementById('drop').click();
+    for (let i = 0; i < 100 && d.querySelectorAll('#photos li').length < 2; i++) await new Promise((r) => setTimeout(r, 20));
+    d.getElementById('read').click();
+    const rows = () => [...d.querySelectorAll('#unique tr')].map((tr) => [...tr.children].map((td) => td.textContent));
+    for (let i = 0; i < 100 && rows().length < 2; i++) await new Promise((r) => setTimeout(r, 50));
+    expect(rows()).toEqual([['FDO2210Q1AB', '1', 'label-2.png'], ['FOC2145B0XY', '2', 'label-1.png, label-2.png']]);
+    const totals = [...d.querySelectorAll('#totals dd')].map((dd) => dd.textContent);
+    expect(totals).toEqual(['2', '2', '2', '0', '2', '3', '1']);
+    page.remove();
+  });
+});
+SlopTest.run({ name: 'Serial counter: reading and counting' });
+</script>
+</body>
+</html>

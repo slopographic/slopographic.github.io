@@ -1,0 +1,20 @@
+/* Slop AI shared words, Chinese (Simplified): “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'ui.ai.cloud.or_signin': '使用 {name} 登录',
+  'ui.ai.cloud.or_note': '还没有密钥？登录后，{name} 会为此浏览器创建一个密钥，费用从你自己的 {name} 余额中扣除。你可以在 {link} 为它设置上限或将其撤销。',
+  'ui.ai.cloud.or_privacy': '登录直接从此浏览器连到 {name}，不经过任何 {brand} 服务器。',
+  'ui.ai.cloud.or_manage': '你的 {name} 密钥（通过登录或手动创建）可以在 {link} 设置上限或撤销。“忘记密钥”只会从此浏览器中删除密钥。',
+  'ui.ai.cloud.or_going': '正在打开 {name}…',
+  'ui.ai.cloud.or_finishing': '正在完成 {name} 登录…',
+  'ui.ai.cloud.or_done': '已使用 {name} 登录：此浏览器的密钥已像粘贴的密钥一样保存。',
+  'ui.ai.cloud.or_denied': '{name} 未获授权访问，因此没有连接任何内容。点击“使用 {name} 登录”重试，或粘贴一个密钥。',
+  'ui.ai.cloud.or_state': '此次登录不是在此标签页中发起的，为保护你的账户已被拒绝。点击“使用 {name} 登录”重新开始。',
+  'ui.ai.cloud.or_used': '该登录代码已被使用或已过期（代码有效期为 10 分钟）。点击“使用 {name} 登录”重新开始。',
+  'ui.ai.cloud.or_failed': '{name} 没有提供密钥（{why}）。点击“使用 {name} 登录”重试，或粘贴一个密钥。',
+  'ui.ai.cloud.or_offline': '浏览器处于离线状态，登录无法完成。请连接互联网，然后再次点击“使用 {name} 登录”。',
+  'ui.ai.cloud.or_network': '无法连接到 {name} 来完成登录。请检查网络连接，然后再次点击“使用 {name} 登录”。',
+  'ui.ai.cloud.or_no_crypto': '此浏览器无法在此处使用 {name} 登录（需要 https 页面上的 Web Crypto）。请改为粘贴密钥。',
+  'ui.ai.cloud.or_key_label': '此浏览器中的 {brand}',
+  'ui.ai.cloud.or_badge': '登录',
+  'ui.ai.cloud.or_badge_t': '无需复制密钥：使用你的 {name} 账户登录，即可为此浏览器创建密钥。',
+});

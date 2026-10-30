@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: the hub's drop zone shows CSV to XLSX and three steps; the sample price list is ready to convert</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; height: 860px; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: convert/js/ui/tool.js, convert/index.html, convert/css/convert.css, shared/samples/docs.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  /** The app in a fresh iframe of this width, once the tool is mounted. */
+  async function boot(width, src = '../../convert/index.html') {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = src;
+    document.body.append(f);
+    await waitFor(() => { const w = f.contentWindow; return w && w.document.readyState === 'complete' && !!(w.document.querySelector('[data-convert-root]') && w.document.querySelector('[data-convert-root]').convertTool); }, { timeout: 30000 });
+    W = f.contentWindow; D = W.document;
+  }
+  const $ = (sel) => D.querySelector(sel);
+
+  describe('File convert: the first visit', () => {
+    it('the empty page shows what it makes and how, and Try it with a sample price list (CSV) fills it', async () => {
+      await boot(1280);
+      expect(D.querySelectorAll('#cv-drop .sd-steps li').length).toBe(3);
+      expect($('#cv-drop .sd-pic .sflow').getAttribute('aria-label')).toBe('CSV to XLSX');
+      $('#cv-drop .sd-sample').click();
+      await waitFor(() => { return $('[data-convert-root]').convertTool.items.length === 1; }, { timeout: 20000 });
+      const T = $('[data-convert-root]').convertTool;
+      expect(T.items[0].name).toBe('Price list.csv');
+      expect(T.items[0].kind).toBe('csv');
+      expect(T.target).toBe('csv-to-xlsx');
+      expect(W.getComputedStyle($('#cv-drop .sd-preview')).display).toBe('none');   // the preview is for an empty page
+      expect($('#cv-run').disabled).toBe(false);
+    }, { timeout: 60000 });
+    it('at 390 px the preview fits: no sideways scroll', async () => {
+      await boot(390);
+      const p = $('#cv-drop .sd-preview').getBoundingClientRect();
+      expect(p.width > 200 && p.right <= 391).toBe(true);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+    }, { timeout: 40000 });
+    it('a converter page has its pair drawn above, so its zone shows the steps only', async () => {
+      await boot(1280, '../../convert/csv-to-xlsx/index.html');
+      expect([...D.querySelectorAll('#cv-drop .sd-steps li')].map((li) => li.textContent)).toEqual(['Drop CSV files, one or many', 'Check the options', 'Download the XLSX files']);
+      expect($('#cv-drop .sd-pic')).toBe(null);
+      expect($('#cv-drop .sd-sample')).toBe(null);
+    }, { timeout: 40000 });
+  });
+  run();
+  </script>
+</body>
+</html>

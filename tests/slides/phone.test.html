@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Slides on a phone: the inspector is a SlopSheet</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: slides/js/ui/main.js, slides/js/manifest.js, slides/css/app.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D;
+  const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('Slop Slides at 390 × 844', () => {
+    it('the slide and the strip share the page; the inspector is out of sight but for its footer (Save)', async () => {
+      const f = document.createElement('iframe'); f.src = '../../slides/index.html'; document.body.append(f);
+      await waitFor(() => f.contentDocument.body && f.contentDocument.body.classList.contains('ready'), { timeout: 40000 });
+      W = f.contentWindow; D = f.contentDocument;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const insp = D.getElementById('inspector');   // closed, the sheet shows only its footer (shared/frame/panel.js)
+      expect([...insp.children].filter((n) => !n.classList.contains('sf-p-foot') && n.getBoundingClientRect().height > 0).length).toBe(0);
+      expect(insp.querySelector('.sf-p-foot #btnSave').getBoundingClientRect().bottom).toBeLessThanOrEqual(844.5);
+      expect(D.getElementById('btnInspector').getBoundingClientRect().width).toBeGreaterThan(0);
+    }, { timeout: 60000 });
+    it('Properties opens the bottom sheet, again closes it, × closes and refocuses, Escape and a tap on the slide close it', () => {
+      const btn = D.getElementById('btnInspector'), s = W.SS.sheet, insp = D.getElementById('inspector');
+      btn.click();
+      expect([s.isOpen(), btn.getAttribute('aria-expanded'), Math.round(insp.getBoundingClientRect().bottom)]).toEqual([true, 'true', 844]);
+      btn.click(); expect(s.isOpen()).toBe(false);
+      btn.focus(); btn.click();
+      const x = insp.querySelector(':scope > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close properties');
+      x.click(); expect([s.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc(); expect(s.isOpen()).toBe(false);
+      btn.click(); D.getElementById('canvas').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+      expect(s.isOpen()).toBe(false);
+    });
+    it('the × stays when the inspector redraws for a new selection', async () => {
+      const s = W.SS.sheet; s.open();
+      D.getElementById('insText').click();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(D.getElementById('inspector').firstElementChild.classList.contains('ssh-x')).toBe(true);
+      s.close();
+    });
+  });
+  SlopTest.run({ name: 'Slop Slides: phone sheet' });
+  </script>
+</body>
+</html>

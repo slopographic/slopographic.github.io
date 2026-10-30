@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop macros: record menus, dialogs and commands; save, play, rename, export, import; run headless in a hidden PhotoSlop</title>
+  <style>body { margin: 0; background: #111; } iframe#app { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="fresh-app.js"></script>
+  <script type="module">
+  // Covers: shared/macros/core.js, shared/macros/store.js, shared/macros/macros.js, shared/macros/panel.js, shared/macros/frame.js,
+  //   shared/macros/macros.css, shared/ops/macros.js, photoslop/js/app/macros.js, photoslop/js/app/ai-commands.js, photoslop/js/app/commands.js,
+  //   photoslop/js/ui/filter-dialog.js, photoslop/js/ui/size-dialogs.js, shared/commands/commands.js,
+  //   shared/i18n/ui/en/macros.js, shared/i18n/ui/sv/macros.js
+  import * as R from '../../shared/ops/all.js';
+  import { loadMacros } from '../../shared/ops/macros.js';
+  import { dropHosts } from '../../shared/macros/frame.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let app, win, W, SM;
+
+  // no macros, through the store: deleting the database would leave this page's open store on the deleted one
+  const wipe = async () => { for (const x of await window.SlopMacroStore.list()) await window.SlopMacroStore.remove(x.id); };
+  /** A 400 × 300 picture: grey with a red block on the left half, so a crop and a flip show. */
+  function picture() {
+    W.newDocument(400, 300, '#808080', 'Test');
+    const g = W.activeLayer().canvas.getContext('2d');
+    g.fillStyle = '#ff0000'; g.fillRect(0, 0, 200, 300);
+    W.commit('Paint');
+  }
+  const item = (path) => { let items = W.MENUS.find(([n]) => n === path[0])[1]; let it; for (const l of path.slice(1)) { it = items.find((x) => x && x.label === l); items = it && it.sub; } return it; };
+  async function answerPrompt(name) {
+    const input = await waitFor(() => win.document.querySelector('.sui-dlg input.sui-input'));
+    input.value = name;
+    [...win.document.querySelectorAll('.sui-dlg .sui-btn')].find((b) => b.textContent === 'Save').click();
+  }
+
+  describe('recording in PhotoSlop', () => {
+    it('records a filter run from its menu, a command with args, a menu item and a dialog, as commands with their settings', async () => {
+      await wipe();
+      app = await freshApp(); win = app.win; W = app.W; SM = win.SlopMacros;
+      expect(!!SM && SM.app).toBe('photoslop');
+      expect(win.document.getElementById('macrosBtn').hidden).toBe(false);
+      await win.SlopCmd.prepare();
+      picture();
+      SM.record();
+      const bar = await waitFor(() => win.document.querySelector('.smac-bar:not([hidden])'));
+      expect(bar.textContent).toContain('Recording a macro');
+      await W.runFilter('autocontrast');                                 // Image ▸ Adjustments ▸ Auto Contrast (no dialog)
+      await win.SlopCmd.exec('ps.ai.crop', { ratio: '1:1' });            // a command with args (the AI panel's way)
+      item(['Image', 'Rotate 90° Clockwise']).act();                     // a menu item that is a command
+      await W.runFilter('unsharp', { amt: 80, r: 1.5, t: 2 });           // a filter with its settings (the dialog's OK)
+      item(['Edit', 'Macros', 'Record a Macro']);                        // the menu has the Macros entries
+      const steps = SM.steps();
+      expect(steps.map((s) => s.cmd)).toEqual(['ps.ai.filter', 'ps.ai.crop', 'ps.ai.rotate', 'ps.ai.filter']);
+      expect(steps[0].args).toEqual({ filter: 'autocontrast', params: '{}' });
+      expect(steps[2].args).toEqual({ angle: '90', target: 'image' });
+      expect(JSON.parse(steps[3].args.params).amt).toBe(80);
+      expect(bar.textContent).toContain('4 steps');
+      expect([W.D.w, W.D.h]).toEqual([300, 300]);
+      const p = SM.stop();
+      await answerPrompt('Square and sharpen');
+      const m = await p;
+      expect(m.name).toBe('Square and sharpen');
+      expect(bar.hidden).toBe(true);
+      expect(SM.list().map((x) => x.name)).toEqual(['Square and sharpen']);
+    }, { timeout: 60000 });
+
+    it('Stop with nothing recorded keeps nothing and says what is recorded', async () => {
+      SM.record(); const r = await SM.stop();
+      expect(r).toBe(null);
+      expect(SM.list().length).toBe(1);
+    });
+  });
+
+  describe('playing, the panel, export and import', () => {
+    it('plays the macro on another picture: same size, rotated, one undo step per command', async () => {
+      picture();
+      const before = W.Hist.idx;
+      await SM.play(SM.list()[0].id);
+      expect([W.D.w, W.D.h]).toEqual([300, 300]);
+      const L = W.activeLayer(), px = [...L.canvas.getContext('2d').getImageData(150, 10, 1, 1).data];
+      expect(px[0] > 200 && px[1] < 60).toBe(true);    // after the crop and the clockwise turn, red is on top
+      expect(W.Hist.idx - before).toBe(4);
+    }, { timeout: 30000 });
+
+    it('the panel lists it; rename, export and import through the panel and the store', async () => {
+      await SM.openPanel();
+      const panel = await waitFor(() => win.document.querySelector('#smac-panel:not([hidden])'));
+      expect(panel.querySelector('.sl-row .sl-title').textContent).toBe('Square and sharpen');
+      expect(panel.querySelector('.sl-row').textContent).toContain('4 steps');
+      panel.querySelector('.sl-row').click();
+      await waitFor(() => !panel.querySelector('.smac-actions').hidden);
+      expect(panel.querySelector('#smac-play').textContent).toContain('Square and sharpen');
+      await SM.rename(SM.list()[0].id, 'Square, turn, sharpen');
+      await waitFor(() => panel.querySelector('.sl-title').textContent === 'Square, turn, sharpen');
+      const ex = SM.exportFile();
+      expect(ex.name).toBe('Square, turn, sharpen.slopmacro');
+      const n = await SM.importFile(new File([await ex.blob.text()], 'x.slopmacro'));
+      expect(n).toBe(1);
+      expect(SM.list().length).toBe(2);
+      expect(new Set(SM.list().map((m) => m.id)).size).toBe(2);   // an import of one already here gets a new id
+      await SM.remove(SM.list()[0].id, { ask: false });
+      expect(SM.list().length).toBe(1);
+      // the built panel follows a language switch (shared/i18n/ui/sv/macros.js): title, buttons, the list's rows
+      win.SlopI18n.set('sv');
+      await waitFor(() => panel.querySelector('.smac-title').textContent === 'Makron', { timeout: 15000 });
+      expect(panel.querySelector('#smac-record').textContent).toBe('Spela in');
+      expect(panel.querySelector('#smac-stop').textContent).toBe('Stoppa och spara');
+      expect(panel.querySelector('.sl-row').textContent).toContain('4 steg');
+      expect(panel.textContent).not.toMatch(/ui\.macro\./);
+      win.SlopI18n.set('en');
+      await waitFor(() => panel.querySelector('.smac-title').textContent === 'Macros', { timeout: 15000 });
+      expect(panel.querySelector('.sl-row').textContent).toContain('4 steps');
+      win.SlopMacrosPanel.close();
+    }, { timeout: 30000 });
+
+    it('the Macros ▾ button offers Record and the saved macros', async () => {
+      win.document.getElementById('macrosBtn').click();
+      const menu = await waitFor(() => win.document.querySelector('.smb-menu[role="menu"]'));
+      const rows = [...menu.querySelectorAll('.smb-row')].map((r) => r.textContent);
+      expect(rows).toContain('Record a macro');
+      expect(rows).toContain('Square, turn, sharpen');
+      expect(rows).toContain('Macros…');
+      win.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+  });
+
+  describe('headless: a hidden PhotoSlop runs the macro on a file (the Workflows step)', () => {
+    it('the saved macro is an operation under PhotoSlop and makes a 300 × 300 JPG from a 400 × 300 PNG', async () => {
+      await loadMacros();
+      const m = SM.list()[0];
+      const op = R.byId('macro:photoslop:' + m.id);
+      expect(!!op).toBe(true);
+      expect(R.apps().find((g) => g.app === 'photoslop').label).toBe('PhotoSlop');
+      const c = document.createElement('canvas'); c.width = 400; c.height = 300;
+      const g = c.getContext('2d'); g.fillStyle = '#808080'; g.fillRect(0, 0, 400, 300); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 200, 300);
+      const file = new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'shot.png', { type: 'image/png' });
+      const tabsBefore = W.DOCS.length;
+      const out = await op.run([{ name: 'shot.png', file, kind: 'png' }], { format: 'jpg', quality: 85 }, {});
+      expect(out.length).toBe(1);
+      expect(out[0].name).toBe('shot.jpg'); expect(out[0].kind).toBe('jpg'); expect(out[0].blob.type).toBe('image/jpeg');
+      const bmp = await createImageBitmap(out[0].blob);
+      expect([bmp.width, bmp.height]).toEqual([300, 300]);
+      const host = document.querySelector('iframe[data-macro-host="photoslop"]');
+      expect(!!host).toBe(true);
+      expect(host.contentDocument.documentElement.dataset.macroHost).toBe('1');
+      expect(getComputedStyle(host).opacity).toBe('0');
+      expect(W.DOCS.length).toBe(tabsBefore);   // the person's PhotoSlop is not touched
+      // a second file reuses the same hidden copy
+      const out2 = await op.run([{ name: 'b.png', file, kind: 'png' }], { format: 'same' }, {});
+      expect(out2[0].kind).toBe('png');
+      expect(document.querySelectorAll('iframe[data-macro-host]').length).toBe(1);
+      dropHosts();
+      expect(document.querySelectorAll('iframe[data-macro-host]').length).toBe(0);
+    }, { timeout: 90000 });
+
+    it('a macro whose step cannot run says which step', async () => {
+      const bad = { id: 'mbad', name: 'Bad', steps: [{ cmd: 'ps.ai.select-layer', args: { layer: 'Nope' }, title: 'Pick a layer' }] };
+      const { macroOp } = await import('../../shared/ops/macros.js');
+      const c = document.createElement('canvas'); c.width = 20; c.height = 20;
+      const file = new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'a.png', { type: 'image/png' });
+      let msg = '';
+      try { await macroOp('photoslop', bad).run([{ name: 'a.png', file, kind: 'png' }], {}, {}); } catch (e) { msg = e.message; }
+      expect(msg).toMatch(/Step 1 of 1 \(Pick a layer\) did not work/);
+      dropHosts();
+    }, { timeout: 90000 });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

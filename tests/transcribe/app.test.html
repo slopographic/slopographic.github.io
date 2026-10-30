@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Transcribe: add files, transcribe them (a fake Whisper), correct the text, save it; at 1280 and 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: transcribe/index.html, transcribe/js/app.js, transcribe/js/view.js, transcribe/js/choose.js, transcribe/css/transcribe.css, transcribe/js/frame.js, aitools/common.js, aitools/speech/speech.js
+  // The real model is a download the tests do not make: the page's engine is swapped for a fake that answers like Whisper.
+  const { describe, it, expect, waitFor, run, sleep, topDialog } = SlopTest;
+  let W, D, detected = [{ code: 'en', p: 0.97 }];
+  const seen = [], installs = [], installed = new Set(['whisper-tiny']);
+  const $ = (id) => D.getElementById(id);
+  async function boot(width = 1280) {
+    const old = document.getElementById('app'), f = document.createElement('iframe');   // a new frame: never the last page's window
+    f.id = 'app'; f.style.cssText = `width:${width}px;height:860px`;
+    old.replaceWith(f);
+    f.src = '../../transcribe/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopTranscribe && f.contentWindow.document.querySelector('.smb-bar'), { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+    Object.assign(W.SlopTranscribe.engine, {
+      prepare: async () => {},
+      samples: async (file) => new W.Float32Array(Math.round(file.size / 2) * 16),
+      detect: async () => detected,
+      transcribe: async (samples, language, progress, model = 'whisper-tiny') => { seen.push([language, model]); progress({ done: 1, total: 2 }); await sleep(300); progress({ done: 2, total: 2 });
+        const text = model === 'whisper-tiny' ? 'Hello from the meeting.' : `Read by ${model}.`;
+        return { segments: [{ start: 0, end: 2, text }, { start: 5, end: 7, text: 'Next item is the budget.' }], language }; },
+    });
+    // the model store: tiny is here; a download is instant (the real one is tested in tests/aitools and tests/speech)
+    Object.assign(W.SlopAIManager, {
+      status: async (id) => (installed.has(id) ? 'installed' : 'needs-download'),
+      install: async (id, onProgress) => { installs.push(id); onProgress({ loaded: 1, total: 2 }); await sleep(50); installed.add(id); },
+      usage: async () => 41897356,
+    });
+    await W.SlopTranscribe.models.refresh();
+    $('trUi').hidden = false;   // the model gate (Get more…) is not part of this test
+  }
+  const mp3 = (name, kb = 40) => new W.File([new W.Uint8Array(kb * 1000)], name, { type: 'audio/mpeg' });
+
+  describe('Slop Transcribe', () => {
+    it('one header: the menu bar with the app icon, the name and 100% local; the From → To picture shows MP3 → TXT', async () => {
+      await boot();
+      const bar = D.querySelector('header.smb-bar');
+      expect(bar.querySelector('.smb-app').textContent).toBe('Transcribe');
+      expect(!!bar.querySelector('.local-badge')).toBe(true);
+      expect(D.querySelector('#trFlow .sflow').getAttribute('aria-label')).toBe('Audio or video to text');
+    });
+    it('the Language and model button starts on Detect automatically with the quick model and opens the dialog', async () => {
+      expect($('trModel').textContent).toBe('Detect automatically · Whisper tiny ▾');
+      $('trModel').click();
+      const dlg = await waitFor(() => topDialog(D));
+      await waitFor(() => dlg.querySelectorAll('.spm-model').length === 3);
+      const langs = [...dlg.querySelectorAll('.spm-lang')];
+      expect(langs.length).toBe(100);
+      expect(langs[0].textContent).toBe('Detect automatically');
+      expect(langs.some((l) => l.dataset.code === 'haw' && l.textContent === 'Hawaiian')).toBe(true);
+      dlg.querySelector('.sui-x').click();
+    });
+    it('added files are listed; Transcribe reads them and shows the text, the language and the word count', async () => {
+      W.SlopTranscribe.add([mp3('Board call.mp3'), mp3('Voice note.m4a', 20), new W.File(['x'], 'notes.txt', { type: 'text/plain' })]);
+      expect(D.querySelectorAll('#trFiles li').length).toBe(2);
+      expect($('trRun').textContent).toBe('Transcribe 2 files');
+      $('trRun').click();
+      await waitFor(() => /^Transcribing Board call\.mp3 \(1 of 2\): \d+%/.test($('trMsg').textContent));   // the status line follows the file being read
+      await waitFor(() => [...D.querySelectorAll('#trFiles .tr-chip')].every((c) => c.textContent === 'Done'), { timeout: 10000 });
+      expect($('trText').value).toBe('Hello from the meeting.\nNext item is the budget.');
+      expect($('trText').readOnly).toBe(false);
+      expect($('trPaneMeta').textContent).toContain('language English');
+      expect($('trPaneMeta').textContent).toContain('9 words');
+      expect(D.querySelector('#trFlow .sflow').dataset.state).toBe('done');
+      // the quick pass found the language; the offer is the first model the dialog ranks for it
+      expect($('trSuggest').querySelector('.tr-detect').textContent).toContain('Detected English (97%) · read with Whisper tiny.');
+      expect($('trSuggest').textContent).toContain(`For better accuracy: ${W.SlopSpeechModels.rank('en')[0].model.name} (OpenAI)`);
+    });
+    it('Show times puts the time in front of each line; a correction is kept and can be undone', async () => {
+      $('trTimes').click();
+      expect($('trText').value.split('\n')[1]).toBe('[00:00:05] Next item is the budget.');
+      $('trText').value = 'Hello from the board meeting.';
+      $('trText').dispatchEvent(new W.Event('input', { bubbles: true }));
+      expect($('trEdited').hidden).toBe(false);
+      expect(W.SlopTranscribe.queue.get(W.SlopTranscribe.selected).text).toBe('Hello from the board meeting.');
+      $('trRevert').click();
+      expect($('trEdited').hidden).toBe(true);
+      expect($('trText').value.startsWith('[00:00:00] Hello from the meeting.')).toBe(true);
+      $('trTimes').click();
+    });
+    it('Download gives the chosen format; another file in the list opens its own transcript', async () => {
+      const got = [];
+      W.SlopAITools.download = (name, blob) => got.push({ name, blob });
+      $('trFormat').value = 'srt'; $('trDownload').click();
+      $('trFormat').value = 'docx'; $('trDownload').click();
+      await waitFor(() => got.length === 2);
+      expect(got.map((g) => g.name)).toEqual(['Board call.srt', 'Board call.docx']);
+      expect((await got[0].blob.text()).split('\n')[1]).toBe('00:00:00,000 --> 00:00:02,000');
+      D.querySelectorAll('#trFiles li')[1].click();
+      expect($('trPaneTitle').textContent).toBe('Voice note.m4a');
+    });
+    it('a language chosen in the dialog reaches the engine as its Whisper code and is named in English', async () => {
+      seen.length = 0;
+      W.SlopTranscribe.add([mp3('Hula.mp3')]);
+      $('trModel').click();
+      const dlg = await waitFor(() => topDialog(D));
+      const search = dlg.querySelector('.spm-search');
+      search.value = 'haw'; search.dispatchEvent(new W.Event('input'));
+      dlg.querySelector('.spm-lang').click();
+      await waitFor(() => !dlg.querySelector('.sui-foot .sui-primary').disabled);
+      dlg.querySelector('.sui-foot .sui-primary').click();
+      expect($('trModel').textContent).toBe('Hawaiian · Whisper tiny ▾');
+      $('trRun').click();
+      await waitFor(() => seen.length === 1 && !W.SlopTranscribe.queue.busy, { timeout: 10000 });
+      expect(seen).toEqual([['haw', 'whisper-tiny']]);
+      D.querySelectorAll('#trFiles li')[2].click();
+      expect($('trPaneMeta').textContent).toContain('language Hawaiian');
+      // not pinned: the next file is detected afresh
+      W.SlopTranscribe.add([mp3('Next.mp3')]);
+      expect($('trModel').textContent).toBe('Detect automatically · Whisper tiny ▾');
+    });
+    it('Swedish: the upgrade downloads KB-Whisper small and reads the file again; corrections are asked about first', async () => {
+      await boot();
+      detected = [{ code: 'sv', p: 0.92 }, { code: 'no', p: 0.05 }];
+      seen.length = 0;
+      W.SlopTranscribe.add([mp3('Möte.mp3')]);
+      $('trRun').click();
+      await waitFor(() => $('trSuggest').querySelector('.tr-detect'), { timeout: 10000 });
+      expect($('trSuggest').querySelector('.tr-detect').textContent).toContain('Detected Swedish (92%) · read with Whisper tiny.');
+      expect($('trSuggest').textContent).toContain('For better accuracy: KB-Whisper small (KBLab, National Library of Sweden), 248 MB.');
+      W.SlopTranscribe.queue.edit(W.SlopTranscribe.selected, 'Hej från mötet.');
+      [...$('trSuggest').querySelectorAll('button')].find((b) => b.textContent === 'Transcribe again in higher quality').click();
+      const ask = await waitFor(() => topDialog(D));
+      expect(ask.textContent).toContain('corrections you made to it are lost');
+      [...ask.querySelectorAll('button')].find((b) => b.textContent === 'Transcribe again').click();
+      await waitFor(() => seen.length === 2 && !W.SlopTranscribe.queue.busy, { timeout: 10000 });
+      expect(installs).toEqual(['kb-whisper-small']);
+      expect(seen[1]).toEqual(['sv', 'kb-whisper-small']);
+      await waitFor(() => $('trText').value.startsWith('Read by kb-whisper-small.'));
+      // installed now: "Use it from now on for Swedish" makes later Swedish files go straight to it
+      expect($('trSuggest').textContent).not.toContain('For better accuracy');
+      [...$('trSuggest').querySelectorAll('button')].find((b) => b.textContent === 'Use it from now on for Swedish').click();
+      expect(JSON.parse(W.localStorage.getItem('slop.speech.prefer')).sv).toBe('kb-whisper-small');
+      W.SlopTranscribe.add([mp3('Möte 2.mp3')]);
+      $('trRun').click();
+      await waitFor(() => seen.length === 3 && !W.SlopTranscribe.queue.busy, { timeout: 10000 });
+      expect(seen[2]).toEqual(['sv', 'kb-whisper-small']);
+      W.localStorage.removeItem('slop.speech.prefer');
+      detected = [{ code: 'en', p: 0.97 }];
+    });
+    it('at 390 px the page has no sideways scroll and the list stacks above the transcript', async () => {
+      await boot(390);
+      W.SlopTranscribe.add([mp3('a-very-long-file-name-from-a-phone-recorder-2026-10-24.mp3')]);
+      await sleep(100);
+      expect(D.scrollingElement.scrollWidth <= W.innerWidth + 1).toBe(true);
+      expect(D.querySelector('.tr-pane').getBoundingClientRect().top).toBeGreaterThan(D.querySelector('.tr-list').getBoundingClientRect().top);
+      $('trModel').click();
+      const dlg = await waitFor(() => topDialog(D));
+      await waitFor(() => dlg.querySelectorAll('.spm-model').length === 3);
+      const r = dlg.getBoundingClientRect();
+      expect(r.left >= 0 && r.right <= W.innerWidth + 1).toBe(true);
+      expect(dlg.scrollWidth <= dlg.clientWidth + 1).toBe(true);
+      dlg.querySelector('.sui-x').click();
+    });
+    it('at 1280 px the panel on the right holds Record, Language and Save, with Transcribe at its foot', async () => {
+      await boot(1280);
+      const side = $('trSide');
+      expect(side.getBoundingClientRect().left >= $('trView').getBoundingClientRect().right - 1).toBe(true);
+      expect(Math.round(side.getBoundingClientRect().right)).toBe(1280);
+      expect([...side.querySelectorAll('.sf-h')].map((n) => n.textContent)).toEqual(['Record', 'Language', 'Save']);
+      for (const id of ['trRecord', 'trModel', 'trFormat', 'trDownload', 'trCopy', 'trDrive', 'trDocs']) expect(side.contains($(id))).toBe(true);
+      expect($('trRun').closest('.sf-p-foot').parentNode).toBe(side);
+      W.SlopTranscribe.add([mp3('one.mp3')]);
+      await sleep(100);
+      expect($('trRun').getBoundingClientRect().bottom <= 860).toBe(true);
+      $('trRun').click();
+      await waitFor(() => !W.SlopTranscribe.queue.busy && $('trText').value.includes('Hello'), { timeout: 10000 });
+    });
+    it('at 390 px Transcribe stays at the bottom of the screen; Options opens the sheet', async () => {
+      await boot(390);
+      W.SlopTranscribe.add([mp3('p.mp3')]);
+      await sleep(100);
+      const r = $('trRun').getBoundingClientRect();
+      expect(r.top > 760 && r.bottom <= 860).toBe(true);
+      D.querySelector('#trSide .sf-foot-more').click();
+      await waitFor(() => $('trSide').classList.contains('ssh-on'));
+      await sleep(300);
+      expect($('trModel').getBoundingClientRect().height > 0).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

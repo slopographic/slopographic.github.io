@@ -1,0 +1,22 @@
+/* The Calendar command palette, Arabic. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-ar.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'calendar.cmd.g_cal': 'التقويم',
+  'calendar.cmd.g_goto': 'انتقال إلى',
+  'calendar.cmd.prev': 'التقويم: الفترة السابقة',
+  'calendar.cmd.next': 'التقويم: الفترة التالية',
+  'calendar.cmd.today': 'التقويم: الذهاب إلى اليوم',
+  'calendar.cmd.year': 'التقويم: عرض السنة',
+  'calendar.cmd.month': 'التقويم: عرض الشهر',
+  'calendar.cmd.split': 'التقويم: العرض المقسّم',
+  'calendar.cmd.undo': 'التقويم: التراجع عن آخر نقل',
+  'calendar.cmd.week': 'التقويم: عرض الأسبوع',
+  'calendar.cmd.day': 'التقويم: عرض اليوم',
+  'calendar.cmd.agenda': 'التقويم: جدول الأعمال',
+  'calendar.cmd.new': 'التقويم: حدث جديد',
+  'calendar.cmd.tasks': 'التقويم: إظهار المهام أو إخفاؤها',
+  'calendar.cmd.import': 'التقويم: استيراد ملف .ics',
+  'calendar.cmd.export': 'التقويم: تصدير ملف .ics',
+  'calendar.cmd.todo': 'الانتقال إلى Slop To-do',
+  'calendar.cmd.reminders': 'الانتقال إلى Slop Reminders',
+  'calendar.cmd.crm': 'الانتقال إلى Slop CRM',
+});

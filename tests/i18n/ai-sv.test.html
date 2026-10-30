@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI in Swedish</title>
+  <!-- Covers: ai/i18n/index.js, ai/js/core/util.js, ai/js/core/engine.js, ai/js/core/store.js, ai/js/ui/shell.js,
+       ai/js/ui/chatlist.js, ai/js/ui/chat.js, ai/js/ui/messages.js, ai/js/ui/models.js, ai/js/ui/sysview.js,
+       ai/js/ui/builder.js, ai/js/ui/builder-prompts.js, ai/js/ui/commands.js, ai/js/ui/settings.js, ai/js/ui/launcher.js,
+       ai/js/ui/workspace.js, ai/js/ui/sloppo.js -->
+  <!-- Covers (strings): ai/js/ui/speccard.js ai/js/ui/ctxmenu.js ai/js/ui/intake.js ai/js/ui/drive.js ai/js/ui/ai-commands.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop AI (demo engine, its own database) in a same-origin iframe, so it shares this page's localStorage (the language).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../ai/?engine=fake&db=slop-ai-i18n-' + Math.random().toString(36).slice(2, 8);
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.body.classList.contains('ready') && f.contentWindow.AI && f.contentWindow.AI.sys && !f.contentWindow.AI.sysBusy, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(ai|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const tabNames = (doc) => [...doc.querySelectorAll('#tabs .tab')].map((b) => b.textContent.trim());
+  async function moreMenu(f) {
+    f.contentDocument.getElementById('btnMore').click();
+    const m = await waitFor(() => f.contentDocument.querySelector('.sui-menu'), { timeout: 10000 });
+    const items = [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+    f.contentDocument.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return items;
+  }
+
+  describe('Slop AI in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish tabs, chat, composer, menu and palette titles, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(tabNames(doc)).toEqual(['Chatt', 'Bygg', 'Modeller', 'Klarar min dator det?']);
+      expect(doc.getElementById('btnNewChat').textContent.trim()).toBe('Ny chatt');
+      expect(doc.querySelector('#view-chat textarea.input').getAttribute('placeholder')).toBe('Skriv till Slop AI');
+      expect(doc.getElementById('btnTools').textContent.trim()).toBe('Styr appar');
+      expect(doc.querySelector('.apps-h').textContent).toBe('Appar');
+      expect((await moreMenu(f)).join(' | ')).toContain('Om Slop AI');
+      expect(W.SlopCmd.get('ai.newChat').title).toBe('Ny chatt');
+      expect(W.SlopCmd.get('ai.newChat').group).toBe('Chatt');
+      W.AI.setTab('models');
+      await waitFor(() => doc.querySelector('#view-models h1') && doc.querySelector('#view-models .mcard'), { timeout: 10000 });
+      expect(doc.querySelector('#view-models h1').textContent).toBe('Modeller');
+      expect(doc.querySelector('#mStorageH').textContent).toBe('Lagring');
+      // the strength tags on the model cards (ai/js/ui/models.js, ai.models.tag_*)
+      expect(doc.querySelector('#view-models .mcard .tag[data-tag="fast"]').textContent).toBe('snabb');
+      expect(doc.querySelector('#view-models .mcard .tag[data-tag="mini-apps"]').textContent).toBe('miniappar');
+      W.AI.setTab('build');
+      expect(doc.querySelector('.build-hello b').textContent).toBe('Bygg en miniapp');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow, I = W.SlopI18n;
+      I.set('en');
+      await waitFor(() => tabNames(doc)[0] === 'Chat' && doc.getElementById('btnTools').textContent.trim() === 'Control apps', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(doc.querySelector('#view-chat textarea.input').getAttribute('placeholder')).toBe('Message Slop AI');
+      expect(doc.getElementById('btnNewChat').textContent.trim()).toBe('New chat');
+      expect(W.SlopCmd.get('ai.newChat').title).toBe('New chat');
+      expect((await moreMenu(f)).join(' | ')).toContain('About Slop AI');
+      I.set('sv');
+      await waitFor(() => tabNames(doc)[0] === 'Chatt' && doc.querySelector('.apps-h').textContent === 'Appar', { timeout: 20000 });
+      expect(W.SlopCmd.get('ai.newChat').title).toBe('Ny chatt');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      const bar = doc.querySelector('.topbar');
+      expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop AI in Swedish' });
+  </script>
+</body>
+</html>

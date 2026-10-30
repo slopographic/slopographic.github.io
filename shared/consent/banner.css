@@ -1,0 +1,72 @@
+/* The consent card: a small card floating at the bottom start corner (left; right in right-to-left languages) (full width less a gutter on phones). Light by default, dark when the theme or the system asks for dark. */
+:root {
+  --slopc-bg: #ffffff;
+  --slopc-fg: #111111;
+  --slopc-line: rgba(0, 0, 0, 0.18);
+  --slopc-accent: #d4ff3a;
+  --slopc-accent-ink: #0a0a0a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-slop-theme]) {
+    --slopc-bg: #111111;
+    --slopc-fg: #f1ede4;
+    --slopc-line: rgba(241, 237, 228, 0.25);
+  }
+}
+:root[data-theme="dark"]:not([data-slop-theme]) {
+  --slopc-bg: #111111;
+  --slopc-fg: #f1ede4;
+  --slopc-line: rgba(241, 237, 228, 0.25);
+}
+/* On a page with the shared theme (theme.js sets data-slop-theme), the banner takes the chosen theme's colours. */
+:root[data-slop-theme] {
+  --slopc-bg: var(--sl-surface, #ffffff);
+  --slopc-fg: var(--sl-text, #111111);
+  --slopc-line: color-mix(in srgb, var(--sl-text, #111111) 25%, transparent);
+  --slopc-accent: var(--sl-accent, #d4ff3a);
+  --slopc-accent-ink: var(--sl-on-accent, #0a0a0a);
+}
+
+.slopc-banner {
+  position: fixed;
+  inset-inline-start: 16px;
+  bottom: 16px;
+  z-index: var(--z-consent, 1000);
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 32px));
+  display: grid;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  background: var(--slopc-bg);
+  color: var(--slopc-fg);
+  border: 1px solid var(--slopc-line);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  animation: slopc-in 0.25s ease-out;
+}
+/* On a phone the card sits above a sheet footer pinned to the bottom of the window (an app's main button, shared/frame/panel.js
+ * publishes its height as --slop-foot-h), so the main button is never under it. */
+@media (max-width: 900px) { .slopc-banner { bottom: calc(16px + var(--slop-foot-h, 0px)); } }
+@keyframes slopc-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .slopc-banner { animation: none; } }
+.slopc-text { margin: 0; padding-inline-end: 22px; }
+.slopc-text a { color: inherit; text-underline-offset: 2px; }
+.slopc-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.slopc-btn {
+  font: inherit;
+  padding: 4px 12px;
+  border: 1px solid var(--slopc-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--slopc-fg);
+  cursor: pointer;
+}
+.slopc-btn.primary { background: var(--slopc-accent); border-color: var(--slopc-accent); color: var(--slopc-accent-ink); }
+.slopc-btn.x { position: absolute; top: 6px; inset-inline-end: 6px; padding: 4px 8px; border: 0; font-size: 16px; line-height: 1; }
+.slopc-btn:focus-visible { outline: 2px solid var(--slopc-fg); outline-offset: 2px; }
+
+/* While the card is up on a page that scrolls (slopc-pad, banner.js), the page's bottom padding grows by the card's height and
+ * its gap, so nothing at the end of the page can scroll under it. --slopc-base-pb is the page's own bottom padding, kept. A
+ * full-height app keeps its size: the card floats over it (above its footer on a phone). */
+html.slopc-on.slopc-pad body { padding-bottom: calc(var(--consent-h, 0px) + var(--slopc-base-pb, 0px)); }

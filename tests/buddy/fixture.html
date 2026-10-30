@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Buddy fixture app</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1a1a1a; color: #eee; font: 14px system-ui; }
+    body { display: grid; grid-template-rows: 44px 1fr; overflow: hidden; }
+    .toolbar { display: flex; gap: 8px; align-items: center; padding: 6px 12px; background: #222; border-bottom: 1px solid #333; }
+    main { display: grid; grid-template-columns: 1fr 260px; gap: 12px; padding: 12px; }
+    canvas { width: 100%; height: 100%; background: #fff; }
+    .side { display: grid; align-content: start; gap: 12px; padding-top: 120px; }
+    .panel { background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; padding: 14px; min-height: 120px; }
+    .panel h2 { margin: 0 0 8px; font-size: 16px; }
+  </style>
+  <script>
+    // ?app=<id>  sets the app id;  ?ai=1  installs a stub window.SlopAI;  ?cmd=1  a stub SlopCmd.
+    const q = new URLSearchParams(location.search);
+    document.documentElement.dataset.app = q.get('app') || 'label';
+    window.cmdRuns = [];
+    if (q.get('cmd')) window.SlopCmd = {
+      search: (s) => [{ id: 'barcode.add', title: 'Add barcode' }, { id: 'print', title: 'Print' }].filter((c) => (c.id + ' ' + c.title).toLowerCase().includes(String(s).toLowerCase())),
+      run: (id) => window.cmdRuns.push(id),
+    };
+    if (q.get('ai')) {
+      const listeners = new Set();
+      window.aiAsks = [];
+      window.SlopAI = {
+        ready: q.get('ai') === 'ready',
+        on(evt, fn) { listeners.add(fn); return () => listeners.delete(fn); },
+        ask(prompt, opts) { window.aiAsks.push([prompt, opts]); return (async function* () { yield 'SLURP. '; yield 'I am the slop.'; })(); },
+        comment(what) { window.aiAsks.push(['comment', what]); return (async function* () { yield 'nice label.'; })(); },
+        _wake() { this.ready = true; listeners.forEach((f) => f()); },
+      };
+    }
+  </script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <header class="toolbar" role="toolbar"><button id="tool-a">Select</button><button id="tool-b">Text</button><button id="tool-c">Barcode</button></header>
+  <main>
+    <canvas id="work" width="600" height="400"></canvas>
+    <aside class="side">
+      <section class="panel" id="layers"><h2>Layers</h2><p>Layer 1</p></section>
+      <section class="panel" id="props"><h2>Properties</h2><p>Width 100</p></section>
+    </aside>
+  </main>
+  <script src="../../shared/apps.js"></script>
+  <script type="module" src="../../shared/buddy/boot.js"></script>
+</body>
+</html>

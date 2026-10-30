@@ -1,0 +1,40 @@
+/* Slop Gallery: full-screen viewer, Sort mode (swipe deck) and the duplicates dialog. */
+.viewer { position: fixed; inset: 0; z-index: 1000; background: #000; color: #f2f0ea; display: flex; flex-direction: column; outline: none; }
+.viewer[hidden] { display: none; }
+.v-top, .v-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; background: rgba(0, 0, 0, .7); font-size: 12px; }
+.v-top .v-btn, .v-foot .v-btn { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .15); color: #f2f0ea; }
+.v-btn.danger { color: #ff9bb0; }
+.v-btn[aria-pressed="true"] { border-color: var(--accent, #d4ff3a); color: var(--accent, #d4ff3a); }
+.v-spacer { flex: 1; }
+.v-count { font-family: ui-monospace, Menlo, monospace; color: #bdb9b0; }
+.v-sel { background: rgba(255, 255, 255, .08); color: #f2f0ea; border: 1px solid rgba(255, 255, 255, .15); border-radius: 6px; padding: 5px; }
+.v-stage { flex: 1; min-height: 0; position: relative; display: flex; }
+.v-pic { flex: 1; min-width: 0; min-height: 0; display: flex; overflow: hidden; }
+.v-pic > .spv { flex: 1 1 auto; min-width: 0; min-height: 0; --spv-fg: #f2f0ea; --spv-line: rgba(255, 255, 255, .15); }
+.v-foot { flex-wrap: wrap; justify-content: center; gap: 6px; padding: 8px 10px; background: rgba(0, 0, 0, .7); font-size: 12px; }
+.v-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 44px; height: 64px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .1); color: #fff; font-size: 30px; cursor: pointer; }
+.v-nav.prev { left: 8px; } .v-nav.next { right: 8px; }
+.v-nav:hover { background: rgba(255, 255, 255, .2); }
+.v-info { position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 92vw); overflow-y: auto; padding: 14px; background: rgba(12, 12, 14, .94); border-left: 1px solid rgba(255, 255, 255, .1); z-index: 3; }
+.v-info[hidden] { display: none; }
+.v-row { display: flex; flex-direction: column; margin-bottom: 10px; font-size: 12px; }
+.v-row b { color: #8f8c85; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.v-row span { word-break: break-word; }
+
+.chip { background: rgba(255, 255, 255, .12); border: 0; color: #f2f0ea; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12px; }
+
+.dupes-dlg { width: min(640px, 100%); }
+.dupes { max-height: 62vh; overflow-y: auto; }
+.dupe-group { border-top: 1px solid var(--s-line, #3d3d3d); padding: 8px 0; }
+.dupe-h { font-size: 13px; margin: 4px 0 6px; }
+.dupe-row { display: flex; align-items: center; gap: 10px; padding: 4px; border-radius: 6px; cursor: pointer; }
+.dupe-row:hover { background: var(--s-hover, #3a3a3a); }
+.dupe-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; background: #111; flex: none; }
+.dupe-meta { display: flex; flex-direction: column; min-width: 0; }
+.dupe-meta b { font-weight: 600; word-break: break-all; }
+.dupe-meta small { color: var(--s-faint, #6c6c6c); }
+
+@media (max-width: 560px) {
+  .v-nav { width: 34px; height: 52px; font-size: 24px; }
+  .v-info { width: 100%; }
+}

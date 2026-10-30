@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Tables: the look (header buttons one height, nothing past the edge, no sideways scroll)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: tables/index.html -->
+  <!-- Covers: tables/css/tables.css -->
+  <!-- Covers: shared/ui/hbtn.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The page in a fresh iframe of this width, once it and the shell's header buttons are in. */
+  async function open(width) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = SRC;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-hdr .slop-hbtn') && D.querySelector(READY); }, { timeout: 30000 });
+    await sleep(600);   // the header fit (shared/ui/hbtn.js) runs on the next frame
+    return f.contentDocument;
+  }
+  const box = (n) => n.getBoundingClientRect();
+  const shown = (n) => !!n && box(n).width > 0 && box(n).height > 0;
+  const headers = (D) => [...D.querySelectorAll('header')].filter((n) => shown(n) && !n.parentElement.closest('header'));
+  const hbtns = (D) => [...D.querySelectorAll('.slop-hbtn')].filter(shown);
+  /** The shared header buttons are one height, and the page's own buttons (selectors) match it. */
+  function sameHeight(D, sels) {
+    const hs = hbtns(D).map((n) => Math.round(box(n).height));
+    expect(hs.length).toBeGreaterThan(3);
+    for (const h of hs) expect(h).toBe(hs[0]);
+    for (const sel of sels) {
+      const n = D.querySelector(sel);
+      if (!shown(n)) continue;
+      expect(sel + ' ' + Math.round(box(n).height)).toBe(sel + ' ' + hs[0]);
+    }
+    return hs[0];
+  }
+  /** Nothing in the header ends past its right edge or is clipped by it, and the page does not scroll sideways. */
+  function fits(D) {
+    const h = headers(D)[0], W = D.defaultView.innerWidth;
+    expect(h.scrollWidth).toBeLessThanOrEqual(h.clientWidth + 1);
+    for (const n of h.querySelectorAll('button, a, input, select')) if (shown(n)) expect((n.id || n.className) + ' ' + (box(n).right <= W + 0.5)).toBe((n.id || n.className) + ' true');
+    expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(W);
+  }
+  /** Every shared header button sits on the row of the given element. */
+  function oneRow(D, sel) {
+    const r = box(D.querySelector(sel));
+    for (const n of hbtns(D)) expect(Math.abs((box(n).top + box(n).bottom) / 2 - (r.top + r.bottom) / 2)).toBeLessThan(2);
+  }
+  const SRC = '../../tables/index.html', READY = '#btnCmd';
+
+  describe('Slop Tables: the look', () => {
+    for (const W of [1440, 1024]) {
+      it(W + ': one row with Save and every shared button in view, all as tall as the number format', async () => {
+        const D = await open(W);
+        expect(headers(D).length).toBe(1);
+        expect(sameHeight(D, ['#btnSave', '#btnUndo', '#btnBold', '#nf', '#fileName', '#btnCmd'])).toBe(34);
+        oneRow(D, '#btnSave');
+        fits(D);
+        for (const m of D.querySelectorAll('.menu-b')) expect(box(m).right).toBeLessThan(box(D.getElementById('btnUndo')).left);
+      }, { timeout: 40000 });
+    }
+    it('390: nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+    // Slop AI's panel sits beside the app above 900 px: the page narrows (to 1060 px here) while the window stays wide, so
+    // the bar's steps follow the app's width (container queries) and the header fit runs again (shared/ui/hbtn.js).
+    it('1440 with the AI panel open beside the app: the header gives way and never scrolls sideways', async () => {
+      const D = await open(1440), W = D.defaultView;
+      Object.defineProperty(W.navigator, 'gpu', { value: undefined, configurable: true });   // the panel's no-WebGPU state
+      D.querySelector('header .sh-ai').click();
+      await waitFor(() => W.SlopAIPanel && W.SlopAIPanel.isOpen && D.documentElement.classList.contains('sap-beside'), { timeout: 20000 });
+      await W.SlopAIPanel.ready;
+      await sleep(600);
+      const h = headers(D)[0], panel = box(D.querySelector('.sap'));
+      expect(Math.round(box(D.body).width)).toBeLessThan(1100);
+      expect(h.scrollWidth).toBeLessThanOrEqual(h.clientWidth + 1);
+      for (const n of h.querySelectorAll('button, a, input, select')) if (shown(n)) expect((n.id || n.className) + ' ' + (box(n).right <= panel.left + 0.5)).toBe((n.id || n.className) + ' true');
+      expect(box(D.getElementById('btnSave')).right).toBeLessThanOrEqual(box(h).right);
+      W.SlopAIPanel.toggle();
+      await waitFor(() => !D.documentElement.classList.contains('sap-beside'), { timeout: 10000 });
+      await sleep(600);
+      fits(D);
+    }, { timeout: 60000 });
+    // Swedish menu names are longer (Redigera, Infoga): at 1024 and 1440 the bar still fits (a white-label build defaults
+    // to sv), and the name field, the bar's give, shrinks first: a longer brand or word does not push the bar past the edge.
+    it('1024 and 1440 in Swedish: one row, nothing past the edge, the name field gives way', async () => {
+      let was = null;
+      try { was = localStorage.getItem('slop-profile'); localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } })); } catch (e) { /* no storage */ }
+      try {
+        for (const W of [1024, 1440]) {
+          const D = await open(W);
+          expect(D.documentElement.lang).toBe('sv');
+          oneRow(D, '#btnSave');
+          fits(D);
+          // the name field gives way (shrinks to its minimum) before the header has to fold its buttons (shared/ui/hbtn.js)
+          const cs = D.defaultView.getComputedStyle(D.querySelector('.fname'));
+          expect(W + ' ' + (Number(cs.flexShrink) > 0 && box(D.querySelector('.fname')).width >= parseFloat(cs.minWidth) - 0.5)).toBe(W + ' true');
+        }
+      } finally { try { if (was === null) { localStorage.removeItem('slop-profile'); SlopTest.english(); } else localStorage.setItem('slop-profile', was); } catch (e) { /* no storage */ } }
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Tables: the look' });
+  </script>
+</body>
+</html>

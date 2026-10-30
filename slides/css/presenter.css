@@ -1,0 +1,34 @@
+/* Slop Slides: the presenter view (second window, built by js/ui/presenter-view.js). Current slide large on the left; the
+   next slide and the notes on the right; the counter, timer and clock on top; the controls below. One column on narrow
+   windows. The buttons are the shared .sui-btn (shared/slopui.css). */
+:root { --bg: #0e0e10; --panel: #16161a; --line: #2a2a31; --text: #f1ede4; --dim: #a29e95; --acc: #d4ff3a; color-scheme: dark; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body.pv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--bg); color: var(--text); font: 15px/1.45 "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+.pv-head, .pv-foot { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.pv-foot { border-top: 1px solid var(--line); border-bottom: 0; }
+.pv-flex { flex: 1 1 auto; }
+.pv-count { font-weight: 700; font-size: 17px; }
+.pv-steps { color: var(--acc); font-size: 13px; }
+.pv-timer { font: 700 26px/1 "JetBrains Mono", ui-monospace, monospace; letter-spacing: .02em; }
+.pv-timer.paused { color: var(--dim); }
+.pv-now { color: var(--dim); font-variant-numeric: tabular-nums; min-width: 3.2em; text-align: right; }
+.pv-main { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 16px; padding: 16px; min-height: 0; }
+.pv-curbox { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; }
+.pv-curbox canvas, .pv-nextbox canvas { display: block; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); background: #000; }
+.pv-black { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .82); color: var(--dim); border-radius: 6px; }
+.pv-black[hidden] { display: none; }
+.pv-side { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 8px; min-height: 0; min-width: 0; }
+.pv-nextbox { display: grid; gap: 8px; height: min(34vh, 260px); grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.pv-nextbox canvas { justify-self: start; }
+.pv-end { display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 6px; color: var(--dim); }
+.pv-end[hidden], .pv-nextbox canvas[hidden] { display: none; }
+.pv-h { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+.pv-notes { overflow: auto; white-space: pre-wrap; font-size: 20px; line-height: 1.5; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-height: 0; }
+.pv-notes.empty { color: var(--dim); font-size: 15px; }
+.pv-over .pv-main, .pv-over .pv-foot { opacity: .4; pointer-events: none; }
+@media (max-width: 760px) {
+  body.pv { overflow: auto; height: auto; }
+  .pv-main { grid-template-columns: minmax(0, 1fr); }
+  .pv-curbox { height: 52vw; }
+}

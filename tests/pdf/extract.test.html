@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: Extract all</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- File ▸ Extract all: images, embedded files, fonts, text and pages from a PDF made in the test, as a ZIP whose files
+       match the originals byte for byte, and the headless operation that File convert, Workflows and the assistant use. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="objects.helpers.js"></script>
+  <script src="pdf.spec-extract.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF: Extract all' });</script>
+</body>
+</html>

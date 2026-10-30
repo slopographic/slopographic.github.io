@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: the details panel's main buttons at its foot (1280 and 390)</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: drive/js/ui/info-foot.js, drive/js/ui/info.js, drive/css/panels.css, drive/css/mobile.css
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, D;
+  async function boot(width, height) {
+    if (W) W.__frame.remove();
+    W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width, height });
+    DR = W.DR; D = W.document;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+    await W.SlopHub.clear(); await DR.refresh();
+    await W.SlopHub.put(DT.text('hello'), { name: 'note.txt', from: 'upload' });
+    await W.SlopHub.createFolder('Contracts', null);
+    await DR.refresh(); DR.go(null);
+  }
+  const fileKey = () => 'f:' + [...DR.S.files.keys()][0];
+  const folderId = () => [...DR.S.folders.values()].find((f) => f.name === 'Contracts').id;
+
+  describe('Slop Drive: the main buttons at the details panel\'s foot', () => {
+    it('at 1280 the panel is on the right and Open (a folder) sits at its foot and opens it', async () => {
+      await boot(1280, 780);
+      DR.toggleInfo(true);
+      DR.select(['d:' + folderId()]);
+      DR.renderInfo(true);
+      const main = D.getElementById('infoMain'), info = D.getElementById('info');
+      expect(main.textContent).toBe('Open');
+      expect(main.closest('.sf-p-foot').parentNode).toBe(info);
+      expect(info.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('main').getBoundingClientRect().right - 1);
+      expect(main.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      main.click();
+      await waitFor(() => DR.S.cwd === folderId());
+    }, { timeout: 40000 });
+
+    it('a file has Download beside it; several files have Download N items; nothing selected, no footer', async () => {
+      DR.go(null); DR.select([fileKey()]); DR.renderInfo(true);
+      const labels = [...D.querySelectorAll('#info .sf-p-foot .sf-foot-acts > button:not(.sf-foot-more)')].map((b) => b.textContent);
+      expect(labels).toContain('Download');
+      DR.select([fileKey(), 'd:' + folderId()]); DR.renderInfo(true);
+      expect(D.getElementById('infoMain').textContent).toBe('Download 2 items');
+      DR.select([]); DR.renderInfo(true);
+      expect(D.querySelector('#info .sf-p-foot')).toBe(null);
+    }, { timeout: 40000 });
+
+    it('at 390 the closed details sheet shows the main button at the bottom; Details opens the sheet; no sideways scroll', async () => {
+      await boot(390, 844);
+      DR.select([fileKey()]); DR.renderInfo(true);
+      await sleep(100);
+      const main = D.getElementById('infoMain'), r = main.getBoundingClientRect();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(r.height).toBeGreaterThan(0);
+      expect(r.bottom).toBeLessThanOrEqual(844.5);
+      expect(r.top).toBeGreaterThan(844 - 120);
+      expect(D.getElementById('status').getBoundingClientRect().bottom).toBeLessThanOrEqual(D.querySelector('#info .sf-p-foot').getBoundingClientRect().top + 1);
+      D.querySelector('#info .sf-foot-more').click();
+      await waitFor(() => D.getElementById('info').classList.contains('ssh-on'));
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Drive: info foot' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopViewMode: the View menu and Show panels</title>
+<link rel="stylesheet" href="../../shared/slopui.css">
+<link rel="stylesheet" href="../../shared/ui/hbtn.css">
+<style>body { margin: 0; } #top { display: flex; gap: 8px; padding: 6px; } #side, #panels { height: 60px; }</style>
+</head>
+<body>
+  <div id="top"><button>Save</button></div>
+  <div id="side">side</div>
+  <div id="panels">panels</div>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/viewmode/grid.js"></script><script src="../../shared/viewmode/viewmode.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/viewmode/viewmode.js, shared/viewmode/viewmode.css, shared/viewmode/grid.js, shared/slopui.js
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  const V = window.SlopViewMode;
+  const $ = (id) => document.getElementById(id);
+  const btn = () => $('top').querySelector('.slopvm-btn');
+  const reveal = () => $('top').querySelector('.slopvm-reveal');
+  const shown = (n) => getComputedStyle(n).display !== 'none';
+  const rows = () => [...document.querySelectorAll('.slopvm-menu .sui-row')];
+  const row = (start) => rows().find((r) => r.querySelector('.sui-lbl').textContent.startsWith(start));
+  const open = async () => { btn().click(); return waitFor(() => document.querySelector('.slopvm-menu')); };
+
+  describe('View menu', () => {
+    it('the View button is a shared header button with an icon, the mode name and a menu popup', async () => {
+      try { localStorage.removeItem('slop.viewmode'); } catch (e) { /* ignore */ }
+      V.register('vm-menu', { regions: { toolbar: '#top', sidebar: '#side', panels: '#panels' }, mount: '#top' });
+      V.set('full');
+      await waitFor(() => getComputedStyle(document.querySelector('.slopvm-bar')).order === '999');   // viewmode.css has loaded
+      expect(btn().classList.contains('slop-hbtn')).toBe(true);
+      expect(btn().getAttribute('aria-haspopup')).toBe('menu');
+      expect(!!btn().querySelector('svg rect')).toBe(true);
+      expect(btn().querySelector('.slopvm-txt').textContent).toBe('Full');
+    });
+    it('lists Full, Focus and Content with the current one checked, then Show hidden panels and Next view', async () => {
+      const m = await open();
+      expect(rows().map((r) => r.querySelector('.sui-lbl').textContent)).toEqual(['Full: everything shown', 'Focus: fewer bars and sidebars', 'Content: only the work area', 'Show hidden panels', 'Next view']);
+      expect(row('Full').getAttribute('aria-checked')).toBe('true');
+      expect(row('Focus').getAttribute('aria-checked')).toBe('false');
+      expect(row('Show hidden').disabled).toBe(true);   // nothing is hidden in Full
+      expect(btn().getAttribute('aria-expanded')).toBe('true');
+      m.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await waitFor(() => !document.querySelector('.slopvm-menu'));
+      expect(btn().getAttribute('aria-expanded')).toBe('false');
+    });
+    it('a row picks its mode; the button shows it and keeps its place', async () => {
+      const at = btn().getBoundingClientRect();
+      await open(); row('Focus').click();
+      expect(V.mode()).toBe('focus');
+      expect(btn().querySelector('.slopvm-txt').textContent).toBe('Focus');
+      expect(btn().getBoundingClientRect().right).toBe(at.right);
+    });
+    it('Escape inside the open menu closes the menu and keeps the mode', async () => {
+      const m = await open();
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await waitFor(() => !m.isConnected);
+      expect(V.mode()).toBe('focus');
+    });
+    it('Show panels is there only in Focus and Content, and toggles the hidden regions', async () => {
+      expect(shown(reveal())).toBe(true);
+      expect(reveal().getAttribute('aria-pressed')).toBe('false');
+      reveal().click();
+      expect($('side').classList.contains('slopvm-off')).toBe(false);
+      expect(reveal().textContent).toBe('Hide panels');
+      expect(reveal().getAttribute('aria-pressed')).toBe('true');
+      await open();
+      expect(row('Hide the panels').disabled).toBe(false);
+      row('Hide the panels').click();
+      expect($('side').classList.contains('slopvm-off')).toBe(true);
+      V.set('full');
+      expect(shown(reveal())).toBe(false);
+    });
+    it('Next view goes to the next mode', async () => {
+      V.set('full');
+      await open(); row('Next view').click();
+      expect(V.mode()).toBe('focus');
+      V.set('full');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

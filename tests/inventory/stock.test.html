@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Inventory · counts, CSV, stock rules</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <!-- SlopI18n with the English tables, so the messages read as on the page -->
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script><script src="../../shared/biz/i18n/en/biz.js"></script><script src="../../inventory/i18n/en/page.js"></script><script src="../../inventory/i18n/en/views.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/purchases.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../inventory/js/core/util.js"></script>
+  <script src="../../inventory/js/core/csv.js"></script>
+  <script src="../../inventory/js/core/products.js"></script>
+  <script src="../../inventory/js/core/import.js"></script>
+  <script src="../../inventory/js/core/rows.js"></script>
+  <script src="../../inventory/js/core/stock-ops.js"></script>
+  <script src="../../inventory/js/core/count.js"></script>
+  <script src="../../inventory/js/core/scan.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const S = window.SlopData;
+  const NS = window.SlopInv;
+  const fresh = async () => { const r = await S.store.erase(); if (!r.ok) throw new Error(r.message); const q = await S.store.ready(); if (!q.ok) throw new Error(q.message); NS.count.cancel(); };
+  const ean13 = (body12) => body12 + S.barcode.checkDigit(body12);
+  const EAN_A = ean13('400638133393');
+  const EAN_B = ean13('500000000001');
+  const settings = { currency: 'USD', locale: 'en-US', defaultTaxRate: 0 };
+  async function product(sku, extra = {}) {
+    const r = await NS.products.save({ sku, name: `${sku} item`, price: 1250, taxRate: 2000, ...extra });
+    if (!r.ok) throw new Error(NS.util.refusal(r));
+    return r.value;
+  }
+  const onHand = async (id, loc) => (await S.stock.onHand(id, loc)).value;
+  const allProducts = async () => (await S.store.list('products')).value;
+
+  describe('stock count', () => {
+    it('a count shows the differences, and posting writes one adjustment per difference', async () => {
+      await fresh();
+      const a = await product('A-1');
+      const b = await product('B-1');
+      await NS.stockOps.receive({ productId: a.id, location: 'main', qty: 5 });
+      await NS.stockOps.receive({ productId: b.id, location: 'main', qty: 2 });
+      expect(NS.count.start('main').ok).toBe(true);
+      NS.count.set(a.id, 3);
+      NS.count.set(b.id, 2);
+      const rev = await NS.count.review();
+      expect(rev.ok).toBe(true);
+      expect(rev.value.changes).toBe(1);
+      const rowA = rev.value.rows.find((r) => r.productId === a.id);
+      expect(rowA.expected).toBe(5);
+      expect(rowA.diff).toBe(-2);
+      const posted = await NS.count.post('Monthly count');
+      expect(posted.ok).toBe(true);
+      expect(await onHand(a.id)).toBe(3);
+      expect(await onHand(b.id)).toBe(2);
+      const counts = await S.store.list('stockCounts');
+      expect(counts.value.length).toBe(1);
+      expect(counts.value[0].lines.length).toBe(2);
+      const countMoves = (await S.store.list('stockMovements')).value.filter((m) => m.reason === 'count');
+      expect(countMoves.length).toBe(1);
+      expect(countMoves[0].qty).toBe(-2);
+      expect(NS.count.isOpen()).toBe(false);
+    });
+
+    it('posting with no open count is refused, and a cancelled count changes no stock', async () => {
+      await fresh();
+      const a = await product('A-2');
+      await NS.stockOps.receive({ productId: a.id, location: 'main', qty: 4 });
+      expect((await NS.count.post()).ok).toBe(false);
+      NS.count.start('main');
+      NS.count.set(a.id, 0);
+      NS.count.cancel();
+      expect(await onHand(a.id)).toBe(4);
+    });
+
+    it('a second count cannot open while one is open', async () => {
+      await fresh();
+      NS.count.start('main');
+      expect(NS.count.start('back').ok).toBe(false);
+      NS.count.cancel();
+    });
+  });
+
+  describe('stock rules and transfers', () => {
+    it('a transfer moves stock between locations and keeps the total', async () => {
+      await fresh();
+      const p = await product('T-1');
+      await NS.stockOps.receive({ productId: p.id, location: 'main', qty: 5 });
+      const t = await NS.stockOps.transfer({ productId: p.id, from: 'main', to: 'back', qty: 2 });
+      expect(t.ok).toBe(true);
+      expect(await onHand(p.id, 'main')).toBe(3);
+      expect(await onHand(p.id, 'back')).toBe(2);
+      expect(await onHand(p.id)).toBe(5);
+    });
+
+    it('a quantity of zero, or a fraction, is refused before any write', async () => {
+      await fresh();
+      const p = await product('T-2');
+      expect((await NS.stockOps.receive({ productId: p.id, qty: 0 })).ok).toBe(false);
+      expect((await NS.stockOps.receive({ productId: p.id, qty: 1.5 })).ok).toBe(false);
+      expect((await S.store.list('stockMovements')).value.length).toBe(0);
+    });
+
+    it('an adjustment may remove stock only when negative stock is allowed', async () => {
+      await fresh();
+      const p = await product('T-3');
+      const refused = await NS.stockOps.adjust({ productId: p.id, location: 'main', qty: -1 });
+      expect(refused.ok).toBe(false);
+      const allowed = await NS.stockOps.adjust({ productId: p.id, location: 'main', qty: -1, allowNegative: true });
+      expect(allowed.ok).toBe(true);
+      expect(await onHand(p.id)).toBe(-1);
+    });
+  });
+
+  describe('products', () => {
+    it('a product with stock history cannot be deleted, and the message says why', async () => {
+      await fresh();
+      const p = await product('D-1');
+      await NS.stockOps.receive({ productId: p.id, location: 'main', qty: 1 });
+      const r = await NS.products.remove(p.id);
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('in_use');
+      expect(r.message).toContain('stock movement');
+      expect((await S.store.get('products', p.id)).value).toBeTruthy();
+    });
+
+    it('a product with no stock history is deleted', async () => {
+      await fresh();
+      const p = await product('D-2');
+      expect((await NS.products.remove(p.id)).ok).toBe(true);
+      expect(await S.store.get('products', p.id)).toEqual({ ok: true, value: null });
+    });
+
+    it('low stock is at or below the reorder level; no level means never low', async () => {
+      await fresh();
+      const low = await product('L-1', { reorderLevel: 2 });
+      const ok3 = await product('L-2', { reorderLevel: 2 });
+      const none = await product('L-3');
+      await NS.stockOps.receive({ productId: low.id, location: 'main', qty: 2 });
+      await NS.stockOps.receive({ productId: ok3.id, location: 'main', qty: 3 });
+      const rows = NS.rows.rowsOf(await allProducts(), (await S.store.list('stockMovements')).value);
+      expect(rows.find((r) => r.id === low.id).low).toBe(true);
+      expect(rows.find((r) => r.id === ok3.id).low).toBe(false);
+      expect(rows.find((r) => r.id === none.id).low).toBe(false);
+    });
+
+    it('stock value is whole minor units: on hand times price, formatted for display only', async () => {
+      await fresh();
+      const a = await product('V-1', { price: 1250 });
+      const b = await product('V-2', { price: 999 });
+      await NS.stockOps.receive({ productId: a.id, location: 'main', qty: 3 });
+      await NS.stockOps.receive({ productId: b.id, location: 'main', qty: 1 });
+      const rows = NS.rows.rowsOf(await allProducts(), (await S.store.list('stockMovements')).value);
+      const t = NS.rows.totalsOf(rows);
+      expect(t.value).toBe(4749);
+      expect(S.money.formatMinor(t.value, 'USD', 'en-US')).toBe('$47.49');
+    });
+
+    it('a product price is saved with the tax rate and EAN validated', async () => {
+      await fresh();
+      const bad = await NS.products.save({ sku: 'X-1', name: 'Bad', price: 100, taxRate: 2000, ean: EAN_A.slice(0, 12) + '0' });
+      expect(bad.ok).toBe(false);
+      expect(bad.errors.some((e) => e.field === 'ean')).toBe(true);
+      const good = await NS.products.save({ sku: 'X-2', name: 'Good', price: 100, taxRate: 2000, ean: EAN_A });
+      expect(good.ok).toBe(true);
+    });
+  });
+
+  describe('CSV import', () => {
+    const head = 'SKU,EAN,Name,Price,Reorder level\r\n';
+
+    it('a valid file previews as new and update rows, and applying writes all of them', async () => {
+      await fresh();
+      await product('OLD-1', { name: 'Old', price: 1000, reorderLevel: 9 });
+      const text = head + `OLD-1,,Renamed,12.50,4\r\nNEW-1,${EAN_B},New item,3.00,\r\n`;
+      const plan = NS.importer.planImport(text, await allProducts(), settings);
+      expect(plan.ok).toBe(true);
+      expect(plan.newCount).toBe(1);
+      expect(plan.updateCount).toBe(1);
+      const applied = await NS.importer.applyImport(plan);
+      expect(applied.ok).toBe(true);
+      const old = (await S.store.list('products', { index: 'sku', value: 'OLD-1' })).value[0];
+      expect(old.name).toBe('Renamed');
+      expect(old.price).toBe(1250);
+      expect(old.reorderLevel).toBe(4);
+      expect(old.taxRate).toBe(2000);
+      const made = (await S.store.list('products', { index: 'sku', value: 'NEW-1' })).value[0];
+      expect(made.ean).toBe(EAN_B);
+      expect(made.price).toBe(300);
+    });
+
+    it('a bad row changes nothing: the whole file is refused', async () => {
+      await fresh();
+      await product('KEEP-1');
+      const text = head + `GOOD-1,,Good,1.00,\r\nBAD-2,,Bad,abc,\r\nBAD-3,${EAN_A.slice(0, 12)}0,Wrong check,2.00,\r\n`;
+      const plan = NS.importer.planImport(text, await allProducts(), settings);
+      expect(plan.ok).toBe(false);
+      expect(plan.badRows).toBe(2);
+      const lineTwo = plan.lines.find((l) => l.sku === 'BAD-2');
+      expect(lineTwo.errors[0].field).toBe('price');
+      const applied = await NS.importer.applyImport(plan);
+      expect(applied.ok).toBe(false);
+      const all = (await S.store.list('products')).value;
+      expect(all.length).toBe(1);
+      expect(all[0].sku).toBe('KEEP-1');
+    });
+
+    it('a duplicate SKU in the file is reported with the first line it appeared on', async () => {
+      await fresh();
+      const plan = NS.importer.planImport(head + 'DUP,,One,1.00,\r\nDUP,,Two,2.00,\r\n', [], settings);
+      expect(plan.ok).toBe(false);
+      expect(plan.lines[1].errors[0].message).toContain('line 2');
+    });
+
+    it('a file without the sku, name and price columns is refused as a whole', async () => {
+      const plan = NS.importer.planImport('Code,Cost\r\nA,1\r\n', [], settings);
+      expect(plan.ok).toBe(false);
+      expect(plan.headerErrors.some((m) => m.includes('"name"'))).toBe(true);
+    });
+
+    it('a row counts what is on placed purchase orders, not drafts or received ones', async () => {
+      // Covers: inventory/js/core/rows.js
+      await fresh();
+      const p = await product('PO-1');
+      const line = (qty) => [{ productId: p.id, description: 'x', qty, unitPrice: 100, taxRate: 0 }];
+      const rows = NS.rows.rowsOf(await allProducts(), [], [{ status: 'ordered', lines: line(5) }, { status: 'ordered', lines: line(2) }, { status: 'draft', lines: line(9) }, { status: 'received', lines: line(4) }]);
+      expect(rows.find((r) => r.id === p.id).onOrder).toBe(7);
+      expect((await NS.rows.stockRows()).value.find((r) => r.id === p.id).onOrder).toBe(0);
+    });
+    it('an export reads back through the import as updates of the same products', async () => {
+      await fresh();
+      const p = await product('RT-1', { ean: EAN_A, reorderLevel: 3 });
+      const rows = NS.rows.rowsOf(await allProducts(), []);
+      const table = NS.importer.exportRows(rows, settings);
+      const text = NS.csv.build(table);
+      const plan = NS.importer.planImport(text, await allProducts(), settings);
+      expect(plan.ok).toBe(true);
+      expect(plan.updateCount).toBe(1);
+      expect(plan.records[0].id).toBe(p.id);
+      expect(plan.records[0].ean).toBe(EAN_A);
+    });
+
+    it('a quoted name with a comma and a doubled quote survives the CSV round trip', async () => {
+      const rows = NS.csv.parse('sku,name,price\n"Q-1","Bolt, ""large""",1.00\n');
+      expect(rows.rows[1][1]).toBe('Bolt, "large"');
+    });
+  });
+
+  run({ name: 'Inventory · counts, CSV, stock rules' });
+  </script>
+</body>
+</html>

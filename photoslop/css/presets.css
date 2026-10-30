@@ -1,0 +1,35 @@
+/* PhotoSlop effect preset picker (js/layers/fx-preset-picker.js). Rows, chips and the selected row; the dialog
+ * frame and buttons come from shared/slopui.css. New CSS uses the shared --sl-* theme tokens. */
+.sp-dlg { width: min(560px, calc(100vw - 32px)); }
+.sp-dialog { display: flex; flex-direction: column; gap: 10px; color: var(--sl-text, #111); }
+.sp-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-tools input[type="file"] { display: none; }
+.sp-list {
+  list-style: none; margin: 0; padding: 0; max-height: min(52vh, 420px); overflow: auto;
+  border: 1px solid var(--sl-border, #888); border-radius: 6px;
+}
+.sp-row {
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px; cursor: pointer;
+  border-bottom: 1px solid var(--sl-border, #888); color: var(--sl-text, #111);
+}
+.sp-row:last-child { border-bottom: 0; }
+.sp-row:hover { background: color-mix(in srgb, var(--sl-accent, #d4ff3a) 14%, transparent); }
+.sp-row.on { background: color-mix(in srgb, var(--sl-accent, #d4ff3a) 28%, transparent); }
+.sp-row:focus-visible { outline: 2px solid var(--sl-accent, #d4ff3a); outline-offset: -2px; }
+.sp-thumb { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 4px; max-width: 42%; }
+.sp-chips { justify-content: flex-start; }
+.sp-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px;
+  font-size: 11px; border: 1px solid var(--sl-border, #888); white-space: nowrap;
+}
+.sp-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.35); display: inline-block; }
+.sp-name { display: flex; flex-direction: column; min-width: 0; }
+.sp-name b { font-weight: 600; }
+.sp-name small { opacity: 0.8; font-size: 11px; }
+.sp-empty { padding: 14px; opacity: 0.8; }
+.sp-status { min-height: 1.2em; margin: 0; }
+.sp-help { margin: 0; font-size: 12px; opacity: 0.8; }
+@media (max-width: 600px) {
+  .sp-row { flex-wrap: wrap; }
+  .sp-thumb { max-width: 100%; }
+}

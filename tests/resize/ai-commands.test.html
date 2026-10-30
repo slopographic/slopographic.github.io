@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: the assistant's commands with arguments, state and checkpoint</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: resize/js/app/ai-commands.js, resize/js/app/commands.js, resize/js/app/main.js, resize/index.html
+  // SlopCmd.prepare() loads ai-commands.js on demand; exec() with arguments sets the panel's own controls, resize_all
+  // waits for the run and says what it made, state() summarises the list and settings, and a checkpoint restores them.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win = null, doc = null, Cmd = null;
+  const $ = (id) => doc.getElementById(id);
+  async function boot() {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:1280px;height:800px;border:0';
+    f.src = '../../resize/index.html';
+    document.body.append(f);
+    await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    win = f.contentWindow; doc = f.contentDocument;
+    await waitFor(() => win.SlopResize && win.SlopResize.app && win.SlopCmd && win.SlopCmd.get('rs.run'));
+    Cmd = win.SlopCmd;
+  }
+  /** A 1200 × 600 blue PNG, added to the queue; resolves once it is read. */
+  async function addPicture() {
+    const c = doc.createElement('canvas'); c.width = 1200; c.height = 600;
+    const x = c.getContext('2d'); x.fillStyle = '#0033cc'; x.fillRect(0, 0, 1200, 600);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    await win.SlopResize.queue.add(new win.File([blob], 'wide.png', { type: 'image/png' }));
+    await waitFor(() => win.SlopResize.queue.items().every((i) => i.src));
+  }
+
+  describe('Slop Resize: assistant commands', () => {
+    it('the AI file is not loaded on first paint, and prepare() loads it', async () => {
+      await boot();
+      expect([...doc.scripts].some((s) => /ai-commands\.js/.test(s.src))).toBe(false);
+      expect(Cmd.get('rs.ai.set-size')).toBe(null);
+      await Cmd.prepare();
+      const c = Cmd.get('rs.ai.set-size');
+      expect(c.tool).toBe('set_size');
+      expect(Cmd.get('rs.ai.set-output-format').tool).toBe('set_output_format');
+      expect(Cmd.get('rs.ai.resize-all').tool).toBe('resize_all');
+      expect(Cmd.list().find((v) => v.id === 'rs.ai.set-size').hidden).toBe(true);
+    });
+    it('set_size sets the panel controls (mode inferred, change fired)', async () => {
+      let changes = 0;
+      $('rs-panel').addEventListener('change', () => changes++);
+      const r = await Cmd.exec('rs.ai.set-size', { width: 300, height: 300, fill: 'cover' });
+      expect(r.ok).toBe(true);
+      expect(r.value).toContain('300 × 300');
+      expect([$('rs-mode').value, $('rs-w').value, $('rs-h').value, $('rs-fill').value]).toEqual(['size', '300', '300', 'cover']);
+      expect(changes > 0).toBe(true);
+      const p = await Cmd.exec('rs.ai.set-size', { percent: 25 });
+      expect(p.ok).toBe(true);
+      expect([$('rs-mode').value, $('rs-scale').value]).toEqual(['scale', '25']);
+    });
+    it('an invalid enum is an error and changes nothing', async () => {
+      const r = await Cmd.exec('rs.ai.set-size', { mode: 'banana' });
+      expect(r.ok).toBe(false);
+      expect(r.error).toContain('mode');
+      expect($('rs-mode').value).toBe('scale');
+      const f = await Cmd.exec('rs.ai.set-output-format', { format: 'gif' });
+      expect(f.ok).toBe(false);
+    });
+    it('set_output_format clamps an out-of-range quality and sets the format', async () => {
+      const r = await Cmd.exec('rs.ai.set-output-format', { format: 'WebP', quality: 150 });
+      expect(r.ok).toBe(true);
+      expect(r.args.quality).toBe(100);
+      expect(r.notes.length > 0).toBe(true);
+      expect([$('rs-mime').value, $('rs-quality').value, $('rs-quality-out').textContent]).toEqual(['image/webp', '100', '100%']);
+    });
+    it('resize_all is refused with an empty list', async () => {
+      const r = await Cmd.exec('rs.ai.resize-all', {});
+      expect(r.ok).toBe(false);
+    });
+    it('a checkpoint restores the settings', async () => {
+      const undo = Cmd.checkpoint();
+      expect(typeof undo).toBe('function');
+      await Cmd.exec('rs.ai.set-size', { mode: 'long', long_edge: 640 });
+      await Cmd.exec('rs.ai.set-output-format', { format: 'png' });
+      expect([$('rs-mode').value, $('rs-long').value, $('rs-mime').value]).toEqual(['long', '640', 'image/png']);
+      undo();
+      expect([$('rs-mode').value, $('rs-scale').value, $('rs-mime').value, $('rs-quality').value]).toEqual(['scale', '25', 'image/webp', '100']);
+      expect($('rs-long').closest('[data-modes]').hidden).toBe(true);
+    });
+    it('resize_all runs the queue and reports the output size and format', async () => {
+      await addPicture();
+      await Cmd.exec('rs.ai.set-size', { width: 300, height: 0, fill: 'within' });
+      await Cmd.exec('rs.ai.set-output-format', { format: 'jpeg', quality: 70 });
+      const r = await Cmd.exec('rs.ai.resize-all', {});
+      expect(r.ok).toBe(true);
+      expect(r.value).toContain('wide-300x150.jpg');
+      const it = win.SlopResize.queue.items()[0];
+      expect(it.status).toBe('done');
+      expect([it.out.w, it.out.h, it.out.ext, it.out.blob.type]).toEqual([300, 150, 'jpg', 'image/jpeg']);
+    });
+    it('state() summarises the list and the settings', async () => {
+      const s = Cmd.state();
+      expect(s.app).toBe('resize');
+      expect(s.files.length).toBe(1);
+      expect([s.files[0].name, s.files[0].width, s.files[0].height, s.files[0].status]).toEqual(['wide.png', 1200, 600, 'done']);
+      expect([s.files[0].output.width, s.files[0].output.height, s.files[0].output.format]).toEqual([300, 150, 'jpg']);
+      expect(s.files[0].output.bytes > 0).toBe(true);
+      expect([s.settings.mode, s.settings.width, s.settings.fill, s.settings.format, s.settings.quality]).toEqual(['size', 300, 'within', 'jpeg', 70]);
+      expect(JSON.stringify(s).length < 4000).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Resize assistant commands' });
+  </script>
+</body>
+</html>

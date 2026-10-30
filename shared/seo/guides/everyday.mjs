@@ -1,0 +1,138 @@
+// Guides for the everyday apps (shape in tools/seo/guides.mjs). Every step matches the app as it is; screenshots are real.
+// Slop Transcribe, Time, Slopculator, AI, AI Tools, Slopnodes, Serial counter, Calendar, To-do, Reminders, Drive, Music,
+// Reel Remix and SlopCut (registry id slopedit).
+// The facts only: the words are in the SEO tables, shared/seo/i18n/<code>/guide-everyday*.js (keys seo.guide.*),
+// joined by index.mjs (shared/seo/i18n.mjs). '@<key>' is the text of that key. Rules: shared/seo/i18n/README.md.
+export const GUIDES = [
+  {
+    app: 'transcribe',
+    slug: 'getting-started',
+    sections: [
+      { image: { src: '/assets/guides/transcribe-getting-started-1.jpg' } },
+      null,
+      { image: { src: '/assets/guides/transcribe-getting-started-2.jpg' } },
+    ],
+  },
+  {
+    app: 'time',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [
+      { image: { src: '/assets/guides/time-getting-started-1.jpg' } },
+      { image: { src: '/assets/guides/time-getting-started-2.jpg' } },
+      { image: { src: '/assets/guides/time-getting-started-3.jpg' } },
+    ],
+    shortcuts: [['Ctrl+Alt+1 to 6'], ['Ctrl+Alt+A'], ['Ctrl+Alt+G'], ['Ctrl+K']],
+  },
+  {
+    app: 'calculator',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/calculator-getting-started-1.jpg' } }],
+    shortcuts: [['Enter'], ['Up / Down'], ['Esc'], ['Ctrl+Alt+C'], ['Ctrl+Alt+S'], ['Ctrl+Alt+K']],
+  },
+  {
+    app: 'ai',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [
+      { image: { src: '/assets/guides/ai-getting-started-1.jpg' } },
+      { image: { src: '/assets/guides/ai-getting-started-2.jpg' } },
+      { image: { src: '/assets/guides/ai-getting-started-3.jpg' } },
+    ],
+    shortcuts: [['Ctrl+K', '@seo.guide.time.getting-started.shortcuts.3.1']],
+  },
+  {
+    app: 'aitools',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/aitools-getting-started-1.jpg' } }, null, { image: { src: '/assets/guides/aitools-getting-started-2.jpg' } }],
+  },
+  {
+    app: 'nodes',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/nodes-getting-started-1.jpg' } }],
+    shortcuts: [
+      ['Ctrl+Z'],
+      ['Ctrl+Y or Ctrl+Shift+Z'],
+      ['Ctrl+D'],
+      ['Ctrl+C / Ctrl+V'],
+      ['Ctrl+S', '@seo.guide.calculator.getting-started.shortcuts.4.1'],
+      ['Delete'],
+      ['Esc'],
+      ['Ctrl+wheel'],
+    ],
+  },
+  {
+    app: 'serials',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [null, { image: { src: '/assets/guides/serials-getting-started-1.jpg' } }, { image: { src: '/assets/guides/serials-getting-started-2.jpg' } }],
+  },
+  {
+    app: 'calendar',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [
+      { image: { src: '/assets/guides/calendar-getting-started-1.jpg' } },
+      { image: { src: '/assets/guides/calendar-getting-started-2.jpg' } },
+      { image: { src: '/assets/guides/calendar-getting-started-3.jpg' } },
+    ],
+    shortcuts: [['N'], ['T'], ['← / →'], ['Y / M / W / D'], ['S'], ['A'], ['K'], ['Ctrl+Z']],
+  },
+  {
+    app: 'todo',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [
+      { image: { src: '/assets/guides/todo-getting-started-2.jpg' } },
+      { image: { src: '/assets/guides/todo-getting-started-1.jpg' } },
+      { image: { src: '/assets/guides/todo-getting-started-3.jpg' } },
+    ],
+    shortcuts: [['N'], ['T'], ['U'], ['A'], ['F'], ['H']],
+  },
+  {
+    app: 'reminders',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/reminders-getting-started-1.jpg' } }],
+  },
+  {
+    app: 'drive',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/drive-getting-started-1.jpg' } }, { image: { src: '/assets/guides/drive-getting-started-2.jpg' } }],
+    shortcuts: [['Enter'], ['Space'], ['F2'], ['Delete'], ['S'], ['Ctrl+U'], ['/'], ['1 to 6'], ['I'], ['?']],
+  },
+  {
+    app: 'music',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/music-getting-started-1.jpg' } }, { image: { src: '/assets/guides/music-getting-started-2.jpg' } }],
+    shortcuts: [['Space'], ['← / →'], ['↑ / ↓'], ['M'], ['N'], ['P']],
+  },
+  {
+    app: 'remix',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [null, { image: { src: '/assets/guides/remix-getting-started-1.jpg' } }],
+  },
+  {
+    app: 'slopedit',
+    slug: 'getting-started',
+    crumb: '@seo.guide.transcribe.getting-started.crumb',
+    sections: [{ image: { src: '/assets/guides/slopedit-getting-started-1.jpg' } }],
+    shortcuts: [
+      ['Space', '@seo.guide.music.getting-started.shortcuts.0.1'],
+      ['J / K / L'],
+      ['S'],
+      ['Shift+S'],
+      ['Q / W'],
+      ['Ctrl+I'],
+      ['Ctrl+E'],
+      ['Ctrl+Z', '@seo.guide.nodes.getting-started.shortcuts.0.1'],
+      ['Ctrl+K', '@seo.guide.time.getting-started.shortcuts.3.1'],
+    ],
+  },
+];

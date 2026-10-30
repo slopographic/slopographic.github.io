@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PhotoSlop text tool and the space key</title></head>
+<body>
+<iframe id="app" src="about:blank" style="width:1280px;height:760px;border:0"></iframe>
+<script src="../harness.js"></script>
+<script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  describe('PhotoSlop text tool: the space key types a space', () => {
+    it('while a text box is being typed in, Space is not taken for panning', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slopshop'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      f.src = '../../photoslop/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      const W = f.contentWindow;
+      W.eval("selectTool('text')");
+      await sleep(50);
+      W.eval("startTypeEdit({ x: 120, y: 120 }, null, false)");
+      await waitFor(() => W.eval('TE.el') && W.document.activeElement === W.eval('TE.el'), { timeout: 5000 });
+      const el = W.eval('TE.el');
+      const ev = new W.KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+      el.dispatchEvent(ev);
+      await sleep(20);
+      expect(ev.defaultPrevented).toBe(false); // the browser types the space
+      expect(W.eval('V.space')).toBe(false);   // and the canvas does not start panning
+      W.eval('endTypeEdit(true)');
+    });
+  });
+  run({ name: 'PhotoSlop text tool: space' });
+</script>
+</body>
+</html>

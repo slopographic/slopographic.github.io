@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopographic: missing brand file</title>
+</head>
+<body>
+  <header class="nav"><span class="brand-name" data-brand-name>Slopographic</span></header>
+  <script src="../harness.js"></script>
+  <script src="../../brand/brand.js" data-brand-src="tests/shell/fixtures/does-not-exist.json"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  SlopBrand.ready.then(() => {
+    describe('brand defaults', () => {
+      it('uses the built-in name when brand.json is missing', () => {
+        expect(document.querySelector('.brand-name').textContent).toBe('Slopographic');
+        expect(document.title).toBe('Slopographic: missing brand file');
+        expect(SlopBrand.config.name).toBe('Slopographic');
+      });
+      it('still applies a config passed to apply()', () => {
+        SlopBrand.apply({ name: 'Temp Co' });
+        expect(document.querySelector('.brand-name').textContent).toBe('Temp Co');
+        SlopBrand.apply(null);
+        expect(document.querySelector('.brand-name').textContent).toBe('Slopographic');
+      });
+    });
+    run({ name: 'Shell · brand defaults' });
+  });
+  </script>
+</body>
+</html>

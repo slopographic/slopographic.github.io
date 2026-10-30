@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=true">
+  <title>Consent · settings page</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frames.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, sleep, waitFor, run } = SlopTest;
+  const { openPage, stubLoader, reset } = ConsentTest;
+  // The real config has empty IDs, so toggling here can never load a third-party script.
+  const page = () => openPage('../../settings/index.html');
+  const record = () => JSON.parse(localStorage.getItem('slop-consent'));
+
+  describe('settings page', () => {
+    beforeEach(reset);
+    it('starts with both switches off and no banner', async () => {
+      const w = await page();
+      expect(w.document.getElementById('set-analytics').checked).toBe(false);
+      expect(w.document.getElementById('set-ads').checked).toBe(false);
+      expect(w.document.getElementById('slopc-banner')).toBe(null);
+      // The Patreon URL is set in shared/consent/config.js, so the Donate section is shown (it is hidden only when the URL is empty).
+      expect(w.document.getElementById('donate').hidden).toBe(false);
+    });
+    it('the switches read and write the same record as the banner', async () => {
+      const w = await page();
+      const a = w.document.getElementById('set-analytics');
+      a.checked = true;
+      a.dispatchEvent(new w.Event('change'));
+      expect(record().categories.analytics).toBe(true);
+      expect(w.SlopConsent.state().analytics).toBe(true);
+      a.checked = false;
+      a.dispatchEvent(new w.Event('change'));
+      expect(record().categories.analytics).toBe(false);
+    });
+    it('has a Storage section: usage bar, per-part list, persist button and the clear actions', async () => {
+      const w = await page();
+      const box = w.document.getElementById('storage-box');
+      await waitFor(() => box.querySelector('.meter-bar') && box.querySelector('.storage-parts'));
+      expect(box.querySelector('.meter-bar').getAttribute('role')).toBe('meter');
+      expect(box.querySelector('.storage-parts').textContent).toContain('localStorage');
+      expect(box.querySelector('[data-act="persist"]')).toBeTruthy();
+      const acts = [...box.querySelectorAll('.storage-acts .btn')].map((b) => b.textContent);
+      expect(acts.length).toBe(6);
+      expect(acts[5]).toContain('never deletes your files');
+      expect(box.textContent).toContain('Drive makes thumbnails');
+    });
+    it('the Storage clear actions list the parts first and do nothing when the person says no', async () => {
+      const w = await page();
+      const box = w.document.getElementById('storage-box');
+      await waitFor(() => box.querySelector('.storage-acts .btn'));
+      const before = w.document.querySelectorAll('.sui-dlg').length;
+      box.querySelector('.storage-acts .btn').click();
+      await waitFor(() => w.document.querySelectorAll('.sui-dlg').length > before);
+      const dlg = [...w.document.querySelectorAll('.sui-dlg')].pop();
+      expect(dlg.textContent).toContain('Your Drive files, documents and saved projects are not deleted.');
+      // the first button covers one part: thumbnails, listed with its item count, and checked
+      const rows = [...dlg.querySelectorAll('.sr-row')];
+      expect(rows.length).toBe(1);
+      expect(rows[0].querySelector('b').textContent).toBe('Drive thumbnails and previews');
+      expect(rows[0].querySelector('input').checked).toBe(true);
+      expect(rows[0].querySelector('small').textContent).toContain('made again when you open a folder');
+      dlg.querySelector('.sui-x').click();
+      await waitFor(() => w.document.querySelectorAll('.sui-dlg').length === before);
+    });
+    it('Clear all lists every part checked, and clears only the parts left checked', async () => {
+      const w = await page();
+      const box = w.document.getElementById('storage-box');
+      await waitFor(() => box.querySelector('.storage-acts .btn'));
+      const cleared = [];
+      const real = w.SlopStorage.clear;
+      w.SlopStorage.clear = async (kind) => { cleared.push(kind); return { kind, removed: 0 }; };
+      try {
+        const before = w.document.querySelectorAll('.sui-dlg').length;
+        box.querySelectorAll('.storage-acts .btn')[5].click();
+        await waitFor(() => w.document.querySelectorAll('.sui-dlg').length > before);
+        const dlg = [...w.document.querySelectorAll('.sui-dlg')].pop();
+        await waitFor(() => dlg.querySelectorAll('.sr-row').length === 7);
+        const rows = [...dlg.querySelectorAll('.sr-row')];
+        expect(rows.map((r) => r.querySelector('b').textContent)).toEqual(['Drive thumbnails and previews', 'Face-detection results',
+          'Downloaded AI models', 'Cut-out model', 'Downloaded library packs', 'AI Tools models', 'Old offline caches']);
+        expect(rows.every((r) => r.querySelector('input').checked)).toBe(true);
+        // untick the cut-out model, then clear
+        rows[3].querySelector('input').click();
+        dlg.querySelector('.sui-foot .sui-primary').click();
+        await waitFor(() => cleared.length === 6);
+        expect(cleared).toEqual(['thumbs', 'faces', 'models', 'packs', 'aitools', 'oldCaches']);
+        await waitFor(() => !w.document.querySelector('.sui-back:not(.sui-out) .sr-dlg'));
+      } finally { w.SlopStorage.clear = real; }
+    });
+    it('SlopStorage.measure sizes a part from its records and removes nothing', async () => {
+      const w = await page();
+      const db = await w.SlopDb.open('slop-drive-thumbs', { version: 1, stores: { thumbs: { keyPath: 'id' } } });
+      await db.put('thumbs', { id: 'm-1', blob: new Blob([new Uint8Array(1000)]) });
+      await db.put('thumbs', { id: 'm-2', blob: new Blob([new Uint8Array(500)]) });
+      db.close();
+      const m = await w.SlopStorage.measure(['thumbs', 'faces']);
+      expect(m.thumbs.count).toBe(2);
+      expect(m.thumbs.bytes).toBeGreaterThanOrEqual(1500);
+      expect(m.faces.count).toBe(0);
+      const again = await w.SlopStorage.measure(['thumbs']);
+      expect(again.thumbs.count).toBe(2);
+    });
+    it('shows the privacy sentence', async () => {
+      const w = await page();
+      expect(w.document.querySelector('.privacy').textContent).toContain('never leave your device');
+    });
+  });
+
+  run({ name: 'Consent settings page' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: the app catalog, handing a task to another app, operations, and the model menu</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // Covers: shared/ai/handoff.js, shared/ai/apptools.js, shared/ai/panel-run.js, shared/ai/panel.js, shared/ai/engines.js,
+  //   shared/ai/model-menu.js, shared/ai/picker.js, shared/ai/cloud/connect.js, shared/ai/optools.js, shell/header.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let P, F;
+  const q = (s) => P.document.querySelector(s), qa = (s) => [...P.document.querySelectorAll(s)];
+  const KEY = 'sk-ant-api03-HANDOFF-0123456789';
+  async function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.(cloud|permissions)|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\./.test(k)) sessionStorage.removeItem(k);
+  }
+  const frame = (w = 900) => AT.frame('panel-page.html', (x) => x.SlopAIPanel && x.SlopAI, { width: w, height: 760 });
+  /** A connected Claude (session key) without the form: what a person who connected earlier has. */
+  function connected(model = 'claude-sonnet-5-5') {
+    localStorage.setItem('slop-ai.cloud', JSON.stringify({ active: 'anthropic', providers: { anthropic: { model } }, cap: 0, steps: 12 }));
+    localStorage.setItem('slop-firstrun:ai-cloud:anthropic', '1');
+    sessionStorage.setItem('slop-ai.cloud.key:anthropic', KEY);
+  }
+
+  describe('the agent knows the site', () => {
+    it('the system prompt carries the app catalog, the hand-over rule and the resourceful rule; look_at_canvas is a tool', async () => {
+      await wipe(); connected();
+      P = await frame(); F = CU.install(P, 'anthropic');
+      P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+      await waitFor(() => /^Claude · /.test(q('.sap-status').textContent), { timeout: 15000 });
+      F.replies.push(CU.anthropic.text('Hello.'));
+      await P.SlopAIPanel.send('hi');
+      const b = F.requests.find((r) => /\/v1\/messages$/.test(r.url)).body, sys = b.system[0].text;
+      // brief: find_tools gives the tools there. The registry's names and taglines (here: Slop Slides, Keynote and PowerPoint.)
+      const reg = (id) => P.SLOP_APPS.find((a) => a.id === id), slides = reg('slides');
+      expect(sys).toContain(`- slides: ${slides.name}, ${slides.tagline.replace(', rebuilt for the browser', '')} Makes: Presentation (.sslide).`);
+      expect(sys).toContain(`- docs: ${reg('docs').name}`); expect(sys).toContain('open_in_app moves the task to that app');
+      expect(sys).toContain('run_operation does it on this page'); expect(sys).toContain('Be resourceful');
+      expect(b.tools.map((t) => t.name)).toContain('look_at_canvas');
+      expect(b.tools.find((t) => t.name === 'open_app').input_schema.properties.task.type).toBe('string');
+    }, { timeout: 40000 });
+
+    it('the model menu: Sonnet → Haiku in two clicks, and the next request uses Haiku; remembered for this app', async () => {
+      await waitFor(() => q('.sap-status').textContent === 'Claude · Claude Sonnet 5.5');
+      q('.sap-status').click();
+      const row = await waitFor(() => [...P.document.querySelectorAll('.smb-row')].find((r) => /Claude Haiku 5\.5 · fastest, cheapest/.test(r.textContent)));
+      expect([...P.document.querySelectorAll('.smb-row')].find((r) => /Sonnet/.test(r.textContent)).getAttribute('aria-checked')).toBe('true');
+      expect([...P.document.querySelectorAll('.smb-row')].map((r) => r.textContent).join('|')).toContain('AI settings…');
+      row.click();
+      await waitFor(() => q('.sap-status').textContent === 'Claude · Claude Haiku 5.5');
+      F.replies.push(CU.anthropic.text('Hi from Haiku.'));
+      await P.SlopAIPanel.send('hello again');
+      expect(F.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body.model).toBe('claude-haiku-5-5');
+      expect(JSON.parse(localStorage.getItem('slop-ai.cloud')).lastByApp.photoslop).toEqual({ provider: 'anthropic', model: 'claude-haiku-5-5' });
+    }, { timeout: 30000 });
+
+    it('the model choice shows the provider in use first, the models on this device after; without one, local first', async () => {
+      P.SlopAIKit.picker.gpu = async () => ({ ok: true });
+      q('.sap-status').click();
+      const row = await waitFor(() => [...P.document.querySelectorAll('.smb-row')].find((r) => r.textContent === 'AI settings…'));
+      row.click();
+      await waitFor(() => q('.sap-pick-cloud .sap-cloud') && q('.sap-pick-local-h'), { timeout: 15000 });
+      const first = q('.sap-empty > div');
+      expect(first.className).toBe('sap-pick-cloud'); expect(q('.sap-pick').textContent).toContain('Models on this device');
+      expect(q('.sap-cloud').open).toBe(true);
+      localStorage.setItem('slop-ai.cloud', JSON.stringify({ active: '', providers: {} }));
+      q('.sap-back').click(); q('.sap-status').click();
+      (await waitFor(() => [...P.document.querySelectorAll('.smb-row')].find((r) => r.textContent === 'AI settings…'))).click();
+      await waitFor(() => q('.sap-pick-row') || q('.sap-pick p'), { timeout: 15000 });
+      // the models on this device come first where WebGPU runs them; without it, the own account (it works everywhere)
+      const gpuOk = (await P.SlopAIKit.picker.gpu()).ok;
+      await waitFor(() => !q('.sap-pick-wait'), { timeout: 15000 });
+      expect(q('.sap-empty > div').className).toBe(gpuOk ? 'sap-pick' : 'sap-pick-cloud'); expect(q('.sap-pick-local-h')).toBe(null);
+    }, { timeout: 40000 });
+  });
+
+  describe('a task for another app (fake engine)', () => {
+    it('"make a presentation" hands over to Slop Slides instead of refusing: same tab, the conversation goes along', async () => {
+      await wipe();
+      P = await frame();
+      const eng = new P.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0 }); await eng.load('fake');
+      await P.SlopAIPanel.use(eng);
+      // Covers: shared/ai/app-skills.js — the map of what each app makes, generated from the apps' own commands
+      expect(!!P.SlopAIKit.appSkills.slides).toBe(true);   // the panel loads it
+      const f = P.__frame;
+      P.SlopAIPanel.send('make a presentation about slime');
+      await waitFor(() => { try { return f.contentWindow.location.pathname.includes('/slides/'); } catch (e) { return false; } }, { timeout: 20000 });
+      const rec = JSON.parse(sessionStorage.getItem('slop-ai.handoff') || 'null') || {};
+      // the slides page may already have taken it; either way the task went along
+      if (rec.to) { expect(rec.to).toBe('slides'); expect(rec.task).toBe('make a presentation about slime'); expect(rec.fromName).toBe('PhotoSlop');
+        expect(rec.messages[0]).toEqual({ role: 'user', content: 'make a presentation about slime' }); expect(rec.chain.hop).toBe(1); }
+      expect(eng.calls[0].messages[0].content).not.toMatch(/can.t|cannot/i);
+      const sys = eng.calls[0].messages[0].content;   // the fake engine gets the map like capable models: the apps by name (small prompts)
+      expect(sys).toMatch(/Apps \(open_in_app\): .*slides \(Slop Slides\).*/); expect(sys).toContain('docs (Slop Docs)'); expect(sys).toContain('tables (Slop Tables)');
+      expect(sys).toMatch(/^- open_app\(id: string, file\?: string, task\?: string\)/m);   // what each app can do: find_tools (tests/ai/deferred.test.html)
+      expect(sys).not.toContain('Nothing uploaded.');
+      sessionStorage.removeItem('slop-ai.handoff');
+    }, { timeout: 30000 });
+
+    it('the receiving app opens the panel, shows "Continued from", and runs the task with the same provider and model', async () => {
+      await wipe(); connected('claude-haiku-5-5');
+      sessionStorage.setItem('slop-ai.permissions.visit', JSON.stringify(['send|photoslop']));
+      sessionStorage.setItem('slop-ai.handoff', JSON.stringify({ to: 'photoslop', toName: 'PhotoSlop', from: 'pdf', fromName: 'Slop PDF', task: 'make a poster about slime', at: Date.now(),
+        messages: [{ role: 'user', content: 'make a poster about slime' }, { role: 'assistant', content: 'That is a job for PhotoSlop.' }] }));
+      P = await frame();
+      F = CU.install(P, 'anthropic');
+      F.replies.push(CU.anthropic.text('Here is your slime poster.'));
+      await waitFor(() => P.SlopAIPanel.isOpen && /Here is your slime poster/.test(q('.sap-list') ? q('.sap-list').textContent : ''), { timeout: 20000 });
+      expect(q('.sap-list').textContent).toContain('Continued from Slop PDF.');
+      expect(q('.sap-status').textContent).toBe('Claude · Claude Haiku 5.5');
+      const b = F.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body;
+      expect(b.model).toBe('claude-haiku-5-5');
+      expect(b.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
+      expect(b.messages[2].content[0].text).toBe('make a poster about slime');
+      expect(sessionStorage.getItem('slop-ai.handoff')).toBe(null);
+      expect(P.SlopAIPermissions.decide('send', 'photoslop').allow).toBe(true);   // "allow for this visit" came along
+    }, { timeout: 40000 });
+
+    it('run_operation uses an operation another app adds (a stub "Outline → presentation")', async () => {
+      const R = await P.eval(`import('${new URL('../../shared/ops/registry.js', location.href).href}')`);
+      R.register([{ id: 'test.outline-slides', label: 'Outline → presentation', from: ['md', 'txt'], ext: 'sslide', mode: 'each', options: [],
+        run: async (files) => files.map((f) => ({ name: f.name.replace(/\.\w+$/, '') + '.sslide', blob: new Blob(['{"slides":2}'], { type: 'application/x-slop-slides' }), kind: 'sslide' })) }], { app: 'slides', label: 'Slop Slides' });
+      const name = 'outline-' + Date.now() + '.md';
+      await P.SlopHub.put(new Blob(['# Slime\n- goo\n- more goo'], { type: 'text/markdown' }), { name, from: 'test' });
+      F.replies.push(CU.anthropic.call('run_operation', { operation: 'test.outline-slides', files: [name] }), CU.anthropic.text('Made the presentation and saved it to Slop Drive.'));
+      await P.SlopAIPanel.send('turn my outline into slides, I stay here');
+      const out = JSON.parse(F.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body.messages.pop().content[0].content);
+      expect(out.errors).toEqual([]); expect(out.files[0].name).toBe(name.replace('.md', '.sslide'));
+      expect((await P.SlopHub.list()).some((f) => f.name === out.files[0].name && f.from === 'ai')).toBe(true);
+    }, { timeout: 40000 });
+  });
+  describe('operations for every capable model, and inputs written in the call', () => {
+    it('a fake (local) engine gets run_operation; capable local models do; an outline goes in as input, no file first', async () => {
+      const K = P.SlopAIKit;
+      expect(K.panel.capable({ info: () => ({ id: 'Qwen2.5-3B-Instruct-q4f16_1-MLC' }) })).toBe(true);
+      expect(K.panel.capable({ info: () => ({ id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC' }) })).toBe(true);
+      expect(K.panel.capable({ info: () => ({ id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC' }) })).toBe(false);
+      const call = (name, args) => `<tool_call>{"name": "${name}", "arguments": ${JSON.stringify(args)}}</tool_call>`;
+      const eng = new K.FakeEngine({ delay: 0, loadMs: 0, replies: [call('run_operation', { operation: 'test.outline-slides', input: { name: 'slime.md', text: '# Slime\n- goo' } }), 'Made slime.sslide.'] });
+      await eng.load('fake'); await P.SlopAIPanel.use(eng);
+      await P.SlopAIPanel.send('make a presentation about slime, I stay here');
+      expect(eng.calls[0].messages[0].content).toMatch(/run_operation\(operation: string, files\?: array, input\?: object/);
+      const step = [...P.document.querySelectorAll('.sap-step')].pop();
+      expect(step.classList.contains('ok')).toBe(true); expect(step.textContent).toContain('Run test.outline-slides on slime.md');
+      expect((await P.SlopHub.list()).some((f) => f.name === 'slime.sslide' && f.from === 'ai')).toBe(true);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop AI: handoff, catalog, model menu' });
+  </script>
+</body>
+</html>

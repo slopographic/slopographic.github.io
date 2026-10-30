@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: local folder</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: drive/js/core/folder.js (it loads the Slop Data scripts, schema-checks.js first)
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, L, dir;
+  const dlgText = () => { const d = W.document.querySelector('.sui-dlg'); return d ? d.textContent : ''; };
+  const closeAll = () => W.document.querySelectorAll('.sui-back').forEach((b) => b.remove());
+  const box = () => W.document.getElementById('folderBox');
+  const boxBtns = () => [...box().querySelectorAll('button')].map((b) => b.textContent);
+  const clickBtn = (root, label) => { const b = [...root.querySelectorAll('button')].find((x) => x.textContent === label); if (!b) throw new Error('no button ' + label + ' in ' + [...root.querySelectorAll('button')].map((x) => x.textContent).join(' | ')); b.click(); };
+  const menuLabels = () => [...W.document.querySelectorAll('.sui-menu .sui-row .sui-lbl')].map((x) => x.textContent);
+  const memHandles = () => { const m = new Map(); return { get: async (k) => m.get(k), put: async (k, v) => { m.set(k, v); }, del: async (k) => { m.delete(k); } }; };
+
+  // A fake File System Access directory (the page cannot hold a real one in a test).
+  class FakeFile {
+    constructor(name) { this.kind = 'file'; this.name = name; this.bytes = new Blob([]); }
+    async getFile() { return new File([this.bytes], this.name, { type: this.bytes.type, lastModified: 1700000000000 }); }
+    async createWritable() { let next = null; return { write: async (d) => { next = d; }, close: async () => { if (next != null) this.bytes = next instanceof Blob ? next : new Blob([next]); }, abort: async () => {} }; }
+  }
+  class FakeDir {
+    constructor(name) { this.kind = 'directory'; this.name = name; this.items = new Map(); this.perm = { query: 'granted', request: 'granted' }; }
+    async getFileHandle(n, { create = false } = {}) { let h = this.items.get(n); if (!h) { if (!create) throw new DOMException('gone', 'NotFoundError'); h = new FakeFile(n); this.items.set(n, h); } return h; }
+    async getDirectoryHandle(n, { create = false } = {}) { let h = this.items.get(n); if (!h) { if (!create) throw new DOMException('gone', 'NotFoundError'); h = new FakeDir(n); h.perm = this.perm; this.items.set(n, h); } return h; }
+    async *entries() { for (const [n, h] of this.items) yield [n, h]; }
+    async queryPermission() { return this.perm.query; }
+    async requestPermission() { this.perm.query = this.perm.request; return this.perm.request; }
+  }
+
+  describe('local folder: a browser without showDirectoryPicker', () => {
+    it('the sidebar says folders need Chrome or Edge and offers no Connect button', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      W.showDirectoryPicker = undefined;
+      await DR.folderRefresh(); DR.renderFolder();
+      expect(DR.folderState.supported).toBe(false);
+      expect(box().textContent).toContain('Folders need Chrome or Edge');
+      expect(boxBtns()).toEqual([]);
+    });
+
+    it('the More menu still lists Connect folder…, and choosing it says why', async () => {
+      DR.moreMenu(10, 10);
+      expect(menuLabels()).toContain('Connect folder…');
+      const row = [...W.document.querySelectorAll('.sui-menu .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === 'Connect folder…');
+      row.click();
+      await waitFor(() => dlgText().includes('Folders need Chrome or Edge'));
+      expect(dlgText()).toContain('nothing is written to your computer');
+      closeAll();
+      W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+    });
+
+    it('the palette command says the same, and nothing is connected', async () => {
+      const cmd = DR.commands().find((c) => c.id === 'drive.connectFolder');
+      expect(cmd).toBeTruthy();
+      cmd.run();
+      await waitFor(() => dlgText().includes('Folders need Chrome or Edge'));
+      closeAll();
+      expect(DR.folderState.name).toBe(null);
+    });
+  });
+
+  describe('local folder: connected', () => {
+    it('Connect asks for a read-write folder, shows its name and asks about the config', async () => {
+      dir = new FakeDir('Config');
+      const picks = [];
+      W.showDirectoryPicker = async (opts) => { picks.push(opts); return dir; };
+      L = W.SlopSyncProviders.local;
+      L.setHandleStore(memHandles());
+      DR.connectFolder();
+      await waitFor(() => dlgText().includes('Save the config in this folder?'));
+      expect(picks.length).toBe(1);
+      expect(picks[0].mode).toBe('readwrite');
+      expect(box().textContent).toContain('Config');
+      expect(boxBtns()).toContain('Disconnect');
+      clickBtn(W.document.querySelector('.sui-dlg'), 'Not now');
+      await waitFor(() => !dlgText().includes('Save the config'));
+    });
+
+    it('a Drive file saved in this tab is written into the folder under Slop Drive/', async () => {
+      await H.put(new Blob(['hello'], { type: 'text/plain' }), { name: 'Hello note.txt', from: 'upload' });
+      await waitFor(() => dir.items.get('Slop Drive') && dir.items.get('Slop Drive').items.has('Hello note.txt'), { timeout: 5000 });
+      expect(await dir.items.get('Slop Drive').items.get('Hello note.txt').bytes.text()).toBe('hello');
+      expect(dir.items.has('Hello note.txt')).toBe(false);
+    });
+
+    it('Load config from a folder with no config says so and changes nothing', async () => {
+      DR.folderLoadConfig();
+      await waitFor(() => dlgText().includes('has no slopographic.slop.json'), { timeout: 20000 });
+      closeAll();
+    });
+
+    it('Save config writes slopographic.slop.json at the folder root, and nothing else there', async () => {
+      DR.folderSaveConfig();
+      await waitFor(() => dir.items.has('slopographic.slop.json'), { timeout: 20000 });
+      const env = JSON.parse(await dir.items.get('slopographic.slop.json').bytes.text());
+      expect(env.kind).toBe('settings');
+      expect(env.app).toBe('slop');
+      expect([...dir.items.keys()].sort()).toEqual(['Slop Drive', 'slopographic.slop.json']);
+    });
+
+    it('Load config lists the changes before Apply, then applies them', async () => {
+      const env = { format: 'slop-config', version: 1, kind: 'settings', app: 'slop', name: 'Slopographic', created: '2026-10-11T09:00:00Z', data: { defaultCurrency: 'EUR', locale: 'de-DE', defaultTaxRate: 20 } };
+      dir.items.set('slopographic.slop.json', Object.assign(new FakeFile('slopographic.slop.json'), { bytes: new Blob([JSON.stringify(env)], { type: 'application/json' }) }));
+      DR.folderLoadConfig();
+      await waitFor(() => dlgText().includes('Default currency'), { timeout: 20000 });
+      expect(dlgText()).toContain('EUR');
+      expect(dlgText()).toContain('20%');
+      clickBtn(W.document.querySelector('.sui-dlg'), 'Apply');
+      await waitFor(async () => { const v = (await W.SlopData.store.get('settings', 'main')).value; return !!v && v.defaultCurrency === 'EUR'; }, { timeout: 10000 });
+      const s = (await W.SlopData.store.get('settings', 'main')).value;
+      expect(s.locale).toBe('de-DE');
+      expect(s.defaultTaxRate).toBe(2000);
+    });
+
+    it('when the browser needs permission again, the box shows one Allow access button', async () => {
+      dir.perm = { query: 'prompt', request: 'granted' };
+      await DR.folderRefresh(); DR.renderFolder();
+      expect(boxBtns()).toContain('Allow access to Config');
+      expect(boxBtns()).not.toContain('Load config');
+      clickBtn(box(), 'Allow access to Config');
+      // The box re-renders last, after the folder is refreshed and mirrored; wait for that render, not for the state flag.
+      await waitFor(() => boxBtns().includes('Load config'), { timeout: 10000 });
+      expect(DR.folderState.perm).toBe('granted');
+      expect(boxBtns()).not.toContain('Allow access to Config');
+    });
+
+    it('Disconnect forgets the folder and deletes nothing in it', async () => {
+      await DR.folderDisconnect();
+      expect(DR.folderState.name).toBe(null);
+      expect(dir.items.has('slopographic.slop.json')).toBe(true);
+      expect(dir.items.get('Slop Drive').items.has('Hello note.txt')).toBe(true);
+      // Count every write the provider receives from here on. With no folder connected, the write queue is never
+      // armed (enqueue returns before its 400ms debounce is scheduled), so the count is final once put() resolves.
+      let writes = 0;
+      const upload = L.upload.bind(L);
+      L.upload = async (...a) => { writes++; return upload(...a); };
+      try {
+        await H.put(new Blob(['later'], { type: 'text/plain' }), { name: 'After.txt', from: 'upload' });
+      } finally { L.upload = upload; }
+      expect(writes).toBe(0);
+      expect(dir.items.get('Slop Drive').items.has('After.txt')).toBe(false);
+    });
+  });
+
+  SlopTest.run({ name: 'Slop Drive: local folder' });
+  </script>
+</body>
+</html>

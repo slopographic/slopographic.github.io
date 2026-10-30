@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Reports: hours by customer (Slop Timesheets) and the duration column</title>
+  <!-- Covers: reports/js/app.js, reports/js/enrich.js, reports/js/defs.js, reports/js/engine.js, reports/js/data.js, reports/js/app.js, reports/index.html, shared/data/timesheets.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../shared/data/timesheets.js"></script>
+  <script src="../../reports/js/enrich.js"></script>
+  <script src="../../reports/js/defs.js"></script>
+  <script src="../../reports/js/engine.js"></script>
+  <script src="../../reports/js/data.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const R = window.SlopReports, E = R.engine;
+  const def = R.BUILTIN.find((d) => d.id === 'hours-by-customer');
+  const DATA = {
+    customers: [{ id: 'c1', name: 'Ada' }, { id: 'c2', name: 'Bob' }],
+    timeEntries: [
+      { id: 't1', customerId: 'c1', minutes: 90, rate: 8000, currency: 'USD', billable: true },
+      { id: 't2', customerId: 'c1', minutes: 45, rate: 8000, currency: 'USD', billable: true },
+      { id: 't3', customerId: 'c2', minutes: 20, rate: 10000, currency: 'EUR', billable: true },
+      { id: 't4', minutes: 60, rate: 0, currency: 'USD', billable: false },
+    ],
+  };
+
+  describe('Quotes won by month', () => {
+    const q = (date, status, total, currency = 'USD') => ({ date, status, total, currency });
+    const QUOTES = { quotes: [q('2026-10-02', 'accepted', 12000), q('2026-10-05', 'declined', 5000), q('2026-10-09', 'accepted', 3000), q('2026-10-20', 'sent', 9000),
+      q('2026-09-11', 'draft', 100), q('2026-09-15', 'declined', 700)] };
+    it('counts, wins, losses, the win rate of the decided quotes and the value won, by month', () => {
+      const res = E.run(R.BUILTIN.find((d) => d.id === 'quote-win-rate'), QUOTES);
+      expect(res.ok).toBe(true);
+      expect(res.rows.map((r) => [r.month, r.count, r.sum_wins, r.sum_losses, Math.round(r.avg_won * 1000) / 1000, r.sum_wonValue])).toEqual([
+        ['2026-10', 4, 2, 1, 0.667, 15000],
+        ['2026-09', 2, 0, 1, 0, 0],
+      ]);
+    });
+    it('a percent cell shows a whole percent, and nothing when no quote was decided; the CSV keeps one decimal', () => {
+      const col = { field: 'r', type: 'percent' };
+      expect([E.cellText({ r: 2 / 3 }, col), E.cellText({ r: null }, col), E.exportText({ r: 2 / 3 }, col)]).toEqual(['67%', '', '66.7']);
+    });
+  });
+
+  describe('Hours by customer', () => {
+    it('is a valid built-in report; the pure timesheet helpers load without the rest of SlopData', () => {
+      expect(E.validate(def)).toEqual([]);
+      expect(window.SlopData.timesheets.amountOf({ minutes: 90, rate: 8000 })).toBe(12000);
+    });
+    it('sums exact minutes and the billable value per customer and currency; internal time is (none)', () => {
+      const res = E.run(def, DATA);
+      expect(res.ok).toBe(true);
+      expect(res.rows.map((r) => [r.customer_name, r.currency, r.count, r.sum_minutes, r.sum_value])).toEqual([
+        ['Ada', 'USD', 2, 135, 18000],
+        [undefined, 'USD', 1, 60, 0],
+        ['Bob', 'EUR', 1, 20, 3333],
+      ]);
+    });
+    it('a duration cell shows h:mm on screen and decimal hours in the CSV', () => {
+      const res = E.run(def, DATA);
+      const col = res.columns.find((c) => c.field === 'sum_minutes');
+      expect(E.cellText(res.rows[0], col)).toBe('2:15');
+      expect(E.exportText(res.rows[0], col)).toBe('2.25');
+      expect(E.cellText(res.rows[1], res.columns[0])).toBe('(none)');
+      expect(E.toCsv(res.columns, res.rows.slice(0, 1), { baseCurrency: 'USD' }).split('\r\n')[1]).toBe('Ada,USD,2,2.25,180.00');
+    });
+    it('time entries count as data to report on', () => {
+      expect(R.hasData({ timeEntries: 1 })).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

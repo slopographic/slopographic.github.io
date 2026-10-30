@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: list columns</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, D;
+  const q = (s) => D.querySelector(s), qa = (s) => [...D.querySelectorAll(s)];
+  const ptr = (target, type, x, y, extra = {}) => target.dispatchEvent(new W.PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 7, pointerType: 'mouse', isPrimary: true }, extra)));
+  const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+  const cols = () => qa('#pane .lhead .hcell').map((c) => c.dataset.col);
+  const boot = async () => {
+    W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+    DR = W.DR; H = W.SlopHub; D = W.document;
+  };
+
+  describe('list columns', () => {
+    it('boots with the default columns in list view', async () => {
+      try { localStorage.removeItem('slop-drive.prefs'); } catch (e) { /* blocked */ }
+      await boot();
+      await H.clear();
+      await H.put(DT.text('hello there'), { name: 'a.txt', from: 'upload' });
+      await H.put(DT.text('hi'), { name: 'b.md', from: 'upload' });
+      await DR.refresh(); DR.setView('list'); DR.go(null);
+      expect(DR.listCols().map((c) => c.key)).toEqual(['name', 'type', 'size', 'modified', 'location']);
+      expect(cols()).toEqual(['name', 'type', 'size', 'modified', 'location']);
+    });
+
+    it('the header menu chooses which columns show', () => {
+      const cell = q('#pane .lhead .hcell[data-col="size"]'), c = center(cell);
+      cell.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: c.x, clientY: c.y }));
+      const labels = qa('.sui-menu .sui-lbl').map((x) => x.textContent);
+      expect(labels).toContain('Tags');
+      expect(labels).toContain('Added');
+      expect(labels).toContain('Reset columns');
+      qa('.sui-menu .sui-row').find((r) => r.querySelector('.sui-lbl').textContent === 'Tags').click();
+      // Tags sits before Location, as the column order has it by default
+      expect(DR.listCols().map((c) => c.key)).toEqual(['name', 'type', 'size', 'modified', 'tags', 'location']);
+      expect(cols()).toContain('tags');
+      expect(DR.S.cols.on.tags).toBe(true);
+    });
+
+    it('a column can be dragged to a new place', () => {
+      // drag Location onto the left edge of Size
+      const loc = q('#pane .lhead .hcell[data-col="location"]'), size = q('#pane .lhead .hcell[data-col="size"]');
+      const a = center(loc), b = center(size);
+      ptr(loc, 'pointerdown', a.x, a.y);
+      ptr(W, 'pointermove', a.x - 10, a.y);       // past the 6 px threshold: a move, not a click
+      ptr(W, 'pointermove', b.x - 5, b.y);
+      ptr(W, 'pointerup', b.x - 5, b.y);
+      expect(cols()).toEqual(['name', 'type', 'location', 'size', 'modified', 'tags']);
+      expect(DR.listCols().map((c) => c.key)).toEqual(['name', 'type', 'location', 'size', 'modified', 'tags']);
+    });
+
+    it('the order survives a reload', async () => {
+      W.__frame.remove();
+      await boot();
+      DR.setView('list'); DR.go(null);
+      expect(cols()).toEqual(['name', 'type', 'location', 'size', 'modified', 'tags']);
+    });
+
+    it('a column edge is dragged to resize it, clamped to its minimum', () => {
+      const grip = q('#pane [data-grip="name"]'), a = center(grip);
+      ptr(grip, 'pointerdown', a.x, a.y);
+      ptr(W, 'pointermove', a.x + 100, a.y);
+      ptr(W, 'pointerup', a.x + 100, a.y);
+      expect(DR.S.cols.widths.name).toBe(420);             // 320 + 100
+      expect(q('#pane .files').style.getPropertyValue('--cols').startsWith('420px')).toBe(true);
+      const g2 = q('#pane [data-grip="name"]'), b = center(g2);
+      ptr(g2, 'pointerdown', b.x, b.y);
+      ptr(W, 'pointermove', b.x - 2000, b.y);
+      ptr(W, 'pointerup', b.x - 2000, b.y);
+      expect(DR.S.cols.widths.name).toBe(160);             // the minimum
+    });
+
+    it('the arrow keys resize a column from its edge', () => {
+      const grip = q('#pane [data-grip="type"]');
+      grip.dispatchEvent(DT.key('ArrowRight'));
+      expect(DR.S.cols.widths.type).toBe(160);             // 150 + 10
+      grip.dispatchEvent(DT.key('ArrowLeft')); grip.dispatchEvent(DT.key('ArrowLeft'));
+      expect(DR.S.cols.widths.type).toBe(140);
+      expect(q('#pane [data-grip="type"]').getAttribute('aria-valuenow')).toBe('140');
+    });
+
+    it('widths and order survive a reload', async () => {
+      const grip = q('#pane [data-grip="type"]'), a = center(grip);
+      ptr(grip, 'pointerdown', a.x, a.y);
+      ptr(W, 'pointermove', a.x + 50, a.y);
+      ptr(W, 'pointerup', a.x + 50, a.y);
+      expect(DR.S.cols.widths.type).toBe(190);
+      W.__frame.remove();
+      await boot();
+      DR.setView('list'); DR.go(null);
+      expect(DR.S.cols.widths).toEqual({ name: 160, type: 190 }); // name was clamped to 160 above
+      expect(DR.listTemplate().startsWith('160px 190px 200px 90px 130px')).toBe(true);
+      expect(q('#pane .files').style.getPropertyValue('--cols').startsWith('160px 190px')).toBe(true);
+      expect(q('#pane [data-grip="type"]').getAttribute('aria-valuenow')).toBe('190');
+      expect(cols()).toEqual(['name', 'type', 'location', 'size', 'modified', 'tags']);
+    });
+
+    it('Reset columns brings back the default order, columns and widths', () => {
+      DR.columnRows().find((r) => r.label === 'Reset columns').act();
+      expect(cols()).toEqual(['name', 'type', 'size', 'modified', 'location']);
+      expect(DR.S.cols.widths).toEqual({});
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: list columns' });
+  </script>
+</body>
+</html>

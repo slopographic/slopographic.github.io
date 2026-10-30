@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: PDF to HTML</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<link rel="stylesheet" href="../../shared/slopui.css">
+<script src="../harness.js"></script>
+<script src="../../shared/slopui.js"></script>
+<script src="../../vendor/pdf-lib/pdf-lib.min.js"></script>
+<script type="module">
+import { pdfToHtml } from '../../convert/js/core/pdf-html.js';
+import { open } from '../../shared/convert/dialog.js';
+const { describe, it, expect, waitFor } = SlopTest;
+
+/** A 300 x 200 pt page: "Convert me to HTML" at (20, 90), and a 100 x 60 pt PNG at (180, 20) from the bottom. */
+async function samplePdf() {
+  const c = document.createElement('canvas');
+  c.width = 40; c.height = 24;
+  const x = c.getContext('2d');
+  x.fillStyle = '#e11d48'; x.fillRect(0, 0, 40, 24);
+  const png = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/png'))).arrayBuffer());
+  const doc = await PDFLib.PDFDocument.create();
+  const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+  const page = doc.addPage([300, 200]);
+  page.drawText('Convert me to HTML', { x: 20, y: 90, size: 24, font });
+  page.drawImage(await doc.embedPng(png), { x: 180, y: 20, width: 100, height: 60 });
+  return new Uint8Array(await doc.save());
+}
+
+/** Shows the HTML in a 800 px frame and returns its document, once it has loaded. */
+function render(html) {
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:600px;border:0';
+  document.body.append(frame);
+  return new Promise((resolve) => { frame.onload = () => resolve({ doc: frame.contentDocument, done: () => frame.remove() }); frame.srcdoc = html; });
+}
+
+describe('PDF to HTML', () => {
+  it('writes a self-contained page with the PDF text and an embedded image', async () => {
+    const html = await pdfToHtml(await samplePdf(), { title: 'sample' });
+    expect(html.startsWith('<!doctype html>')).toBe(true);
+    expect(html).toContain('<title>sample</title>');
+    expect(html).toContain('Convert me to HTML');
+    expect(/<img class="im"[^>]*src="data:image\/jpeg;base64,/.test(html)).toBe(true);
+    expect(/<span class="t s" style="left:[\d.]+px;top:[\d.]+px;/.test(html)).toBe(true);
+    expect(html.includes('<script')).toBe(false);
+    expect(/https?:|url\(/.test(html)).toBe(false);   // no network, no external fonts
+  });
+
+  it('keeps the page size and the place of the text and the image', async () => {
+    const { doc, done } = await render(await pdfToHtml(await samplePdf()));
+    const pg = doc.querySelector('.pg');
+    expect(pg.getBoundingClientRect().width).toBeCloseTo(300, 1);
+    expect(pg.getBoundingClientRect().height).toBeCloseTo(200, 1);
+    const text = [...doc.querySelectorAll('.t')].find((s) => s.textContent === 'Convert me to HTML');
+    const at = (el) => { const a = el.getBoundingClientRect(), p = pg.getBoundingClientRect(); return [a.left - p.left, a.top - p.top]; };
+    const [tl, tt] = at(text);
+    expect(Math.abs(tl - 20) < 2).toBe(true);
+    expect(Math.abs(tt - (110 - 0.845 * 24)) < 3).toBe(true);
+    const img = pg.querySelector('img.im'), r = img.getBoundingClientRect(), p = pg.getBoundingClientRect();
+    expect(Math.abs(r.left - p.left - 180) < 3).toBe(true);
+    expect(Math.abs(r.top - p.top - 120) < 3).toBe(true);
+    expect(Math.abs(r.width - 100) < 3).toBe(true);
+    expect(Math.abs(r.height - 60) < 3).toBe(true);
+    done();
+  });
+
+  it('converts only the pages asked for', async () => {
+    const two = await (async () => {
+      const doc = await PDFLib.PDFDocument.create();
+      const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+      doc.addPage([300, 200]).drawText('First page', { x: 20, y: 90, size: 20, font });
+      doc.addPage([300, 200]).drawText('Second page', { x: 20, y: 90, size: 20, font });
+      return new Uint8Array(await doc.save());
+    })();
+    const html = await pdfToHtml(two, { pages: '2' });
+    expect(html.includes('Second page')).toBe(true);
+    expect(html.includes('First page')).toBe(false);
+    expect((html.match(/class="pg"/g) || []).length).toBe(1);
+  });
+
+  it('is offered by the Convert dialog, with the close-copy note', async () => {
+    const ctl = open({ file: new File([await samplePdf()], 'sample.pdf', { type: 'application/pdf' }), target: 'pdf-to-html' });
+    await ctl.ready;
+    expect(ctl.targets().includes('pdf-to-html')).toBe(true);
+    expect(ctl.element.textContent.includes('A close copy, not an identical one')).toBe(true);
+    ctl.element.querySelector('.cv-form button[type=submit]').click();
+    await waitFor(() => ctl.results().length === 1, { timeout: 60000 });
+    const [out] = ctl.results();
+    expect(out.name).toBe('sample.html');
+    expect(out.blob.type).toBe('text/html');
+    expect((await out.blob.text()).includes('Convert me to HTML')).toBe(true);
+    ctl.close();
+  }, { timeout: 90000 });
+});
+
+SlopTest.run({ name: 'File convert PDF to HTML' });
+</script>
+</body>
+</html>

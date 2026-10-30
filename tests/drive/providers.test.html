@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: places and local drives</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, store = [];
+  const dlg = () => W.document.querySelector('.sui-dlg');
+  const dlgText = () => (dlg() ? dlg().textContent : '');
+  const closeAll = () => { W.document.querySelectorAll('.sui-back, .sui-menu').forEach((b) => b.remove()); };
+  const clickBtn = (root, label) => { const b = [...root.querySelectorAll('button')].find((x) => x.textContent.trim() === label); if (!b) throw new Error('no button ' + label + ' in ' + [...root.querySelectorAll('button')].map((x) => x.textContent.trim()).join(' | ')); b.click(); };
+  const row = (k) => W.document.querySelector(`[data-pkey="${k}"]`);
+  const sidebarText = () => W.document.getElementById('providers').textContent;
+  const menuLabels = () => [...W.document.querySelectorAll('.sui-menu .sui-row .sui-lbl')].map((x) => x.textContent);
+
+  // A fake File System Access directory (the page cannot hold a real one in a test).
+  class FakeFile {
+    constructor(name, bytes = '') { this.kind = 'file'; this.name = name; this.bytes = new Blob([bytes]); }
+    async getFile() { return new File([this.bytes], this.name, { type: this.bytes.type, lastModified: 1700000000000 }); }
+    async createWritable() { let next = null; return { write: async (d) => { next = d; }, close: async () => { if (next != null) this.bytes = next instanceof Blob ? next : new Blob([next]); }, abort: async () => {} }; }
+  }
+  class FakeDir {
+    constructor(name, perm = { query: 'granted', request: 'granted' }) { this.kind = 'directory'; this.name = name; this.items = new Map(); this.perm = perm; this.asked = 0; }
+    async getFileHandle(n, { create = false } = {}) { let h = this.items.get(n); if (!h) { if (!create) throw new DOMException('gone', 'NotFoundError'); h = new FakeFile(n); this.items.set(n, h); } return h; }
+    async getDirectoryHandle(n, { create = false } = {}) { let h = this.items.get(n); if (!h) { if (!create) throw new DOMException('gone', 'NotFoundError'); h = new FakeDir(n, this.perm); this.items.set(n, h); } return h; }
+    async removeEntry(n) { this.items.delete(n); }
+    async *entries() { for (const [n, h] of this.items) yield [n, h]; }
+    async queryPermission() { return this.perm.query; }
+    async requestPermission() { this.asked++; this.perm.query = this.perm.request; return this.perm.request; }
+  }
+  const memStore = () => ({
+    all: async () => store.slice(),
+    put: async (v) => { store = store.filter((x) => x.id !== v.id).concat([v]); },
+    del: async (id) => { store = store.filter((x) => x.id !== id); },
+  });
+  const drive = (id, name, dir, added = 1) => ({ id, name, handle: dir, added });
+  /** A named drive with Photos/2026/two.txt and note.txt. */
+  function sampleDir(name = 'NAS') {
+    const d = new FakeDir(name), p = new FakeDir('Photos'); d.items.set('Photos', p);
+    const y = new FakeDir('2026'); p.items.set('2026', y); y.items.set('two.txt', new FakeFile('two.txt', 'TWO'));
+    d.items.set('note.txt', new FakeFile('note.txt', 'NOTE'));
+    return d;
+  }
+  const bytesOf = async (dir, path) => { let d = dir; const parts = path.split('/'); const name = parts.pop(); for (const p of parts) d = d.items.get(p); const h = d && d.items.get(name); return h ? (await h.getFile()).text() : null; };
+  const has = (dir, path) => { let d = dir; const parts = path.split('/'); const name = parts.pop(); for (const p of parts) { d = d && d.items.get(p); if (!d) return false; } return !!(d && d.items.has(name)); };
+
+  async function boot() {
+    if (!W) {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready') && w.DR && w.DR.providerList);
+      DR = W.DR; H = W.SlopHub;
+    }
+    await H.clear(); await DR.refresh();
+    store = [];
+    DR.S.pOpen.clear();
+    DR.setDrivesStore(memStore());
+    W.showDirectoryPicker = undefined;
+    closeAll();
+  }
+
+  describe('Drives section: the sidebar', () => {
+    it('with no local drive, the section says so and offers Add and About', async () => {
+      await boot();
+      await DR.refreshProviders();
+      expect(sidebarText()).toContain('No local drives yet');
+      expect(sidebarText()).toContain('+ Add a local drive…');
+      expect(sidebarText()).toContain('About local drives');
+    });
+
+    it('a named drive is an expandable node: opened, it lists its folders and files', async () => {
+      await boot();
+      store = [drive('x1', 'NAS', sampleDir())];
+      await DR.refreshProviders();
+      expect(row('dir:x1|')).toBeTruthy();
+      expect(row('dir:x1|').getAttribute('aria-expanded')).toBe('false');
+      row('dir:x1|').click();
+      await waitFor(() => row('dir:x1|Photos'));
+      expect(row('dir:x1|note.txt')).toBeTruthy();
+      expect(row('dir:x1|Photos').getAttribute('aria-expanded')).toBe('false');
+      row('dir:x1|Photos').click();
+      await waitFor(() => row('dir:x1|Photos/2026'));
+      expect(row('dir:x1|Photos/2026')).toBeTruthy();
+    });
+
+    it('two drives keep their own names; the Slop Drive folders are not repeated in the drives section', async () => {
+      await boot();
+      store = [drive('a', 'Home NAS', sampleDir('one'), 1), drive('b', 'Office disk', sampleDir('two'), 2)];
+      await DR.refreshProviders();
+      const names = [...W.document.querySelectorAll('#providers .pv-root .nm')].map((n) => n.textContent);
+      expect(names).toEqual(['Home NAS', 'Office disk']);
+      expect(W.document.querySelectorAll('#providers [data-pkey^="drive|"]').length).toBe(0);
+    });
+
+    it('without access, a drive shows Allow access, lists nothing, and Allow asks the browser', async () => {
+      await boot();
+      const dir = sampleDir();
+      dir.perm = { query: 'prompt', request: 'granted' };
+      store = [drive('x1', 'NAS', dir)];
+      await DR.refreshProviders();
+      expect(row('dir:x1|').textContent).toContain('Allow access');
+      row('dir:x1|').click();
+      expect(row('dir:x1|note.txt')).toBe(null);
+      row('dir:x1|').querySelector('.pv-allow').click();
+      await waitFor(() => row('dir:x1|') && row('dir:x1|').textContent.indexOf('Allow access') < 0);
+      expect(dir.asked).toBe(1);
+      expect(DR.providerRows()[0].status).toBe('granted');
+    });
+
+    it('the list is checked again on load: a drive whose access was dropped asks again', async () => {
+      await boot();
+      const dir = sampleDir();
+      store = [drive('x1', 'NAS', dir)];
+      await DR.refreshProviders();
+      expect(row('dir:x1|').textContent).not.toContain('Allow access');
+      dir.perm = { query: 'prompt', request: 'granted' };
+      await DR.refreshProviders();
+      expect(row('dir:x1|').textContent).toContain('Allow access');
+    });
+
+    it('Add a local drive names the folder; a name already used gets " (2)"', async () => {
+      await boot();
+      store = [drive('x1', 'NAS', sampleDir())];
+      await DR.refreshProviders();
+      const second = sampleDir('NAS');
+      W.showDirectoryPicker = async () => second;
+      clickBtn(W.document.getElementById('providers'), '+ Add a local drive…');
+      await waitFor(() => dlg() && dlg().querySelector('input'));
+      dlg().querySelector('input').value = 'NAS';
+      clickBtn(dlg(), 'Add drive');
+      await waitFor(() => store.length === 2);
+      expect(store.map((d) => d.name)).toEqual(['NAS', 'NAS (2)']);
+      expect(store[1].handle).toBe(second);
+    });
+
+    it('the About dialog explains that one browser cannot see another browser\'s drives', async () => {
+      await boot();
+      clickBtn(W.document.getElementById('providers'), 'About local drives');
+      await waitFor(() => dlgText().includes('One browser cannot see'));
+      expect(dlgText()).toContain('pick the same folder in each browser');
+      expect(dlgText()).toContain('cloud provider');
+      closeAll();
+    });
+
+    it('the row menu offers Move to, Copy to and Delete for a file', async () => {
+      await boot();
+      store = [drive('x1', 'NAS', sampleDir())];
+      await DR.refreshProviders();
+      row('dir:x1|').click();
+      await waitFor(() => row('dir:x1|note.txt'));
+      const e = DR.provEntryFor('dir:x1|note.txt');
+      DR.providerMenu(e, 10, 10);
+      expect(menuLabels()).toContain('Move to…');
+      expect(menuLabels()).toContain('Copy to…');
+      expect(menuLabels()).toContain('Delete…');
+      closeAll();
+    });
+  });
+
+  describe('moving and copying between places', () => {
+    it('a Slop Drive file dropped on a named drive is copied; the Drive keeps it', async () => {
+      await boot();
+      const dir = sampleDir();
+      store = [drive('x1', 'NAS', dir)];
+      await H.put(new Blob(['HELLO']), { name: 'hello.txt', from: 'upload' });
+      await DR.refresh();
+      const item = [...DR.S.files.values()][0];
+      await DR.dropOn('pv:dir:x1|', [item], true);
+      expect(await bytesOf(dir, 'hello.txt')).toBe('HELLO');
+      expect(DR.liveFiles().some((r) => r.name === 'hello.txt')).toBe(true);
+    });
+
+    it('a Slop Drive file moved onto a named drive leaves Slop Drive', async () => {
+      await boot();
+      const dir = sampleDir();
+      store = [drive('x1', 'NAS', dir)];
+      await H.put(new Blob(['MOVE']), { name: 'move.txt', from: 'upload' });
+      await DR.refresh();
+      await DR.dropOn('pv:dir:x1|', [[...DR.S.files.values()][0]], false);
+      expect(await bytesOf(dir, 'move.txt')).toBe('MOVE');
+      expect(DR.liveFiles().some((r) => r.name === 'move.txt')).toBe(false);
+      expect(DR.trashTops().some((r) => r.name === 'move.txt')).toBe(true);
+    });
+
+    it('a file moved from a named drive into Slop Drive is copied in and removed from the folder', async () => {
+      await boot();
+      const dir = sampleDir();
+      store = [drive('x1', 'NAS', dir)];
+      await DR.refreshProviders();
+      const e = DR.dirEntry(DR.providerRows()[0], { ref: 'note.txt', name: 'note.txt', isFolder: false });
+      await DR.dropToProvider([e], 'root', false);
+      expect(DR.liveFiles().some((r) => r.name === 'note.txt')).toBe(true);
+      expect(has(dir, 'note.txt')).toBe(false);
+    });
+
+    it('a folder moved from one named drive to another keeps everything in it', async () => {
+      await boot();
+      const a = sampleDir('A'), b = new FakeDir('B');
+      store = [drive('a', 'A', a, 1), drive('b', 'B', b, 2)];
+      await DR.refreshProviders();
+      const photos = DR.dirEntry(DR.providerRows()[0], { ref: 'Photos', name: 'Photos', isFolder: true });
+      const res = await DR.transferEntries([photos], await DR.resolveDest('pv:dir:b|'), { move: true });
+      expect(res.done).toBe(1);
+      expect(await bytesOf(b, 'Photos/2026/two.txt')).toBe('TWO');
+      expect(has(a, 'Photos')).toBe(false);
+    });
+
+    it('a folder cannot be copied into itself, and the message says so', async () => {
+      await boot();
+      const a = sampleDir('A');
+      store = [drive('a', 'A', a)];
+      await DR.refreshProviders();
+      const photos = DR.dirEntry(DR.providerRows()[0], { ref: 'Photos', name: 'Photos', isFolder: true });
+      const res = await DR.copyTree([photos], { provider: photos.provider, ref: 'Photos/2026' }, { move: false });
+      expect(res.done).toBe(0);
+      expect(res.errors[0]).toContain('cannot go inside itself');
+    });
+
+    it('files dropped from the computer onto a named drive make the folders they came in', async () => {
+      await boot();
+      const dir = new FakeDir('NAS');
+      store = [drive('x1', 'NAS', dir)];
+      await DR.refreshProviders();
+      const n = await DR.uploadToProvider([{ file: new File(['hi'], 'a.txt'), path: 'Trip/a.txt' }], 'pv:dir:x1|');
+      expect(n).toBe(1);
+      expect(await bytesOf(dir, 'Trip/a.txt')).toBe('hi');
+    });
+
+    it('Move to… from a Slop Drive item opens the picker with every place, and the chosen drive receives it', async () => {
+      await boot();
+      const dir = new FakeDir('NAS');
+      store = [drive('x1', 'NAS', dir)];
+      await H.put(new Blob(['PICK']), { name: 'pick.txt', from: 'upload' });
+      await DR.refresh();
+      await DR.refreshProviders();
+      const item = [...DR.S.files.values()][0];
+      DR.moveDialog([item]);
+      await waitFor(() => dlg() && dlg().querySelector('.pick-tree'));
+      expect(dlg().textContent).toContain('Slop Drive');
+      expect(dlg().textContent).toContain('NAS');
+      const pick = [...dlg().querySelectorAll('.pick-row')].find((b) => b.textContent.includes('NAS'));
+      pick.click();
+      clickBtn(dlg(), 'Move here');
+      await waitFor(() => has(dir, 'pick.txt'));
+      expect(await bytesOf(dir, 'pick.txt')).toBe('PICK');
+    });
+
+    it('the picker greys out the folder being moved and everything in it', async () => {
+      await boot();
+      store = [drive('x1', 'NAS', sampleDir())];
+      await DR.refreshProviders();
+      const target = DR.providerPicker({ title: 'Move to…', ok: 'Move here', start: { id: 'dir:x1', ref: '' }, exclude: [{ id: 'dir:x1', ref: 'Photos' }] });
+      await waitFor(() => dlg() && dlg().querySelector('.pick-tree .pick-row'));
+      await waitFor(() => [...dlg().querySelectorAll('.pick-row')].some((b) => b.textContent.includes('Photos')));
+      const photos = [...dlg().querySelectorAll('.pick-row')].find((b) => b.textContent.includes('Photos'));
+      expect(photos.getAttribute('aria-disabled')).toBe('true');
+      clickBtn(dlg(), 'Cancel');
+      expect(await target).toBe(undefined);
+    });
+
+    it('the picker resolves to the place it was given, as a pv target', async () => {
+      await boot();
+      store = [drive('x1', 'NAS', sampleDir())];
+      await DR.refreshProviders();
+      const target = DR.providerPicker({ title: 'Copy to…', ok: 'Copy here', start: { id: 'dir:x1', ref: '' } });
+      await waitFor(() => dlg() && dlg().querySelector('.pick-tree .pick-row'));
+      const root = [...dlg().querySelectorAll('.pick-row')].find((b) => b.textContent.includes('NAS'));
+      root.click();
+      clickBtn(dlg(), 'Copy here');
+      expect(await target).toBe('pv:dir:x1|');
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: places and local drives' });
+  </script>
+</body>
+</html>

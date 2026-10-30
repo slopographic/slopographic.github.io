@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SlopCmd frame</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/commands/commands.css">
+</head>
+<body>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/commands/commands.js"></script>
+  <script>
+    SlopCmd.init({ app: 'frame-test', fab: 'touch' });
+    SlopCmd.register([{ id: 'f.hello', title: 'Say hello', group: 'Test', keys: ['H'], run: () => { window.hello = (window.hello || 0) + 1; } }]);
+  </script>
+</body>
+</html>

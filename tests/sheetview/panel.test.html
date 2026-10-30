@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Sheets: the panel on the right with Export at its foot (1280 and 390)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 844px; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: sheetview/js/panel.js, sheetview/js/main.js, sheetview/css/sheetview.css, sheetview/index.html
+  import { xlsxFixture } from './fixtures.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D;
+  async function open(width) {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = '../../sheetview/?t=' + Date.now(); document.body.append(F);
+    W = F.contentWindow;
+    await waitFor(() => W.document.body && W.document.body.classList.contains('ready'), { timeout: 30000 });
+    D = W.document;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+  }
+  const load = async () => { const f = await xlsxFixture(); await W.SlopSheetView.open([new W.File([await f.arrayBuffer()], f.name)]); await waitFor(() => !D.getElementById('sv-view').hidden); await sleep(50); };
+
+  describe('Slop Sheets: the right panel', () => {
+    it('at 1280 the panel is right of the sheet; Export is at its foot, off until a sheet is open, and opens its menu', async () => {
+      await open(1280);
+      const exp = D.getElementById('sv-export'), side = D.getElementById('sv-side');
+      expect(exp.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(exp.disabled).toBe(true);
+      expect(side.contains(D.getElementById('sv-style')) && side.contains(D.getElementById('sv-palette')) && side.contains(D.getElementById('sv-hub'))).toBe(true);
+      await load();
+      expect(exp.disabled).toBe(false);
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('sv-main').getBoundingClientRect().right - 1);
+      expect(exp.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      exp.click();
+      const menu = await waitFor(() => D.querySelector('.sui-menu'), { timeout: 3000 });
+      expect(menu.textContent).toContain('Visible rows: CSV');
+      W.SlopUI.closeMenu();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+    }, { timeout: 60000 });
+
+    it('at 390 the closed sheet shows Export at the bottom; Sheet opens the panel; no sideways scroll', async () => {
+      await open(390);
+      await load();
+      const exp = D.getElementById('sv-export'), r = exp.getBoundingClientRect();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(r.height).toBeGreaterThan(0);
+      expect(r.bottom).toBeLessThanOrEqual(844.5);
+      expect(r.top).toBeGreaterThan(844 - 120);
+      D.querySelector('#sv-side .sf-foot-more').click();
+      await waitFor(() => D.getElementById('sv-side').classList.contains('ssh-on'));
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Sheets: the right panel' });
+  </script>
+</body>
+</html>

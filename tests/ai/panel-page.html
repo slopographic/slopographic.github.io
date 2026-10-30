@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>panel host page</title>
+<link rel="stylesheet" href="../../shared/slopui.css"></head>
+<body class="ready" style="margin:0;background:#0e0e10;color:#eee;font:14px system-ui">
+  <h1 style="margin:20px">A pretend app</h1>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+    // a stand-in for an app's shared command palette (shared/commands): two commands, one destructive
+    window.ran = [];
+    window.SlopCmd = { list: () => [{ id: 'demo.bold', title: 'Bold' }, { id: 'demo.clear', title: 'Clear canvas' }], run: (id) => ran.push(id) };
+    SlopHub.register('photoslop');
+  </script>
+  <script src="../../shared/ai/panel.js" defer></script>
+</body>
+</html>

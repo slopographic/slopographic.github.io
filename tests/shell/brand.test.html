@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-brand-tokens>
+<head>
+  <meta charset="utf-8">
+  <title>Slopographic: brand check</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <header class="nav"><a class="brand" href="#"><svg class="mark" data-brand-logo viewBox="0 0 32 32"><path d="M16 2l10 18z"/></svg><span class="brand-name" data-brand-name>Slopographic</span></a><a data-brand-link="patreon" href="#" hidden>Patreon</a><a data-brand-link="support" href="#" hidden>Support</a></header>
+  <p class="tag" data-brand-tagline>Default tagline</p>
+  <footer><p data-brand-footer>Default footer</p></footer>
+  <script src="../harness.js"></script>
+  <script src="../../brand/brand.js" data-brand-src="tests/shell/fixtures/brand-alt.json"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  SlopBrand.ready.then(() => {
+    describe('brand.json', () => {
+      it('changes the header name and the page title', () => {
+        expect(document.querySelector('.brand-name').textContent).toBe('Acme Test');
+        expect(document.title).toBe('Acme Test: brand check');
+      });
+      it('applies the tagline and the footer', () => {
+        expect(document.querySelector('[data-brand-tagline]').textContent).toBe('Test tagline for the brand check.');
+        expect(document.querySelector('[data-brand-footer]').textContent).toBe('Acme Test footer line.');
+      });
+      it('sets the colour variables on the page', () => {
+        const cs = getComputedStyle(document.documentElement);
+        expect(cs.getPropertyValue('--brand-accent').trim()).toBe('#ff6600');
+        expect(cs.getPropertyValue('--slop').trim()).toBe('#ff6600');
+        expect(cs.getPropertyValue('--bone').trim()).toBe('#fafafa');
+      });
+      it('shows the Patreon link and hides the empty support link', () => {
+        const p = document.querySelector('[data-brand-link="patreon"]');
+        expect(p.hidden).toBe(false);
+        expect(p.getAttribute('href')).toBe('https://www.patreon.com/acme');
+        expect(document.querySelector('[data-brand-link="support"]').hidden).toBe(true);
+      });
+      it('keeps the default app order from appOrder', () => {
+        expect(SlopBrand.order).toEqual(['pdf', 'photoslop']);
+      });
+      it('falls back to safe defaults for bad values, without throwing', () => {
+        const c = SlopBrand.normalize({ name: '', colors: { accent: 'javascript:alert(1)' }, links: { patreon: 'javascript:x' }, home: 'javascript:x' });
+        expect(c.name).toBe('Slopographic');
+        expect(c.colors.accent).toBe('#d4ff3a');
+        expect(c.links.patreon).toBe('');
+        expect(c.home).toBe('');
+      });
+    });
+    run({ name: 'Shell · brand.json applied' });
+  });
+  </script>
+</body>
+</html>

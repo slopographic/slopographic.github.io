@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · app folders in Slop Drive</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script>window.SLOP_DRIVE_DB = 'slop-drive-test-appfolders-' + Date.now();   // a private Drive for this run</script>
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const H = window.SlopHub;
+  const text = (s) => new Blob([s], { type: 'text/plain' });
+  const appFoldersOf = async (app) => (await H.listFolders()).filter((f) => f.app === app);
+
+  describe('App folders: where an app\'s new files go', () => {
+    it('the first save from an app makes its folder, named after the app and tagged with its id', async () => {
+      const id = await H.put(text('a'), { name: 'a.png', from: 'photoslop' });
+      const f = await H.getFolder((await H.get(id)).folderId);
+      expect(f.name).toBe('PhotoSlop');
+      expect(f.app).toBe('photoslop');
+      expect(f.parentId).toBe(null);
+    });
+    it('later saves from the same app reuse that folder', async () => {
+      const before = (await appFoldersOf('photoslop')).length;
+      const a = await H.put(text('b'), { name: 'b.png', from: 'photoslop' });
+      const b = await H.put(text('c'), { name: 'c.png', from: 'photoslop' });
+      expect((await H.get(a)).folderId).toBe((await H.get(b)).folderId);
+      expect((await appFoldersOf('photoslop')).length).toBe(before);
+    });
+    it('a save with no app (an upload, or an unknown source) stays where it is put', async () => {
+      const root = await H.put(text('d'), { name: 'd.txt', from: 'upload', folderId: null });
+      const none = await H.put(text('e'), { name: 'e.txt' });
+      expect((await H.get(root)).folderId).toBe(null);
+      expect((await H.get(none)).folderId).toBe(null);
+      expect(await H.appFolderId('no-such-app')).toBe(null);
+    });
+    it('saving an existing file again keeps the folder the person moved it to', async () => {
+      const id = await H.put(text('f'), { name: 'f.txt', from: 'docs' });
+      const elsewhere = await H.createFolder('Elsewhere', null);
+      await H.update(id, { folderId: elsewhere });
+      await H.put(text('g'), { id, name: 'f.txt', from: 'docs' });
+      expect((await H.get(id)).folderId).toBe(elsewhere);
+    });
+    it('a folder with the app\'s name that the person made gets a number, and is left alone', async () => {
+      await H.createFolder('Slop Gallery', null);
+      const id = await H.put(text('h'), { name: 'h.jpg', from: 'gallery' });
+      const f = await H.getFolder((await H.get(id)).folderId);
+      expect(f.name).toBe('Slop Gallery (2)');
+      expect(f.app).toBe('gallery');
+      expect((await H.listFolders({ parentId: null })).filter((x) => x.name === 'Slop Gallery').length).toBe(1);
+    });
+    it('a subfolder inside an app folder is made once', async () => {
+      const a = await H.appSubfolderId('docs', 'Templates');
+      const b = await H.appSubfolderId('docs', 'Templates');
+      expect(a).toBe(b);
+      expect((await H.getFolder(a)).parentId).toBe((await H.appFolderId('docs')));
+    });
+    it('saveToDrive opens its picker in the app folder, and "Save here" keeps the file there', async () => {
+      const p = H.saveToDrive(text('i'), 'i.txt', { from: 'docs' });
+      await waitFor(() => (document.querySelector('.hub-crumbs') || {}).textContent && document.querySelector('.hub-crumbs').textContent.includes('Slop Docs'));
+      [...document.querySelector('.sui-dlg').querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Save here').click();
+      const id = await p;
+      expect((await H.get(id)).folderId).toBe(await H.appFolderId('docs'));
+    });
+  });
+
+  describe('Slop Drive: app folders in the sidebar', () => {
+    it('an app folder is listed in the sidebar, marked as that app\'s folder', async () => {
+      const W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready') && w.DR);
+      await W.SlopHub.put(text('j'), { name: 'j.png', from: 'photoslop' });
+      await W.DR.refresh(); W.DR.renderTree();
+      const node = W.document.querySelector('#tree [data-app="photoslop"]');
+      expect(!!node).toBe(true);
+      expect(node.querySelector('.nm').textContent).toBe('PhotoSlop');
+      expect(node.classList.contains('app')).toBe(true);
+    });
+  });
+  run({ name: 'Shared: app folders' });
+  </script>
+</body>
+</html>

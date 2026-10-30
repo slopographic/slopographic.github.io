@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Checksum: the look (header, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: checksum/js/layout.js, checksum/index.html, checksum/css/checksum.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's buttons are in. */
+  async function open(width, height = 800) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../checksum/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-switch') && D.querySelector('header a.brand .brand-app'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  /** The header's visible buttons and links. */
+  const controls = (D) => [...D.querySelectorAll('header a, header button')].filter((n) => n.getBoundingClientRect().width > 0);
+  /** True when no two controls on the same row overlap, and all are inside the window. */
+  function laidOut(D, width) {
+    const rs = controls(D).map((n) => n.getBoundingClientRect()).sort((a, b) => a.top - b.top || a.left - b.left);
+    return rs.every((r, i) => r.left >= 0 && r.right <= width + 0.5 && (!i || rs[i - 1].bottom <= r.top + 4 || r.left >= rs[i - 1].right - 0.5));
+  }
+
+  describe('Checksum: the look', () => {
+    it('the header leads with the home link (the app icon), then the name', async () => {
+      const D = await open(1440);
+      const brand = D.querySelector('header.ck-top a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.nextElementSibling.textContent).toBe('Checksum');
+      expect(D.querySelector('.sps-dock')).toBe(null); // the corner Home and All apps pills are not needed
+    }, { timeout: 40000 });
+
+    it('at 1440px the header is one row, with the shell buttons (Theme, Apps, bell) at its end', async () => {
+      const D = await open(1440);
+      expect(laidOut(D, 1440)).toBe(true);
+      const top = D.querySelector('header.ck-top');
+      expect(top.getBoundingClientRect().height).toBeLessThan(60);
+      expect(D.querySelector('main .ck-lede')).toBeTruthy(); // the intro moved under the header
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways and no header controls overlap', async () => {
+      const D = await open(390);
+      expect(laidOut(D, 390)).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+
+    /** A file chosen the way the picker does it: the intake's take, as its picker would (shared/intake). */
+    function choose(D, text) {
+      const W = D.defaultView;
+      W.SlopIntake.take([new W.File([text], 'abc.txt')], { to: 'checksum', source: 'picker' });
+    }
+    it('at 1280px Algorithm and the hash to check are a panel on the right, Copy hash at its foot; a check says it matches', async () => {
+      const D = await open(1280), side = D.getElementById('ck-side');
+      await waitFor(() => side.getBoundingClientRect().width > 0 && side.closest('.sf-root'), { timeout: 10000 });   // the frame is mounted (a busy machine is slower)
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('ck-view').getBoundingClientRect().right - 1);
+      expect(Math.round(side.getBoundingClientRect().right)).toBe(1280);
+      for (const id of ['ck-alg', 'ck-expect', 'ck-copy']) expect(side.contains(D.getElementById(id))).toBe(true);
+      expect(D.getElementById('ck-copy').closest('.sf-p-foot')).toBeTruthy();
+      choose(D, 'abc');
+      await waitFor(() => D.getElementById('ck-hash').textContent.length === 64, { timeout: 10000 });
+      const ex = D.getElementById('ck-expect');
+      ex.value = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'; ex.dispatchEvent(new D.defaultView.Event('input'));
+      await waitFor(() => D.getElementById('ck-verdict').classList.contains('ok'), { timeout: 5000 });
+      expect(D.getElementById('ck-copy').disabled).toBe(false);
+    }, { timeout: 40000 });
+    it('at 390px Copy hash stays at the bottom of the screen; Settings opens the sheet', async () => {
+      const D = await open(390, 844), b = D.getElementById('ck-copy');
+      expect(b.getBoundingClientRect().top).toBeGreaterThan(700);
+      expect(b.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => D.getElementById('ck-side').classList.contains('ssh-on'));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(D.getElementById('ck-alg').getBoundingClientRect().height).toBeGreaterThan(0);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Checksum: the look' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>catalog clips fixture</title>
+  <link rel="stylesheet" href="../../style/base.css">
+  <link rel="stylesheet" href="../../home/home.css">
+  <style>body { margin: 0; } .spacer { height: 900px; }</style>
+  <script>
+    // ?rm=1 prefers-reduced-motion, ?save=1 Save-Data, ?touch=1 no hover (phone).
+    const q = new URLSearchParams(location.search);
+    const real = window.matchMedia.bind(window);
+    window.matchMedia = (s) => {
+      if (/prefers-reduced-motion/.test(s)) return { matches: q.has('rm'), media: s, addEventListener() {}, removeEventListener() {} };
+      if (/hover: hover/.test(s)) return { matches: !q.has('touch'), media: s, addEventListener() {}, removeEventListener() {} };
+      return real(s);
+    };
+    if (q.has('save')) Object.defineProperty(navigator, 'connection', { value: { saveData: true }, configurable: true });
+    window.SLOP_APPS = [
+      { id: 'a', kind: 'game', name: 'With media', path: '#a', tagline: 'x', status: 'live', features: [], shot: '../../assets/shots/photoslop.jpg' },
+      { id: 'b', kind: 'game', name: 'Missing media', path: '#b', tagline: 'x', status: 'live', features: [], shot: '../../assets/shots/__missing__.jpg' },
+      { id: 'c', kind: 'experiment', name: 'Also media', path: '#c', tagline: 'x', status: 'live', features: [], shot: '../../assets/shots/pdf.jpg' },
+    ];
+  </script>
+</head>
+<body>
+  <div class="tile-grid" id="grid" style="width:600px"></div>
+  <div class="spacer"></div>
+  <div class="tile-grid" id="grid2" style="width:600px"></div>
+  <div class="spacer"></div>
+  <script src="../../shared/app-labels.js"></script>
+  <script src="../../home/sections.js"></script>
+  <script src="../../home/catalog.js"></script>
+  <script>
+    // The fixture's tiles come from the same renderer the homepage uses for its shelves.
+    for (const a of window.SLOP_APPS) document.getElementById(a.id === 'c' ? 'grid2' : 'grid').append(window.SlopHomeCards.tile(a));
+    window.SlopHomeCards.watch();
+  </script>
+</body>
+</html>

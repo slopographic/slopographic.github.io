@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SlopCmd tests</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/commands/commands.css">
+</head>
+<body>
+  <input id="field" type="text" aria-label="text field">
+  <textarea id="area" aria-label="text area"></textarea>
+  <div id="editable" contenteditable="true">editable</div>
+  <button id="btn" type="button">button</button>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/commands/commands.js"></script>
+  <script src="../../shared/commands/search.js"></script>
+  <script src="../../shared/commands/palette.js"></script>
+  <script src="../../shared/commands/recorder.js"></script>
+  <script src="../../shared/commands/keymap.js"></script>
+  <script src="helpers.js"></script>
+  <script src="spec-keys.js"></script>
+  <script src="spec-dispatch.js"></script>
+  <script src="spec-search.js"></script>
+  <script src="spec-editor.js"></script>
+  <script src="spec-palette.js"></script>
+  <script src="../../shared/ai/cmdtools.js"></script>
+  <script src="spec-ai.js"></script>
+  <script>SlopTest.run({ name: 'SlopCmd' });</script>
+</body>
+</html>

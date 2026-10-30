@@ -1,0 +1,11 @@
+From: <noreply@shop.example>
+To: Ann Example <ann@example.com>
+Subject: Your order has shipped
+Date: Fri, 30 Jan 2026 08:00:00 +0000
+Message-ID: <m5@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+WW91ciBvcmRlciAjNDQ3MSBpcyBvbiBpdHMgd2F5LiBUcmFjayBpdCB3aXRoIHRoZSBsaW5rIGlu
+IHlvdXIgYWNjb3VudC4=

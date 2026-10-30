@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: Extensions and helpers</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, doc, view, textOf, typeText, key, dialog, clickButton, waitFor, sleep } = CT;
+  let w;
+  const box = (id) => w.document.getElementById('cd-ext-' + id);
+  const stored = () => JSON.parse(w.localStorage.getItem('slop-code.extensions'));
+  const setText = (s) => { const v = view(w); v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: s } }); };
+  const tooltipDetails = () => [...w.document.querySelectorAll('.cm-tooltip-autocomplete .cm-completionDetail')].map((x) => x.textContent);
+
+  describe('Slop Code: the formatter (pure)', () => {
+    it('formats JSON with two-space indents and a final newline, and rejects bad JSON', async () => {
+      const { formatText } = await import('../../code/js/format.js');
+      expect(formatText('{"b":1,"a":[1,2]}', 'json')).toBe('{\n  "b": 1,\n  "a": [\n    1,\n    2\n  ]\n}\n');
+      expect(() => formatText('{bad', 'json')).toThrow(/Not valid JSON/);
+    });
+
+    it('re-indents JavaScript by brace depth, and keeps template literal text as it is', async () => {
+      const { formatText } = await import('../../code/js/format.js');
+      const src = 'function f(a){\nif(a){\nreturn 1;\n}\n} else {\n  x(); // { not a brace\n}\n}\nconst s = `\n   raw   \n`;\n';
+      const out = formatText(src, 'javascript');
+      expect(out).toBe('function f(a){\n  if(a){\n    return 1;\n  }\n} else {\n  x(); // { not a brace\n}\n}\nconst s = `\n   raw   \n`;\n');
+      expect(out).toContain('\n   raw   \n`;');
+    });
+
+    it('other languages lose trailing spaces and collapse blank runs', async () => {
+      const { formatText } = await import('../../code/js/format.js');
+      expect(formatText('a  \n\n\n\nb\t\n\n', 'text')).toBe('a\n\nb\n');
+    });
+  });
+
+  describe('Slop Code: Extensions panel', () => {
+    it('lists the three built-in helpers as switches, all on by default', async () => {
+      w = await frame('../../code/');
+      const rows = [...w.document.querySelectorAll('#cd-ext-list .cd-ext')];
+      expect(rows.length).toBe(3);
+      expect(rows.map((r) => r.querySelector('.cd-ext-name').textContent)).toEqual(['Formatter', 'Language mode switcher', 'Snippets']);
+      for (const id of ['formatter', 'languageMode', 'snippets']) {
+        expect(box(id).getAttribute('role')).toBe('switch');
+        expect(box(id).checked).toBe(true);
+      }
+    });
+
+    it('a switch is kept in slop-code.extensions as a v1 envelope, and survives a reload', async () => {
+      box('snippets').click();
+      expect(box('snippets').checked).toBe(false);
+      expect(stored()).toEqual({ v: 1, data: { formatter: true, languageMode: true, snippets: false } });
+      close(w);
+      w = await frame('../../code/');
+      await waitFor(() => w.document.getElementById('cd-ext-list').children.length === 3, { timeout: 8000 });
+      expect(box('snippets').checked).toBe(false);
+      expect(box('formatter').checked).toBe(true);
+    });
+
+    it('a blocked localStorage does not stop the switches', async () => {
+      const set = w.Storage.prototype.setItem;
+      w.Storage.prototype.setItem = () => { throw new Error('quota'); };
+      try { box('formatter').click(); } finally { w.Storage.prototype.setItem = set; }
+      expect(box('formatter').checked).toBe(false);
+      box('formatter').click();
+      expect(box('formatter').checked).toBe(true);
+    });
+  });
+
+  describe('Slop Code: the helpers in use', () => {
+    it('Format document (from the panel) re-indents JSON and marks the file unsaved', async () => {
+      const rec = await H().put(text('{"b":1,"a":[1,2]}', 'application/json'), { name: 'data.json', from: 'test', folderId: null });
+      await w.SlopCode.openRecord(await H().get(rec));
+      await waitFor(() => doc(w) && doc(w).id === rec, { timeout: 5000 });
+      w.document.querySelector('#cd-ext-list .cd-ext:nth-child(1) .sui-btn').click();
+      expect(textOf(w)).toBe('{\n  "b": 1,\n  "a": [\n    1,\n    2\n  ]\n}\n');
+      expect(doc(w).dirty).toBe(true);
+    });
+
+    it('a formatter error keeps the text; the formatter off does nothing', async () => {
+      setText('{bad');
+      w.SlopCode.actions.format();
+      expect(textOf(w)).toBe('{bad');
+      box('formatter').click();
+      setText('{"a":1}');
+      w.SlopCode.actions.format();
+      expect(textOf(w)).toBe('{"a":1}');
+      box('formatter').click();
+    });
+
+    it('snippets appear in the completion list when on, and not when off', async () => {
+      const js = await H().put(text('', 'text/javascript'), { name: 'snip.js', from: 'test', folderId: null });
+      await w.SlopCode.openRecord(await H().get(js));
+      await waitFor(() => doc(w) && doc(w).id === js, { timeout: 5000 });
+      if (!box('snippets').checked) box('snippets').click();
+      await typeText(w, 'lo');
+      key(w, ' ', { ctrl: true });
+      await waitFor(() => tooltipDetails().includes('snippet'), { timeout: 4000 });
+      key(w, 'Escape');
+      await waitFor(() => !w.document.querySelector('.cm-tooltip-autocomplete'), { timeout: 3000 });
+      box('snippets').click();
+      expect(box('snippets').checked).toBe(false);
+      setText('');
+      await typeText(w, 'lo');
+      key(w, ' ', { ctrl: true });
+      await sleep(300);
+      expect(tooltipDetails().includes('snippet')).toBe(false);
+      key(w, 'Escape');
+    });
+
+    it('Set language mode changes the language and the status bar, and keeps the name', async () => {
+      const t = await H().put(text('{"x": 1}', 'text/plain'), { name: 'notes.txt', from: 'test', folderId: null });
+      await w.SlopCode.openRecord(await H().get(t));
+      await waitFor(() => doc(w) && doc(w).id === t, { timeout: 5000 });
+      const done = w.SlopCode.actions.language();
+      await waitFor(() => dialog(w) && dialog(w).querySelector('select'), { timeout: 3000 });
+      dialog(w).querySelector('select').value = 'json';
+      clickButton(w, 'Set');
+      expect(await done).toBe(true);
+      expect(w.document.getElementById('cd-status').textContent).toContain('JSON');
+      expect(doc(w).name).toBe('notes.txt');
+      expect(doc(w).langId).toBe('json');
+    });
+
+    it('Show Extensions opens the sidebar and its section', async () => {
+      w.document.querySelector('[data-sec-toggle="ext"]').click();
+      w.document.getElementById('cd-app').classList.add('cd-tree-hidden');
+      w.SlopCode.actions.extensions();
+      expect(w.document.getElementById('cd-sec-ext').classList.contains('collapsed')).toBe(false);
+      expect(w.document.getElementById('cd-app').classList.contains('cd-tree-hidden')).toBe(false);
+    });
+
+    it('SlopCmd lists the new commands with their shortcuts', async () => {
+      const have = w.SlopCmd.list().map((c) => c.id);
+      for (const id of ['newFolder', 'format', 'language', 'extensions']) expect(have).toContain('code.' + id);
+      expect(w.SlopCmd.keyFor('code.format')).toMatch(/F$/);
+      expect(w.SlopCmd.keyFor('code.format')).toMatch(/Shift/);
+      expect(w.SlopCmd.keyFor('code.newFolder')).toMatch(/Shift/);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: Extensions and helpers' });
+  </script>
+</body>
+</html>

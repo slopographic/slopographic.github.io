@@ -1,0 +1,20 @@
+/* PhotoSlop, German: the guided tour (shared/tour/tours/photoslop.js). Same keys as photoslop/i18n/en/tour.js. Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-de.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'photoslop.tour.title': 'Rundgang durch PhotoSlop',
+  'photoslop.tour.new_title': 'Eine Datei beginnen',
+  'photoslop.tour.new_text': 'Neu legt Größe, Vorgabe und Hintergrund eines Dokuments fest (bei schmalem Fenster unter Mehr ▾); Öffnen lädt eine PSD-, ORA- oder Bilddatei. Jede Datei bekommt einen Tab.',
+  'photoslop.tour.menus_title': 'Menüleiste',
+  'photoslop.tour.menus_text': 'Datei, Bearbeiten, Bild, Ebene, Auswahl und Filter befinden sich hier. Jedes Menü listet seine Befehle auf.',
+  'photoslop.tour.tools_title': 'Werkzeuge',
+  'photoslop.tour.tools_text': 'Pinsel, Auswahl, Text und Freistellen befinden sich im Werkzeugkasten. Eines wählen und dann in der Optionsleiste einrichten.',
+  'photoslop.tour.options_title': 'Werkzeugoptionen',
+  'photoslop.tour.options_text': 'Die Optionsleiste ändert sich mit dem aktiven Werkzeug: Größe, Deckkraft, Mischmodus und mehr.',
+  'photoslop.tour.canvas_title': 'Die Arbeitsfläche',
+  'photoslop.tour.canvas_text': 'Auf der Arbeitsfläche malen, auswählen und transformieren. Die Statusleiste zeigt Zoom und Größe.',
+  'photoslop.tour.panels_title': 'Ebenen und Bereiche',
+  'photoslop.tour.panels_text': 'Ebenen, Protokoll und Eigenschaften befinden sich in dieser Spalte. Auf einem Telefon zeigt die Schaltfläche Ebenen sie an.',
+  'photoslop.tour.export_title': 'Exportieren',
+  'photoslop.tour.export_text': 'PNG, JPEG, WebP oder PSD exportieren. Die Datei entsteht auf dem Gerät; es wird nichts hochgeladen.',
+  'photoslop.tour.theme_title': 'Design',
+  'photoslop.tour.theme_text': 'Zwischen Pro, Hell und Paint ’98 wechseln.',
+});

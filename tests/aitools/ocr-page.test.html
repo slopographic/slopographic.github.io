@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AI Tools · OCR: the Language and model button opens the shared dialog with every OCR language, and nothing downloads</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1000px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="AI Tools OCR page"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script type="module">
+  // Covers: aitools/ocr/ocr.js, aitools/ocr/index.html, shared/ocr/choose.js, shared/ocr/family.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const doc = () => frame.contentDocument, win = () => frame.contentWindow;
+  await new Promise((resolve) => { frame.onload = resolve; frame.src = '../../aitools/ocr/?t=' + Date.now(); });
+  await waitFor(() => win().SlopOcrModels && doc().getElementById('lang') && doc().getElementById('lang').title, { timeout: 15000 });
+
+  describe('AI Tools OCR: Language and model', () => {
+    it('the button says the choice: Detect automatically until one is made', () => {
+      const b = doc().getElementById('lang');
+      expect(b.textContent).toBe('Language and model');
+      expect(b.title).toBe('Detect automatically');
+    });
+    it('opens the dialog: every script model with no language, then the Arabic script model first for Persian, Tesseract\'s after it; nothing downloads', async () => {
+      doc().getElementById('lang').click();
+      const box = await waitFor(() => doc().querySelector('.spm-dlg'), { timeout: 5000 });
+      await waitFor(() => box.querySelectorAll('.spm-model').length === win().SlopOcrModels.rank('auto').length, { timeout: 5000 });
+      expect(box.querySelector('.spm-model').dataset.id).toBe('ppocr-v4');
+      const search = box.querySelector('.spm-search');
+      search.value = 'pers'; search.dispatchEvent(new Event('input'));
+      const fa = await waitFor(() => [...box.querySelectorAll('.spm-lang')].find((l) => l.textContent === 'Persian'));
+      fa.click();
+      const first = await waitFor(() => { const r = box.querySelector('.spm-model'); return r && r.dataset.id === 'ppocr-v5-arabic' && r; }, { timeout: 5000 });
+      expect(first.textContent).toContain('Recommended for Persian');
+      expect([...box.querySelectorAll('.spm-model')].map((r) => r.dataset.id)).toEqual(['ppocr-v5-arabic', 'tesseract-fas']);
+      await sleep(200);
+      expect(await win().SlopAIManager.status('ppocr-v5-arabic')).toBe('needs-download');
+      [...box.querySelectorAll('.sui-foot button')].find((b) => b.textContent === 'Cancel').click();
+      await waitFor(() => !doc().querySelector('.spm-dlg'), { timeout: 3000 });
+      expect(doc().getElementById('lang').title).toBe('Detect automatically');   // cancelled: no choice
+    });
+  });
+  run({ name: 'AI Tools OCR language' });
+  </script>
+</body>
+</html>

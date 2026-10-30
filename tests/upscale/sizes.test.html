@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Upscale: one size for the Quality model</title></head>
+<body>
+  <!-- Covers: upscale/js/app/main.js, upscale/js/core/models.js, shared/firstrun/notice.js, upscale/index.html -->
+  <!-- The page and the first-use notice once gave the Quality model as 67 MB and 64 MB. Both now write the registry's
+       byte count with SlopFirstRun.size, and Get more's pack has the same bytes. -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+
+  async function open() {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:1280px;height:800px;border:0;display:block';
+    f.src = '../../upscale/?t=' + Date.now();
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopUpscale && f.contentWindow.SlopUpscale.controller && f.contentDocument.getElementById('up-quality-size'), { timeout: 15000 });
+    return f;
+  }
+
+  describe('Slop Upscale: model sizes', () => {
+    it('the page, the first-use notice and Get more give the Quality model the same size', async () => {
+      try { localStorage.removeItem('slop-firstrun:upscale'); } catch (e) { /* private window */ }
+      const f = await open(), W = f.contentWindow, D = f.contentDocument;
+      const bytes = W.SlopUpscaleModels.get('realesrgan-x4plus').bytes;
+      const want = W.SlopFirstRun.size(bytes);
+      expect(want).toBe('64 MB');
+      await waitFor(() => D.getElementById('up-quality-size').textContent === want, { timeout: 5000 });
+      const packs = await (await fetch('../../shared/library/packs.json')).json();
+      const pack = (packs.packs || packs).find((p) => p.id === 'realesrgan-x4plus');
+      expect(pack.size).toBe(bytes);
+
+      const c = D.createElement('canvas'); c.width = c.height = 8;
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      W.SlopUpscale.controller.open(new W.File([blob], 'x.png', { type: 'image/png' }));
+      const dlg = await waitFor(() => D.querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(dlg.textContent).toContain(`Real-ESRGAN x4plus), only if you choose it, ${want}`);
+      expect(dlg.textContent).toContain(`This is downloaded once, ${want},`);
+      expect(dlg.textContent.includes('67 MB')).toBe(false);
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      f.remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Upscale: model sizes' });
+  </script>
+</body>
+</html>

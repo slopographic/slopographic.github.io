@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopUI submenu tests</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+</head>
+<body>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const items = () => [{ label: 'Plain', act() {} }, { label: 'More', sub: [{ label: 'One', act() {} }, { label: 'Two', disabled: true }, { label: 'Three', act() {} }] }, { label: 'Last', act() {} }];
+  const rowOf = (label) => [...document.querySelectorAll('.sui-menu .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === label);
+  const menus = () => [...document.querySelectorAll('.sui-menu')];
+  const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+
+  describe('SlopUI submenus', () => {
+    it('a submenu opens beside its row, to the right of the menu, without overlapping it', () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, 100);
+      const top = menus()[0], more = rowOf('More');
+      key(more, 'ArrowRight');
+      const sub = menus()[1];
+      expect(!!sub).toBe(true);
+      expect(sub.getBoundingClientRect().left >= top.getBoundingClientRect().right).toBe(true);
+      expect(sub.dataset.level).toBe('1');
+      SlopUI.closeMenu();
+    });
+    it('flips to the left when there is no room on the right', () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), innerWidth - 230, 100);
+      const top = menus()[0], more = rowOf('More');
+      key(more, 'ArrowRight');
+      const sub = menus()[1], s = sub.getBoundingClientRect(), t = top.getBoundingClientRect();
+      expect(s.right <= t.left).toBe(true);
+      expect(s.left >= 0).toBe(true);
+      SlopUI.closeMenu();
+    });
+    it('stays inside the viewport vertically near the bottom', () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, innerHeight - 60);
+      key(rowOf('More'), 'ArrowRight');
+      const s = menus()[1].getBoundingClientRect();
+      expect(s.bottom <= innerHeight).toBe(true);
+      SlopUI.closeMenu();
+    });
+    it('ArrowRight opens and focuses the first row; ArrowLeft closes it and returns focus to the parent row', () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, 100);
+      const more = rowOf('More');
+      key(more, 'ArrowRight');
+      expect(document.activeElement.querySelector('.sui-lbl').textContent).toBe('One');
+      key(document.activeElement, 'ArrowLeft');
+      expect(menus().length).toBe(1);
+      expect(document.activeElement).toBe(more);
+      SlopUI.closeMenu();
+    });
+    it('Escape closes the submenu first, then the menu', () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, 100);
+      key(rowOf('More'), 'ArrowRight');
+      key(document.activeElement, 'Escape');
+      expect(menus().length).toBe(1);
+      key(document.activeElement, 'Escape');
+      expect(menus().length).toBe(0);
+    });
+    it('a click opens the submenu at once; hover opens it after a short delay', async () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, 100);
+      const more = rowOf('More');
+      more.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' }));
+      expect(menus().length).toBe(1);
+      await sleep(260);
+      expect(menus().length).toBe(2);
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, 100);
+      rowOf('More').click();
+      expect(menus().length).toBe(2);
+      SlopUI.closeMenu();
+    });
+    it('a disabled item in a submenu stays disabled', () => {
+      SlopUI.closeMenu();
+      SlopUI.menu(items(), 100, 100);
+      key(rowOf('More'), 'ArrowRight');
+      expect(rowOf('Two').disabled).toBe(true);
+      SlopUI.closeMenu();
+    });
+  });
+
+  describe('SlopUI submenus on a phone', () => {
+    it('opens in place as a full-width list inside the menu, not as a flyout', async () => {
+      const f = document.createElement('iframe');
+      f.src = 'submenu-frame.html';
+      f.style.cssText = 'width:390px;height:600px;border:0;position:fixed;left:0;top:0';
+      document.body.append(f);
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopUI, { timeout: 8000 });
+      const w = f.contentWindow, d = w.document;
+      w.SlopUI.menu(items(), 20, 40);
+      const more = [...d.querySelectorAll('.sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === 'More');
+      more.click();
+      expect(d.querySelectorAll('.sui-menu').length).toBe(1);
+      const grp = d.querySelector('.sui-inline');
+      expect(!!grp).toBe(true);
+      expect(grp.querySelectorAll('.sui-row').length).toBe(3);
+      expect(d.querySelector('.sui-menu').getBoundingClientRect().right <= 390).toBe(true);
+      more.click();
+      expect(!!d.querySelector('.sui-inline')).toBe(false);
+      f.remove();
+    }, { timeout: 15000 });
+  });
+  SlopTest.run({ name: 'SlopUI submenus' });
+  </script>
+</body>
+</html>

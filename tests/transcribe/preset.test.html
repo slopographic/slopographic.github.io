@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Transcribe presets from a task page's link: ?format=srt</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px" src="../../transcribe/index.html?format=srt"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: transcribe/js/exports.js, transcribe/js/app.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  describe('Slop Transcribe presets', () => {
+    it('sets the download format from the address', async () => {
+      await waitFor(() => W().SlopTranscribe && W().document.getElementById('trFormat').options.length === 4, { timeout: 20000 });
+      expect(W().document.getElementById('trFormat').value).toBe('srt');
+    });
+    it('presetOf: known formats only', async () => {
+      const P = W().SlopTranscribe.presetOf;
+      expect(P('?format=vtt')).toEqual({ format: 'vtt' });
+      expect(P('?format=docx&x=1')).toEqual({ format: 'docx' });
+      expect(P('?format=exe')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+    it('without a preset the first format stays', async () => {
+      f.src = '../../transcribe/index.html';
+      await waitFor(() => W().location.search === '' && W().SlopTranscribe && W().document.getElementById('trFormat').options.length === 4, { timeout: 20000 });
+      expect(W().document.getElementById('trFormat').value).toBe('txt');
+    });
+  });
+  run({ name: 'Slop Transcribe presets' });
+  </script>
+</body>
+</html>

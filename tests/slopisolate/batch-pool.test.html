@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-limit" content="480">
+  <title>SlopIsolate batch pool tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- Real models (WebAssembly) in the real app: the pool runs images at once, the page stays responsive,
+       a failure or a removal mid-run leaves the rest alone. -->
+  <script src="../harness.js"></script>
+  <script src="batch.helpers.js"></script>
+  <script src="batch.spec-pool.js"></script>
+  <script>SlopTest.run({ name: 'SlopIsolate batch pool' });</script>
+</body>
+</html>

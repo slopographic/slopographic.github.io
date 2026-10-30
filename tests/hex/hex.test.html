@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Hex tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. Slop Drive is the shared hub on this test origin (its own IndexedDB, fresh per run),
+       so the save test reads the saved records back through this page's SlopHub, as tests/paste does. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const H = () => window.SlopHub;
+  const SRC = '../../hex/index.html';
+
+  /** Load the app fresh (about:blank first, so a reload never reads the old page's ready flag). */
+  async function open(src = SRC) {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = src;
+    const want = new URL(src, location.href).pathname;
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname === want && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    return W();
+  }
+  /** Open bytes in the app, the way the file picker or a drop does. */
+  async function openBytes(bytes, name = 'sample.bin') {
+    const w = await open();
+    await w.HexApp.openBlob(new Blob([bytes]), { name });
+    await waitFor(() => q('.hx-row'), { timeout: 5000 });
+    await sleep(40);
+    return w;
+  }
+  const key = (el, k, mods = {}) => el.dispatchEvent(new (W().KeyboardEvent)('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, mods)));
+  const cell = (i) => q(`.hx-b[data-i="${i}"]`);
+  /** Bytes 0..n-1 with a known pattern, plus a marker at the given offsets. */
+  function sample(n, marks = {}) { const a = new Uint8Array(n); for (let i = 0; i < n; i++) a[i] = (i * 13) & 0x7f; for (const k in marks) a.set(marks[k], +k); return a; }
+  const bytesFrom = async (blob) => new Uint8Array(await blob.arrayBuffer());
+
+  describe('Slop Hex: open', () => {
+    it('opens a file and shows offset, hex and ASCII columns', async () => {
+      const w = await openBytes(new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x41, 0x42]), 'tiny.exe');
+      expect(q('.hx-off').textContent).toBe('0x00000000');
+      expect(cell(0).textContent).toBe('4D');
+      expect(cell(2).textContent).toBe('90');
+      expect(q('.hx-asc').textContent.slice(0, 6)).toBe('MZ..AB');
+      expect(q('#hx-name').textContent).toMatch(/tiny\.exe/);
+      expect(w.HexApp.doc().size).toBe(6);
+    });
+    it('the info strip shows size, a type from the magic bytes and a SHA-256', async () => {
+      await openBytes(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]), 'pic.png');
+      await waitFor(() => /^[0-9a-f]{64}$/.test(q('#hx-sha').textContent), { timeout: 5000 });
+      expect(q('#hx-type').textContent).toBe('PNG image');
+      expect(q('#hx-size').textContent).toMatch(/^10 bytes/);
+      expect(q('#hx-sha').textContent).toMatch(/^[0-9a-f]{64}$/);
+    });
+    it('a file with no known type is shown as binary data', async () => {
+      await openBytes(new Uint8Array([0, 1, 2, 255]), 'blob.dat');
+      await waitFor(() => q('#hx-type').textContent !== '', { timeout: 3000 });
+      expect(q('#hx-type').textContent).toBe('Binary data');
+    });
+    it('opens a file launched from Slop Drive with ?drive=<id>', async () => {
+      const id = await H().put(new Blob([new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 1, 2])]), { name: 'prog.elf', from: 'hex' });
+      const w = await open(SRC + '?drive=' + id);
+      await waitFor(() => w.HexApp.doc() && w.HexApp.doc().name === 'prog.elf', { timeout: 5000 });
+      await waitFor(() => q('#hx-type').textContent === 'ELF executable', { timeout: 5000 });
+      expect(w.HexApp.app.driveId).toBe(id);
+      expect(new URL(W().location.href).searchParams.has('drive')).toBeFalsy();
+    });
+    it('a 100 MB file opens and only the visible rows are drawn', async () => {
+      const big = new Blob([new Uint8Array(100 * 1024 * 1024)]);
+      const w = await open();
+      const t0 = performance.now();
+      await w.HexApp.openBlob(big, { name: 'big.bin' });
+      await waitFor(() => q('.hx-row'), { timeout: 20000 });
+      const rows = qa('.hx-row').length;
+      expect(rows).toBeLessThan(200);
+      expect(Number(q('#hx-spacer').style.height.replace('px', ''))).toBeLessThanOrEqual(8000000);
+      expect(performance.now() - t0).toBeLessThan(15000);
+      expect(w.HexApp.doc().size).toBe(100 * 1024 * 1024);
+    });
+  });
+
+  describe('Slop Hex: edit', () => {
+    it('typing two hex digits overwrites one byte; Ctrl+Z restores it and Ctrl+Y redoes it', async () => {
+      const w = await openBytes(new Uint8Array([0x00, 0x11, 0x22]), 'edit.bin');
+      w.HexApp.grid().select(1, 1);
+      const s = q('#hx-scroll');
+      key(s, '4'); key(s, 'D');
+      await sleep(30);
+      expect(w.HexApp.doc().byte(1)).toBe(0x4d);
+      expect(cell(1).textContent).toBe('4D');
+      expect(q('#hx-name').textContent).toMatch(/unsaved/);
+      key(s, 'z', { ctrlKey: true });
+      await sleep(30);
+      expect(w.HexApp.doc().byte(1)).toBe(0x11);
+      expect(cell(1).textContent).toBe('11');
+      key(s, 'y', { ctrlKey: true });
+      await sleep(30);
+      expect(w.HexApp.doc().byte(1)).toBe(0x4d);
+    });
+    it('Go to offset takes decimal and 0x hex', async () => {
+      const w = await openBytes(sample(300), 'goto.bin');
+      q('#hx-goto').value = '17';
+      q('#hx-goform').requestSubmit();
+      expect(w.HexApp.grid().sel().cursor).toBe(17);
+      q('#hx-goto').value = '0x100';
+      q('#hx-goform').requestSubmit();
+      expect(w.HexApp.grid().sel().cursor).toBe(256);
+      q('#hx-goto').value = '9999';
+      q('#hx-goform').requestSubmit();
+      expect(q('#hx-status').textContent).toMatch(/between 0 and 299/);
+    });
+    it('the commands are registered in SlopCmd', async () => {
+      const w = await openBytes(sample(20), 'cmd.bin');
+      expect(!!w.SlopCmd.get('hex.undo')).toBeTruthy();
+      expect(!!w.SlopCmd.get('hex.save')).toBeTruthy();
+      expect(!!w.SlopCmd.get('hex.goto')).toBeTruthy();
+    });
+  });
+
+  describe('Slop Hex: find', () => {
+    it('find bytes: next and previous, wrapping at the ends', async () => {
+      const marks = { 10: [0xde, 0xad], 40: [0xde, 0xad] };
+      const w = await openBytes(sample(64, marks), 'find.bin');
+      q('#hx-mode').value = 'hex';
+      q('#hx-q').value = 'DE AD';
+      q('#hx-next').click();
+      await waitFor(() => /Found at 0x0000000A/.test(q('#hx-status').textContent), { timeout: 3000 });
+      expect(w.HexApp.grid().sel().anchor).toBe(10);
+      q('#hx-next').click();
+      await waitFor(() => /0x00000028/.test(q('#hx-status').textContent), { timeout: 3000 });
+      q('#hx-next').click();
+      await waitFor(() => /Wrapped/.test(q('#hx-status').textContent), { timeout: 3000 });
+      expect(w.HexApp.grid().sel().anchor).toBe(10);
+      q('#hx-prev').click();
+      await waitFor(() => /Wrapped/.test(q('#hx-status').textContent), { timeout: 3000 });
+      expect(w.HexApp.grid().sel().anchor).toBe(40);
+    });
+    it('find text, and a search that finds nothing says so', async () => {
+      const w = await openBytes(new TextEncoder().encode('hello, world'), 'text.txt');
+      q('#hx-mode').value = 'text';
+      q('#hx-q').value = 'world';
+      q('#hx-next').click();
+      await waitFor(() => /Found at 0x00000007/.test(q('#hx-status').textContent), { timeout: 3000 });
+      expect(w.HexApp.grid().sel().anchor).toBe(7);
+      q('#hx-q').value = 'nope';
+      q('#hx-next').click();
+      await waitFor(() => /Not found/.test(q('#hx-status').textContent), { timeout: 3000 });
+    });
+    it('a bad hex pattern is refused with a hint', async () => {
+      await openBytes(sample(16), 'bad.bin');
+      q('#hx-mode').value = 'hex';
+      q('#hx-q').value = 'DE A';
+      q('#hx-next').click();
+      await waitFor(() => /whole hex bytes/.test(q('#hx-status').textContent), { timeout: 3000 });
+    });
+  });
+
+  describe('Slop Hex: save to Slop Drive', () => {
+    it('save a new version: a new Drive file beside the original, with the original untouched', async () => {
+      const orig = new Uint8Array([1, 2, 3, 4]);
+      const id = await H().put(new Blob([orig]), { name: 'data.bin', from: 'hex' });
+      const w = await open(SRC + '?drive=' + id);
+      await waitFor(() => w.HexApp.doc() && w.HexApp.doc().name === 'data.bin', { timeout: 5000 });
+      w.HexApp.grid().select(0, 0);
+      key(q('#hx-scroll'), 'F'); key(q('#hx-scroll'), 'F');
+      await sleep(30);
+      await w.HexApp.saveVersion();
+      const rec = (await H().list()).find((r) => r.name === 'data (v2).bin');
+      expect(rec).toBeTruthy();
+      expect(rec.meta.versionOf).toBe(id);
+      expect(rec.from).toBe('hex');
+      expect(Array.from(await bytesFrom(rec.blob))).toEqual([0xff, 2, 3, 4]);
+      const original = await H().get(id);
+      expect(Array.from(await bytesFrom(original.blob))).toEqual([1, 2, 3, 4]);
+      expect(w.HexApp.doc().dirty()).toBeFalsy();
+    });
+    it('download makes a file of the current bytes', async () => {
+      const w = await openBytes(new Uint8Array([9, 8, 7]), 'dl.bin');
+      const blob = w.HexApp.doc().toBlob();
+      expect(Array.from(await bytesFrom(blob))).toEqual([9, 8, 7]);
+    });
+  });
+
+  describe('Slop Hex: phone width', () => {
+    it('the header stacks and the grid scrolls sideways, with no page scroll', async () => {
+      await openBytes(sample(256), 'phone.bin');
+      f.style.width = '390px';
+      await sleep(120);
+      try {
+        const doc = W().document;
+        expect(doc.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+        expect(q('#hx-scroll').scrollWidth).toBeGreaterThan(q('#hx-scroll').clientWidth);
+        expect(q('.smb-bar').getBoundingClientRect().right).toBeLessThanOrEqual(390);
+      } finally { f.style.width = '1280px'; }
+    });
+  });
+
+  run({ name: 'Slop Hex tests' });
+  </script>
+</body>
+</html>

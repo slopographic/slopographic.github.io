@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop EML: save attachments together</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const enc = new TextEncoder();
+  const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+  const FILES = { 'a.txt': 'alpha', 'b.txt': 'beta', 'a (2).txt': 'gamma' };
+  const part = (name) => '--BND\r\nContent-Type: text/plain; name="' + name + '"\r\nContent-Transfer-Encoding: base64\r\n' +
+    'Content-Disposition: attachment; filename="' + name + '"\r\n\r\n' + b64(enc.encode(FILES[name])) + '\r\n';
+  // Two attachments share the name a.txt in the message; the second is named a (2).txt and must stay distinct from the third.
+  const EML = 'From: a@example.com\r\nTo: b@example.com\r\nSubject: Three\r\nDate: Mon, 5 Jan 2026 10:00:00 +0000\r\n' +
+    'MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="BND"\r\n\r\n' +
+    '--BND\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nHello\r\n' +
+    ['a.txt', 'b.txt', 'a (2).txt'].map(part).join('') + '--BND--\r\n';
+
+  // The attachments are in the side panel (shared/frame/panel.js): one row each, with Save and Open in, and Save all (ZIP).
+  const rows = () => [...W().document.querySelectorAll('#em-side .sf-item')];
+  const saveOf = (i) => rows()[i].querySelector('.sf-item-acts .sf-btn');
+  // The download is captured here, not sent to the browser: the test reads what would be saved.
+  let saved = [];
+  async function openMail() {
+    f.src = '../../eml/index.html';
+    await new Promise((r) => (f.onload = r));
+    await waitFor(() => W().EmlApp && W().SlopZip, { timeout: 15000 });
+    W().SlopUI.download = (blob, name) => saved.push({ blob, name });
+    saved = [];
+    await W().EmlApp.openFile(new (W().File)([EML], 'mail.eml', { type: 'message/rfc822' }));
+    await waitFor(() => rows().length === 3, { timeout: 8000 });
+  }
+
+  describe('EML attachments: select and save together', () => {
+    it('names duplicates apart and keeps them distinct from later names', async () => {
+      await openMail();
+      expect(W().EmlAttachments.uniqueNames(['a.txt', 'a.txt', 'a (2).txt'])).toEqual(['a.txt', 'a (2).txt', 'a (2) (2).txt']);
+      expect(W().EmlAttachments.uniqueNames(['no-ext', 'no-ext'])).toEqual(['no-ext', 'no-ext (2)']);
+    });
+
+    it('each attachment is saved as it is from its Save button', async () => {
+      await openMail();
+      saveOf(1).click();
+      await waitFor(() => saved.length === 1, { timeout: 4000 });
+      expect(saved[0].name).toBe('b.txt');
+      expect(await saved[0].blob.text()).toBe('beta');
+    });
+
+    it('Save all (ZIP) gives one ZIP with every attachment, names kept distinct', async () => {
+      await openMail();
+      W().document.getElementById('em-atts-zip').click();
+      await waitFor(() => saved.length === 1, { timeout: 4000 });
+      expect(saved[0].name).toBe('mail attachments.zip');
+      const entries = await W().SlopZip.unzip(saved[0].blob);
+      expect(entries.map((e) => [e.name, new TextDecoder().decode(e.bytes)])).toEqual([
+        ['a.txt', 'alpha'], ['b.txt', 'beta'], ['a (2).txt', 'gamma'],
+      ]);
+    });
+
+    it('Open in lists the apps that open the type (SlopHub) and Save to Slop Drive', async () => {
+      await openMail();
+      const labels = W().EmlExport.attachmentItems(W().EmlApp.current(), 0).map((i) => i.label);
+      expect(labels[0]).toBe('Save');
+      expect(labels.some((l) => l.startsWith('Send to '))).toBe(true);
+      expect(labels[labels.length - 1]).toBe('Save to Slop Drive…');
+      const menuBtn = rows()[0].querySelectorAll('.sf-item-acts .sf-btn')[1];
+      menuBtn.click();
+      await waitFor(() => W().document.querySelector('.smb-menu[role="menu"]'), { timeout: 3000 });
+      const shown = [...W().document.querySelectorAll('.smb-menu[role="menu"] .smb-lbl')].map((n) => n.textContent);
+      expect(shown).toEqual(labels.slice(1));
+      W().document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+  });
+  SlopTest.run({ name: 'EML: save attachments together' });
+  </script>
+</body>
+</html>

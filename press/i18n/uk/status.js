@@ -1,0 +1,23 @@
+/* Slop Press, Ukrainian: the status bar (ui/status.js): page navigation, zoom, preflight. Same keys as press/i18n/en/status.js. Keys start with press.status. Terms: shared/i18n/glossary-uk.md. */
+window.SlopI18n && window.SlopI18n.add('uk', {
+  'press.status.zoom': 'Масштаб',
+  'press.status.zoom_pct': 'Масштаб у відсотках',
+  'press.status.go_page': 'Перейти до сторінки',
+  'press.status.cur_page': 'Поточна сторінка',
+  'press.status.preflight': 'Перевірка перед друком',
+  'press.status.first': 'Перша сторінка',
+  'press.status.prev': 'Попередня сторінка',
+  'press.status.next': 'Наступна сторінка',
+  'press.status.last': 'Остання сторінка',
+  'press.status.overset_n': '{n} матеріалів із переповненим текстом',
+  'press.status.overset_n#one': '{n} матеріал із переповненим текстом',
+  'press.status.overset_n#few': '{n} матеріали з переповненим текстом',
+  'press.status.overset_n#many': '{n} матеріалів із переповненим текстом',
+  'press.status.missing_n': 'Відсутніх зображень: {n}',
+  'press.status.missing_n#one': 'Відсутнє зображення: {n}',
+  'press.status.missing_n#few': 'Відсутні зображення: {n}',
+  'press.status.missing_n#many': 'Відсутніх зображень: {n}',
+  'press.status.no_errors': 'Помилок немає',
+  'press.status.jump_overset': 'Клацніть, щоб перейти до рамки з переповненим текстом',
+  'press.status.unsaved': 'Незбережені зміни (автоматично зберігаються в цьому браузері)',
+});

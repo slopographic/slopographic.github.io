@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: the assistant's commands</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/ai-commands.js, code/js/commands.js
+  const { describe, it, expect } = SlopTest;
+  const { frame, H, doc, textOf, waitFor } = CT;
+  let w, C, downloads = [];
+  const run = async (id, args) => { const r = await C.exec('code.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const saved = async (name) => { const r = (await H().list()).find((x) => x.name === name && !x.trashedAt); return r ? r.blob.text() : null; };
+
+  describe('Slop Code: assistant commands', () => {
+    it('prepare() loads the commands; none is destructive', async () => {
+      w = await frame('../../code/');
+      C = w.SlopCmd;
+      w.SlopUI.download = (blob, name) => downloads.push({ blob, name });
+      expect(C.get('code.ai.new-file')).toBe(null);
+      await C.prepare();
+      const ids = ['new-file', 'open-file', 'insert-text', 'replace-text', 'set-text', 'format-document', 'run-preview', 'save-file', 'export-file'];
+      for (const id of ids) expect(!!C.get('code.ai.' + id)).toBe(true);
+      expect(C.list().filter((c) => /^code\.ai\./.test(c.id) && c.destructive).length).toBe(0);
+    }, { timeout: 30000 });
+
+    it('new_file in a folder opens it with its code', async () => {
+      const f = await H().createFolder('site-' + Date.now());
+      const folder = (await H().listFolders()).find((x) => x.id === f).name;
+      const r = await run('new-file', { name: 'app.js', content: 'const a = 1;\n', folder });
+      expect(r.value).toMatch(/JavaScript, 2 lines/);
+      expect(doc(w).name).toBe('app.js');
+      expect(textOf(w)).toBe('const a = 1;\n');
+      expect(doc(w).folderId).toBe(f);
+    });
+
+    it('insert_text, replace_text and set_text are one undo step each, then save_file writes Drive', async () => {
+      await run('insert-text', { text: 'const b = 2;', at: 'end' });
+      expect(textOf(w)).toBe('const a = 1;\nconst b = 2;');
+      await run('insert-text', { text: '// top\n', at: 'start' });
+      await run('insert-text', { text: '// two\n', at: 'line', line: 2 });
+      expect(textOf(w).split('\n').slice(0, 3)).toEqual(['// top', '// two', 'const a = 1;']);
+      const r = await run('replace-text', { find: 'const', replace: 'let' });
+      expect(r.value).toMatch(/^2 replacements/);
+      expect(doc(w).dirty).toBe(true);
+      await run('save-file', {});
+      expect(await saved('app.js')).toBe(textOf(w));
+      expect(doc(w).dirty).toBe(false);
+      await run('set-text', { text: '{"a":1,"b":[1,2]}' });
+      expect(textOf(w)).toBe('{"a":1,"b":[1,2]}');
+      w.SlopCode.view().focus();
+      const back = C.checkpoint();
+      await run('set-text', { text: 'gone' });
+      back();
+      expect(textOf(w)).toBe('{"a":1,"b":[1,2]}');
+    });
+
+    it('format_document formats JSON; export_file saves a copy and downloads it; open_file opens by name', async () => {
+      await run('new-file', { name: 'data.json', content: '{"a":1,"b":[1,2]}' });
+      await run('format-document', {});
+      expect(textOf(w)).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}\n');
+      const e = await run('export-file', { name: 'copy.json', to: 'both' });
+      expect(e.value).toMatch(/copy\.json/);
+      expect(await saved('copy.json')).toBe(textOf(w));
+      expect(downloads.at(-1).name).toBe('copy.json');
+      expect(await downloads.at(-1).blob.text()).toBe(textOf(w));
+      await run('open-file', { file: 'app.js' });
+      expect(doc(w).name).toBe('app.js');
+      const st = C.state();
+      expect(st.current.name).toBe('app.js');
+      expect(st.open.map((d) => d.name)).toContain('data.json');
+      expect((await C.exec('code.ai.open-file', { file: 'no-such-file.xyz' })).ok).toBe(false);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

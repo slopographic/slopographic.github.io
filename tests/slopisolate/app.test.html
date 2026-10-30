@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cutout app tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- App core: undo/redo history (slopisolate/js/core/*). -->
+    <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../slopisolate/js/core/util.js"></script>
+  <script src="../../slopisolate/js/core/state.js"></script>
+  <script src="../../slopisolate/js/core/brush.js"></script>
+  <script src="../../slopisolate/js/core/history.js"></script>
+  <script src="app.spec-history.js"></script>
+  <script>SlopTest.run({ name: 'Slop Cutout app' });</script>
+</body>
+</html>

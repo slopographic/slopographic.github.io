@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop EML: the look (header tools, buttons and drop strip, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: eml/css/eml.css, shared/frame/frame.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once it and the shell's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../eml/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.defaultView.EmlApp && D.querySelector('.smb-bar .slop-hbtn') && D.querySelector('#em-drop button'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const h = (n) => n.getBoundingClientRect().height;
+  const css = (D, n) => D.defaultView.getComputedStyle(n);
+
+  describe('Slop EML: the look', () => {
+    it('the header holds Open and the Actions panel button, as tall as the shared header buttons; Open is filled with the accent', async () => {
+      const D = await open(1440);
+      const hb = h([...D.querySelectorAll('.smb-bar .slop-hbtn')].find((n) => n.getBoundingClientRect().width));
+      expect(h(D.getElementById('em-open'))).toBe(hb);
+      expect(h(D.querySelector('.smb-tools .sf-toggle'))).toBe(hb);
+      expect(D.querySelector('.smb-tools .sf-toggle').textContent).toBe('Actions');
+      expect([...D.querySelectorAll('.smb-tools > .sui-btn')].map((b) => b.id)).toEqual(['em-open']);
+      expect(css(D, D.getElementById('em-open')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    }, { timeout: 40000 });
+
+    it("the empty state's button is a filled button, and the drop strip is outlined", async () => {
+      const D = await open(1440);
+      expect(css(D, D.getElementById('em-open2')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+      expect(h(D.getElementById('em-open2'))).toBe(32);
+      expect(css(D, D.getElementById('em-drop')).borderTopStyle).toBe('dashed');
+    }, { timeout: 40000 });
+
+    it("a message's buttons are 32px tall too", async () => {
+      const D = await open(1440);
+      const bytes = await (await fetch('fixtures/sample.eml')).arrayBuffer();
+      await D.defaultView.EmlApp.openFile(new File([bytes], 'sample.eml', { type: 'message/rfc822' }));
+      await waitFor(() => !D.getElementById('em-msg').hidden);
+      for (const n of D.querySelectorAll('#em-msg .sui-btn')) if (n.getBoundingClientRect().width) expect(h(n)).toBe(32);
+    }, { timeout: 40000 });
+
+    it('at 390px the header is one row (its tools are in the File menu) and nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(D.getElementById('em-open').getBoundingClientRect().width).toBe(0);
+      expect(h(D.querySelector('.smb-bar'))).toBeLessThan(50);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop EML: the look' });
+  </script>
+</body>
+</html>

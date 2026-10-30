@@ -1,0 +1,20 @@
+/* PhotoSlop, French (the source of truth for the keys): the guided tour (shared/tour/tours/photoslop.js). Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-fr.md. */
+window.SlopI18n && window.SlopI18n.add('fr', {
+  'photoslop.tour.title': 'Visite guidée de PhotoSlop',
+  'photoslop.tour.new_title': 'Commencer un fichier',
+  'photoslop.tour.new_text': 'Nouveau règle la taille, le préréglage et l’arrière-plan d’un document (dans Plus ▾ sur une fenêtre étroite) ; Ouvrir charge un PSD, un ORA ou une image. Chaque fichier a son onglet.',
+  'photoslop.tour.menus_title': 'Barre de menus',
+  'photoslop.tour.menus_text': 'Fichier, Édition, Image, Calque, Sélection et Filtre se trouvent ici. Chaque menu liste ses commandes.',
+  'photoslop.tour.tools_title': 'Outils',
+  'photoslop.tour.tools_text': 'Pinceaux, sélection, texte et recadrage sont dans la boîte à outils. Choisissez-en un, puis réglez-le dans la barre d’options.',
+  'photoslop.tour.options_title': 'Options de l’outil',
+  'photoslop.tour.options_text': 'La barre d’options change avec l’outil actif : taille, opacité, mode de fusion et plus.',
+  'photoslop.tour.canvas_title': 'La zone de travail',
+  'photoslop.tour.canvas_text': 'Peignez, sélectionnez et transformez sur la zone de travail. La barre d’état affiche le zoom et la taille.',
+  'photoslop.tour.panels_title': 'Calques et panneaux',
+  'photoslop.tour.panels_text': 'Calques, historique et propriétés sont dans cette colonne. Sur téléphone, le bouton Calques les affiche.',
+  'photoslop.tour.export_title': 'Exporter',
+  'photoslop.tour.export_text': 'Exportez en PNG, JPEG, WebP ou PSD. Le fichier est créé sur votre appareil ; rien n’est envoyé.',
+  'photoslop.tour.theme_title': 'Thème',
+  'photoslop.tour.theme_text': 'Basculez entre Pro, Clair et Paint ’98.',
+});

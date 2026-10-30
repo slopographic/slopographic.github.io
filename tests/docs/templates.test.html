@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs: Random template and My templates</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+<script src="../../shared/hub.js"></script>
+<script src="../../shared/intake/outtake.js"></script>
+<script src="../../shared/ops/entry.js"></script>
+<script>
+/* Runs the real Docs page in an iframe and drives the Random template dialog, the toolbar's Random button, the
+ * File ▸ New menu and the Save as template flow with the same events a person produces. */
+const { describe, it, expect, waitFor, beforeEach } = SlopTest;
+const H = window.SlopHub;
+const frames = [];
+async function clearAll() {
+  for (const f of frames.splice(0)) f.remove();
+  await new Promise((res) => { const r = indexedDB.deleteDatabase('slop-docs'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+}
+async function open(src = '../../docs/', width = 1100) {
+  const f = document.createElement('iframe');
+  f.style.cssText = `width:${width}px;height:720px;border:0`;
+  f.src = src;
+  document.body.append(f);
+  frames.push(f);
+  await waitFor(() => f.contentWindow && f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready && f.contentWindow.document.querySelector('#pages .page'), { timeout: 20000 });
+  return f.contentWindow;
+}
+function close(W) { const f = frames.find((x) => x.contentWindow === W); if (f) { f.remove(); frames.splice(frames.indexOf(f), 1); } }
+const dlg = (W) => W.document.querySelector('.tpl-dlg');
+const seedIn = (W) => W.document.getElementById('tplSeed');
+const info = (W) => W.document.getElementById('tplInfo').textContent;
+const button = (W, label) => [...W.document.querySelectorAll('.tpl-dlg .sui-foot button')].find((b) => b.textContent.trim() === label);
+async function openRandom(W) {
+  W.document.getElementById('tbRandom').click();
+  await waitFor(() => dlg(W) && W.document.querySelector('#tplPreview .page'), { timeout: 15000 });
+}
+function setSeed(W, s) {
+  seedIn(W).value = s;
+  seedIn(W).dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+}
+/** Every menu row under File, with its submenus flattened to labels. */
+const myTemplates = (W) => W.SlopDocs.menus.file().find((r) => r.label === 'New').sub.find((r) => r.label === 'My templates').sub;
+const menuLabels = (rows, out = []) => { for (const r of rows) { if (r && typeof r === 'object') { out.push(r.label); if (r.sub) menuLabels(r.sub, out); } } return out; };
+
+describe('Random template: preview and dialog', () => {
+  beforeEach(clearAll);
+  it('"Random template" opens the preview: the first page, its seed and a one-line description', async () => {
+    const W = await open();
+    await openRandom(W);
+    expect(dlg(W)).toBeTruthy();
+    expect(W.document.querySelectorAll('#tplPreview .page').length).toBe(1);
+    expect(W.document.querySelector('#tplPreview .page .t')).toBeTruthy();
+    expect(seedIn(W).value).toMatch(/^[0-9a-z]{6}$/);
+    expect(info(W)).toContain(' layout');
+    close(W);
+  });
+  it('File ▸ New offers Random template and My templates', async () => {
+    const W = await open();
+    const file = W.SlopDocs.menus.file();
+    const New = file.find((r) => r.label === 'New');
+    expect(New).toBeTruthy();
+    expect(menuLabels(New.sub)).toContain('Random template…');
+    expect(menuLabels(New.sub)).toContain('My templates');
+    close(W);
+  });
+  it('Reshuffle changes the seed', async () => {
+    const W = await open();
+    await openRandom(W);
+    const before = seedIn(W).value;
+    button(W, 'Reshuffle').click();
+    await waitFor(() => seedIn(W).value !== before, { timeout: 5000 });
+    expect(dlg(W)).toBeTruthy();
+    expect(seedIn(W).value).toMatch(/^[0-9a-z]{6}$/);
+    close(W);
+  });
+  it('Enter in the seed field regenerates from the typed seed', async () => {
+    const W = await open();
+    await openRandom(W);
+    setSeed(W, 'typed seed 42');
+    const want = W.SlopDocEngine.TPL.generateTemplate('typed seed 42').vars;
+    await waitFor(() => info(W).includes(want.title) && info(W).includes(want.layout + ' layout'), { timeout: 5000 });
+    expect(seedIn(W).value).toBe('typed seed 42');
+    expect(info(W)).toContain(want.fonts[0]);
+    expect(info(W)).toContain(want.fonts[1]);
+    close(W);
+  });
+  it('clicking the preview opens it full size', async () => {
+    const W = await open();
+    await openRandom(W);
+    W.document.getElementById('tplPreview').click();
+    await waitFor(() => W.document.querySelector('.tpl-full-dlg .page'), { timeout: 5000 });
+    const full = W.document.querySelector('.tpl-full-dlg .page').getBoundingClientRect().width;
+    const thumb = W.document.querySelector('#tplPreview .page').getBoundingClientRect().width;
+    expect(full).toBeGreaterThan(thumb * 2);
+    close(W);
+  });
+});
+
+describe('Random template: Use this template', () => {
+  beforeEach(clearAll);
+  it('creates a document with the template\'s header text', async () => {
+    const W = await open();
+    await openRandom(W);
+    setSeed(W, 'header check');
+    const want = W.SlopDocEngine.TPL.generateTemplate('header check').doc;
+    await waitFor(() => seedIn(W).value === 'header check', { timeout: 3000 });
+    button(W, 'Use this template').click();
+    await waitFor(() => W.SlopDocs.doc && W.SlopDocs.doc.meta.template && W.SlopDocs.doc.meta.template.seed === 'header check', { timeout: 5000 });
+    const headerText = (d) => W.SlopDocEngine.M.paraText(d.header.default[0]);
+    expect(headerText(W.SlopDocs.doc)).toBe(headerText(want));
+    expect(headerText(W.SlopDocs.doc)).toContain(want.header.default[0].runs[0].text.split('\t')[0]);
+    expect(W.SlopDocs.file.id).toBe(null);
+    expect(W.document.querySelectorAll('#pages .page').length).toBeGreaterThan(0);
+    close(W);
+  });
+});
+
+describe('My templates', () => {
+  beforeEach(clearAll);
+  it('Save as template adds it to My templates, and it survives a reload', async () => {
+    const W = await open();
+    await openRandom(W);
+    setSeed(W, 'keep me');
+    await waitFor(() => info(W).length > 0, { timeout: 3000 });
+    W.SlopUI.prompt = async () => 'Keep me';
+    button(W, 'Save as template').click();
+    await waitFor(() => W.SlopDocs.tplList.some((t) => t.name === 'Keep me'), { timeout: 8000 });
+    expect(menuLabels(myTemplates(W))).toContain('Keep me');
+    close(W);
+
+    const W2 = await open();
+    await waitFor(() => W2.SlopDocs.tplList.some((t) => t.name === 'Keep me'), { timeout: 5000 });
+    const rows = myTemplates(W2);
+    expect(menuLabels(rows)).toContain('Keep me');
+    const rec = W2.SlopDocs.tplList.find((t) => t.name === 'Keep me');
+    expect(rec.seed).toBe('keep me');
+    expect(rec.doc.meta.template.seed).toBe('keep me');
+    close(W2);
+  });
+  it('the template is also a .sdoc-template file in the Templates folder of Slop Drive', async () => {
+    const top = await H.listFolders({ parentId: null, trashed: false });
+    const folder = top.find((f) => f.name === 'Templates');
+    expect(folder).toBeTruthy();
+    const files = await H.list({ folderId: folder.id, trashed: false });
+    expect(files.some((f) => f.name === 'Keep me.sdoc-template')).toBeTruthy();
+  });
+});
+SlopTest.run({ name: 'Slop Docs random templates' });
+</script>
+</body>
+</html>

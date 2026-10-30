@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>View modes: Email viewer</title>
+<style>html, body { margin: 0; height: 100%; } #app { display: block; width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="Email viewer app"></iframe>
+  <script>window.APP_MODES = { name: 'Email viewer', url: '../../eml/', workspace: '#em-main', sidebar: [], panels: [], grow: false };   // the menu bar stays as a strip: it holds the mode controls</script>
+  <script src="../harness.js"></script>
+  <script src="app-modes.js"></script>
+</body>
+</html>

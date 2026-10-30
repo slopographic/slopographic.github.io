@@ -1,0 +1,25 @@
+/* Slop Press, Swedish: the Tools panel (ui/toolbar.js), the colour chips and popover (ui/kit.js), Create Guides
+ * (ui/guides.js). Keys start with press.tool., press.kit. and press.guide. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'press.tool.undo_fill': 'Ändra fyllning',
+  'press.tool.undo_stroke': 'Ändra linje',
+  'press.tool.fill_tip': 'Fyllning (klicka för att välja)',
+  'press.tool.fill_label': 'Fyllningsfärg',
+  'press.tool.stroke_tip': 'Linje (klicka för att välja)',
+  'press.tool.stroke_label': 'Linjefärg',
+  'press.tool.title_key': '{name} ({key})',
+  'press.kit.colour': 'Färg',
+  'press.kit.custom_colour': 'Egen färg…',
+  'press.kit.mode': 'Läge',
+  'press.kit.mode_cmyk': 'CMYK (process, tryck)',
+  'press.kit.ink.c': 'Cyan',
+  'press.kit.ink.m': 'Magenta',
+  'press.kit.ink.y': 'Gul',
+  'press.kit.ink.k': 'Svart',
+  'press.guide.title': 'Skapa stödlinjer',
+  'press.guide.margins': 'Marginaler',
+  'press.guide.page': 'Sida',
+  'press.guide.selection': 'Markering',
+  'press.guide.undo_create': 'Skapa stödlinjer',
+  'press.guide.undo_clear': 'Rensa stödlinjer',
+});

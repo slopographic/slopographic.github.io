@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Hex: the look (header, empty state and info strip, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: hex/index.html, hex/css/hex.css, hex/js/actions.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once it is ready and the shell's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../hex/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.body && D.body.classList.contains('ready') && D.querySelector('.smb-bar .slop-hbtn'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const shown = (n) => n.getBoundingClientRect().width > 0;
+  const h = (n) => n.getBoundingClientRect().height;
+
+  describe('Slop Hex: the look', () => {
+    it('the blank tab it opens with shows the empty state, not an empty grid', async () => {
+      const D = await open(1440);
+      expect(shown(D.getElementById('hx-empty'))).toBe(true);
+      expect(D.getElementById('hx-scroll').hidden).toBe(true);
+      expect(D.getElementById('hx-info').hidden).toBe(true);
+    }, { timeout: 40000 });
+
+    it("the header tools and the bar's buttons and fields are as tall as the header buttons, with borders", async () => {
+      const D = await open(1440);
+      const hb = h([...D.querySelectorAll('.smb-bar .slop-hbtn')].find((n) => n.getBoundingClientRect().width));
+      for (const n of D.querySelectorAll('.smb-tools .sui-btn, .hx-bar .sui-btn, .hx-bar input, .hx-bar select')) expect(h(n)).toBe(hb);
+      expect(D.defaultView.getComputedStyle(D.getElementById('hx-dl')).borderTopStyle).toBe('solid');
+    }, { timeout: 40000 });
+
+    it("an open file's name is in the inspector on the right, above its size, type and hash", async () => {
+      const D = await open(1440);
+      await D.defaultView.HexApp.openBlob(new Blob([new Uint8Array([0x4d, 0x5a, 0x90, 0])]), { name: 'tiny.exe' });
+      await waitFor(() => D.getElementById('hx-name').textContent.includes('tiny.exe'));
+      expect(D.getElementById('hx-info').contains(D.getElementById('hx-name'))).toBe(true);
+      expect(shown(D.getElementById('hx-scroll'))).toBe(true);
+      expect(D.getElementById('hx-side').contains(D.getElementById('hx-info'))).toBe(true);
+      const tops = [...D.querySelectorAll('#hx-info > div')].map((n) => Math.round(n.getBoundingClientRect().top));
+      expect(new Set(tops).size).toBe(tops.length);   // one fact per row in the panel
+    }, { timeout: 40000 });
+
+    it("at 390px nothing scrolls sideways and the bar's fields share rows with their buttons", async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const top = (id) => Math.round(D.getElementById(id).getBoundingClientRect().top);
+      expect(top('hx-q')).toBe(top('hx-next'));
+      expect(D.querySelector('#hx-goform .sui-btn').getBoundingClientRect().top).toBe(D.getElementById('hx-goto').getBoundingClientRect().top);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Hex: the look' });
+  </script>
+</body>
+</html>

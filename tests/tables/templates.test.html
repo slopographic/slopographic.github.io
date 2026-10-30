@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables templates tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; the tests drive window.SlopTables inside it. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="tables.helpers.js"></script>
+  <script src="tables.spec-templates.js"></script>
+  <script>SlopTest.run({ name: 'Slop Tables templates' });</script>
+</body>
+</html>

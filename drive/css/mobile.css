@@ -1,0 +1,59 @@
+/* Slop Drive — Classic 98 touches, and the phone layout (390×844): sidebar drawer, details bottom sheet. */
+:root[data-theme="classic"] .topbar { background: linear-gradient(90deg, #000080, #0a5ea8); color: #fff; border: 0; }
+:root[data-theme="classic"] .topbar .tb, :root[data-theme="classic"] .home-link { color: #fff; }
+:root[data-theme="classic"] .brand { border-radius: 0; background: #c0c0c0; box-shadow: var(--bevel); }
+:root[data-theme="classic"] .brand-mark { fill: #000080; }
+:root[data-theme="classic"] .search { border-radius: 0; border: 0; box-shadow: var(--bevel-in); background: #fff; color: #000; }
+:root[data-theme="classic"] .btn, :root[data-theme="classic"] .seg { border: 0; border-radius: 0; background: #c0c0c0; color: #000; box-shadow: var(--bevel); }
+:root[data-theme="classic"] .btn.primary { outline: 1px solid #000; outline-offset: -1px; font-weight: 700; }
+:root[data-theme="classic"] .seg button[aria-pressed="true"] { background: #fff; box-shadow: var(--bevel-in); color: #000; border-radius: 0; }
+:root[data-theme="classic"] .inp { border: 0; border-radius: 0; box-shadow: var(--bevel-in); }
+:root[data-theme="classic"] .side, :root[data-theme="classic"] .info, :root[data-theme="classic"] .bar, :root[data-theme="classic"] .status { box-shadow: var(--bevel); border: 0; }
+:root[data-theme="classic"] .pane { box-shadow: var(--bevel-in); }
+:root[data-theme="classic"] .lhead { background: #c0c0c0; }
+:root[data-theme="classic"] .lhead .hcol { color: #000; text-transform: none; letter-spacing: 0; }
+:root[data-theme="classic"] .meter-bar { border-radius: 0; box-shadow: var(--bevel-in); border: 0; height: 12px; }
+:root[data-theme="classic"] .meter-bar i { background: repeating-linear-gradient(90deg, #000080 0 8px, transparent 8px 10px); }
+
+@media (max-width: 1100px) { :root { --info-w: 270px; --side-w: 210px; } }
+@media (max-width: 760px) {
+  :root { --top-h: 54px; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'top' 'main'; }
+  .only-mobile { display: inline-grid; }
+  .appname, .home-link, #btnNew span { display: none; }
+  .brand { display: none; }
+  .topbar { gap: 6px; padding: 0 8px; padding-top: env(safe-area-inset-top); }
+  .search { min-width: 0; }
+  #btnBackup { display: none; }
+  #btnNew { width: 34px; padding: 0; justify-content: center; }
+  /* the sidebar is a drawer and the details a bottom sheet: shared/ui/sheet.js gives both their place and motion */
+  .side, .info { --ssh-z: 800; }
+  .side { padding-top: env(safe-area-inset-top); }
+  .bar { flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+  .crumbs { flex-basis: 100%; }
+  .bar-tools { width: 100%; justify-content: space-between; flex-wrap: wrap; row-gap: 6px; }
+  #kind { max-width: 88px; }
+  .seg button { width: 30px; height: 30px; }
+  .files { padding: 10px; }
+  .v-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .lhead, .row { grid-template-columns: minmax(0, 1fr) 70px; padding: 0 10px; }
+  .col-grip { display: none; }
+  .row { height: 48px; }
+  .v-compact { grid-template-columns: 1fr; }
+  .mini { height: 40px; }
+  .col { width: 78vw; }
+  .col-pv { width: 86vw; }
+  .crow { height: 40px; }
+  .info-grip { left: 50%; top: 6px; bottom: auto; width: 44px; height: 14px; margin-left: -22px; cursor: default; }
+  .info-grip::after { left: 0; right: 0; top: 4px; width: auto; height: 5px; margin: 0; background: var(--line-2); }
+  .info { width: auto; max-height: 72vh; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+  body { box-sizing: border-box; }   /* the closed details sheet shows its main buttons (js/ui/info-foot.js): the page ends above them */
+  .status { padding-bottom: env(safe-area-inset-bottom); height: auto; min-height: 26px; }
+  .selbar .btn { height: 34px; }
+  .viz-tools .muted { display: none; }
+  .legend { display: none; }
+  .empty { padding-top: 20px; }
+  .krow { grid-template-columns: 1fr; gap: 0; margin-bottom: 4px; }
+}
+/* The shared header buttons keep their light face on the blue title bar: dark text on it. */
+:root[data-theme="classic"] .topbar .slop-hbtn { color: #000; }

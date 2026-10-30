@@ -1,0 +1,42 @@
+/* SlopTouch styles (shared/input/touch.js; loaded on every app page by the shell).
+ * The page: a double tap is the app's (no double-tap page zoom, and no 300 ms click delay); pinch still zooms the page,
+ * for accessibility, everywhere but on an editing surface. */
+html { touch-action: manipulation; }
+
+/* Editing surfaces (data-touch-surface, SlopTouch.surface): a drag is the app's, never a scroll, a pull-to-refresh or a
+ * page zoom. For a finger, a long press is the app's menu, not iOS's callout or a text selection; a mouse still selects
+ * text where the app lets it (Slop PDF's page text). */
+[data-touch-surface] {
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (pointer: coarse) {
+  [data-touch-surface] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* Text being typed into inside a surface stays selectable (the in-place text editors). */
+  [data-touch-surface] [contenteditable="true"], [data-touch-surface] [contenteditable=""],
+  [data-touch-surface] input, [data-touch-surface] textarea {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
+/* Hit areas. --slop-hit is the least size a grabbable thing must have: 0 for a mouse, 44 px (Apple's and Google's
+ * minimum) for a finger. Apps' handles use it through .slop-hit / [data-touch-hit] (an invisible ::after that grows the
+ * hit area around a small visual; the element must be positioned, as handles are) or directly: min-width: var(--slop-hit). --slop-hit-r is half of it (canvas apps
+ * read it with SlopTouch.hit for hit tests in script). */
+:root { --slop-hit: 0px; --slop-hit-r: 0px; }
+@media (pointer: coarse) {
+  :root { --slop-hit: 44px; --slop-hit-r: 22px; }
+  .slop-hit::after, [data-touch-hit]::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    width: max(100%, var(--slop-hit)); height: max(100%, var(--slop-hit));
+    transform: translate(-50%, -50%);
+    background: transparent;
+    border: 0;
+    pointer-events: auto;
+  }
+}

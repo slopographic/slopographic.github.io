@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut in Swedish</title>
+  <!-- Covers: slopcut/i18n/index.js, slopcut/js/core/history.js, slopcut/js/core/model.js, slopcut/js/core/util.js, slopcut/js/io/build.js,
+       slopcut/js/io/config.js, slopcut/js/io/cutout.js, slopcut/js/io/encode.js, slopcut/js/io/gif.js, slopcut/js/io/intake.js,
+       slopcut/js/io/project.js, slopcut/js/io/recorder.js, slopcut/js/io/reel.js, slopcut/js/io/sample.js, slopcut/js/io/session.js,
+       slopcut/js/media/demux.js, slopcut/js/media/library.js, slopcut/js/render/cells.js, slopcut/js/render/mask-input.js,
+       slopcut/js/render/preview-input.js, slopcut/js/render/preview.js, slopcut/js/render/text.js, slopcut/js/timeline/actions.js,
+       slopcut/js/timeline/draw.js, slopcut/js/timeline/heads.js, slopcut/js/timeline/input.js, slopcut/js/timeline/menu.js,
+       slopcut/js/timeline/order.js, slopcut/js/timeline/view.js, slopcut/js/ui/app.js, slopcut/js/ui/aspect.js, slopcut/js/ui/bin.js,
+       slopcut/js/ui/cmd-fallback.js, slopcut/js/ui/commands.js, slopcut/js/ui/context.js, slopcut/js/ui/effects.js,
+       slopcut/js/ui/export-dialog.js, slopcut/js/ui/graphics-panel.js, slopcut/js/ui/insp-anim.js, slopcut/js/ui/insp-clip.js,
+       slopcut/js/ui/insp-fields.js, slopcut/js/ui/insp-graphic.js, slopcut/js/ui/insp-mask.js, slopcut/js/ui/inspector.js,
+       slopcut/js/ui/lane.js, slopcut/js/ui/layout.js, slopcut/js/ui/main.js, slopcut/js/ui/menus.js, slopcut/js/ui/presets.js,
+       slopcut/js/ui/progress.js, slopcut/js/ui/random-dialog.js, slopcut/js/ui/templates-panel.js, slopcut/js/ui/tpl-actions.js,
+       slopcut/js/ui/tr-preview.js, slopcut/js/ui/transport.js, slopcut/js/watermark/panel.js, slopcut/js/watermark/state.js,
+       shared/tour/tours/slopcut.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The app in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../slopcut/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && (f.contentDocument.body.classList.contains('ready')) && f.contentWindow.SlopShell && f.contentWindow.SlopShell.currentApp, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(slopedit|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text, the labelling attributes and the options. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    for (const o of doc.querySelectorAll('option')) out.push(o.textContent);
+    return out.join('\n');
+  }
+  const txt = (doc, sel) => doc.querySelector(sel).textContent.trim();
+  /** The tour's words, read the way SlopTour reads them: keys <ns>.tour.title, <ns>.tour.<step>_title in the app tables. */
+  function tour(f) {
+    const w = f.contentWindow, got = [], keep = w.SlopTour;
+    w.SlopTour = { define: (t) => got.push(t) };
+    return new Promise((res, rej) => {
+      const s = f.contentDocument.createElement('script');
+      s.src = '../shared/tour/tours/slopcut.js';
+      s.onload = () => { w.SlopTour = keep; const d = got[0], say = (k) => w.SlopI18n.t((d.ns || d.app) + '.tour.' + k); res({ title: say('title'), steps: d.steps.map((x) => ({ title: say(x.id.replace(/-/g, '_') + '_title') })) }); };
+      s.onerror = rej;
+      f.contentDocument.head.append(s);
+    });
+  }
+
+  describe('SlopCut in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+    const menus = (doc) => [...doc.querySelectorAll('#menus .menu-b')].map((b) => b.textContent.trim());
+    const tabs = (doc) => [...doc.querySelectorAll('#mtabs .mtab span')].map((s) => s.textContent.trim());
+
+    it('shows Swedish menus, tabs, bin, timeline tools and palette titles, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menus(doc)).toEqual(['Arkiv', 'Redigera', 'Klipp', 'Sekvens', 'Visa', 'Layout', 'Hjälp']);
+      expect(tabs(doc)).toEqual(['Media', 'Effekter', 'Granskare', 'Tidslinje']);
+      expect(txt(doc, '#statusLeft')).toBe('Klar');
+      expect(doc.querySelector('#bin').textContent).toContain('Importera filer');
+      expect(w.SlopCmd.get('edit.split').title).toBe('Dela vid uppspelningshuvudet');
+      expect(w.SlopCmd.get('tr.cross').title).toBe('Lägg till övergång: Övertoning');
+      expect(doc.querySelector('#tlBar [data-cmd="edit.split"]').getAttribute('aria-label')).toBe('Dela vid uppspelningshuvudet');
+      const t = await tour(f);
+      expect(t.title).toBe('Rundtur i SlopCut');
+      expect(t.steps[0].title).toBe('Mediebibliotek');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow, I = w.SlopI18n;
+      I.set('en');
+      await waitFor(() => menus(doc)[0] === 'File' && w.SlopCmd.get('edit.split').title === 'Split at playhead', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(tabs(doc)).toEqual(['Media', 'Effects', 'Inspector', 'Timeline']);
+      expect(doc.querySelector('#bin').textContent).toContain('Import files');
+      expect(w.SlopCmd.get('tr.cross').title).toBe('Add transition: Cross dissolve');
+      I.set('sv');
+      await waitFor(() => menus(doc)[0] === 'Arkiv' && doc.querySelector('#bin').textContent.includes('Importera filer'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('the offline copy carries the English tables, read before anything is fetched', async () => {
+      const f = await open('sv');
+      const html = await f.contentWindow.SE.build.make();
+      expect(html.indexOf('name="slopedit-build" content="offline"') < html.indexOf('data-src="shared/i18n/i18n.js"')).toBe(true);
+      for (const p of ['shared/i18n/ui/en.js', 'slopcut/i18n/en/ui1.js', 'slopcut/i18n/en/defs.js']) expect(html).toContain('data-src="' + p + '"');
+    });
+
+    it('at 390 px Swedish fits with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'SlopCut in Swedish' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+/* SlopHbtn: one look for the buttons that shared scripts put in an app's header: Slop Drive (shared/drive-link.js),
+ * Tour (shared/tour/mount.js), View (shared/viewmode), Apps and the bell (shell/header.js, shell/notify.js).
+ * The shell loads this file on every shell page. An app makes them match its own toolbar buttons with tokens, on :root
+ * or its header (all optional):
+ *   --slop-hbtn-h       height and the width of an icon-only button   (32px)
+ *   --slop-hbtn-radius  corner radius                                   (8px)
+ *   --slop-hbtn-bg      background                                      (transparent)
+ *   --slop-hbtn-line    border colour                                   (the text colour at 22%)
+ *   --slop-hbtn-hover   background under the pointer, and while open    (the text colour at 10%)
+ *   --slop-hbtn-fs      font size                                       (13px)
+ * A header without room for every label gets .slop-htight from shared/ui/hbtn.js: the buttons show only their icons
+ * (each keeps its title and aria-label). A button with data-hbtn-yield (Convert…, AI) gives up its label first, on its own:
+ * .sh-icon-only, set by hbtn.js. */
+.slop-hbtn {
+  box-sizing: border-box; position: relative; flex: none; margin: 0; padding: 0 10px;
+  height: var(--slop-hbtn-h, 32px); min-width: var(--slop-hbtn-h, 32px);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: inherit; font-size: var(--slop-hbtn-fs, 13px); font-weight: 500; line-height: 1; letter-spacing: normal;
+  white-space: nowrap; text-decoration: none; text-transform: none; vertical-align: middle;
+  color: inherit; background: var(--slop-hbtn-bg, transparent); opacity: 1; box-shadow: none;
+  border: 1px solid var(--slop-hbtn-line, color-mix(in srgb, currentColor 22%, transparent));
+  border-radius: var(--slop-hbtn-radius, 8px); cursor: pointer;
+}
+.slop-hbtn:hover, .slop-hbtn[aria-expanded="true"], .slop-hbtn[aria-pressed="true"] {
+  background: var(--slop-hbtn-hover, color-mix(in srgb, currentColor 10%, transparent));
+}
+.slop-hbtn:focus-visible { outline: 2px solid var(--slop-hbtn-ring, var(--sl-accent, Highlight)); outline-offset: 1px; }
+.slop-hbtn > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.slop-hbtn[hidden] { display: none; }
+.slop-htight .slop-hbtn-txt { display: none; }
+.slop-htight .slop-hbtn { padding: 0; width: var(--slop-hbtn-h, 32px); }
+.slop-hbtn.sh-icon-only { padding: 0; width: var(--slop-hbtn-h, 32px); }
+.slop-hbtn.sh-icon-only .slop-hbtn-txt { display: none; }
+@media (max-width: 560px) {
+  .slop-hbtn-txt { display: none; }
+  .slop-hbtn { padding: 0; width: var(--slop-hbtn-h, 30px); height: var(--slop-hbtn-h, 30px); min-width: 0; }
+}

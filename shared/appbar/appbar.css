@@ -1,0 +1,33 @@
+/* Slop app header (shared/appbar/appbar.js). Colours come only from the --sl-* tokens that shared/theme/theme.js sets.
+ * The bar fills its host and never scrolls sideways: the title truncates, and a narrow host moves the actions into ⋯. */
+.sab-host { min-width: 0; }
+.sab, .sab * { box-sizing: border-box; }
+.sab[hidden], .sab [hidden] { display: none !important; }
+.sab { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 0; color: var(--sl-text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.sab-brand { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; }
+.sab-badge { flex: none; display: block; width: 40px; height: 40px; }
+.sab-badge svg { display: block; width: 100%; height: 100%; }
+.sab-titles { min-width: 0; }
+.sab-title { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; font-size: 17px; font-weight: 700; line-height: 1.2; letter-spacing: .01em; }
+.sab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sab-dirty { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sl-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sl-accent) 25%, transparent); }
+.sab-sub { margin: 2px 0 0; font-size: 12.5px; color: color-mix(in srgb, var(--sl-text) 66%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sab-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.sab-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; border: 1px solid var(--sl-border); border-radius: 8px; background: var(--sl-surface); color: var(--sl-text); font: 600 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif; white-space: nowrap; cursor: pointer; }
+.sab-btn:hover:not([disabled]) { border-color: var(--sl-accent); }
+.sab-btn:focus-visible, .sab-item:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+.sab-btn[disabled] { opacity: .45; cursor: default; }
+.sab-primary { background: var(--sl-accent); border-color: var(--sl-accent); color: var(--sl-on-accent); }
+.sab-primary:hover:not([disabled]) { border-color: var(--sl-accent); filter: brightness(1.06); }
+.sab-ic { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sab-more { position: relative; flex: none; }
+.sab-more-btn { padding: 6px 10px; }
+.sab-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; display: grid; gap: 2px; min-width: 220px; padding: 6px; border: 1px solid var(--sl-border); border-radius: 10px; background: var(--sl-surface); color: var(--sl-text); box-shadow: 0 12px 30px rgba(0, 0, 0, .22); }
+.sab-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 6px; background: none; color: var(--sl-text); font: 14px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; text-align: left; cursor: pointer; }
+.sab-item:hover:not([disabled]) { background: color-mix(in srgb, var(--sl-accent) 14%, transparent); }
+.sab-item:focus-visible { background: color-mix(in srgb, var(--sl-accent) 14%, transparent); outline-offset: -2px; }
+.sab-item[disabled] { opacity: .45; cursor: default; }
+.sab-sep { height: 1px; margin: 4px 2px; background: var(--sl-border); }
+.sab[data-narrow="true"] .sab-actions { display: none; }
+.sab[data-narrow="true"] .sab-badge { width: 34px; height: 34px; }
+@media (max-width: 420px) { .sab-sub { display: none; } }

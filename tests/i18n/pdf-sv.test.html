@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">
+  <title>PDF editor in Swedish</title>
+  <!-- Covers: pdf/i18n/index.js, pdf/js/core/util.js, pdf/js/editor/annots.js, pdf/js/ui/app.js, pdf/js/ui/menus.js, shared/i18n/i18n.js, shared/i18n/ui/sv.js -->
+  <!-- Covers (strings): pdf/js/core/history.js pdf/js/editor/block-copy.js pdf/js/editor/callout.js
+        pdf/js/editor/font-check.js pdf/js/editor/layers-ops.js pdf/js/editor/notes-view.js pdf/js/editor/notes.js
+        pdf/js/editor/step.js pdf/js/editor/texthl.js pdf/js/find/bar.js pdf/js/io/export-notes.js
+        pdf/js/io/export-step.js pdf/js/io/forms.js pdf/js/ocr/layer.js pdf/js/organize/drag.js
+        pdf/js/organize/grid.js pdf/js/organize/keys.js pdf/js/organize/zoom.js pdf/js/redact/find.js
+        pdf/js/tools/comments-panel.js pdf/js/tools/history-panel.js pdf/js/tools/stamp-panels.js
+        pdf/js/ui/context.js pdf/js/ui/dock.js pdf/js/ui/fonts.js pdf/js/ui/input.js pdf/js/ui/page-acts.js
+        pdf/js/ui/pane-preview.js pdf/js/ui/panel-kit.js pdf/js/ui/versions.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The PDF editor in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../pdf/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('#rail button') && f.contentDocument.querySelector('#menus .menu-b') && f.contentWindow.SlopShell && f.contentWindow.SlopShell.currentApp, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(pdf|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menus .menu-b')].map((b) => b.textContent.trim());
+  const railNames = (doc) => [...doc.querySelectorAll('#rail button')].map((b) => (b.getAttribute('aria-label') || b.textContent).trim());
+  async function fileMenu(f) {
+    f.contentDocument.querySelector('#menus .menu-b').click();
+    const m = await waitFor(() => f.contentDocument.querySelector('.sui-menu'), { timeout: 30000 });
+    return [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+  }
+
+  describe('the PDF editor in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, rail, empty view and status bar, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc)).toEqual(['Arkiv', 'Redigera', 'Visa', 'Hjälp']);
+      expect(railNames(doc)).toContain('Signera');
+      expect(railNames(doc)).not.toContain('Sign');
+      expect(doc.querySelector('[data-i18n="pdf.app.drop_title"]').textContent).not.toBe('Drop PDFs here');
+      const items = await fileMenu(f);
+      expect(items.join(' | ')).toContain('Ladda ned PDF');
+      expect(KEY.test(items.join('\n'))).toBe(false);
+      expect(KEY.test(visible(doc))).toBe(false);
+      // the undo history names a property in Swedish, never by its id (pdf/js/editor/annots.js)
+      const Ed = f.contentWindow.SP.editor;
+      expect(Ed.propLabel('borderC')).toBe('kantlinjefärg');
+      expect(f.contentWindow.SlopI18n.t('pdf.ed.undo_change_prop', { prop: Ed.propLabel('color') })).toBe('Ändra färg');
+      expect(Ed.propLabel('someNewProp')).toBe('someNewProp');
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && railNames(doc).includes('Sign'), { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(doc.querySelector('[data-i18n="pdf.app.drop_title"]').textContent).toBe('Drop PDFs here');
+      expect((await fileMenu(f)).join(' | ')).toContain('Download PDF');
+      doc.body.click();
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv' && railNames(doc).includes('Signera'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish and in German (longer words), with no sideways scroll', async () => {
+      for (const lang of ['sv', 'de']) {
+        localStorage.clear();
+        const f = await open(lang, 390);
+        const doc = f.contentDocument;
+        await waitFor(() => doc.documentElement.getAttribute('lang') === lang, { timeout: 20000 });
+        expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+        const bar = doc.querySelector('.topbar');
+        expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+        expect(KEY.test(visible(doc))).toBe(false);
+        f.remove();
+      }
+    });
+
+    it('a language the editor does not ship yet reads English for its own words, the shared ones translated', async () => {
+      const f = await open('ha');
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('ha');
+      expect(railNames(doc)).toContain('Sign');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'PDF editor in Swedish' });
+  </script>
+</body>
+</html>

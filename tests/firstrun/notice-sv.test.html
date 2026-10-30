@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">   <!-- the page chooses Swedish itself: the harness leaves the language alone -->
+  <title>First-use notice in Swedish</title>
+  <!-- Covers: shared/firstrun/notice.js, shared/i18n/ui/en/firstrun.js, shared/i18n/ui/sv/firstrun.js, shared/heic/engine.js, shared/raw/engine.js, shared/3d-io/decoders.js -->
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } })); localStorage.removeItem('slop-firstrun:probe-sv'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/firstrun/notice.js"></script>
+  <script>
+  // The notice's own words (the privacy line, the download line, Cancel and Continue) and the shared engines' notices
+  // were English in every language. They are keys now (ui.firstrun.*), read when the notice shows.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n;
+  describe('the first-use notice', () => {
+    it('reads Swedish: an app title given as a key, the privacy line, the download line, Avbryt and Fortsätt', async () => {
+      await I.ready();
+      expect(I.get()).toBe('sv');
+      const done = SlopFirstRun.once('probe-sv', { title: 'ui.firstrun.heic_title', lines: ['ui.firstrun.raw_text'], downloads: [{ name: () => I.t('ui.firstrun.heic_name', { version: '1' }), bytes: 2 * 1048576 }] });
+      const dlg = await waitFor(() => document.querySelector('.sui-dlg'));
+      const text = dlg.textContent;
+      expect(dlg.getAttribute('aria-label')).toBe('Ladda ned HEIC-avkodaren?');
+      expect(text).toContain('Dina filer stannar i den här webbläsaren');
+      expect(text).toContain('Den laddas ned en gång, 2.0 MB');
+      expect(text).toContain('HEIC-avkodare (libheif 1)');
+      expect(text).toContain('RAW-motorn');
+      const labels = [...dlg.querySelectorAll('.sui-btn')].map((b) => b.textContent);
+      expect(labels).toEqual(['Avbryt', 'Fortsätt']);
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Fortsätt').click();
+      expect(await done).toBe(true);
+    });
+    it('every key the shared engines give is in English and Swedish', () => {
+      for (const k of ['heic_title', 'heic_text', 'heic_name', 'raw_title', 'raw_text', 'raw_name', 'd3_title', 'd3_text']) {
+        expect(I.has('ui.firstrun.' + k)).toBe(true);
+        expect(I.t('ui.firstrun.' + k)).not.toContain('ui.firstrun');
+      }
+    });
+  });
+  run({ name: 'First-use notice in Swedish' });
+  </script>
+</body>
+</html>

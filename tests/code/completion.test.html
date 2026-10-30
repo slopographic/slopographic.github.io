@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: completion</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, view, doc, textOf, typeText, key, tabNames, waitFor, sleep } = CT;
+  let w;
+  // CodeMirror puts its tooltips in the document body, not inside the editor element.
+  const labels = () => [...w.document.querySelectorAll('.cm-tooltip-autocomplete .cm-completionLabel')].map((e) => e.textContent);
+  const popup = () => w.document.querySelector('.cm-tooltip-autocomplete');
+  /** Open a new Drive file of this name and content in the app, and move to its end. */
+  async function open(name, body = '') {
+    const id = await H().put(text(body, 'text/plain'), { name, from: 'test' });
+    await w.SlopCode.openRecord(await H().get(id));
+    await waitFor(() => doc(w) && doc(w).id === id, { timeout: 8000 });
+    view(w).dispatch({ selection: { anchor: view(w).state.doc.length } });
+    view(w).focus();
+    return id;
+  }
+  /** Ctrl+Space, then wait for the list. */
+  async function complete() {
+    key(w, ' ', { ctrl: true });
+    await waitFor(() => popup() && labels().length > 0, { timeout: 5000 });
+    await sleep(250); // the list on screen may be the typing one; let Ctrl+Space's own results land
+    return labels();
+  }
+
+  describe('Slop Code: auto-completion', () => {
+    it('boots the app for completion tests', async () => {
+      w = await frame('../../code/');
+      expect(!!view(w)).toBe(true);
+    });
+
+    it('word completion lists a word from the open document, Ctrl+Space opens it', async () => {
+      await open('words.txt', 'banana bandana\n');
+      await typeText(w, 'ban');
+      const names = await complete();
+      expect(names).toContain('banana');
+      expect(names).toContain('bandana');
+    });
+
+    it('JavaScript keywords: "retu" offers return, Tab accepts it', async () => {
+      await open('keys.js', '');
+      await typeText(w, 'retu');
+      expect(await complete()).toContain('return');
+      key(w, 'Tab');
+      await waitFor(() => /return$/.test(textOf(w)), { timeout: 4000 });
+      expect(textOf(w)).toMatch(/return$/);
+    });
+
+    it('JavaScript globals: "docu" offers document, Enter accepts', async () => {
+      await open('globals.js', '');
+      await typeText(w, 'docu');
+      expect(await complete()).toContain('document');
+      key(w, 'Enter');
+      await waitFor(() => /document$/.test(textOf(w)), { timeout: 4000 });
+      expect(textOf(w)).toMatch(/document$/);
+    });
+
+    it('the language support is used: a .py file offers Python builtins', async () => {
+      await open('tools.py', '');
+      await typeText(w, 'pri');
+      expect(await complete()).toContain('print');
+      key(w, 'Escape');
+    });
+
+    it('HTML tags complete in an .html file', async () => {
+      await open('page.html', '');
+      await typeText(w, '<sec');
+      expect(await complete()).toContain('section');
+      key(w, 'Escape');
+    });
+
+    it('CSS properties complete in a .css file', async () => {
+      await open('style.css', 'a {\n  ');
+      await typeText(w, 'backgr');
+      expect(await complete()).toContain('background-color');
+      key(w, 'Escape');
+    });
+
+    it('JSON literals complete in a .json file, and not inside a string', async () => {
+      await open('data.json', '{"a": 1}\n');
+      await typeText(w, '[tr');
+      expect(await complete()).toContain('true');
+      key(w, 'Escape');
+      await typeText(w, '"tr');
+      await sleep(400);
+      expect(labels()).not.toContain('true'); // inside a string: no literal completion
+      key(w, 'Escape');
+    });
+
+    it('a completion list is closed with Escape', async () => {
+      await sleep(100);
+      expect(!!popup()).toBe(false);
+    });
+  });
+
+  describe('Slop Code: tabs keep their own text', () => {
+    it('two open files keep separate text and undo history', async () => {
+      const a = await open('one.txt', 'first\n');
+      await typeText(w, 'more');
+      const b = await open('two.txt', 'second\n');
+      expect(textOf(w)).toBe('second\n');
+      await w.SlopCode.openRecord(await H().get(a));
+      expect(textOf(w)).toContain('more');
+      expect(tabNames(w)).toContain('two.txt');
+      // Clicking the tab that is already active keeps its unsaved text.
+      await typeText(w, 'typed');
+      w.document.querySelector('.cd-tab.on .cd-tab-name').click();
+      expect(textOf(w)).toContain('typed');
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: completion' });
+  </script>
+</body>
+</html>

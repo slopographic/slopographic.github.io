@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · expenses: record, post, void</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/expenses.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData, st = S.store;
+  const fresh = async () => { const r = await st.erase(); if (!r.ok) throw new Error(r.message); const q = await st.ready(); if (!q.ok) throw new Error(q.message); };
+  const bal = async (code) => { const t = await S.ledger.trialBalance(); const row = t.value.rows.find((r) => r.code === code); return row ? row.balance : 0; };
+  const taxi = (o = {}) => ({ date: '2026-10-20', supplier: 'City Taxi', description: 'Airport', amount: 2400, tax: 400, method: 'bank', ...o });
+
+  describe('expenses', () => {
+    beforeEach(fresh);
+    it('recording an expense posts the net to the expense account, the tax to the tax account, and the total out of the bank', async () => {
+      const r = await S.expenses.record(taxi());
+      expect(r.ok).toBe(true);
+      expect(r.value.status).toBe('posted');
+      expect(r.value.account).toBe('5000');
+      expect(await bal('5000')).toBe(2000);
+      expect(await bal('2100')).toBe(-400);
+      expect(await bal('1010')).toBe(-2400);
+      const t = await S.ledger.trialBalance();
+      expect(t.value.debit).toBe(t.value.credit);
+    });
+    it('a cash expense comes out of cash, and an expense without tax has two journal lines', async () => {
+      const r = await S.expenses.record(taxi({ method: 'cash', tax: 0 }));
+      expect(r.ok).toBe(true);
+      expect(await bal('1000')).toBe(-2400);
+      const j = await st.list('journal', { index: 'source', value: 'expense:' + r.value.id });
+      expect(j.value.length).toBe(1);
+      expect(j.value[0].lines.length).toBe(2);
+    });
+    it('refuses an account that is not an expense account, and tax above the amount; nothing is posted', async () => {
+      const a = await S.expenses.record(taxi({ account: '4000' }));
+      expect(a.ok).toBe(false);
+      expect(a.code).toBe('invalid');
+      const b = await S.expenses.record(taxi({ tax: 3000 }));
+      expect(b.ok).toBe(false);
+      expect((await st.list('expenses')).value.length).toBe(0);
+      expect((await st.list('journal')).value.length).toBe(0);
+    });
+    it('voiding reverses the entry: the books are back where they were, and the expense is kept as void', async () => {
+      const r = await S.expenses.record(taxi());
+      const v = await S.expenses.voidExpense(r.value.id);
+      expect(v.ok).toBe(true);
+      expect(v.value.status).toBe('void');
+      expect(await bal('5000')).toBe(0);
+      expect(await bal('2100')).toBe(0);
+      expect(await bal('1010')).toBe(0);
+      const again = await S.expenses.voidExpense(r.value.id);
+      expect(again.ok).toBe(false);
+      expect(again.code).toBe('invalid_transition');
+    });
+    it('an expense cannot be written around the module (posting only)', async () => {
+      const w = await st.put('expenses', { date: '2026-10-20', supplier: 'X', account: '5000', amount: 100 });
+      expect(w.ok).toBe(false);
+      expect(w.code).toBe('posting_required');
+    });
+    it('a bill to pay later is owed to the supplier (Accounts Payable) until it is paid from the bank', async () => {
+      const r = await S.expenses.record({ date: '2026-10-01', supplier: 'Paper Co', account: '5000', amount: 12000, tax: 2000, currency: 'USD', payLater: true, dueDate: '2026-10-31' });
+      expect(r.ok).toBe(true);
+      expect([r.value.status, r.value.dueDate, r.value.paidDate]).toEqual(['owed', '2026-10-31', undefined]);
+      expect([await bal('2000'), await bal('1010'), await bal('5000'), await bal('2100')]).toEqual([12000, 0, 10000, -2000]);
+      expect(S.expenses.overdue(r.value, '2026-11-01')).toBe(true);
+      expect(S.expenses.overdue(r.value, '2026-10-31')).toBe(false);
+      expect((await S.expenses.pay(r.value.id, { date: '2026-09-30' })).code).toBe('invalid');   // before the bill
+      const p = await S.expenses.pay(r.value.id, { date: '2026-10-20', method: 'bank' });
+      expect([p.value.status, p.value.paidDate, p.value.method]).toEqual(['posted', '2026-10-20', 'bank']);
+      expect([await bal('2000'), await bal('1010')]).toEqual([0, -12000]);
+      expect((await S.expenses.pay(r.value.id, {})).code).toBe('invalid_transition');
+      const t = S.expenses.totals((await st.list('expenses')).value);
+      expect([t.count, t.owed]).toEqual([1, 0]);
+    });
+    it('voiding a bill reverses what it posted: owed, or paid later (both entries)', async () => {
+      const a = (await S.expenses.record({ date: '2026-10-01', supplier: 'A', account: '5000', amount: 500, currency: 'USD', payLater: true })).value;
+      expect(S.expenses.totals([a]).owed).toBe(500);
+      expect((await S.expenses.voidExpense(a.id)).value.status).toBe('void');
+      expect(await bal('2000')).toBe(0);
+      const b = (await S.expenses.record({ date: '2026-10-01', supplier: 'B', account: '5000', amount: 700, currency: 'USD', payLater: true })).value;
+      await S.expenses.pay(b.id, { date: '2026-10-02', method: 'cash' });
+      await S.expenses.voidExpense(b.id);
+      expect([await bal('2000'), await bal('1000'), await bal('5000')]).toEqual([0, 0, 0]);
+    });
+  });
+
+  run({ name: 'Data · expenses' });
+  </script>
+</body>
+</html>

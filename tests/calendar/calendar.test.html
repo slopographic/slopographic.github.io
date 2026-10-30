@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calendar · a weekly event linked to a CRM customer appears in that customer's follow-ups</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const cal = document.createElement('iframe');
+  cal.style.cssText = 'width:1100px;height:760px;border:0;position:fixed;left:0;top:0;background:#111';
+  cal.src = '../../calendar/index.html#month';
+  document.body.append(cal);
+  const crm = document.createElement('iframe');
+  crm.style.cssText = 'width:1100px;height:760px;border:0;position:fixed;left:0;top:0;background:#111;visibility:hidden';
+  const cw = () => cal.contentWindow, cd = () => cal.contentDocument;
+  const errors = [];
+  const set = (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+  // the event editor is the calendar's right panel (calendar/js/ui/panel.js): its title, the form, Save at its foot
+  const dialog = (title) => { const side = cd().getElementById('cSide'); return side && cd().getElementById('evTitle') && side.querySelector('.sf-p-h').textContent === title ? side : null; };
+  const booted = () => cw() && cw().SlopCal && cw().SlopCal.state && cd() && cd().getElementById('cBoot') && cd().getElementById('cBoot').hidden;
+
+  describe('a weekly event linked to a customer', () => {
+    it('is made in the editor, linked to the customer, and repeats weekly', async () => {
+      await waitFor(booted, { timeout: 20000 });
+      cw().addEventListener('error', (e) => errors.push(e.message));
+      const jane = await cw().SlopData.store.put('customers', { name: 'Jane Smith', stage: 'lead' });
+      expect(jane.ok).toBe(true);
+      cd().getElementById('cNew').click();
+      await waitFor(() => dialog('New event'), { timeout: 4000 });
+      const d = dialog('New event');
+      set(d.querySelector('#evTitle'), 'Call Jane Smith on Thursday');
+      set(d.querySelector('#evRepeat'), 'weekly');
+      set(d.querySelector('#evCustomer'), jane.value.id);
+      set(d.querySelector('#evStart'), '14:00');
+      set(d.querySelector('#evEnd'), '14:30');
+      d.querySelector('.sf-p-foot .sui-primary').click();
+      const saved = await waitFor(async () => (await cw().SlopData.store.list('events')).value.find((e) => e.title === 'Call Jane Smith on Thursday'), { timeout: 8000 });
+      expect(saved.customerId).toBe(jane.value.id);
+      expect(saved.freq).toBe('weekly');
+      expect(saved.start).toBeGreaterThan(0);
+      expect(saved.end - saved.start).toBe(30 * 60000);
+    });
+
+    it('shows in the calendar on every week of its repeat', async () => {
+      cw().SlopCal.app.setView('week');
+      await waitFor(() => cd().querySelector('.tg-block[data-kind="event"]'), { timeout: 6000 });
+      const weeks = cw().SlopCal.model.load(cw().SlopTime.weekStart(cw().SlopTime.todayIn(cw().SlopCal.state.zone)), cw().SlopTime.addDays(cw().SlopTime.weekStart(cw().SlopTime.todayIn(cw().SlopCal.state.zone)), 27), cw().SlopCal.state.zone);
+      const r = await weeks;
+      expect(r.value.filter((x) => x.title === 'Call Jane Smith on Thursday').length).toBe(4);
+    });
+
+    it('appears in the CRM follow-ups for that customer', async () => {
+      crm.src = '../../crm/index.html#followups';
+      document.body.append(crm);
+      await waitFor(() => crm.contentWindow && crm.contentWindow.SlopCrm && crm.contentDocument.getElementById('boot') && crm.contentDocument.getElementById('boot').hidden, { timeout: 20000 });
+      const doc = crm.contentDocument;
+      await waitFor(() => doc.getElementById('fLinkedRows').textContent.includes('Call Jane Smith on Thursday'), { timeout: 8000 });
+      const text = doc.getElementById('fLinkedRows').textContent;
+      expect(text).toContain('Jane Smith');
+      expect(text).toContain('Call Jane Smith on Thursday');
+      expect(errors).toEqual([]);
+    });
+  });
+
+  run({ name: 'Calendar · weekly event linked to CRM' });
+  </script>
+</body>
+</html>

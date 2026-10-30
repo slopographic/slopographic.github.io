@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs assistant commands</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1100px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: docs/js/ui/ai-commands.js, docs/js/model/ai-edit.js, docs/js/ui/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame, win, E, S, C;
+  const texts = () => S.doc.blocks.map((b) => E.M.paraText(b));
+  const styles = () => S.doc.blocks.map((b) => b.style);
+  const setDoc = (blocks) => { const d = E.M.newDoc(); d.blocks = blocks; S.setDoc(d, { file: { name: 'AI.sdoc' } }); };
+  const P = (t, s) => E.M.para(t, s);
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slop Docs assistant commands', () => {
+    it('loads docs/index.html; prepare() imports the AI commands on demand', async () => {
+      frame = document.createElement('iframe');
+      const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+      frame.src = '../../docs/index.html';
+      document.body.append(frame);
+      await loaded;
+      win = frame.contentWindow;
+      await waitFor(() => win.SlopDocs && win.SlopDocs.ready && win.SlopDocEngine && win.SlopCmd, { timeout: 15000 });
+      E = win.SlopDocEngine; S = win.SlopDocs; C = win.SlopCmd;
+      expect(C.get('docs.ai.insert-heading')).toBe(null);
+      expect([...win.document.scripts].some((s) => /ai-commands/.test(s.src))).toBe(false);
+      await C.prepare();
+      const c = C.get('docs.ai.insert-heading');
+      expect(c.tool).toBe('insert_heading');
+      expect(c.hidden).toBe(true);
+      expect(C.get('docs.ai.find-replace').destructive).toBe(false);
+      for (const t of ['insert_paragraph', 'find_replace', 'set_paragraph_style', 'format_text', 'undo']) expect(!!C.get('docs.ai.' + t.replace(/_/g, '-'))).toBe(true);
+    });
+
+    it('insert_heading at the caret, the end and the start; level 9 is clamped to 6', async () => {
+      setDoc([P('First line'), P('Second line')]);
+      S.select({ b: 0, o: 3 }, { b: 0, o: 3 });
+      const r = await run('docs.ai.insert-heading', { text: 'Middle', level: 2 });
+      expect(r.value).toMatch(/Heading 2/);
+      expect(texts()).toEqual(['First line', 'Middle', 'Second line']);
+      expect(styles()[1]).toBe('H2');
+      expect(S.sel.f).toEqual({ b: 1, o: 6 });
+      const r2 = await run('docs.ai.insert-heading', { text: 'Last', level: 9, where: 'end' });
+      expect(r2.args.level).toBe(6);
+      expect(r2.notes.length).toBeGreaterThan(0);
+      expect(texts()[3]).toBe('Last');
+      expect(styles()[3]).toBe('H6');
+      await run('docs.ai.insert-heading', { text: 'Top', where: 'start' });
+      expect(texts()[0]).toBe('Top');
+      expect(styles()[0]).toBe('H1');
+    });
+
+    it('insert_heading without text fails and changes nothing', async () => {
+      const before = S.doc.blocks;
+      const r = await C.exec('docs.ai.insert-heading', { level: 2 });
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/text/);
+      const r2 = await C.exec('docs.ai.insert-heading', { text: '   ' });
+      expect(r2.ok).toBe(false);
+      expect(S.doc.blocks).toBe(before);
+    });
+
+    it('insert_paragraph fills an empty document and splits lines into paragraphs', async () => {
+      setDoc([P('')]);
+      await run('docs.ai.insert-paragraph', { text: 'Hello there', where: 'end' });
+      expect(texts()).toEqual(['Hello there']);
+      await run('docs.ai.insert-paragraph', { text: 'One\nTwo', style: 'Quote' });
+      expect(texts()).toEqual(['Hello there', 'One', 'Two']);
+      expect(styles()).toEqual(['Normal', 'Quote', 'Quote']);
+    });
+
+    it('find_replace returns the count and honours match case, whole word and all', async () => {
+      setDoc([P('The cat sat. Cat food, category.'), P('cat again')]);
+      S.select({ b: 0, o: 0 }, { b: 0, o: 0 });
+      let r = await run('docs.ai.find-replace', { find: 'cat', replace: 'dog', whole_word: true });
+      expect(r.value).toMatch(/^3 replacements/);
+      expect(texts()).toEqual(['The dog sat. dog food, category.', 'dog again']);
+      r = await run('docs.ai.find-replace', { find: 'DOG', replace: 'x', match_case: true });
+      expect(r.value).toMatch(/^0 replacements/);
+      r = await run('docs.ai.find-replace', { find: 'dog', replace: 'bird', all: false });
+      expect(r.value).toMatch(/^1 replacement/);
+      expect(texts()).toEqual(['The bird sat. dog food, category.', 'dog again']);
+      expect((await C.exec('docs.ai.find-replace', { replace: 'x' })).ok).toBe(false);
+    });
+
+    it('find_replace keeps the marks of the replaced text', async () => {
+      const p = P(''); p.runs = [{ text: 'plain ' }, { text: 'bold', b: true }];
+      setDoc([p]);
+      await run('docs.ai.find-replace', { find: 'bold', replace: 'strong' });
+      expect(S.doc.blocks[0].runs).toEqual([{ text: 'plain ' }, { text: 'strong', b: true }]);
+    });
+
+    it('set_paragraph_style and format_text change the right paragraphs', async () => {
+      setDoc([P('Alpha'), P('Beta gamma'), P('Delta')]);
+      await run('docs.ai.set-paragraph-style', { style: 'H3', paragraph: 2 });
+      expect(styles()).toEqual(['Normal', 'H3', 'Normal']);
+      expect((await C.exec('docs.ai.set-paragraph-style', { style: 'H3', paragraph: 9 })).ok).toBe(false);
+      await run('docs.ai.format-text', { bold: true, match: 'gamma' });
+      expect(S.doc.blocks[1].runs).toEqual([{ text: 'Beta ' }, { text: 'gamma', b: true }]);
+      S.select({ b: 0, o: 0 }, { b: 0, o: 5 });
+      await run('docs.ai.format-text', { italic: true, color: 'red' });
+      expect(S.doc.blocks[0].runs).toEqual([{ text: 'Alpha', i: true, color: '#ff0000' }]);
+      S.select({ b: 2, o: 1 }, { b: 2, o: 1 });
+      expect((await C.exec('docs.ai.format-text', { bold: true })).ok).toBe(false);
+    });
+
+    it('each command is one undo step: one undo reverts exactly one command', async () => {
+      setDoc([P('Start')]);
+      await run('docs.ai.insert-paragraph', { text: 'A', where: 'end' });
+      await run('docs.ai.insert-heading', { text: 'B', where: 'end', level: 2 });
+      await run('docs.ai.find-replace', { find: 'Start', replace: 'Begin' });
+      expect(texts()).toEqual(['Begin', 'A', 'B']);
+      S.undo();
+      expect(texts()).toEqual(['Start', 'A', 'B']);
+      S.undo();
+      expect(texts()).toEqual(['Start', 'A']);
+      const r = await run('docs.ai.undo', { steps: 5 });
+      expect(r.value).toBe('Undid 1 step.');
+      expect(texts()).toEqual(['Start']);
+    });
+
+    it('state() summarises the document', async () => {
+      setDoc([P('Report', 'Title'), P('Intro', 'H1'), P('Some words here.'), P('Details', 'H2'), P('More text.')]);
+      S.select({ b: 2, o: 0 }, { b: 2, o: 4 });
+      const st = C.state();
+      expect(st.app).toBe('Slop Docs');
+      expect(st.title).toBe('AI');
+      expect(st.pages).toBe(1);
+      expect(st.paragraphs).toBe(5);
+      expect(st.words).toBe(8);
+      expect(st.outline).toEqual([{ level: 1, text: 'Intro', paragraph: 2 }, { level: 2, text: 'Details', paragraph: 4 }]);
+      expect(st.selection.text).toBe('Some');
+      expect(st.caret.paragraph).toBe(3);
+      expect(JSON.stringify(st).length).toBeLessThan(2000);
+    });
+
+    it('checkpoint rollback undoes every AI change since, as one undoable step', async () => {
+      setDoc([P('Keep me')]);
+      const rollback = C.checkpoint();
+      await run('docs.ai.insert-heading', { text: 'X', where: 'start' });
+      await run('docs.ai.insert-paragraph', { text: 'Y', where: 'end' });
+      await run('docs.ai.find-replace', { find: 'Keep', replace: 'Lose' });
+      expect(texts()).toEqual(['X', 'Lose me', 'Y']);
+      expect(rollback()).toBe(true);
+      expect(texts()).toEqual(['Keep me']);
+      S.undo();
+      expect(texts()).toEqual(['X', 'Lose me', 'Y']);
+      setDoc([P('Other document')]);
+      expect(rollback()).toBe(false);
+      expect(texts()).toEqual(['Other document']);
+    });
+  });
+  SlopTest.run({ name: 'Slop Docs assistant commands' });
+  </script>
+</body>
+</html>

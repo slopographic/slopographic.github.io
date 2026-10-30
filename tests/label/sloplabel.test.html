@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; vertical-align: top; } #app { width: 1280px; height: 760px; } #phone { width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <!-- The real app runs in same-origin iframes (desktop and phone width); tests drive its globals directly.
+       Covers: label/js/ui/app.js, label/js/ui/boot.js, label/js/ui/route.js (the phone panels sheet: ui-flows.test.js) -->
+  <iframe id="app" src="../../label/index.html"></iframe>
+  <iframe id="phone" src="../../label/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, WIN; // the app's global scope (incl. top-level const/let) via a proxy over the iframe's eval
+  const bootApp = async (id) => {
+    const win = document.getElementById(id).contentWindow;
+    await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+    return win;
+  };
+  describe('boot', () => {
+    it('loads the designer with tools, menus and panels', async () => {
+      WIN = await bootApp('app');
+      W = new Proxy({}, { get: (_, k) => WIN.eval(String(k)) });
+      expect(W.document.title).toContain('SlopLabel');
+      expect(W.App.doc.objects.length).toBeGreaterThan(0);
+      expect(W.document.querySelectorAll('.tool').length).toBe(11);
+      expect(W.document.querySelectorAll('.menubar.smb-bar .smb-menu-b').length).toBe(7);
+      expect(W.document.querySelectorAll('header').length).toBe(1);
+      expect(W.document.querySelectorAll('.tab').length).toBe(4);
+      expect(typeof W.bwipjs.raw).toBe('function');
+    }, { timeout: 40000 });
+  });
+  </script>
+  <script src="engine.test.js"></script>
+  <script src="output.test.js"></script>
+  <script src="ui.test.js"></script>
+  <script src="ui-flows.test.js"></script>
+  <script src="commands.test.js"></script>
+  <script src="context.test.js"></script>
+  <script src="typing.test.js"></script>
+  <script>SlopTest.run({ name: 'SlopLabel' });</script>
+</body>
+</html>

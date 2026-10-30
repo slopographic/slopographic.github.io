@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: versions in the preview</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, V, orig, pv;
+  const modeBtn = (name) => [...pv.querySelectorAll('.pv-mode button')].find((b) => b.textContent === name);
+  const versionTabs = () => [...pv.querySelectorAll('.pv-tabs:not(.pv-mode) > .pv-tab')];
+  const tabBtn = (i) => versionTabs()[i];
+
+  describe('Slop Drive: versions in the preview', () => {
+    it('boots, and a PDF with two saved versions (the first has a change list)', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; V = W.SlopVersions;
+      await H.clear();
+      const pdf = await (await fetch('fixtures/versions-sample.pdf')).arrayBuffer();
+      const id = await H.put(new Blob([pdf], { type: 'application/pdf' }), { name: 'contract.pdf', from: 'pdf', meta: { pdf: { role: 'original' } } });
+      await V.add(H, await H.get(id), {
+        blob: new Blob([pdf], { type: 'application/pdf' }), name: 'contract.pdf',
+        changesBlob: new Blob([JSON.stringify([{ label: 'Text', from: 'Hello', to: 'Hi' }])], { type: 'application/json' }), changesName: 'contract.changes.json',
+      });
+      await V.add(H, await H.get(id), { blob: new Blob([pdf], { type: 'application/pdf' }), name: 'contract.pdf' });
+      await DR.refresh(); DR.render();
+      orig = await H.get(id);
+      expect(DR.versionCount(orig)).toBe(2);
+    });
+
+    it('the preview shows Original, then each version newest first', async () => {
+      pv = DR.previewOf(orig);
+      document.body.append(pv);
+      await waitFor(() => versionTabs().length === 3, { timeout: 10000 });
+      const labels = versionTabs().map((b) => b.textContent);
+      expect(labels[0]).toBe('Original');
+      expect(labels[1].startsWith('Version 2')).toBe(true);
+      expect(labels[2].startsWith('Version 1')).toBe(true);
+    });
+
+    it('the Changes switch shows the change list of a version that has one', async () => {
+      tabBtn(2).click();
+      await waitFor(() => !modeBtn('Changes').hidden, { timeout: 10000 });
+      modeBtn('Changes').click();
+      await waitFor(() => pv.querySelector('.pv-changes li'), { timeout: 10000 });
+      expect(pv.querySelector('.pv-changes li').textContent).toBe('Text: Hello → Hi');
+    });
+
+    it('a version without a change list hides the Changes switch', async () => {
+      tabBtn(1).click();
+      await waitFor(() => modeBtn('Changes').hidden === true, { timeout: 10000 });
+      expect(modeBtn('Changes').hidden).toBe(true);
+    });
+
+    it('Use this version copies an older version to a new newest version, and the history keeps it', async () => {
+      tabBtn(2).click();
+      await waitFor(() => !modeBtn('Use this version').hidden, { timeout: 10000 });
+      expect(modeBtn('Use this version').hidden).toBe(false);
+      modeBtn('Use this version').click();
+      await waitFor(async () => (await H.get(orig.id)).meta.pdf.versions.length === 3, { timeout: 15000 });
+      const after = await H.get(orig.id);
+      expect(after.meta.pdf.versions.map((v) => v.n)).toEqual([1, 2, 3]);
+      const edited = await H.get(after.meta.pdf.edited);
+      expect(edited.meta.pdf.n).toBe(3);
+    });
+
+    it('the newest version has no Use this version button', async () => {
+      tabBtn(1).click();
+      await waitFor(() => modeBtn('Use this version').hidden === true, { timeout: 10000 });
+      expect(modeBtn('Use this version').hidden).toBe(true);
+    });
+  });
+
+  SlopTest.run({ name: 'Slop Drive: versions in the preview' });
+  </script>
+</body>
+</html>

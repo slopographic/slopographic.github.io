@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Touch: the smaller drag targets</title>
+  <link rel="stylesheet" href="../../shared/input/touch.css">
+  <link rel="stylesheet" href="../../shared/color/picker.css">
+  <link rel="stylesheet" href="../../shared/video/lane.css">
+  <link rel="stylesheet" href="../../shared/buddy/buddy.css">
+  <link rel="stylesheet" href="../../shared/buddy/extras.css">
+  <link rel="stylesheet" href="../../music/css/music.css">
+  <link rel="stylesheet" href="../../remix/css/remix.css">
+  <link rel="stylesheet" href="../../upscale/css/upscale.css">
+  <style>body { margin: 0; background: #111; color: #eee; } iframe { width: 100vw; height: 70vh; border: 0; display: block; } #pick { width: 260px; }</style>
+</head>
+<body>
+  <!-- The smaller things a finger drags, beside the big editors: each takes the drag from the browser (touch-action),
+       and the ones with behaviour of their own are driven by touch.
+       Covers: shared/color/picker.js (a finger drags its field), hex/js/grid.js (a long press, then a tap, selects a
+       range), code/js/explorer.js (the explorer's grip), slopisolate/js/ui/pointer.js (the stage is a touch surface with
+       pinch hooks), music/js/ui/playlists.js and music/js/ui/waveform.js (the reorder handle and the wave), remix/js/panel.js
+       (key handles), upscale/js/app/slider.js (the compare divider scrolls upright), shared/buddy/input.js and
+       shared/buddy/candy.js (Sloppo and his candy), shared/video/lane-view.js (the lane and its marks) -->
+  <div id="pick"></div>
+  <script src="../harness.js"></script>
+  <script src="touch-kit.js"></script>
+  <script src="../../shared/input/gesture.js"></script>
+  <script src="../../shared/input/events.js"></script>
+  <script src="../../shared/input/touch.js"></script>
+  <script src="../../shared/color/model.js"></script>
+  <script src="../../shared/color/picker.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The computed touch-action of an element with these classes, made under parent. */
+  function actionOf(cls, parent = document.body, tag = 'div') {
+    const el = document.createElement(tag); el.className = cls; parent.append(el);
+    const v = getComputedStyle(el).touchAction; el.remove(); return v;
+  }
+  async function frame(src, ready) {
+    for (const f of document.querySelectorAll('iframe')) f.remove();
+    const f = document.createElement('iframe'); f.src = src; document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.document.body && ready(f.contentWindow) && f.contentWindow.SlopTouch && f.contentWindow.SlopTouch.ready, { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('touch: the smaller drag targets', () => {
+    it('the colour picker\'s field follows a finger', async () => {
+      let got = null;
+      const p = SlopColorPicker.create({ value: '#ff0000', onChange: (hex) => { got = hex; } });
+      document.getElementById('pick').append(p.el);
+      const sv = p.el.querySelector('.scp-sv');
+      expect(getComputedStyle(sv).touchAction).toBe('none');
+      await TouchKit.drag({ el: sv, x: sv.clientWidth * 0.9, y: 10 }, -sv.clientWidth * 0.6, sv.clientHeight * 0.6, 8);
+      expect(!!got).toBe(true);
+      expect(got.toLowerCase()).not.toBe('#ff0000');
+      p.el.remove();
+    });
+    it('the drag handles of music, remix, Sloppo, his candy and the video lane take the drag from the browser', () => {
+      expect(actionOf('mu-handle', document.body, 'button')).toBe('none');
+      expect(actionOf('rm-kkey', document.body, 'button')).toBe('none');
+      expect(actionOf('lv-track')).toBe('none');
+      expect(actionOf('lv-mark', document.body, 'button')).toBe('none');
+      expect(actionOf('up-cmp')).toBe('pan-y'); // the compare divider: sideways is the divider's, upright scrolls
+      expect(/touch-action: none/.test([...document.styleSheets].filter((s) => /buddy/.test(s.href || '')).map((s) => [...s.cssRules].map((r) => r.cssText).join('\n')).join('\n'))).toBe(true);
+    });
+    it('Hex: a long press on a byte, then a tap on another, selects from one to the other', async () => {
+      const w = await frame('../../hex/index.html', (x) => x.document.body.classList.contains('ready') && x.HexApp && x.HexApp.doc());
+      await w.HexApp.openBlob(new Blob([new Uint8Array(256).map((_, i) => i)], { type: 'application/octet-stream' }), { name: 'touch.bin' });
+      const cell = (i) => w.document.querySelector(`.hx-rows [data-i="${i}"]`);
+      await waitFor(() => cell(2) && cell(20), { timeout: 5000 });
+      await sleep(300);
+      for (const t of w.document.querySelectorAll('.sui-toast, .sui-tip')) t.remove(); // a hint floating over the bytes
+      await TouchKit.longPress(cell(2));
+      await sleep(300);
+      await TouchKit.tap(cell(20));
+      await waitFor(() => { const r = w.HexApp.selRange(); return r && r[0] === 2 && r[1] === 20; }, { timeout: 3000 });
+      expect(w.document.querySelector('.sui-menu')).toBe(null);
+
+    }, { timeout: 40000 });
+    it('Slop Code: the explorer grip takes a finger and resizes it', async () => {
+      const w = await frame('../../code/index.html', (x) => x.document.body.classList.contains('ready'));
+      const grip = w.document.getElementById('cd-resize');
+      expect(w.getComputedStyle(grip).touchAction).toBe('none');
+      const before = grip.getAttribute('aria-valuenow');
+      await TouchKit.drag(grip, 60, 0, 8);
+      await waitFor(() => grip.getAttribute('aria-valuenow') !== before, { timeout: 3000 });
+    }, { timeout: 40000 });
+    it('SlopIsolate: the stage is a touch surface with its own pinch', async () => {
+      const w = await frame('../../slopisolate/index.html', (x) => x.document.getElementById('stage'));
+      const stage = w.document.getElementById('stage');
+      await waitFor(() => stage.hasAttribute('data-touch-surface'), { timeout: 10000 });
+      expect(w.getComputedStyle(stage).touchAction).toBe('none');
+      expect(typeof stage.touchSurface.zoom).toBe('function');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Touch: the smaller drag targets' });
+  </script>
+</body>
+</html>

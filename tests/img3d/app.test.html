@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Image to 3D tests</title>
+  <style>body { margin: 0; background: #111; color: #ddd; font: 13px system-ui, sans-serif; } #stage { width: 320px; height: 240px; }</style>
+</head>
+<body>
+  <!-- The pure core and the viewport run in this page; the spec builds a 64×64 test picture and checks its mesh. -->
+  <div id="stage"></div>
+  <!-- Covers: img3d/js/app/main.js -->
+  <script>try { localStorage.setItem('slop-firstrun:img3d', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../img3d/js/core/hfmesh.js"></script>
+  <script src="../../img3d/js/core/prepare.js"></script>
+  <script src="../../img3d/js/core/s3d.js"></script>
+  <script src="../../img3d/js/app/image.js"></script>
+  <script src="../../img3d/js/app/export.js"></script>
+  <script src="../../img3d/js/render/orbit.js"></script>
+  <script src="../../img3d/js/render/view.js"></script>
+  <script src="img3d.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop Image to 3D' });</script>
+</body>
+</html>

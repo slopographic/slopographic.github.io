@@ -1,0 +1,26 @@
+/* Shared components, Russian: the finder (search, facets, count line, sortable table) and the record list's count.
+ * Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'ui.finder.count': '{n} элементов',
+  'ui.finder.count#one': '{n} элемент',
+  'ui.finder.count#few': '{n} элемента',
+  'ui.finder.count#many': '{n} элементов',
+  'ui.finder.count_of': '{shown} из {n} элементов подходит',
+  'ui.finder.count_of#one': '{shown} из {n} элемента подходит',
+  'ui.finder.count_of#few': '{shown} из {n} элементов подходит',
+  'ui.finder.count_of#many': '{shown} из {n} элементов подходит',
+  'ui.finder.count_noun': '{n} {noun}',
+  'ui.finder.count_of_noun': '{shown} из {n} {noun} подходит',
+  'ui.finder.matches': 'Совпадения',
+  'ui.finder.chip_search': 'Поиск: «{q}»',
+  'ui.finder.chip': '{label}: {value}',
+  'ui.finder.sort_aria': '{label}, {sorted}',
+  'ui.finder.sorted_asc': 'по возрастанию',
+  'ui.finder.sorted_desc': 'по убыванию',
+  'ui.finder.not_sorted': 'не отсортировано',
+  'ui.list.count': '{n} элементов',
+  'ui.list.count#one': '{n} элемент',
+  'ui.list.count#few': '{n} элемента',
+  'ui.list.count#many': '{n} элементов',
+  'ui.list.empty_any': 'Здесь пока ничего нет.',
+});

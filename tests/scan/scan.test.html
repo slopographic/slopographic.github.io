@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Scan: photos from the camera, corners found, black and white, a PDF of every page, pictures, and the hand-over to Slop PDF</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: scan/index.html, scan/css/scan.css, scan/css/stage.css, scan/js/render.js, scan/js/io.js, scan/js/pdf.js, scan/js/ocr.js,
+  //   scan/js/editor.js, scan/js/view.js, scan/js/list.js, scan/js/panel.js, scan/js/main.js, scan/js/sample.js, scan/js/commands.js,
+  //   scan/js/ai-commands.js, scan/js/core/geom.js, scan/js/core/detect.js, scan/js/core/warp.js, scan/js/core/filters.js,
+  //   scan/js/core/page.js, scan/js/core/pages.js, shared/intake/sources.js, shared/slopui.js, shared/ocr/text-layer.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, D, S, got = [], picked = [], sent = [];
+  const $ = (id) => D.getElementById(id);
+  const shown = (el) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+  async function boot() {
+    const f = $$('app');
+    f.src = '../../scan/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopScan && f.contentWindow.SlopScan.app && f.contentWindow.document.getElementById('sc-make'), { timeout: 20000 });
+    W = f.contentWindow; D = W.document; S = W.SlopScan;
+    W.SlopUI.download = (blob, name) => got.push({ blob, name });
+    W.SlopOuttake.send = async (to, o) => { sent.push({ to, blob: await o.get(), name: o.name, type: o.type }); return 'id1'; };
+  }
+  function $$(id) { return document.getElementById(id); }
+  const ok = async (p) => { const r = await p; if (!r.ok) throw new Error(r.error); return r; };
+  /** The pixel colours of a canvas, as [r, g, b] at a few points across the middle. */
+  function samples(c) {
+    const x = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, out = [];
+    for (let k = 1; k < 20; k++) { const p = ((Math.round(c.height * k / 20)) * c.width + Math.round(c.width * (k % 7 + 1) / 8)) * 4; out.push([x[p], x[p + 1], x[p + 2]]); }
+    return out;
+  }
+  async function pdfPages(blob) {
+    if (!window.PDFLib) await new Promise((r, j) => { const s = document.createElement('script'); s.src = '../../vendor/pdf-lib/pdf-lib.min.js'; s.onload = r; s.onerror = j; document.head.append(s); });
+    const doc = await PDFLib.PDFDocument.load(new Uint8Array(await blob.arrayBuffer()));
+    return doc.getPages().map((p) => p.getSize());
+  }
+
+  describe('Slop Scan', () => {
+    it('starts empty: Take photo and the drop zone, no pages, Download PDF off', async () => {
+      await boot();
+      expect(shown($('sc-empty-camera'))).toBe(true);
+      expect($('sc-work').hidden).toBe(true);
+      expect($('sc-make').disabled).toBe(true);
+      expect(D.querySelector('header .smb-app, .sab-title, h1') !== null).toBe(true);
+    }, { timeout: 30000 });
+
+    it('Take photo asks for the back camera; two photos of pages become two pages with their corners found', async () => {
+      const files = await S.sample(2);
+      W.SlopIntake.pickFiles = (accept, multiple, folder, capture) => { picked.push({ accept, multiple, capture }); return Promise.resolve(files); };
+      $('sc-empty-camera').click();
+      await waitFor(() => S.pages.size() === 2, { timeout: 30000 });
+      expect(picked[0].capture).toBe('environment');
+      expect(picked[0].multiple).toBe(true);
+      const want = S.sample.CORNERS;
+      for (const p of S.pages.all()) {
+        expect(p.found).toBe(true);
+        p.quad.forEach((c, i) => { expect(Math.abs(c.x - want[i].x)).toBeLessThan(0.03); expect(Math.abs(c.y - want[i].y)).toBeLessThan(0.03); });
+        expect(p.turn).toBe(0);
+      }
+      expect($('sc-work').hidden).toBe(false);
+      await waitFor(() => $('sc-pages').children.length === 2);
+      expect($('sc-make').textContent).toBe('Download PDF (2 pages)');
+    }, { timeout: 40000 });
+
+    it('the result is the page made flat: the shape of the sheet, white paper', async () => {
+      await waitFor(() => $('sc-result').width > 1);
+      const c = $('sc-result');
+      expect(Math.abs(c.height / c.width - 1188 / 840)).toBeLessThan(0.08);
+      const light = samples(c).filter(([r, g, b]) => r > 200 && g > 200 && b > 200).length;
+      expect(light).toBeGreaterThan(10);
+    });
+
+    it('Black & white makes only black and white pixels; Apply to all pages gives the second page the same look', async () => {
+      $('sc-style-bw').click();
+      await waitFor(() => S.pages.current().style === 'bw');
+      await sleep(80);
+      const c = S.render.render(S.pages.current(), 600), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let other = 0;
+      for (let i = 0; i < d.length; i += 4) if (!((d[i] === 0 || d[i] === 255) && d[i] === d[i + 1] && d[i] === d[i + 2])) other++;
+      expect(other).toBe(0);
+      expect($('sc-style-bw').getAttribute('aria-pressed')).toBe('true');
+      $('sc-apply-all').click();
+      expect(S.pages.all().every((p) => p.style === 'bw')).toBe(true);
+    });
+
+    it('Corners shows the photo with four handles; the arrow keys move a corner and the page is made again', async () => {
+      $('sc-mode-corners').click();
+      await waitFor(() => !$('sc-crop').hidden && D.querySelectorAll('.sc-handle').length === 4);
+      expect($('sc-crop').hasAttribute('data-touch-surface')).toBe(true);
+      const p = S.pages.current(), v = p.v, x0 = p.quad[0].x, h = D.querySelector('.sc-handle');
+      h.focus();
+      h.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
+      expect(S.pages.current().quad[0].x).toBeGreaterThan(x0);
+      expect(S.pages.current().v).toBeGreaterThan(v);
+      // a pointer drag on the top-left corner shows the magnifier, and the corner follows
+      const r = h.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      h.dispatchEvent(new W.PointerEvent('pointerdown', { pointerId: 7, clientX: cx, clientY: cy, bubbles: true, isPrimary: true }));
+      $('sc-handles').dispatchEvent(new W.PointerEvent('pointermove', { pointerId: 7, clientX: cx + 30, clientY: cy + 20, bubbles: true }));
+      expect($('sc-loupe').hidden).toBe(false);
+      $('sc-handles').dispatchEvent(new W.PointerEvent('pointerup', { pointerId: 7, clientX: cx + 30, clientY: cy + 20, bubbles: true }));
+      expect($('sc-loupe').hidden).toBe(true);
+      expect(S.pages.current().quad[0].y).toBeGreaterThan(S.sample.CORNERS[0].y + 0.01);
+      // Find edges puts it back
+      $('sc-detect').click();
+      expect(Math.abs(S.pages.current().quad[0].y - S.sample.CORNERS[0].y)).toBeLessThan(0.03);
+      $('sc-corners-done').click();
+      expect($('sc-crop').hidden).toBe(true);
+    });
+
+    it('turn and move: the turn buttons turn the result, the arrows reorder the pages', async () => {
+      const first = S.pages.all()[0].id;
+      $('sc-rot-r').click();
+      expect(S.pages.current().turn).toBe(1);
+      await waitFor(() => $('sc-result').width > $('sc-result').height);
+      $('sc-rot-l').click();
+      expect(S.pages.current().turn).toBe(0);
+      await sleep(100);
+      D.querySelector('.sc-row .sc-down').click();
+      expect(S.pages.all()[1].id).toBe(first);
+    });
+
+    it('Download PDF: one PDF with a page for each scan, A4 with margins when asked', async () => {
+      $('sc-size').value = 'a4'; $('sc-size').dispatchEvent(new W.Event('change'));
+      $('sc-margin').value = 'small'; $('sc-margin').dispatchEvent(new W.Event('change'));
+      got = [];
+      $('sc-make').click();
+      await waitFor(() => got.length === 1, { timeout: 30000 });
+      expect(got[0].name).toMatch(/^Scan \d{4}-\d\d-\d\d \d\d\.\d\d\.pdf$/);
+      expect(got[0].blob.type).toBe('application/pdf');
+      const sizes = await pdfPages(got[0].blob);
+      expect(sizes.length).toBe(2);
+      expect(Math.round(sizes[0].width)).toBe(595);
+      expect(Math.round(sizes[0].height)).toBe(842);
+      expect($('sc-estimate').textContent).toMatch(/About|Working/);
+    }, { timeout: 40000 });
+
+    it('Open in Slop PDF hands the same PDF over; the pages save as a ZIP of JPGs, one page as a JPG', async () => {
+      $('sc-to-pdf').click();
+      await waitFor(() => sent.length === 1, { timeout: 30000 });
+      expect(sent[0].to).toBe('pdf');
+      expect(sent[0].type).toBe('application/pdf');
+      expect((await pdfPages(sent[0].blob)).length).toBe(2);
+      got = [];
+      await S.io.downloadImages('image/jpeg');
+      expect(got[0].name).toMatch(/\.zip$/);
+      await S.io.downloadImages('image/png', S.pages.current());
+      expect(got[1].name).toMatch(/\.png$/);
+      expect(got[1].blob.type).toBe('image/png');
+    }, { timeout: 40000 });
+
+    it('a retake replaces the photo of one page and keeps its place; remove leaves one page', async () => {
+      const id = S.pages.all()[1].id, files = await S.sample(1);
+      W.SlopIntake.pickFiles = (accept, multiple, folder, capture) => { picked.push({ multiple, capture }); return Promise.resolve(files); };
+      D.querySelectorAll('.sc-row .sc-retake')[1].click();
+      await waitFor(() => S.pages.get(id).name === 'Sample letter 1.jpg', { timeout: 20000 });
+      expect(picked[picked.length - 1].multiple).toBe(false);
+      expect(S.pages.index(id)).toBe(1);
+      expect(S.pages.size()).toBe(2);
+      D.querySelectorAll('.sc-row .sc-remove')[0].click();
+      expect(S.pages.size()).toBe(1);
+    }, { timeout: 30000 });
+
+    it('the camera choice reaches the file input (capture="environment")', async () => {
+      let seen = null;
+      const click = W.HTMLInputElement.prototype.click;
+      W.HTMLInputElement.prototype.click = function () { seen = this.getAttribute('capture'); this.dispatchEvent(new W.Event('cancel')); };
+      try { await W.SlopUI.pickFiles({ accept: 'image/*', capture: 'environment' }); } finally { W.HTMLInputElement.prototype.click = click; }
+      expect(seen).toBe('environment');
+    });
+
+    it('the assistant: add the sample, set a look, export to Slop Drive; its state lists the pages', async () => {
+      await W.SlopCmd.prepare();
+      await waitFor(() => W.SlopCmd.get('scan.ai.new-scan'), { timeout: 10000 });
+      await ok(W.SlopCmd.exec('scan.ai.new-scan', { size: 'letter' }));
+      expect(S.pages.size()).toBe(0);
+      await ok(W.SlopCmd.exec('scan.ai.add-photo', { sample: true }));
+      expect(S.pages.size()).toBe(1);
+      await ok(W.SlopCmd.exec('scan.ai.set-page-style', { style: 'gray' }));
+      expect(S.pages.current().style).toBe('gray');
+      let put = null;
+      W.SlopHub.put = async (blob, o) => { put = { blob, o }; return 'drive1'; };
+      await ok(W.SlopCmd.exec('scan.ai.export-pdf', { to: 'drive' }));
+      expect(put.o.from).toBe('scan');
+      expect((await pdfPages(put.blob))[0].width).toBe(612);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Scan' });
+  </script>
+</body>
+</html>

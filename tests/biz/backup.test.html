@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business · full backup and restore (SlopBiz.backup)</title>
+  <!-- Covers: shared/biz/backup.js, inventory/js/ui/import.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <button id="dBackup" type="button">Backup</button>
+  <button id="dRestore" type="button">Restore</button>
+  <ul id="dRestoreMsg"></ul>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script><script src="../../shared/biz/i18n/en/biz.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../../shared/biz/backup.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const S = window.SlopData, $ = (id) => document.getElementById(id);
+  const calls = { download: [], toast: [], alert: [], confirm: true };
+  window.SlopUI = {
+    download: (blob, name) => calls.download.push({ blob, name }), toast: (t) => calls.toast.push(t),
+    alert: (t, m) => calls.alert.push(`${t}: ${m}`), confirm: async () => calls.confirm,
+  };
+  const file = (text) => new File([text], 'backup.json', { type: 'application/json' });
+  let done = 0;
+
+  describe('SlopBiz.backup', () => {
+    it('the backup button downloads one file with every record', async () => {
+      await S.store.erase(); await S.store.ready();
+      await S.store.put('customers', { name: 'Ada', stage: 'customer' });
+      SlopBiz.backup.mount({ done: () => { done++; } });
+      $('dBackup').click();
+      await waitFor(() => calls.download.length === 1);
+      const b = JSON.parse(await calls.download[0].blob.text());
+      expect(b.collections.customers.map((c) => c.name)).toEqual(['Ada']);
+      expect(calls.toast.includes('Backup downloaded')).toBe(true);
+    });
+    it('a bad file changes nothing and lists why', async () => {
+      expect(await SlopBiz.backup.restore(file('{"format":"nope"}'))).toBe(false);
+      expect($('dRestoreMsg').textContent.includes('The file was not restored. Nothing changed.')).toBe(true);
+      expect((await S.store.list('customers')).value.length).toBe(1);
+    });
+    it('saying no to the question restores nothing', async () => {
+      calls.confirm = false;
+      const good = await calls.download[0].blob.text();
+      expect(await SlopBiz.backup.restore(file(good))).toBe(false);
+      calls.confirm = true;
+    });
+    it('attach(ns) gives an app its Data view and the backup and restore actions', () => {
+      const ns = {};
+      SlopBiz.backup.attach(ns);
+      expect(typeof ns.views.data.mount).toBe('function');
+      expect(ns.dataActions.backup).toBe(SlopBiz.backup.backup);
+      expect(ns.dataActions.restore).toBe(SlopBiz.backup.restore);
+    });
+    it('a good file replaces every record, says so, and runs done', async () => {
+      const good = await calls.download[0].blob.text();
+      await S.store.put('customers', { name: 'Extra', stage: 'lead' });
+      expect(await SlopBiz.backup.restore(file(good))).toBe(true);
+      expect((await S.store.list('customers')).value.map((c) => c.name)).toEqual(['Ada']);
+      expect($('dRestoreMsg').textContent).toBe('Restored. Every record now matches the file.');
+      window.SlopUI.pickFiles = async () => [file(good)]; // Restore is the intake's picker (part biz.backup)
+      $('dRestore').click();
+      await waitFor(() => done === 1);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

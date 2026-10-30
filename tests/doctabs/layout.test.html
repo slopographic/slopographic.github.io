@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Document tabs · the strip is one row tall and as wide as the page, on a large screen and on a phone</title>
+  <!-- Covers: shared/doctabs/doctabs.css, slides/css/app.css -->
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Slop Slides gave the strip its editor's flexible grid row (382 px tall on a tall screen); Slop Docs put it in its 232 px
+  // outline column (on a phone only the + button showed). The strip must be one row tall and span the page.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  async function measure(app, w, h) {
+    const f = document.createElement('iframe');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    f.src = `../../${app}/index.html`;
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.querySelector('.sl-doctabs .sl-doctab'), { timeout: 20000 });
+    const r = f.contentDocument.querySelector('.sl-doctabs').getBoundingClientRect();
+    f.remove();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  }
+  describe('document tab strip', () => {
+    for (const app of ['slides', 'docs']) {
+      for (const [w, h] of [[1886, 1150], [390, 800]]) {
+        it(`${app} at ${w} × ${h}: one row tall and as wide as the page`, async () => {
+          const m = await measure(app, w, h);
+          expect(m.h < 60).toBe(true, `${app} ${w}: ${m.h} px tall`);
+          expect(m.w >= w - 30).toBe(true, `${app} ${w}: ${m.w} px wide`);
+        }, { timeout: 30000 });
+      }
+    }
+  });
+  run();
+  </script>
+</body>
+</html>

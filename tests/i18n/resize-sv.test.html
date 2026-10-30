@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Resize in Swedish</title>
+  <!-- Covers: resize/i18n/index.js, resize/js/app/main.js, resize/js/app/layout.js, resize/js/app/commands.js, resize/js/app/presets.js, resize/js/app/settings.js, resize/js/app/list.js, resize/js/app/queue.js, resize/js/core/size.js, resize/js/image/image.js, resize/js/video/probe.js, resize/js/video/run.js, resize/js/video/encode.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Resize', path: '../../resize/index.html', ns: 'resize',
+    ready: (doc) => doc.querySelector('#rs-panel .sf-h') && doc.querySelector('#rs-drop .sd-msg') && doc.querySelector('#rs-preset option'),
+    checks: [
+      ['#rs-open', 'Öppna…', 'Open…'],
+      ['#rs-run', 'Ändra storlek', 'Resize'],
+      ['#rs-panel .sf-h', 'Storlek', 'Size'],
+      ['#rs-drop .sd-msg', 'Släpp bilder eller videor här', 'Drop pictures or videos here'],
+      ['#rs-mode option[value="scale"]', 'Procent', 'Percentage'],
+      ['#rs-preset option[value=""]', 'Anpassad storlek', 'Custom size'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Resize in Swedish' });
+  </script>
+</body>
+</html>

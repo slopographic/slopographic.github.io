@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script>
+  // Every assistant command of Slop PDF through SlopCmd.exec with arguments; the result read back with pdf.js.
+  // Covers: pdf/js/ui/ai-pages.js, pdf/js/ui/ai-commands.js, pdf/js/ui/commands.js, shared/commands/sources.js
+  const { describe, it, expect } = SlopTest;
+  let C;
+  const run = async (id, args) => { const r = await C.exec('pdf.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const built = async () => PT.read(await PT.E.build({}));
+  const near = (a, b) => Math.abs(a - b) < 0.5;
+
+  describe('Slop PDF assistant commands', () => {
+    it('prepare() loads them; delete_pages is the only destructive one; the schemas take arrays', async () => {
+      await PT.boot();
+      PT.reset();
+      C = PT.win.SlopCmd;
+      await C.prepare();
+      for (const t of ['new-document', 'add-pages', 'insert-pdf', 'delete-pages', 'rotate-pages', 'move-page', 'add-text', 'add-shape', 'add-image', 'fill-form-field', 'set-metadata', 'export-pdf', 'undo']) expect(!!C.get('pdf.ai.' + t)).toBe(true);
+      expect(C.list().filter((c) => /^pdf\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['pdf.ai.delete-pages']);
+      expect(SlopCmdArgs.jsonSchema(C.get('pdf.ai.delete-pages').args).properties.pages.type).toBe('array');
+    }, { timeout: 40000 });
+
+    it('new_document, add_pages, rotate_pages, move_page and delete_pages, each one undo step', async () => {
+      await run('new-document', { size: 'a4', pages: 2, title: 'Plan' });
+      expect(PT.E.state.pages.length).toBe(2);
+      let r = await built();
+      expect(r.n).toBe(2);
+      expect(near(r.pages[0].view[2], 595.28) && near(r.pages[0].view[3], 841.89)).toBe(true);
+      expect(r.info.Title).toBe('Plan');
+      await run('add-pages', { count: 1, size: 'letter' });
+      await run('rotate-pages', { pages: [3], angle: '90' });
+      expect(PT.E.rotation(PT.E.state.pages[2])).toBe(90);
+      const id3 = PT.E.state.pages[2].id;
+      await run('move-page', { page: 3, to: 1 });
+      expect(PT.E.state.pages[0].id).toBe(id3);
+      await run('delete-pages', { pages: [1] });
+      expect(PT.E.state.pages.length).toBe(2);
+      expect((await C.exec('pdf.ai.delete-pages', { pages: [1, 2] })).ok).toBe(false);
+      await run('undo', { steps: 1 });
+      expect(PT.E.state.pages.length).toBe(3);
+      await run('delete-pages', { pages: [1] });
+    });
+
+    it('add_text, add_shape, add_image and set_metadata are in the saved PDF; text off the page is warned about', async () => {
+      let r = await run('add-text', { page: 1, text: 'Hello from the assistant', x: 72, y: 100, size: 20 });
+      expect(r.value).not.toMatch(/Warning/);
+      r = await run('add-text', { page: 2, text: 'Far right', x: 560, y: 40 });
+      expect(r.value).toMatch(/Warning: the text runs past the page \(\d+ pt off the right\)/);
+      await run('add-shape', { page: 1, kind: 'rect', x: 60, y: 200, width: 200, height: 80, color: 'red', fill: '#00ff00' });
+      await run('add-shape', { page: 1, kind: 'highlight', x: 60, y: 300, width: 100, height: 20 });
+      await run('add-shape', { page: 1, kind: 'arrow', x: 60, y: 400, width: 150, height: 0 });
+      await run('add-image', { page: 2, url: '/og-share.png', width: 200 });
+      expect(PT.E.state.pages[0].annots.map((a) => a.type)).toEqual(['text', 'rect', 'hlbox', 'arrow']);
+      expect(PT.E.state.pages[1].annots.map((a) => a.type)).toEqual(['text', 'image']);
+      await run('set-metadata', { title: 'Assistant test', author: 'Sloppo' });
+      const out = await built();
+      expect(out.pages[0].text).toContain('Hello from the assistant');
+      expect(out.info.Title).toBe('Assistant test');
+      expect(out.info.Author).toBe('Sloppo');
+      expect((await C.exec('pdf.ai.add-image', { page: 1, url: 'https://example.com/x.png' })).ok).toBe(false);
+    }, { timeout: 30000 });
+
+    it('insert_pdf merges a Slop Drive PDF; export_pdf saves the result to Slop Drive', async () => {
+      // a name and bytes of this run only: Slop Drive and the saved edits outlive a page, so an earlier run's file (and its
+      // saved edits, which would ask Replay or Discard) is never the one found
+      const tag = 'merge-me-' + Date.now().toString(36) + '.pdf';
+      const bytes = await PT.makePdf([{ text: 'Merged one' }, { text: 'Merged two' }], { title: tag });
+      await PT.win.SlopHub.put(new PT.win.Blob([bytes], { type: 'application/pdf' }), { name: tag, from: 'test' });
+      await run('insert-pdf', { file: tag, after: 1 });
+      expect(PT.E.state.pages.length).toBe(4);
+      const r = await run('export-pdf', { name: 'assistant-made' });
+      const id = /id ([^)\s]+)\)/.exec(r.value)[1], rec = await PT.win.SlopHub.get(id);
+      expect(rec.name).toBe('assistant-made.pdf');
+      const out = await PT.read(await rec.blob.arrayBuffer());
+      expect(out.n).toBe(4);
+      expect(out.pages[1].text).toContain('Merged one');
+      expect(out.pages[2].text).toContain('Merged two');
+      expect(out.pages[0].text).toContain('Hello from the assistant');
+    }, { timeout: 30000 });
+
+    it('fill_form_field fills a text field and a checkbox; state lists the fields; the rollback undoes it all', async () => {
+      PT.reset();
+      const bytes = await PT.makePdf([{ w: 400, h: 300 }], { form: (doc, form, pages) => {
+        form.createTextField('Name').addToPage(pages[0], { x: 20, y: 200, width: 200, height: 24 });
+        form.createCheckBox('Agree').addToPage(pages[0], { x: 20, y: 150, width: 16, height: 16 });
+      } });
+      await PT.open(bytes, 'form.pdf');
+      await PT.E.loadFields([...PT.E.files.values()][0]);
+      const back = C.checkpoint();
+      await run('fill-form-field', { name: 'Name', value: 'Ada Lovelace' });
+      await run('fill-form-field', { name: 'Agree', value: 'yes' });
+      expect((await C.exec('pdf.ai.fill-form-field', { name: 'Nope', value: 'x' })).ok).toBe(false);
+      const st = C.state();
+      expect(st.formFields.find((f) => f.name === 'Name').value).toBe('Ada Lovelace');
+      const out = await built();
+      const fields = out.fields || {};
+      expect((fields.Name || []).find((w) => w.type).value).toBe('Ada Lovelace');   // the first entry is the parent field (as in pdf.spec-export.js)
+      expect(back()).toBe(true);
+      expect(Object.keys(PT.E.state.forms).every((k) => !Object.keys(PT.E.state.forms[k] || {}).length)).toBe(true);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop PDF assistant commands' });
+  </script>
+</body>
+</html>

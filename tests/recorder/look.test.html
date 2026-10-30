@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Recorder: the look (header, panel, phone sheet, what the browser can record)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: recorder/index.html, recorder/css/recorder.css, recorder/js/main.js, recorder/js/view.js, recorder/js/settings.js, recorder/js/core/support.js, recorder/js/commands.js, recorder/js/ai-commands.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  async function open(width, q = '') {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../recorder/index.html' + q;
+    document.body.replaceChildren(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.body.classList.contains('ready') && D.querySelector('header .sh-switch') && D.querySelector('#rc-bar .sab-btn'); }, { timeout: 30000 });
+    try { f.contentWindow.localStorage.removeItem('slop.recorder.settings'); } catch (e) { /* none */ }
+    return f.contentDocument;
+  }
+  const controls = (D) => [...D.querySelectorAll('header a, header button')].filter((n) => n.getBoundingClientRect().width > 0);
+  function laidOut(D, width) {
+    const rs = controls(D).map((n) => n.getBoundingClientRect()).sort((a, b) => a.top - b.top || a.left - b.left);
+    return rs.every((r, i) => r.left >= 0 && r.right <= width + 0.5 && (!i || rs[i - 1].bottom <= r.top + 4 || r.left >= rs[i - 1].right - 0.5));
+  }
+  const visible = (n) => !!n && n.getBoundingClientRect().width > 0 && n.getBoundingClientRect().height > 0;
+
+  describe('Slop Recorder: the look', () => {
+    it('1280 px: the header leads with the home link; the settings and Record are in the right panel', async () => {
+      const D = await open(1280);
+      expect(D.querySelector('#rc-bar .sab-brand > a.brand:first-child').getAttribute('href')).toBe('../');
+      expect(D.querySelector('#rc-bar .sab-name').textContent).toBe('Slop Recorder');
+      expect(laidOut(D, 1280)).toBe(true);
+      const panel = D.getElementById('rc-panel').getBoundingClientRect(), stage = D.getElementById('rc-stage').getBoundingClientRect();
+      expect(panel.left).toBeGreaterThan(stage.right - 1);
+      const rec = D.getElementById('rc-record');
+      expect(visible(rec) && D.getElementById('rc-panel').contains(rec)).toBe(true);
+      expect([...D.querySelectorAll('#rc-panel .sf-sec-h, #rc-panel h3')].map((h) => h.textContent.trim()).filter(Boolean).length).toBeGreaterThan(3);
+      expect(visible(D.getElementById('rc-panel-open'))).toBe(false);
+    }, { timeout: 40000 });
+
+    it('the source decides the settings shown: the webcam corner for Screen + webcam, no screen sound for the webcam', async () => {
+      const D = await open(1280), W = D.defaultView;
+      const btn = (v) => D.querySelector(`#rc-source [data-v="${v}"]`);
+      btn('pip').click();
+      expect(btn('pip').getAttribute('aria-pressed')).toBe('true');
+      expect(D.getElementById('rc-pip').hidden).toBe(false);
+      btn('camera').click();
+      expect(D.getElementById('rc-pip').hidden).toBe(true);
+      expect(D.getElementById('rc-sys-row').hidden).toBe(true);
+      expect(W.SlopRec.settings.get().source).toBe('camera');
+      D.getElementById('rc-format').value = 'gif'; D.getElementById('rc-format').dispatchEvent(new W.Event('change'));
+      expect(D.getElementById('rc-gif').hidden).toBe(false);
+    }, { timeout: 40000 });
+
+    it('a task page link (?source=camera) starts with that source', async () => {
+      const D = await open(1280, '?source=camera');
+      expect(D.querySelector('#rc-source [data-v="camera"]').getAttribute('aria-pressed')).toBe('true');
+    }, { timeout: 40000 });
+
+    it('what this browser can record: a row per feature, Yes, No or Partly, and the other browsers', async () => {
+      const D = await open(1280);
+      const rows = [...D.querySelectorAll('#rc-support-rows tr')];
+      expect(rows.length).toBe(7);
+      expect(rows.every((r) => /^(Yes|No|Partly)$/.test(r.children[1].textContent))).toBe(true);
+      expect(D.getElementById('rc-support-who').textContent).toMatch(/^What .+ can record$/);
+      expect(D.querySelectorAll('#rc-other-rows tr').length).toBe(5);
+    }, { timeout: 40000 });
+
+    it('390 px: the stage fills the width, the closed sheet shows Record, and Settings opens the sheet', async () => {
+      const D = await open(390);
+      expect(laidOut(D, 390)).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(391);
+      const rec = D.getElementById('rc-record');
+      await waitFor(() => visible(rec));
+      expect(rec.getBoundingClientRect().bottom).toBeLessThanOrEqual(801);
+      expect(visible(D.getElementById('rc-panel-open'))).toBe(true);
+      D.getElementById('rc-panel-open').click();
+      await waitFor(() => visible(D.getElementById('rc-source')));
+    }, { timeout: 40000 });
+
+    it('Ctrl+K lists the recorder commands, and the assistant has its tools with argument schemas', async () => {
+      const D = await open(1280), W = D.defaultView, C = W.SlopCmd;
+      expect(C.get('recorder.record').keys).toEqual(['Alt+R']);
+      await C.prepare();
+      const tools = C.list().filter((c) => c.args && c.id.startsWith('recorder.ai.')).map((c) => c.tool).sort();
+      expect(tools).toEqual(['add_recording', 'export_recording', 'new_recording', 'pause_recording', 'resume_recording', 'set_format', 'start_recording', 'stop_recording', 'trim_recording']);
+      const r = await C.exec('recorder.ai.new-recording', { source: 'mic', countdown: '5' });
+      expect(r.ok).toBe(true);
+      expect(String(r.value)).toMatch(/^Ready to record: Microphone only, countdown 5 s/);
+      expect(C.state().settings.source).toBe('mic');
+      const bad = await C.exec('recorder.ai.trim-recording', { start: 1 });
+      expect(bad.ok).toBe(false);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>
