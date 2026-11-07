@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopSession (per-app working state)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/session/session.js"></script>
+  <script>
+  const { describe, it, expect, sleep, run } = SlopTest;
+  const S = window.SlopSession;
+  const APP = 'test-session-' + Math.random().toString(36).slice(2);
+
+  describe('SlopSession', () => {
+    it('saves and loads a value per app and key', async () => {
+      expect(await S.save(APP, 'ui', { tool: 'brush', zoom: 1.5 })).toBe(true);
+      expect(await S.load(APP, 'ui', null)).toEqual({ tool: 'brush', zoom: 1.5 });
+    });
+    it('returns the fallback for a missing key', async () => {
+      expect(await S.load(APP, 'never-saved', 'fallback')).toBe('fallback');
+    });
+    it('keeps apps apart', async () => {
+      await S.save(APP, 'shared-key', 'mine');
+      expect(await S.load(APP + '-other', 'shared-key', 'none')).toBe('none');
+    });
+    it('falls back to the localStorage mirror when IndexedDB holds nothing', async () => {
+      const k = 'slop-session.' + APP + '\u0001mirror-only';
+      localStorage.setItem(k, JSON.stringify({ v: [1, 2, 3], t: Date.now() }));
+      expect(await S.load(APP, 'mirror-only', null)).toEqual([1, 2, 3]);
+      localStorage.removeItem(k);
+    });
+    it('remove deletes the value', async () => {
+      await S.save(APP, 'gone', 1);
+      await S.remove(APP, 'gone');
+      expect(await S.load(APP, 'gone', 'empty')).toBe('empty');
+    });
+    it('restore loads every key with its fallback and calls apply once', async () => {
+      await S.save(APP, 'panel', { w: 320 });
+      let calls = 0, got = null;
+      const values = await S.restore(APP, { panel: { w: 200 }, sidebar: 'closed' }, (v) => { calls++; got = v; });
+      expect(calls).toBe(1);
+      expect(got.panel).toEqual({ w: 320 });
+      expect(got.sidebar).toBe('closed');
+      expect(values.sidebar).toBe('closed');
+    });
+    it('autosave writes the latest value on flush, and only when touched', async () => {
+      let v = 1;
+      const a = S.autosave(APP, 'auto', () => v, { delay: 10000 });
+      a.flush();
+      expect(await S.load(APP, 'auto', 'untouched')).toBe('untouched');
+      v = 7; a.touch(); a.flush();
+      expect(await S.load(APP, 'auto', null)).toBe(7);
+    });
+    it('flushAll writes touched autosaves when the page is hidden or left', async () => {
+      let v = 'before';
+      const a = S.autosave(APP, 'hidden-test', () => v, { delay: 10000 });
+      v = 'after'; a.touch();
+      S.flushAll();
+      expect(await S.load(APP, 'hidden-test', null)).toBe('after');
+    });
+  });
+  run({ name: 'Shared · SlopSession' });
+  </script>
+</body>
+</html>

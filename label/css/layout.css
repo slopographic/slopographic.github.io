@@ -1,0 +1,85 @@
+/* SlopLabel — app frame: menubar, control bar, toolbox, rulers + stage, dock, status bar */
+.app {
+  height: 100%; display: grid;
+  grid-template-columns: var(--toolbox-w) minmax(0, 1fr) var(--dock-w);
+  grid-template-rows: var(--menubar-h) auto var(--cb-h) minmax(0, 1fr) var(--sb-h);
+  grid-template-areas: 'menu menu menu' 'tabs tabs tabs' 'ctrl ctrl ctrl' 'tools work dock' 'status status status';
+}
+.menubar { grid-area: menu; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--bg-panel); border-bottom: 1px solid var(--border-dark); min-width: 0; }
+/* The shared menu bar fills this row (see shared/menubar): it keeps the row's height and sits in the grid, not above it. */
+.menubar.smb-bar { position: static; min-height: 0; height: var(--menubar-h); padding: 0 8px; border-bottom: 1px solid var(--border-dark); }
+.menubar .smb-menu-b, .menubar .smb-tool { min-height: 26px; }
+/* The shared header buttons (Drive, Tour, Theme, Apps in the menu bar; View in the control bar: shared/ui/hbtn.css) wear
+   the look of .btn, 26 px like Print and the zoom buttons. */
+.menubar, .ctrlbar { --slop-hbtn-h: 26px; --slop-hbtn-radius: var(--radius); --slop-hbtn-bg: var(--btn-bg); --slop-hbtn-line: var(--btn-border); --slop-hbtn-hover: var(--btn-hover); --slop-hbtn-fs: var(--fs); }
+.brand { display: flex; align-items: center; gap: 7px; font-weight: 700; letter-spacing: -.01em; color: var(--text); text-decoration: none; padding: 0 8px 0 2px; white-space: nowrap; }
+.brand-dot { width: 13px; height: 13px; border-radius: 50% 50% 46% 54% / 60% 60% 40% 40%; background: var(--accent); box-shadow: inset -2px -2px 0 rgba(0, 0, 0, .18); }
+.menus { display: flex; gap: 1px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.menus::-webkit-scrollbar { display: none; }
+.mb { height: 26px; padding: 0 9px; border: 0; background: none; color: var(--text); border-radius: var(--radius-s); white-space: nowrap; }
+.mb:hover, .mb.open { background: var(--bg-hover); }
+.btn { height: 26px; min-width: 26px; padding: 0 10px; border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); border-radius: var(--radius); white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 5px; box-shadow: var(--bevel-btn); }
+.btn:hover:not(:disabled) { background: var(--btn-hover); }
+.btn:active:not(:disabled) { box-shadow: var(--bevel-btn-down); }
+.btn.ghost { background: none; border-color: transparent; box-shadow: none; padding: 0 6px; font-size: 14px; }
+.btn.ghost:hover:not(:disabled) { background: var(--bg-hover); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.07); }
+.btn.small { height: 22px; padding: 0 7px; font-size: var(--fs-s); }
+.btn.danger { color: var(--danger); }
+.only-narrow { display: none !important; }
+
+.ctrlbar { grid-area: ctrl; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: var(--bg-panel-2); border-bottom: 1px solid var(--border-dark); min-width: 0; overflow: hidden; }
+.ctrlbar .sep { width: 1px; height: 18px; background: var(--sep); }
+.chip { height: 26px; padding: 0 9px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text); border-radius: var(--radius); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; box-shadow: var(--bevel-in); }
+.chip:hover { border-color: var(--accent-line); }
+.recnav { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+#recInfo { min-width: 70px; text-align: center; font-size: var(--fs-s); }
+#zoomVal { min-width: 58px; text-align: center; }
+
+.toolbox { grid-area: tools; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; background: var(--bg-panel); border-right: 1px solid var(--border-dark); overflow-y: auto; scrollbar-width: none; }
+.tool { width: 38px; height: 38px; border: 0; background: none; color: var(--text-dim); border-radius: var(--radius); display: grid; place-items: center; padding: 0; position: relative; flex: none; }
+.tool svg { width: 20px; height: 20px; }
+.tool:hover { background: var(--bg-hover); color: var(--text); }
+.tool.on { background: var(--accent-soft); color: var(--accent-line); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.tool-sep { width: 26px; height: 1px; background: var(--sep); margin: 4px 0; flex: none; }
+
+.workspace { grid-area: work; position: relative; display: grid; grid-template-columns: var(--ruler) minmax(0, 1fr); grid-template-rows: var(--ruler) minmax(0, 1fr); min-width: 0; min-height: 0; }
+.workspace.no-rulers { grid-template-columns: 0 minmax(0, 1fr); grid-template-rows: 0 minmax(0, 1fr); }
+.workspace.no-rulers .ruler, .workspace.no-rulers .ruler-corner { display: none; }
+.ruler-corner { background: var(--ruler-bg); border-right: 1px solid var(--ruler-tick); border-bottom: 1px solid var(--ruler-tick); }
+.ruler { display: block; width: 100%; height: 100%; background: var(--ruler-bg); }
+.ruler-h { grid-column: 2; grid-row: 1; }
+.ruler-v { grid-column: 1; grid-row: 2; }
+.stage { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--pasteboard); touch-action: none; outline: none; user-select: none; -webkit-user-select: none; }
+.stage-view { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.stage canvas { position: absolute; left: 0; top: 0; display: block; }
+.stage.tool-hand, .stage.panning { cursor: grab; }
+.stage.panning:active { cursor: grabbing; }
+.stage.tool-create { cursor: crosshair; }
+
+.dock { grid-area: dock; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg-panel); border-left: 1px solid var(--border-dark); min-height: 0; min-width: 0; }
+.tabs { display: flex; gap: 2px; padding: 5px 6px 0; border-bottom: 1px solid var(--border-dark); background: var(--bg-panel-2); overflow-x: auto; scrollbar-width: none; }
+/* The dock's tabs share its width; a long name ends in an ellipsis instead of pushing the last tab out of view. */
+.tab { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; height: 26px; padding: 0 6px; border: 1px solid transparent; border-bottom: 0; background: none; color: var(--text-dim); border-radius: var(--radius) var(--radius) 0 0; white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab.on { background: var(--bg-panel); color: var(--text); border-color: var(--border-dark); margin-bottom: -1px; font-weight: 600; }
+.tab .count { margin-left: 4px; font-size: 10px; color: var(--text-faint); }
+.dock-body { overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 10px; scrollbar-width: thin; }
+
+.status { grid-area: status; display: flex; align-items: center; gap: 10px; padding: 0 10px; background: var(--bg-panel-2); border-top: 1px solid var(--border-dark); color: var(--text-dim); font-size: var(--fs-s); white-space: nowrap; overflow: hidden; }
+.status .err { color: var(--danger); }
+.status .warn { color: var(--warn); }
+
+/* Print-form mode (#form=…): a single focused screen for operators */
+.form-mode .app { display: none; }
+.pform { display: none; }
+.form-mode .pform { display: flex; flex-direction: column; align-items: center; gap: 14px; height: 100%; overflow: auto; padding: 24px 16px; }
+.pform h1 { font-size: 20px; margin: 0; }
+.pform .pf-card { width: min(560px, 100%); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: grid; gap: 10px; box-shadow: var(--shadow); }
+.pform .pf-prev { display: grid; place-items: center; background: var(--pasteboard); border-radius: 6px; padding: 14px; }
+.pform .pf-prev canvas { max-width: 100%; height: auto; box-shadow: 0 2px 10px var(--label-shadow); background: #fff; }
+.pform .pf-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* Drop strip (shared/drop, compact): a normal block in the stage column under the canvas, never over it */
+.lb-dropstrip { flex: 0 1 auto; min-height: 0; max-height: 40%; overflow: auto; margin: 8px 12px 12px; background: var(--panel, #fff); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.2); }

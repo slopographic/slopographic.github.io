@@ -1,0 +1,16 @@
+{
+  "feature": "WebMCP",
+  "about": "Chrome origin trial tokens for WebMCP, one per origin. See shared/agent/HANDOFF.md to renew. These tokens are public by design (they are in every page).",
+  "tokens": [
+    {
+      "origin": "https://slopographic.com",
+      "expires": "2027-03-30",
+      "token": "Ahqtn8XmvHDoOT0EWz2DncZHy77S1oas48699FT0baxjlZ5IQKCFX7UG61e6lKceKn6wW3Ri7F6gE8bsF6s1uA8AAABQeyJvcmlnaW4iOiJodHRwczovL3Nsb3BvZ3JhcGhpYy5jb206NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMH0="
+    },
+    {
+      "origin": "https://slopographic.github.io",
+      "expires": "2027-03-30",
+      "token": "Agvh5hzGm3mBgPusIUMY4a9EP/scDmk6C23hI6ekMMTrLXi7yPeoXNu0fzVwsP4waUss3Nr40FDx4AjYeTIflgIAAABWeyJvcmlnaW4iOiJodHRwczovL3Nsb3BvZ3JhcGhpYy5naXRodWIuaW86NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTgwNjM2NDgwMH0="
+    }
+  ]
+}

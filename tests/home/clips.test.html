@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="media=true">
+  <title>Homepage · card screenshots and clips</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 640px; height: 600px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  async function open(qs = '') {
+    const f = document.createElement('iframe');
+    f.src = 'clips-frame.html' + qs;
+    document.body.prepend(f);
+    await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    const w = f.contentWindow;
+    await waitFor(() => w.document.querySelectorAll('.shot').length === 3);
+    return { f, w, d: w.document, box: (id) => w.document.querySelector(`.tile[data-id="${id}"] .shot`) };
+  }
+  const hover = (w, card) => card.dispatchEvent(new w.PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
+  const unhover = (w, card) => card.dispatchEvent(new w.PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse', relatedTarget: w.document.body }));
+
+  describe('card media', () => {
+    it('shows the screenshot when it exists and keeps the generated tile when it does not', async () => {
+      const { f, box } = await open();
+      await waitFor(() => box('a').classList.contains('has-img'));
+      expect(box('a').dataset.clip).toBe('../../assets/clips/photoslop');
+      await waitFor(() => !box('b').querySelector('img'));
+      expect(box('b').classList.contains('has-img')).toBe(false);
+      expect(box('b').querySelector('.shot-ph b').textContent).toBe('Missing media');
+      expect(box('b').dataset.clip).toBe(undefined);
+      f.remove();
+    });
+    it('hover plays a lazy, muted, looping clip with the shot as poster, and leaving stops it', async () => {
+      const { f, w, box } = await open();
+      await waitFor(() => box('a').dataset.clip);
+      expect(box('a').querySelector('video')).toBe(null);           // nothing loads before hover
+      const card = box('a').closest('.tile');
+      hover(w, card);
+      const v = box('a').querySelector('video');
+      expect(v.muted && v.loop && v.hasAttribute('playsinline')).toBe(true);
+      expect(v.getAttribute('preload')).toBe('none');
+      expect(v.getAttribute('poster')).toBe('../../assets/shots/photoslop.jpg');
+      expect([...v.querySelectorAll('source')].map((s) => s.type)).toEqual(['video/webm', 'video/mp4']);
+      await waitFor(() => box('a').classList.contains('playing'), { timeout: 8000 });
+      unhover(w, card);
+      expect(box('a').classList.contains('playing')).toBe(false);
+      expect(v.paused).toBe(true);
+      f.remove();
+    });
+    it('keyboard focus plays the clip too', async () => {
+      const { f, box } = await open();
+      await waitFor(() => box('a').dataset.clip);
+      box('a').closest('.tile').focus();
+      await waitFor(() => box('a').classList.contains('playing'), { timeout: 8000 });
+      box('a').closest('.tile').blur();
+      expect(box('a').classList.contains('playing')).toBe(false);
+      f.remove();
+    });
+    for (const [qs, why] of [['?rm=1', 'prefers-reduced-motion'], ['?save=1', 'Save-Data']]) {
+      it(`${why}: image only, no video`, async () => {
+        const { f, w, box } = await open(qs);
+        await waitFor(() => box('a').classList.contains('has-img'));
+        hover(w, box('a').closest('.tile'));
+        box('a').closest('.tile').focus();
+        await sleep(300);
+        expect(w.document.querySelectorAll('video').length).toBe(0);
+        f.remove();
+      });
+    }
+    it('touch screens play only the card in view, one at a time', async () => {
+      const { f, w, d, box } = await open('?touch=1');
+      await waitFor(() => box('a').dataset.clip && box('c').dataset.clip);
+      w.scrollTo(0, 0);
+      await waitFor(() => box('a').classList.contains('playing'), { timeout: 8000 });
+      box('c').scrollIntoView({ block: 'center' });
+      await waitFor(() => box('c').classList.contains('playing'), { timeout: 8000 });
+      expect(box('a').classList.contains('playing')).toBe(false);
+      expect(d.querySelectorAll('.shot.playing').length).toBe(1);
+      f.remove();
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

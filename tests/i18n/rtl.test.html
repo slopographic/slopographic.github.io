@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">
+  <title>Right-to-left language (Arabic)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Pages open in iframes of this origin, so they share localStorage (the profile). Each test starts with none.
+  const frames = [];
+  function open(src) {
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentWindow.SlopI18n && f.contentDocument.querySelector('[data-i18n="nav.apps"]'), { timeout: 20000 }).then(() => f);
+  }
+  const ARABIC_APPS = 'التطبيقات';
+  const navText = (f) => f.contentDocument.querySelector('[data-i18n="nav.apps"]').textContent;
+  /** Chooses a language in the Settings picker, the way a visitor does. */
+  async function choose(code) {
+    const s = await open('../../settings/index.html');
+    const sel = s.contentDocument.getElementById('lang-select');
+    sel.value = code;
+    sel.dispatchEvent(new s.contentWindow.Event('change'));
+    return s;
+  }
+  /** The Apps button in the header, and whether it is on screen (inside the frame's width, with a size). */
+  function headerButton(f) {
+    const btn = f.contentDocument.querySelector('.sh-switch');
+    if (!btn) return null;
+    const r = btn.getBoundingClientRect();
+    return { btn, onScreen: r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= f.contentWindow.innerWidth };
+  }
+
+  describe('right-to-left language', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('the Settings picker lists each language by its own name', async () => {
+      const s = await open('../../settings/index.html');
+      const names = [...s.contentDocument.getElementById('lang-select').options].map((o) => o.textContent);
+      expect(names.slice(0, 8)).toEqual(['English', 'Español', 'Français', 'Deutsch', 'Português (Brasil)', 'Italiano', 'العربية', 'Svenska']);
+      expect(names).toContain('עברית');
+      expect(names).toContain('简体中文');
+      expect(names).toContain('አማርኛ (beta)');
+    });
+
+    it('choosing Arabic sets lang="ar" and dir="rtl", and the header still shows the Apps button on screen', async () => {
+      await choose('ar');
+      const h = await open('../../index.html');
+      const root = h.contentDocument.documentElement;
+      expect(root.getAttribute('lang')).toBe('ar');
+      expect(root.getAttribute('dir')).toBe('rtl');
+      expect(navText(h)).toBe(ARABIC_APPS);
+      const hb = await waitFor(() => headerButton(h), { timeout: 20000 });
+      expect(hb.onScreen).toBe(true);
+      // The header uses a logical start margin, so in Arabic it sits on the right edge (inline start).
+      const hdr = h.contentDocument.querySelector('.sh-hdr');
+      expect(h.contentWindow.getComputedStyle(hdr).marginRight).toBe('8px');
+      expect(h.contentWindow.getComputedStyle(hdr).marginLeft).toBe('0px');
+    });
+
+    it('a shell page also turns right to left at boot, and its header shows', async () => {
+      localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'ar' } } }));
+      const page = await open('../../ledger/index.html');
+      const hb = await waitFor(() => headerButton(page), { timeout: 20000 });
+      expect(hb.btn.querySelector('.sh-hbtn-txt').textContent).toBe(ARABIC_APPS);
+      expect(hb.onScreen).toBe(true);
+      expect(page.contentDocument.documentElement.getAttribute('dir')).toBe('rtl');
+    });
+
+    it('Hebrew is right to left too, and loads its script stylesheet', async () => {
+      localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'he' } } }));
+      const page = await open('../../ledger/index.html');
+      const hb = await waitFor(() => headerButton(page), { timeout: 20000 });
+      expect(hb.onScreen).toBe(true);
+      expect(page.contentDocument.documentElement.getAttribute('dir')).toBe('rtl');
+      expect(page.contentDocument.documentElement.getAttribute('lang')).toBe('he');
+      expect(!!page.contentDocument.querySelector('link[href$="shared/i18n/script/hebr.css"]')).toBe(true);
+    });
+
+    it('choosing English again puts the page back to left to right', async () => {
+      await choose('ar');
+      await choose('en');
+      const h = await open('../../index.html');
+      expect(h.contentDocument.documentElement.getAttribute('dir')).toBe('ltr');
+      expect(h.contentDocument.documentElement.getAttribute('lang')).toBe('en');
+      expect(navText(h)).toBe('Apps');
+    });
+  });
+  run({ name: 'Right-to-left language (Arabic)' });
+  </script>
+</body>
+</html>

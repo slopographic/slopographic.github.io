@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Drive in Swedish</title>
+  <!-- Covers: drive/i18n/index.js drive/js/app/main.js drive/js/app/url-state.js drive/js/core/dupes.js
+       drive/js/core/folder.js drive/js/core/io.js drive/js/core/kinds.js drive/js/core/ops.js
+       drive/js/core/player.js drive/js/core/prov-dir.js drive/js/core/prov-internal.js drive/js/core/providers.js
+       drive/js/core/store.js drive/js/core/tags.js drive/js/core/thumb-make.js drive/js/core/timed.js
+       drive/js/core/transfer.js drive/js/core/util.js drive/js/ui/ai-commands.js drive/js/ui/audio-view.js
+       drive/js/ui/clean-action.js drive/js/ui/commands.js drive/js/ui/dnd.js drive/js/ui/dupes-ui.js
+       drive/js/ui/empty.js drive/js/ui/faces.js drive/js/ui/folder-ui.js drive/js/ui/info-foot.js
+       drive/js/ui/info-width.js drive/js/ui/info.js drive/js/ui/items.js drive/js/ui/list-cols.js
+       drive/js/ui/menus.js drive/js/ui/mini-player.js drive/js/ui/newdoc.js drive/js/ui/preview-3d.js
+       drive/js/ui/preview-kinds.js drive/js/ui/preview-size.js drive/js/ui/prov-actions.js drive/js/ui/prov-dnd.js
+       drive/js/ui/prov-drives.js drive/js/ui/prov-picker.js drive/js/ui/prov-tree.js drive/js/ui/quicklook.js
+       drive/js/ui/shell.js drive/js/ui/sidebar.js drive/js/ui/view-columns.js drive/js/ui/view-files.js
+       drive/js/ui/view-nodes.js drive/js/ui/view-usage.js drive/js/ui/viewer.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop Drive in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../drive/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.body && f.contentDocument.body.classList.contains('ready') && f.contentDocument.querySelector('#places .place'), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(drive|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const place = (doc, sec) => doc.querySelector(`#places [data-section="${sec}"] span`).textContent.trim();
+  const newLabel = (doc) => doc.querySelector('#btnNew span').textContent.trim();
+  async function moreMenu(f) {
+    f.contentDocument.querySelector('#btnMore').click();
+    const m = await waitFor(() => f.contentDocument.querySelector('.sui-menu'), { timeout: 20000 });
+    const items = [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+    f.contentDocument.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    m.remove();
+    return items;
+  }
+  const cmdTitle = (f, id) => { const C = f.contentWindow.SlopCmd, c = C && C.get && C.get(id); return c ? c.title : null; };
+
+  describe('Slop Drive in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish places, top bar, sidebar, view buttons, menus and commands, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(place(doc, 'recent')).toBe('Senaste');
+      expect(place(doc, 'starred')).toBe('Stjärnmärkta');
+      expect(place(doc, 'trash')).toBe('Papperskorgen');
+      expect(newLabel(doc)).toBe('Ny');
+      expect(doc.querySelector('#search').getAttribute('placeholder')).toBe('Sök i Slop Drive');
+      expect(doc.querySelector('.tree-h').textContent).toBe('Mappar');
+      expect(doc.querySelector('#kind option').textContent).toBe('Alla');
+      expect(doc.querySelector('#views [data-view="grid"]').getAttribute('title')).toBe('Rutnät (1)');
+      await waitFor(() => doc.querySelector('#meter').textContent.includes('Lagring'), { timeout: 20000 });
+      const items = await moreMenu(f);
+      expect(items.join(' | ')).toContain('Hitta dubbletter…');
+      expect(items.join(' | ')).toContain('Töm papperskorgen…');
+      expect(KEY.test(items.join('\n'))).toBe(false);
+      expect(cmdTitle(f, 'drive.newFolder')).toBe('Ny mapp');
+      expect(cmdTitle(f, 'drive.trash')).toBe('Flytta till papperskorgen');
+      expect(f.contentWindow.DR.kindLabel({ name: 'a.png', type: 'image/png' })).toBe('PNG-bild');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      I.set('en');
+      await waitFor(() => newLabel(doc) === 'New' && place(doc, 'recent') === 'Recent', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(doc.querySelector('.tree-h').textContent).toBe('Folders');
+      expect(doc.querySelector('#kind option').textContent).toBe('All kinds');
+      expect(doc.querySelector('#views [data-view="grid"]').getAttribute('title')).toBe('Grid (1)');
+      expect(doc.querySelector('#search').getAttribute('placeholder')).toBe('Search Slop Drive');
+      await waitFor(() => cmdTitle(f, 'drive.newFolder') === 'New folder', { timeout: 20000 });
+      expect((await moreMenu(f)).join(' | ')).toContain('Find duplicates…');
+      I.set('sv');
+      await waitFor(() => newLabel(doc) === 'Ny' && place(doc, 'trash') === 'Papperskorgen', { timeout: 20000 });
+      await waitFor(() => cmdTitle(f, 'drive.newFolder') === 'Ny mapp', { timeout: 20000 });
+      expect(doc.querySelector('#kind option').textContent).toBe('Alla');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      const bar = doc.querySelector('.topbar'), W = f.contentWindow.innerWidth;
+      /** What reaches past the right edge, so a failure names it: [tag, class, left, right, text]. */
+      const past = () => [...doc.querySelectorAll('body *')].filter((k) => k.getBoundingClientRect().right > W + 1 && k.getClientRects().length)
+        .slice(0, 8).map((k) => [k.tagName, String(k.className).slice(0, 40), Math.round(k.getBoundingClientRect().left), Math.round(k.getBoundingClientRect().right), (k.textContent || '').trim().slice(0, 16)]);
+      expect(doc.documentElement.scrollWidth <= W + 1 ? [] : [doc.documentElement.scrollWidth, past()]).toEqual([]);
+      expect(bar.scrollWidth <= bar.clientWidth + 1 ? [] : [bar.scrollWidth, bar.clientWidth, past()]).toEqual([]);
+      // it fits before its More menu's script has come too (shared/ui/hbtn.js folds without More for that moment)
+      const win = f.contentWindow, MB = win.SlopMenuButton, had = !!doc.querySelector('.slop-hmore:not([hidden])');
+      win.SlopMenuButton = undefined; doc.querySelectorAll('.slop-hmore').forEach((m) => m.remove());
+      win.SlopHbtn.check(bar);
+      const early = [bar.scrollWidth <= bar.clientWidth + 1, doc.documentElement.scrollWidth <= W + 1];
+      win.SlopMenuButton = MB; win.SlopHbtn.check(bar);
+      expect(early).toEqual([true, true]);
+      if (had) expect(!!doc.querySelector('.slop-hmore:not([hidden])')).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Drive in Swedish' });
+  </script>
+</body>
+</html>

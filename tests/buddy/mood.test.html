@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <title>Buddy · candy, happy repair, dizzy falls and mood timing</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="boot.js"></script>
+  <script type="module">
+  import { OLD, TIMING } from '../../shared/buddy/timing.js';
+  import { pool } from '../../shared/buddy/lines.js';
+  const LOAD = Math.max(1, Number(window.__SLOPTEST_SCALE__) || 1);   // the test runner's load factor (tests/harness.js)
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { openApp, turnOn } = BuddyTest;
+  let win, S, M, doc;
+  const ready = openApp('', { clear: true }).then(async (w) => { win = w; doc = w.document; S = await turnOn(w); M = S.M; S.toggleHud(true); win.scrollTo(0, 0); });
+  const calm = () => { M.rage = 0; M.glad = 0; M.raging = 0; M.askAt = 0; M.happyAt = 0; S.candy.clear(); };
+  const floorY = () => Math.max(doc.body.offsetHeight, doc.documentElement.clientHeight) - 2;
+
+  describe('candy', () => {
+    it('a candy made with the button and dropped on him calms him down', async () => {
+      await ready;
+      calm(); M.rage = 2;                                   // MAD: the tray shows
+      await waitFor(() => !doc.querySelector('.sh-give').hidden, { timeout: 2000 });
+      doc.querySelector('.sh-give-l').click();                 // open the Give section
+      doc.querySelector('.sh-mk').click();
+      expect(doc.querySelectorAll('.sloppo-candy').length).toBe(1);
+      expect(doc.querySelector('.sh-mk').disabled).toBe(true);     // one candy at a time
+      const c = doc.querySelector('.sloppo-candy');
+      const from = c.getBoundingClientRect(), hit = M.hit.getBoundingClientRect();
+      const tx = hit.left + hit.width / 2, ty = hit.top + hit.height / 2;
+      const ev = (type, x, y) => new win.PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: 'mouse', button: 0, clientX: x, clientY: y });
+      c.dispatchEvent(ev('pointerdown', from.left + from.width / 2, from.top + from.height / 2));
+      c.dispatchEvent(ev('pointermove', (from.left + tx) / 2, (from.top + ty) / 2));
+      c.dispatchEvent(ev('pointermove', tx, ty));
+      c.dispatchEvent(ev('pointerup', tx, ty));
+      expect(M.rage).toBeLessThan(1);                       // 2 - 1.2
+      expect(M.rage).toBeGreaterThanOrEqual(0);
+      expect(M.glad).toBeGreaterThan(0.5);                  // and he is happy
+      expect(pool('candyyes')).toContain(M.bubble.querySelector('.say-text').textContent);
+      expect(doc.querySelector('.sh-mk').disabled).toBe(false);
+      await waitFor(() => doc.querySelectorAll('.sloppo-candy').length === 0, { timeout: 3000 });   // eaten: it fades away
+      calm();
+    });
+    it('when he is MAD he asks for a candy in his bubble, and the button makes one', async () => {
+      await ready;
+      calm(); M.rage = 2;
+      await waitFor(() => M.bubble.querySelector('.say-actions button'), { timeout: 4500 });
+      const btn = M.bubble.querySelector('.say-actions button');
+      expect(btn.textContent).toBe('Make candy');
+      btn.click();
+      expect(doc.querySelectorAll('.sloppo-candy').length).toBe(1);
+      S.candy.clear();
+      calm();
+    });
+    it('being poked too often makes him angry', async () => {
+      await ready;
+      calm(); M.pokes = [];
+      for (let i = 0; i < TIMING.pokeCount - 1; i++) S.pet();
+      expect(M.rage).toBe(0);
+      S.pet();
+      expect(M.rage).toBeGreaterThanOrEqual(1);
+      expect(pool('poke')).toContain(M.bubble.querySelector('.say-text').textContent);
+      calm();
+    });
+  });
+
+  describe('happy repair', () => {
+    it('a happy moment repairs the damage he made (Restore page, animated)', async () => {
+      await ready;
+      calm(); S.restore();
+      await waitFor(() => M.mode === 'perched', { timeout: 6000 });
+      const panel = doc.querySelector('.panel'), r = panel.getBoundingClientRect();
+      S.impact(panel, r.left + r.width / 2, r.top + 40, 1);
+      expect(S.journal).toBeGreaterThan(0);
+      expect(M.layer.querySelectorAll('.sloppo-goo').length).toBeGreaterThan(0);
+      S.cheer(1);
+      await waitFor(() => S.journal === 0, { timeout: 4000 });
+      expect(M.layer.querySelectorAll('.sloppo-goo').length).toBe(0);
+      expect(pool('repair')).toContain(M.bubble.querySelector('.say-text').textContent);
+      expect(panel.style.maskImage || panel.style.webkitMaskImage || '').toBe('');
+    }, { timeout: 15000 });
+    it('not happy, no repair: the damage stays until Restore page', async () => {
+      await ready;
+      calm(); S.restore();
+      await waitFor(() => M.mode === 'perched', { timeout: 6000 });
+      const panel = doc.querySelector('.panel'), r = panel.getBoundingClientRect();
+      S.impact(panel, r.left + r.width / 2, r.top + 40, 1);
+      await sleep(1200);
+      expect(S.journal).toBeGreaterThan(0);
+      S.restore();
+      expect(S.journal).toBe(0);
+    }, { timeout: 15000 });
+  });
+
+  describe('thrown off the page', () => {
+    it('leaving the page then returning shows the dizzy state, then he climbs back up', async () => {
+      await ready;
+      calm(); S.restore();
+      await waitFor(() => M.mode === 'perched', { timeout: 6000 });
+      M.perch = null; M.mode = 'air'; M.y = floorY() - 60;
+      S.fling(0, 900);
+      expect(M.thrown).toBe(true);
+      await waitFor(() => M.daze > 0, { timeout: 3000 });
+      expect(M.mood).toBe('dizzy');
+      expect(S.face()).toEqual(['sleepy', 'wavy']);
+      expect(M.el.classList.contains('is-dizzy')).toBe(true);
+      await sleep(300);
+      expect(M.mode).toBe('perched');                         // no hop while dizzy
+      await waitFor(() => M.mode === 'hop' || (M.mode === 'perched' && M.perch), { timeout: 4000 });
+      await waitFor(() => M.mode === 'perched' && !!M.perch && M.daze === 0, { timeout: 6000 });
+      expect(M.el.classList.contains('is-dizzy')).toBe(false);
+      expect(M.rot).toBe(0);
+    }, { timeout: 20000 });
+  });
+
+  describe('mood timings', () => {
+    it('every mood transition is faster than before (old and new values)', () => {
+      // drop wears off: 1 unit at 0.1/s (10 s) was, now at 0.25/s (4 s)
+      expect(1 / TIMING.drainPerSec).toBeLessThan(1 / OLD.drainPerSec);
+      // RAGE: 15 s -> 10 s
+      expect(TIMING.rageMs).toBeLessThan(OLD.rageMs);
+      // idle mood lines: 25-50 s -> 12-22 s
+      expect(TIMING.chatterMin).toBeLessThan(OLD.chatterMin);
+      expect(TIMING.chatterMax).toBeLessThan(OLD.chatterMin);
+      // a good moment fades in about a second (new: the happy meter halves every 1.2 s)
+      expect(TIMING.gladHalfLife).toBeLessThan(2);
+    });
+    it('a hard drop wears off in about 4 s (measured, was 10 s)', async () => {
+      await ready;
+      calm(); M.rage = 1;
+      const t0 = performance.now();
+      await waitFor(() => M.rage === 0, { timeout: 9000, step: 50 });
+      const s = (performance.now() - t0) / 1000;
+      expect(s).toBeGreaterThan(3);
+      expect(s).toBeLessThan(6 * LOAD);   // pages run side by side (CI) update late: the upper bound stretches with the load
+      calm();
+    }, { timeout: 15000 });
+    it('a good moment fades to half in about 1.2 s (measured: never early, late only under load)', async () => {
+      await ready;
+      calm(); S.cheer(1);
+      const t0 = performance.now();
+      await waitFor(() => M.glad <= 0.5, { timeout: 4000, step: 25 });
+      const s = (performance.now() - t0) / 1000;
+      expect(s).toBeGreaterThan(0.9);
+      expect(s).toBeLessThan(1.6 * LOAD);
+      calm();
+    });
+  });
+
+  ready.then(() => run());
+  </script>
+</body>
+</html>

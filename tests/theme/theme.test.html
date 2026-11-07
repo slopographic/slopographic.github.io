@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Theme · Settings to every page</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 960px; height: 240px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  // The keys a theme choice touches: the profile and the apps' own keys that Settings mirrors.
+  const KEYS = ['slop-profile', 'slop-drive.theme', 'slop-tables.theme', 'slopvector.theme', 'slop-ai.prefs'];
+  const clearStore = () => KEYS.forEach((k) => localStorage.removeItem(k));
+  const frames = [];
+  /** A same-origin page in an iframe, loaded and past its head script. */
+  async function open(src) {
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.appendChild(f);
+    frames.push(f);
+    await new Promise((res) => { f.onload = res; });
+    await waitFor(() => f.contentDocument && f.contentDocument.documentElement.hasAttribute('data-slop-app'));
+    return f;
+  }
+  const attr = (f, name) => f.contentDocument.documentElement.getAttribute(name);
+  const closeAll = () => { while (frames.length) frames.pop().remove(); };
+
+  describe('theme: a choice in Settings reaches the homepage and the apps', () => {
+    it('choosing Dark in Settings sets data-theme on the homepage and the value Slop Drive reads at boot', async () => {
+      clearStore();
+      try {
+        const settings = await open('../../settings/');
+        const radio = settings.contentDocument.getElementById('theme-dark');
+        expect(!!radio).toBe(true);
+        radio.click();
+        expect(attr(settings, 'data-theme')).toBe('dark');
+        expect(localStorage.getItem('slop-drive.theme')).toBe('"pro"');
+
+        const home = await open('../../index.html');
+        expect(attr(home, 'data-theme')).toBe('dark');
+        expect(attr(home, 'data-slop-theme')).toBe('dark');
+        expect(attr(home, 'data-slop-app')).toBe('home');
+
+        const drive = await open('../../drive/index.html');
+        expect(attr(drive, 'data-theme')).toBe('pro');
+        expect(attr(drive, 'data-slop-theme')).toBe('dark');
+      } finally { closeAll(); clearStore(); }
+    });
+
+    it('Classic 98 reaches an app that has no classic look as its dark value, and the homepage as classic', async () => {
+      clearStore();
+      try {
+        const settings = await open('../../settings/');
+        // a build whose profile hides Classic 98 (tests/brand-facts.js themes) offers no such choice anywhere
+        if (!BRAND_FACTS.themes.includes('classic')) { expect(settings.contentDocument.getElementById('theme-classic')).toBe(null); return; }
+        settings.contentDocument.getElementById('theme-classic').click();
+        expect(localStorage.getItem('slop-tables.theme')).toBe('"pro"');
+        const home = await open('../../index.html');
+        expect(attr(home, 'data-theme')).toBe('classic');
+        const vector = await open('../../slopvector/index.html');
+        expect(attr(vector, 'data-theme')).toBe('classic');
+      } finally { closeAll(); clearStore(); }
+    });
+
+    it('a person who chose a theme before the shared list keeps it on the homepage', async () => {
+      clearStore();
+      try {
+        localStorage.setItem('slop-drive.theme', '"light"');
+        const home = await open('../../index.html');
+        expect(attr(home, 'data-theme')).toBe('light');
+        expect(attr(home, 'data-slop-theme')).toBe('light');
+      } finally { closeAll(); clearStore(); }
+    });
+  });
+
+  sleep(50).then(() => run());
+  </script>
+</body>
+</html>

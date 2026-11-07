@@ -1,0 +1,25 @@
+/* Slop Press, English: the Tools panel (ui/toolbar.js), the colour chips and popover (ui/kit.js), Create Guides
+ * (ui/guides.js). Keys start with press.tool., press.kit. and press.guide. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'press.tool.undo_fill': 'Fill',
+  'press.tool.undo_stroke': 'Stroke',
+  'press.tool.fill_tip': 'Fill (click to choose)',
+  'press.tool.fill_label': 'Fill colour',
+  'press.tool.stroke_tip': 'Stroke (click to choose)',
+  'press.tool.stroke_label': 'Stroke colour',
+  'press.tool.title_key': '{name} ({key})',
+  'press.kit.colour': 'Colour',
+  'press.kit.custom_colour': 'Custom colour…',
+  'press.kit.mode': 'Mode',
+  'press.kit.mode_cmyk': 'CMYK (process, print)',
+  'press.kit.ink.c': 'Cyan',
+  'press.kit.ink.m': 'Magenta',
+  'press.kit.ink.y': 'Yellow',
+  'press.kit.ink.k': 'Black',
+  'press.guide.title': 'Create Guides',
+  'press.guide.margins': 'Margins',
+  'press.guide.page': 'Page',
+  'press.guide.selection': 'Selection',
+  'press.guide.undo_create': 'Create guides',
+  'press.guide.undo_clear': 'Clear guides',
+});

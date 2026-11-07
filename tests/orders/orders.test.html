@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Orders · totals, status, stock, convert</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/docs/model.js"></script>
+  <script src="../../shared/docs/lines.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../orders/js/core/util.js"></script>
+  <script src="../../orders/js/core/orders.js"></script>
+  <script src="../../orders/js/core/fulfil.js"></script>
+  <script src="../../orders/js/core/actions.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, run } = SlopTest;
+  const S = window.SlopData;
+  const NS = window.SlopOrders;
+  const M = window.SlopDocs.model;
+  const fresh = async () => { const r = await S.store.erase(); if (!r.ok) throw new Error(r.message); const q = await S.store.ready(); if (!q.ok) throw new Error(q.message); };
+  const must = (r) => { if (!r.ok) throw new Error(`${r.code}: ${r.message}`); return r.value; };
+  const acme = async () => must(await NS.orders.addCustomer({ name: 'Acme Ltd', email: 'ap@acme.test' }));
+  const widget = async () => must(await S.store.put('products', { sku: 'W-1', name: 'Widget', price: 1000, taxRate: 2000 }));
+  const gadget = async () => must(await S.store.put('products', { sku: 'G-2', name: 'Gadget', price: 333, taxRate: 1000 }));
+  const save = (form, status) => NS.orders.save(form, status);
+
+  describe('order totals', () => {
+    beforeEach(fresh);
+    it('two lines with tax: 2 x 10.00 at 20% and 3 x 3.33 at 10% total 34.99', async () => {
+      const c = await acme(), w = await widget(), g2 = await gadget();
+      const o = must(await save({ customerId: c.id, date: '2026-10-11', lines: [
+        { productId: w.id, sku: 'W-1', description: 'Widget', qty: 2, unitPrice: 1000, taxRate: 2000 },
+        { productId: g2.id, sku: 'G-2', description: 'Gadget', qty: 3, unitPrice: 333, taxRate: 1000 },
+      ] }));
+      expect(o.status).toBe('draft');
+      expect(o.number).toBe('ORD-0001');
+      expect(o.subtotal).toBe(2999);     // 2000 + 999
+      expect(o.tax).toBe(500);           // 400 + round(99.9) = 100
+      expect(o.total).toBe(3499);
+      expect(o.lines[1].tax).toBe(100);
+      expect(o.currency).toBe('USD');
+    });
+    it('the editor totals (SlopDocs.model) agree with the stored order', async () => {
+      const lines = [{ description: 'a', qty: 2, unitPrice: 1000, taxRate: 2000 }, { description: 'b', qty: 3, unitPrice: 333, taxRate: 1000 }];
+      const t = M.totals(lines);
+      expect(t.total).toBe(3499);
+      expect(t.byRate).toEqual([{ rate: 1000, net: 999, tax: 100 }, { rate: 2000, net: 2000, tax: 400 }]);
+    });
+    it('a line discount comes off the net before tax', async () => {
+      const c = await acme();
+      const o = must(await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: 'Pro', qty: 1, unitPrice: 1000, taxRate: 2000, discount: 1000 }] }));
+      expect(o.lines[0].net).toBe(900);
+      expect(o.tax).toBe(180);
+      expect(o.total).toBe(1080);
+    });
+    it('order numbers are gapless and a refused order takes none', async () => {
+      const c = await acme();
+      const bad = await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: '', qty: 1, unitPrice: 5, taxRate: 0 }] });
+      expect(bad.ok).toBe(false);
+      const a = must(await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: 'x', qty: 1, unitPrice: 5, taxRate: 0 }] }));
+      const b = must(await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: 'y', qty: 1, unitPrice: 5, taxRate: 0 }] }));
+      expect(a.number).toBe('ORD-0001');
+      expect(b.number).toBe('ORD-0002');
+    });
+    it('the editor text parsers read money and percent exactly', async () => {
+      expect(M.amountFromText('12.5', 'USD')).toBe(1250);
+      expect(M.amountFromText('12.345', 'USD')).toBe(null);
+      expect(M.bpFromPercent('7.5')).toBe(750);
+      expect(M.bpFromPercent('100.01')).toBe(null);
+      expect(M.percentText(2000)).toBe('20');
+    });
+  });
+
+  describe('status and conversion', () => {
+    beforeEach(fresh);
+    it('goes draft, confirmed (open), fulfilled; it cannot go back to draft', async () => {
+      const c = await acme(), w = await widget();
+      const o = must(await save({ customerId: c.id, date: '2026-10-11', lines: [{ productId: w.id, sku: 'W-1', description: 'Widget', qty: 1, unitPrice: 1000, taxRate: 0 }] }));
+      await S.stock.move({ productId: w.id, qty: 5, reason: 'receipt', ref: 'open stock' });
+      must(await NS.actions.confirmId(o.id));
+      expect((await NS.orders.get(o.id)).value.status).toBe('open');
+      must(await NS.fulfil.fulfil(o.id));
+      expect((await NS.orders.get(o.id)).value.status).toBe('fulfilled');
+      const back = await NS.orders.setStatus(o.id, 'draft');
+      expect(back.ok).toBe(false);
+      expect(back.code).toBe('invalid_transition');
+    });
+    it('fulfilling takes the stock out through SlopData.stock, one sale per stock line', async () => {
+      const c = await acme(), w = await widget();
+      must(await S.stock.move({ productId: w.id, qty: 10, reason: 'receipt' }));
+      const o = must(await NS.orders.confirm({ customerId: c.id, date: '2026-10-11', lines: [
+        { productId: w.id, sku: 'W-1', description: 'Widget', qty: 4, unitPrice: 1000, taxRate: 0 },
+        { description: 'Delivery', qty: 1, unitPrice: 500, taxRate: 0 },
+      ] }));
+      must(await NS.fulfil.fulfil(o.id));
+      expect(await S.stock.onHand(w.id, 'main')).toEqual({ ok: true, value: 6 });
+      const mv = must(await S.store.list('stockMovements', { index: 'productId', value: w.id }));
+      expect(mv.filter((m) => m.reason === 'sale')).toHaveLength(1);
+    });
+    it('a fulfilment with too little stock is refused and changes nothing', async () => {
+      const c = await acme(), w = await widget();
+      const o = must(await NS.orders.confirm({ customerId: c.id, date: '2026-10-11', lines: [{ productId: w.id, sku: 'W-1', description: 'Widget', qty: 3, unitPrice: 1000, taxRate: 0 }] }));
+      const r = await NS.fulfil.fulfil(o.id);
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('insufficient_stock');
+      expect((await NS.orders.get(o.id)).value.status).toBe('open');
+      expect(await S.stock.onHand(w.id, 'main')).toEqual({ ok: true, value: 0 });
+    });
+    it('convert to invoice copies the lines and links both records; a second convert is refused', async () => {
+      const c = await acme(), w = await widget(), g2 = await gadget();
+      const o = must(await NS.orders.confirm({ customerId: c.id, date: '2026-10-11', notes: 'Net 30', lines: [
+        { productId: w.id, sku: 'W-1', description: 'Widget', qty: 2, unitPrice: 1000, taxRate: 2000 },
+        { productId: g2.id, sku: 'G-2', description: 'Gadget', qty: 3, unitPrice: 333, taxRate: 1000, discount: 500 },
+      ] }));
+      const inv = must(await NS.actions.convertId(o.id));
+      expect(inv.status).toBe('draft');
+      expect(inv.orderId).toBe(o.id);
+      expect(inv.dueDate).toBe('2026-11-10');
+      expect(inv.lines.map((l) => [l.description, l.qty, l.unitPrice, l.taxRate, l.discount])).toEqual([
+        ['Widget', 2, 1000, 2000, undefined], ['Gadget', 3, 333, 1000, 500],
+      ]);
+      expect(inv.subtotal).toBe(2949);   // 2000 + (999 less 5% = 949)
+      expect(inv.tax).toBe(495);         // 400 + round(94.9) = 95
+      expect(inv.total).toBe(3444);
+      const again = await NS.actions.convertId(o.id);
+      expect(again.ok).toBe(false);
+      expect(again.code).toBe('conflict');
+      const linked = (await NS.orders.get(o.id)).value;
+      expect(linked.invoiceId).toBe(inv.id);
+      expect(linked.status).toBe('open');
+    });
+    it('a draft order cannot be converted', async () => {
+      const c = await acme();
+      const o = must(await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: 'x', qty: 1, unitPrice: 5, taxRate: 0 }] }));
+      const r = await NS.actions.convertId(o.id);
+      expect(r.code).toBe('invalid_transition');
+    });
+    it('list filters by status and searches by customer name', async () => {
+      const c = await acme();
+      await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: 'x', qty: 1, unitPrice: 5, taxRate: 0 }] });
+      const o2 = must(await save({ customerId: c.id, date: '2026-10-11', lines: [{ description: 'y', qty: 1, unitPrice: 5, taxRate: 0 }] }));
+      must(await NS.actions.confirmId(o2.id));
+      expect(must(await NS.orders.list({ status: 'open' })).length).toBe(1);
+      expect(must(await NS.orders.list({ status: 'draft' })).length).toBe(1);
+      expect(must(await NS.orders.list({ search: 'acme' })).length).toBe(2);
+      expect(must(await NS.orders.list({ search: 'nobody' })).length).toBe(0);
+    });
+  });
+
+  run({ name: 'Slop Orders' });
+  </script>
+</body>
+</html>

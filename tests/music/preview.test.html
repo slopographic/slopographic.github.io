@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: the empty library shows what it makes and how, and the sample tracks fill it</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  // Covers: music/index.html, music/js/ui/library.js, music/css/music.css, assets/shots/music.jpg
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D;
+  describe('Slop Music first visit', () => {
+    it('the empty library shows a picture of a library and three steps; the strip has no second sample button', async () => {
+      await window.SlopHub.clear();
+      W = await DT.frame('../../music/', (w) => w.SlopMusic && w.document.querySelector('#lib-preview .sd-preview'));
+      D = W.document;
+      expect(D.getElementById('lib-empty').hidden).toBe(false);
+      SlopTest.shot(D.querySelector('#lib-preview .sd-pic img'), '../assets/shots/music.jpg');
+      expect([...D.querySelectorAll('#lib-preview .sd-steps li')].map((li) => li.textContent))
+        .toEqual(['Drop MP3, WAV or other audio files', 'Search, tag and make playlists', 'Play, shuffle and repeat']);
+      expect(D.querySelector('#lib-drop .sd-sample')).toBe(null);   // a compact strip never gets one
+      expect(D.querySelector('#lib-side').textContent.includes('null')).toBe(false);
+    });
+    it('Try it with 3 sample tracks adds three WAVs to Slop Drive and the library lists them with their length', async () => {
+      const btn = D.getElementById('lib-sample');
+      expect(btn.textContent).toBe('Try it with 3 sample tracks');
+      btn.click();
+      await waitFor(() => W.SlopMusic.lib.list().length === 3, { timeout: 20000 });
+      await waitFor(() => D.querySelectorAll('#lib-list .mu-row').length === 3 && D.getElementById('lib-empty').hidden, { timeout: 10000 });
+      const names = W.SlopMusic.lib.list().map((t) => t.name).sort();
+      expect(names).toEqual(['Sample little waltz.wav', 'Sample morning chords.wav', 'Sample night drive.wav']);
+      await waitFor(() => [...D.querySelectorAll('#lib-list .mu-dur')].every((d) => d.textContent === '0:08'), { timeout: 15000 });
+    });
+    it('at 390 px the empty library has no sideways scroll', async () => {
+      await window.SlopHub.clear();
+      const w = await DT.frame('../../music/', (x) => x.SlopMusic && x.document.querySelector('#lib-preview .sd-preview'), { width: 390, height: 844 });
+      await waitFor(() => !w.document.getElementById('lib-empty').hidden);
+      expect(w.document.documentElement.scrollWidth <= 390).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: first visit' });
+  </script>
+</body>
+</html>

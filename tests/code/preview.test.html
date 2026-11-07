@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: run preview</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, view, doc, textOf, rec, waitFor, sleep } = CT;
+  let w, siteId, indexId, appId, folderId;
+  const frameEl = () => w.frameElement.ownerDocument.defaultView && w.document.getElementById('cd-frame');
+  const consoleLines = () => [...w.document.querySelectorAll('#cd-console .cd-cl')].map((li) => li.textContent);
+  const INDEX = '<!doctype html><html><head><meta charset="utf-8"><title>Site</title>'
+    + '<link rel="stylesheet" href="style.css"></head><body><h1 id="t">Hello from Slop</h1>'
+    + '<img src="pic.txt" alt="">'
+    + '<script src="app.js"><\/script>'
+    + '<script>console.log("page ran ok"); fetch("http://127.0.0.1:9/x").then(function () { console.log("REACHED"); }, function (e) { console.log("blocked: " + e.name); });<\/script>'
+    + '</body></html>';
+
+  describe('Slop Code: run preview', () => {
+    it('seeds a folder with an HTML page, its CSS and JavaScript, and boots the app', async () => {
+      folderId = await H().createFolder('Site');
+      indexId = await H().put(text(INDEX, 'text/html'), { name: 'index.html', from: 'test', folderId });
+      await H().put(text('h1 { color: rebeccapurple; }\n', 'text/css'), { name: 'style.css', from: 'test', folderId });
+      appId = await H().put(text('console.log("app.js loaded");\n', 'text/javascript'), { name: 'app.js', from: 'test', folderId });
+      await H().put(text('pixel', 'text/plain'), { name: 'pic.txt', from: 'test', folderId });
+      w = await frame('../../code/?drive=' + indexId);
+      await waitFor(() => doc(w) && doc(w).id === indexId, { timeout: 8000 });
+      expect(doc(w).folderId).toBe(folderId);
+    });
+
+    it('Run on an HTML file shows its output in the preview frame and the console', async () => {
+      w.SlopCode.actions.run();
+      await waitFor(() => consoleLines().some((l) => l === 'page ran ok'), { timeout: 8000 });
+      await waitFor(() => consoleLines().some((l) => l === 'app.js loaded'), { timeout: 8000 });
+      const f = w.document.getElementById('cd-frame');
+      expect(f.srcdoc).toContain('Hello from Slop');
+      expect(f.srcdoc).toContain('h1 { color: rebeccapurple; }'); // the project stylesheet is inlined
+      expect(f.srcdoc).toContain('data:text/plain;base64'); // images come from the folder as data
+      expect(w.document.getElementById('cd-preview').hidden).toBe(false);
+    });
+
+    it('the preview frame is sandboxed with scripts only, and has no same-origin access', async () => {
+      const f = w.document.getElementById('cd-frame');
+      const sb = f.getAttribute('sandbox').split(/\s+/);
+      expect(sb).toContain('allow-scripts');
+      expect(sb).not.toContain('allow-same-origin');
+      expect(sb).not.toContain('allow-top-navigation');
+      expect(f.srcdoc).toContain("connect-src 'none'");
+    });
+
+    it('a fetch from inside the preview fails: the network is not reachable', async () => {
+      await waitFor(() => consoleLines().some((l) => l.startsWith('blocked:')), { timeout: 8000 });
+      expect(consoleLines().some((l) => l === 'REACHED')).toBe(false);
+      expect(consoleLines().find((l) => l.startsWith('blocked:'))).toBe('blocked: TypeError');
+    });
+
+    it('Run again reloads the frame and clears the console first', async () => {
+      const before = w.document.getElementById('cd-frame').srcdoc;
+      w.SlopCode.actions.run();
+      await waitFor(() => consoleLines().some((l) => l === 'page ran ok'), { timeout: 8000 });
+      expect(consoleLines().filter((l) => l === 'page ran ok')).toHaveLength(1);
+      expect(w.document.getElementById('cd-frame').srcdoc).not.toBe(before);
+    });
+
+    it('Run uses the unsaved editor text', async () => {
+      const v = view(w);
+      v.focus();
+      v.dispatch({ changes: { from: v.state.doc.toString().indexOf('Hello'), to: v.state.doc.toString().indexOf('Hello') + 5, insert: 'Edited' } });
+      w.SlopCode.actions.run();
+      await waitFor(() => w.document.getElementById('cd-frame').srcdoc.includes('Edited from Slop'), { timeout: 8000 });
+      expect(doc(w).dirty).toBe(true);
+    });
+
+    it('a JavaScript file runs on its own and its console output shows', async () => {
+      await w.SlopCode.openRecord(await rec(appId));
+      await waitFor(() => doc(w).id === appId, { timeout: 8000 });
+      w.SlopCode.actions.run();
+      await waitFor(() => consoleLines().some((l) => l === 'app.js loaded'), { timeout: 8000 });
+      expect(w.document.getElementById('cd-frame').srcdoc).toContain('app.js loaded');
+    });
+
+    it('a text file is not runnable and the app says so', async () => {
+      const id = await H().put(text('plain'), { name: 'notes.txt', from: 'test', folderId });
+      await w.SlopCode.openRecord(await rec(id));
+      await waitFor(() => doc(w).id === id, { timeout: 8000 });
+      let said = '';
+      const orig = w.SlopUI.toast;
+      w.SlopUI.toast = (m) => { said = m; };
+      try { w.SlopCode.actions.run(); await sleep(50); } finally { w.SlopUI.toast = orig; }
+      expect(said).toMatch(/HTML and JavaScript/);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: run preview' });
+  </script>
+</body>
+</html>

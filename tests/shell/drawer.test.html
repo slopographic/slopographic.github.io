@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shell · app drawer (folders, drag, persistence)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shell/shell.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const KEY = 'slop.drawer.v1';
+  const tile = (id) => document.querySelector(`#sh-grid .sh-tile[data-app="${id}"]`);
+  const tileRect = (id) => tile(id).getBoundingClientRect();
+  const ptr = (type, x, y, target = document.body) => target.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, button: 0, buttons: type === 'pointerup' ? 0 : 1, bubbles: true, cancelable: true }));
+  /** Drag the tile for `from` onto the point (x, y): fx picks combine (middle) or reorder (edge). */
+  async function drag(from, x, y) {
+    const r = tileRect(from);
+    ptr('pointerdown', r.left + r.width / 2, r.top + r.height / 2, tile(from));
+    for (let i = 1; i <= 4; i++) ptr('pointermove', r.left + r.width / 2 + (x - (r.left + r.width / 2)) * i / 4, r.top + r.height / 2 + (y - (r.top + r.height / 2)) * i / 4);
+    ptr('pointermove', x, y);
+    ptr('pointerup', x, y);
+    await sleep(70);
+  }
+  const centerOf = (id) => { const r = tileRect(id); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const edgeOf = (id, fx) => { const r = tileRect(id); return [r.left + r.width * fx, r.top + r.height / 2]; };
+  const stored = () => JSON.parse(localStorage.getItem(KEY) || 'null');
+  const topKeys = () => window.SlopDrawer.items().map((it) => it.k === 'folder' ? 'folder:' + it.name : 'app:' + it.id);
+
+  window.SlopShell.ready.then(() => {
+    const S = window.SlopShell;
+    S.navigate = () => {};
+    const appCount = S.apps().filter((a) => a.kind === 'app').length;
+
+    describe('drawer', () => {
+      it('opens full screen with every app, in brand order', () => {
+        localStorage.removeItem(KEY);
+        window.SlopDrawer.reload();
+        window.SlopDrawer.open();
+        expect(window.SlopDrawer.isOpen()).toBe(true);
+        expect(document.querySelectorAll('#sh-grid .sh-tile').length).toBe(appCount);
+        expect(document.querySelector('#sh-grid .sh-tile').dataset.app).toBe(window.SlopBrand.order[0] || S.apps()[0].id);
+        window.SlopDrawer.close();
+      });
+
+      it('creates a folder by dragging one app onto another, and saves it', async () => {
+        localStorage.removeItem(KEY);
+        window.SlopDrawer.reload();
+        window.SlopDrawer.open();
+        const [x, y] = centerOf('label');
+        await drag('pdf', x, y);
+        const folder = window.SlopDrawer.items().find((it) => it.k === 'folder');
+        expect(folder).toBeTruthy();
+        expect(folder.apps.slice().sort()).toEqual(['label', 'pdf']);
+        expect(folder.name).toBe('New folder');
+        expect(document.querySelectorAll('#sh-grid .sh-folder').length).toBe(1);
+        expect(document.querySelector('#sh-grid [data-app="pdf"]')).toBe(null);
+        const env = stored();
+        expect(env.v).toBe(1);
+        expect(env.data.items.find((it) => it.k === 'folder').apps.slice().sort()).toEqual(['label', 'pdf']);
+      });
+
+      it('keeps the folder after the drawer is rebuilt from storage', async () => {
+        const before = topKeys();
+        window.SlopDrawer.close();
+        window.SlopDrawer.reload();
+        expect(topKeys()).toEqual(before);
+        window.SlopDrawer.open();
+        expect(document.querySelector('#sh-grid .sh-folder .sh-name').textContent).toBe('New folder');
+        window.SlopDrawer.close();
+      });
+
+      it('renames a folder from its panel and saves the new name', async () => {
+        window.SlopDrawer.open();
+        const id = window.SlopDrawer.items().find((it) => it.k === 'folder').id;
+        window.SlopDrawer.openFolder(id);
+        document.querySelector('#sh-folder .sh-dr-rename').click();
+        const input = await waitFor(() => document.querySelector('.sui-dlg .sui-input'));
+        input.value = '  Work   files ';
+        document.querySelector('.sui-dlg .sui-primary').click();
+        await waitFor(() => window.SlopDrawer.items().find((it) => it.k === 'folder' && it.name === 'Work files'));
+        expect(stored().data.items.find((it) => it.k === 'folder').name).toBe('Work files');
+        expect(document.querySelector('#sh-folder .sh-dr-title').textContent).toBe('Work files');
+        window.SlopDrawer.close();
+      });
+
+      it('reorders an app by dropping it on the left edge of another tile', async () => {
+        await waitFor(() => !document.querySelector('.sui-back'));
+        localStorage.removeItem(KEY);
+        window.SlopDrawer.reload();
+        window.SlopDrawer.open();
+        const first = S.apps().find((a) => a.kind === 'app').id;
+        await drag('music', ...edgeOf(first, 0.08));
+        expect(window.SlopDrawer.items()[0].id).toBe('music');
+        expect(window.SlopDrawer.items()[1].id).toBe(first);
+        window.SlopDrawer.close();
+      });
+
+      it('closes on Escape and restores focus', () => {
+        window.SlopDrawer.open();
+        document.querySelector('#sh-grid .sh-tile').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(window.SlopDrawer.isOpen()).toBe(false);
+      });
+    });
+    run({ name: 'Shell · app drawer' });
+  });
+  </script>
+</body>
+</html>

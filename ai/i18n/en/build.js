@@ -1,0 +1,33 @@
+/* Slop AI, English: Build a mini-app (the builder chat, the preview and the templates). The templates' prompts and
+ * their HTML stay English (the prompt is what the model is asked). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'ai.build.new': 'New mini-app',
+  'ai.build.hello': 'Build a mini-app',
+  'ai.build.hello_lead': 'Describe an app, game or page. The model writes one HTML file and it runs right here, sandboxed. Or start from a template:',
+  'ai.build.placeholder': 'Describe your app, or what to change',
+  'ai.build.none_yet': 'No mini-apps yet',
+  'ai.build.delete_q': 'Delete this mini-app?',
+  'ai.build.delete_body': 'Its chat and code are removed.',
+  'ai.build.no_html': 'No complete HTML file in that reply. Ask again, or say “send the whole file”.',
+  'ai.build.starter_reply': 'Starter template. Tell me what to change.',
+  'ai.build.from_chat': 'Mini-app from chat',
+  'ai.build.tpl_tip': 'Start from the {name} template',
+  'ai.build.preview': 'Preview',
+  'ai.build.code': 'Code',
+  'ai.build.modes': 'Preview or code',
+  'ai.build.back_chat': '← Chat',
+  'ai.build.preview_title': 'Mini-app preview (sandboxed)',
+  'ai.build.sandboxed': '🔒 sandboxed',
+  'ai.build.sandbox_tip': 'sandbox="allow-scripts", no same-origin, no network',
+  'ai.build.restart': 'Restart the app',
+  'ai.build.download_tip': 'Download .html',
+  'ai.build.nothing': 'Nothing to preview yet',
+  'ai.build.nothing_lead': 'The app appears here as soon as the model sends a complete HTML file.',
+
+  'ai.tpl.game': 'Game',
+  'ai.tpl.game_blurb': 'Catch the falling slop',
+  'ai.tpl.calculator': 'Calculator',
+  'ai.tpl.calculator_blurb': 'A neat calculator',
+  'ai.tpl.landing': 'Landing page',
+  'ai.tpl.landing_blurb': 'A one-page site',
+});

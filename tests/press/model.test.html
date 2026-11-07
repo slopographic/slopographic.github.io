@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · model tests</title></head>
+<body>
+  <!-- the app's English words (press/i18n), which the core reads through PR.util.t -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../press/i18n/index.js"></script>
+  <script src="../../press/js/core/util.js"></script>
+  <script src="../../press/js/core/model.js"></script>
+  <script src="../../press/js/core/pages.js"></script>
+  <script src="../../press/js/core/items.js"></script>
+  <script src="../../press/js/core/story.js"></script>
+  <script src="../../press/js/core/styles.js"></script>
+  <script src="../../press/js/core/state.js"></script>
+  <script src="../../press/js/core/layers.js"></script>
+  <script src="../../press/js/text/fonts.js"></script>
+  <script src="../../press/js/text/hyphen.js"></script>
+  <script src="../../press/js/text/breaker.js"></script>
+  <script src="../../press/js/text/wrap.js"></script>
+  <script src="../../press/js/text/para.js"></script>
+  <script src="../../press/js/text/layout.js"></script>
+  <script src="../../press/js/text/engine.js"></script>
+  <script src="../../press/js/text/nav.js"></script>
+  <script src="layout-helpers.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const M = PR.model, P = PR.pages, ST = PR.styles, S = PR.story, U = PR.util;
+
+  describe('units and pages', () => {
+    it('converts units and parses picas, inches and millimetres', () => {
+      expect(U.parse('210mm', 'pt')).toBeCloseTo(595.2756, 1e-3);
+      expect(U.parse('1in', 'mm')).toBe(72);
+      expect(U.parse('3p6', 'pt')).toBe(42);
+      expect(U.parse('12', 'mm')).toBeCloseTo(34.0157, 1e-3);
+      expect(U.fmt(595.2756, 'mm')).toBe('210');
+      expect(U.presetFor(612, 792).name).toBe('Letter');
+    });
+    it('builds facing spreads: page 1 alone on the right, then pairs', () => {
+      const d = M.create({ pages: 5 });
+      expect(P.spreads(d).map((s) => s.pages)).toEqual([[0], [1, 2], [3, 4]]);
+      expect(P.side(d, 0)).toBe('right'); expect(P.side(d, 1)).toBe('left');
+      d.startPage = 2;
+      expect(P.spreads(d).map((s) => s.pages)).toEqual([[0, 1], [2, 3], [4]]);
+      d.facing = false;
+      expect(P.spreads(d).length).toBe(5);
+    });
+    it('mirrors inside/outside margins and bleed on left and right pages', () => {
+      const d = M.create({ pages: 2, margins: { inside: 30, outside: 10, top: 5, bottom: 5 } });
+      expect(P.margins(d, 0).left).toBe(30); expect(P.margins(d, 0).right).toBe(10);
+      expect(P.margins(d, 1).left).toBe(10); expect(P.margins(d, 1).right).toBe(30);
+      expect(P.columns(d, 0).length).toBe(2);
+    });
+    it('inserts, moves, duplicates and deletes pages (threads survive deletion)', () => {
+      const d = M.create({ pages: 2 });
+      P.insertPages(d, 1, 3);
+      expect(d.pages.length).toBe(5);
+      const id = d.pages[4].id; P.movePage(d, 4, 0); expect(d.pages[0].id).toBe(id);
+      const a = M.item('text', 0, 0, 100, 100), b = M.item('text', 0, 0, 100, 100);
+      PR.items.add(d, d.pages[1].items, a, { text: 'abc' }); PR.items.add(d, d.pages[2].items, b);
+      expect(PR.items.link(d, a.id, b.id)).toBe(true);
+      P.duplicatePage(d, 1); expect(d.pages.length).toBe(6);
+      P.deletePages(d, [3]);
+      expect(a.next).toBe(null); expect(d.stories[a.story].text).toBe('abc');
+    });
+  });
+
+  describe('stories', () => {
+    it('inserts and deletes across paragraphs keeping runs and paragraph styles aligned', () => {
+      const s = M.story('one\ntwo', 'Body');
+      S.formatParas(s, 4, 4, { ps: 'Heading 1' });
+      S.insert(s, 3, ' plus\nnew');
+      expect(s.text).toBe('one plus\nnew\ntwo'); expect(s.paras.map((p) => p.ps)).toEqual(['Body', 'Body', 'Heading 1']);
+      S.remove(s, 2, 10);
+      expect(s.text).toBe('onew\ntwo'); expect(s.paras.length).toBe(2);
+      expect(s.runs.reduce((a, r) => a + r.n, 0)).toBe(s.text.length);
+    });
+    it('character formatting splits and merges runs', () => {
+      const s = M.story('abcdef');
+      S.formatChars(s, 1, 3, { cs: 'Strong' });
+      expect(s.runs.map((r) => [r.n, r.cs])).toEqual([[1, null], [2, 'Strong'], [3, null]]);
+      S.formatChars(s, 1, 3, { cs: null });
+      expect(s.runs.length).toBe(1);
+      const f = S.slice(s, 1, 4); expect(f.text).toBe('bcd');
+    });
+  });
+
+  describe('styles cascade', () => {
+    it('resolves basedOn chains, paragraph overrides, character styles and run overrides', () => {
+      const d = M.create({});
+      d.styles.para.Lead = { basedOn: 'Body', size: 14 };
+      d.styles.char.Big = { basedOn: 'Strong', size: 20 };
+      ST.invalidate();
+      const p = ST.para(d, 'Lead');
+      expect(p.size).toBe(14); expect(p.font).toBe('Times'); expect(p.align).toBe('justify'); expect(p.hyphenate).toBe(true);
+      const g = ST.glyph(d, { ps: 'Lead', ov: { align: 'center' } }, { cs: 'Big', ov: { color: '#ff0000' } });
+      expect(g.size).toBe(20); expect(g.fontStyle).toBe('Bold'); expect(g.align).toBe('center'); expect(g.color).toBe('#ff0000'); expect(g.leadingPt).toBe(14);
+    });
+    it('changing a parent style cascades; rename and delete update usages', () => {
+      const d = M.create({});
+      d.styles.para.Lead = { basedOn: 'Body', size: 14 };
+      ST.invalidate();
+      ST.update(d, 'para', 'Body', { font: 'Georgia' });
+      expect(ST.para(d, 'Lead').font).toBe('Georgia');
+      const s = M.story('x', 'Lead'); d.stories[s.id] = s;
+      expect(ST.rename(d, 'para', 'Lead', 'Intro')).toBe(true); expect(s.paras[0].ps).toBe('Intro');
+      expect(ST.remove(d, 'para', 'Intro')).toBe(true); expect(s.paras[0].ps).toBe('Body');
+      expect(ST.remove(d, 'para', '[Basic Paragraph]')).toBe(false);
+    });
+  });
+
+  describe('masters and page numbers', () => {
+    it('master text frames show each page number', async () => {
+      await fontsReady();
+      const d = M.create({ pages: 4, facing: true });
+      PR.setDoc(d);
+      const doc = PR.state.doc, A = doc.masters[0];
+      A.pages.forEach((mp) => { const f = M.item('text', 20, 800, 100, 20); PR.items.add(doc, mp.items, f, { text: 'p' + M.PAGE_NUM, ps: '[Basic Paragraph]' }); });
+      PR.touch();
+      const shown = [0, 1, 2, 3].map((i) => {
+        const it = P.masterItems(doc, i)[0];
+        return PR.engine.frame(it, i).lines[0].g.filter((g) => !g.hidden && !g.nl).map((g) => g.c).join('');
+      });
+      expect(shown).toEqual(['p1', 'p2', 'p3', 'p4']);
+      doc.startPage = 9; PR.touch();
+      expect(PR.engine.frame(P.masterItems(doc, 1)[0], 1).lines[0].g.map((g) => g.c).join('')).toContain('10');
+    });
+    it('pages follow their master (basedOn chain) and None hides master items', () => {
+      const d = M.create({ pages: 2, facing: false });
+      const A = d.masters[0], B = P.newMaster(d, 'Child', A.id);
+      A.pages[0].items.push(M.item('rect', 0, 0, 10, 10)); B.pages[0].items.push(M.item('ellipse', 0, 0, 10, 10));
+      P.applyMaster(d, 1, B.id);
+      expect(P.masterItems(d, 1).map((i) => i.type)).toEqual(['rect', 'ellipse']);
+      P.applyMaster(d, 1, null);
+      expect(P.masterItems(d, 1).length).toBe(0);
+    });
+    it('override copies master items onto the page with their own story', () => {
+      const d = M.create({ pages: 1, facing: false });
+      const f = M.item('text', 0, 0, 50, 20); PR.items.add(d, d.masters[0].pages[0].items, f, { text: 'folio' });
+      const made = P.overrideMaster(d, 0);
+      expect(made.length).toBe(1); expect(made[0].story).not.toBe(f.story); expect(d.stories[made[0].story].text).toBe('folio');
+      expect(P.masterItems(d, 0).length).toBe(0);
+    });
+  });
+
+  describe('layout details', () => {
+    it('drop caps indent the first lines and keep-with-next moves a heading', async () => {
+      const { doc, frame } = await textDoc({ text: LOREM, w: 220, h: 400 });
+      doc.styles.para.Test.dropLines = 3; ST.invalidate(); PR.touch();
+      const ls = PR.engine.frame(frame).lines;
+      expect(ls[0].g[0].drop).toBe(true);
+      expect(ls[1].x).toBeGreaterThan(ls[4].x + 5);
+    });
+    it('baseline grid alignment snaps baselines to the grid', async () => {
+      const { doc, frame } = await textDoc({ text: LOREM, w: 220, h: 400 });
+      doc.styles.para.Test.gridAlign = true; doc.baseline = { start: 50, step: 15 }; ST.invalidate(); PR.touch();
+      PR.engine.frame(frame).lines.forEach((l) => { const py = l.y + frame.y; expect(Math.abs(((py - 50) / 15) - Math.round((py - 50) / 15))).toBeLessThan(1e-6); });
+    });
+    it('caret navigation maps offsets to positions and back', async () => {
+      const { frame } = await textDoc({ text: 'Hello world\nSecond line here', w: 300, h: 200 });
+      const at = PR.nav.locate(frame.story, 6);
+      expect(PR.nav.hit(frame, at.x + 0.1, at.y0 + 2)).toBe(6);
+      expect(PR.nav.vertical(frame.story, 2, 1, PR.nav.locate(frame.story, 2).x)).toBeGreaterThan(11);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

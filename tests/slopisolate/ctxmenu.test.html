@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cutout context menus</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window: the notice shows, and the tests dismiss it */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame, win, doc;
+  const rows = () => [...doc.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const labels = () => rows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const pick = (label) => { const r = rows().find((x) => x.querySelector('.sui-lbl').textContent.startsWith(label)); if (!r) throw new Error('no menu row ' + label + ' in ' + labels().join(' | ')); r.click(); };
+  const rightClick = (el) => el.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 40, detail: 1 }));
+  const keyDown = (el, key, shiftKey = false) => { const ev = new win.KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+  const CO = () => win.CO;
+
+  describe('Slop Cutout context menus', () => {
+    it('loads slopisolate/index.html', async () => {
+      frame = document.createElement('iframe');
+      const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+      frame.src = '../../slopisolate/index.html';
+      document.body.append(frame);
+      await loaded;
+      win = frame.contentWindow; doc = frame.contentDocument;
+      await waitFor(() => win.CO && win.CO.ctxmenu && doc.getElementById('menus').children.length > 0, { timeout: 8000 });
+      expect(!!win.SlopCtx).toBe(true);
+    });
+
+    it('right-click on the empty canvas opens Open and Sample, and Sample loads an image', async () => {
+      rightClick(doc.getElementById('stage'));
+      expect(labels()).toEqual(['Open images…', 'Try a sample image']);
+      pick('Try a sample image');
+      await waitFor(() => CO().state.items.length === 1, { timeout: 15000 });
+      expect(doc.querySelectorAll('.sui-menu').length).toBe(0);
+    });
+
+    it('right-click on a queue tile opens its menu, and Open makes that image active', async () => {
+      const tile = doc.querySelector('#queue .q-item');
+      expect(!!tile).toBe(true);
+      rightClick(tile);
+      expect(labels()).toContain('Open');
+      expect(labels()).toContain('Remove from queue');
+      pick('Open');
+      expect(CO().state.activeId).toBe(CO().state.items[0].id);
+    });
+
+    it('right-click on the canvas of an image offers brush tools and zoom, and Zoom in zooms', async () => {
+      const before = CO().view.zoomPct();
+      rightClick(doc.getElementById('stage'));
+      expect(labels()).toContain('Keep brush');
+      expect(labels()).toContain('Remove brush');
+      expect(labels()).toContain('Fit to window');
+      pick('Zoom in');
+      expect(CO().view.zoomPct()).toBeGreaterThan(before);
+    });
+
+    it('Keep brush from the canvas menu selects the Keep tool', () => {
+      rightClick(doc.getElementById('stage'));
+      pick('Keep brush');
+      expect(CO().state.tool).toBe('keep');
+    });
+
+    it('the Menu key on a focused queue tile opens the same menu', () => {
+      const tile = doc.querySelector('#queue .q-item');
+      tile.focus();
+      const ev = keyDown(tile, 'ContextMenu');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Remove from queue');
+      doc.querySelector('.sui-menu').remove();
+    });
+
+    it('Shift+F10 on the focused canvas opens the canvas menu', () => {
+      const stage = doc.getElementById('stage');
+      stage.focus();
+      keyDown(stage, 'F10', true);
+      expect(labels()).toContain('Fit to window');
+      keyDown(doc.querySelector('.sui-menu'), 'Escape');
+    });
+
+    it('Remove from queue removes the image', async () => {
+      rightClick(doc.querySelector('#queue .q-item'));
+      pick('Remove from queue');
+      await waitFor(() => CO().state.items.length === 0, { timeout: 5000 });
+      expect(doc.querySelectorAll('#queue .q-item').length).toBe(0);
+    });
+  });
+  SlopTest.run({ name: 'Slop Cutout context menus' });
+  </script>
+</body>
+</html>

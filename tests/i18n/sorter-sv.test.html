@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Photo Sorter in Swedish</title>
+  <!-- Covers: sorter/i18n/index.js, sorter/js/app.js, sorter/js/frame.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Photo Sorter', path: '../../sorter/index.html', ns: 'sorter',
+    ready: (doc) => doc.querySelector('#soDrop .sd-msg') && doc.querySelector('.smb-menu-b'),
+    checks: [
+      ['#soZip', 'Ladda ned gillade', 'Download liked'],
+      ['.so-lede', 'Släpp en hög foton', 'Drop a pile of photos'],
+      ['#soDrop .sd-msg', 'Släpp foton eller en mapp', 'Drop photos or a folder'],
+      ['#soStart', 'Sortera igen', 'Sort again'],
+      ['.smb-menus .smb-menu-b:nth-child(2) .smb-menu-b, .smb-menu:nth-child(2) .smb-menu-b', 'Sortera', 'Sort'],
+      ['#soSide', 'Spara', 'Save'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Photo Sorter in Swedish' });
+  </script>
+</body>
+</html>

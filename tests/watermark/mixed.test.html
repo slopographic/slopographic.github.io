@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Watermark: pictures, videos and PDFs in one batch</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real page in an iframe: a picture, a video and a two-page PDF dropped at once are listed with their kinds, each
+       previews in its own way (a picture, a playing video with the watermark over it, a PDF page with page arrows), the
+       page offers a page range and a time range, Apply to all writes a PNG, an MP4 and a PDF, and the ZIP holds all three. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/backup/zip.js"></script>
+  <script type="module">
+  // Covers: watermark/js/probe.js, watermark/js/list.js, watermark/js/export.js, shared/watermark/preview.js, shared/frame/panel.js
+  import { loadPdfLib } from '../../convert/js/core/lib.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (s) => W().document.querySelector(s), qa = (s) => [...W().document.querySelectorAll(s)];
+  async function open() {
+    localStorage.removeItem('slopwatermark.setup');
+    f.src = '../../watermark/index.html';
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname.endsWith('/watermark/index.html') && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+  }
+  async function files() {
+    const c = document.createElement('canvas'); c.width = 320; c.height = 200; c.getContext('2d').fillStyle = '#2a6'; c.getContext('2d').fillRect(0, 0, 320, 200);
+    const png = new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'photo.png', { type: 'image/png' });
+    const mp4 = new File([await (await fetch('../convert/fixtures/tone.mp4')).arrayBuffer()], 'clip.mp4', { type: 'video/mp4' });
+    const L = await loadPdfLib(), doc = await L.PDFDocument.create();
+    doc.addPage([400, 300]); doc.addPage([300, 400]);
+    const pdf = new File([await doc.save()], 'paper.pdf', { type: 'application/pdf' });
+    return [png, mp4, pdf];
+  }
+  function drop(list) {
+    const dt = new (W().DataTransfer)();
+    for (const x of list) dt.items.add(x);
+    q('#wm-drop').dispatchEvent(new (W().DragEvent)('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: 20, clientY: 20 }));
+  }
+  const rows = () => qa('#wm-list .wm-row');
+  const preview = (name) => { rows().find((r) => r.querySelector('.wm-name').textContent === name).querySelector('[data-act="pv"]').click(); };
+
+  describe('one batch of mixed files', () => {
+    it('lists a picture, a video and a PDF with their kinds, and the panel offers pages and time', async () => {
+      await open();
+      drop(await files());
+      await waitFor(() => rows().length === 3, { timeout: 30000 });
+      expect(rows().map((r) => r.dataset.media)).toEqual(['picture', 'video', 'pdf']);
+      expect(rows()[1].querySelector('.wm-dim').textContent).toContain('video 0:02');
+      expect(rows()[2].querySelector('.wm-dim').textContent).toContain('PDF, 2 pages');
+      expect(q('#wm-count').textContent).toBe('3 files');
+      expect([q('.swp-pages').hidden, q('.swp-time').hidden]).toEqual([false, false]);
+      // List · View · Panel: the files on the left, the preview in the middle, the panel and its main action on the right
+      expect(q('#wm-main').classList.contains('sf-nolist')).toBe(false);
+      const xs = ['#wm-files', '#wm-work', '#wm-panel'].map((s) => q(s).getBoundingClientRect().left);
+      expect(xs[0] < xs[1] && xs[1] < xs[2]).toBe(true);
+      expect(q('#wm-panel .sf-p-foot #wm-apply').textContent).toBe('Watermark 3 files');
+    }, { timeout: 60000 });
+
+    it('each kind has its own preview: a picture, a video with the watermark over it, and a PDF page with page arrows', async () => {
+      await waitFor(() => !q('#wm-preview .swv-canvas').hidden && q('#wm-preview .swv-canvas').width === 320, { timeout: 10000 });
+      preview('clip.mp4');
+      await waitFor(() => !q('#wm-preview video').hidden && q('#wm-preview video').readyState >= 2, { timeout: 10000 });
+      const over = q('#wm-preview .swv-over');
+      await waitFor(() => over.width > 0 && [...over.getContext('2d').getImageData(0, 0, over.width, over.height).data].some((v, i) => i % 4 === 3 && v > 0), { timeout: 10000 });
+      preview('paper.pdf');
+      await waitFor(() => !q('#wm-preview .swv-canvas').hidden && q('.swv-page').textContent === 'Page 1 of 2', { timeout: 15000 });
+      expect(q('.swv-canvas').width).toBe(400);
+      q('.swv-nav [aria-label="Next page"]').click();
+      await waitFor(() => q('.swv-page').textContent === 'Page 2 of 2' && q('.swv-canvas').width === 300, { timeout: 10000 });
+    }, { timeout: 60000 });
+
+    it('Apply to all writes a PNG, an MP4 and a PDF, and the ZIP holds all three', async () => {
+      q('#wm-apply').click();
+      await waitFor(() => qa('#wm-list [data-act="dl"]:not([disabled])').length === 3, { timeout: 240000 });
+      expect(W().WMItems.all().map((x) => [x.out.name, x.out.blob.type])).toEqual([['photo-watermarked.png', 'image/png'], ['clip-watermarked.mp4', 'video/mp4'], ['paper-watermarked.pdf', 'application/pdf']]);
+      expect(q('#wm-run-note').textContent).toBe('Done: 3 files watermarked. Download each one, or all as a ZIP.');
+      const zip = await W().WMExport.zipAll(W().WMItems.all());
+      expect((await SlopZip.unzip(zip)).filter((e) => !e.dir).map((e) => e.name)).toEqual(['photo-watermarked.png', 'clip-watermarked.mp4', 'paper-watermarked.pdf']);
+    }, { timeout: 300000 });
+
+    it('each result can be saved to Slop Drive or opened in another app', async () => {
+      rows()[2].querySelector('[data-act="more"]').click();
+      const labels = await waitFor(() => { const m = qa('.sui-menu .sui-row').map((r) => r.textContent); return m.length ? m : null; });
+      expect(labels.some((t) => t.includes('Save to Slop Drive'))).toBe(true);
+      expect(labels.some((t) => t.includes('Open in Slop PDF'))).toBe(true);
+      W().SlopUI.closeMenu();
+    });
+  });
+  SlopTest.run({ name: 'Slop Watermark: mixed files' });
+  </script>
+</body>
+</html>

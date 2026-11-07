@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Colors: the colour wheel by mouse, touch and keyboard</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style></head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+// Covers: colors/js/wheel.js, colors/js/wheel-draw.js, colors/js/core/wheel.js, colors/js/core/harmony.js, colors/js/core/convert.js
+// Covers: colors/js/state.js, colors/js/swatches.js, colors/js/main.js, colors/js/commands.js, colors/index.html, colors/css/view.css
+const { describe, it, expect, waitFor, run } = SlopTest;
+let W, D;
+const S = () => W.CO.state.get();
+const box = () => D.getElementById('co-wheel');
+const handles = () => [...D.querySelectorAll('#co-wheel .co-wh')];
+const row = () => [...D.querySelectorAll('#co-harmony .co-sw-btn')].map((b) => b.dataset.hex);
+/** The page point of a place on the disc: angle a (0 at the top, clockwise), r in disc radii. */
+function spot(a, r) {
+  const b = box().getBoundingClientRect(), R = (b.width / 2) * W.CO.wheelDraw.GEO.disc, t = (a * Math.PI) / 180;
+  return { x: b.left + b.width / 2 + Math.sin(t) * r * R, y: b.top + b.height / 2 - Math.cos(t) * r * R };
+}
+const centre = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+function ev(type, target, p, kind) {
+  target.dispatchEvent(new W.PointerEvent(type, { clientX: p.x, clientY: p.y, pointerId: kind === 'touch' ? 7 : 1, pointerType: kind, isPrimary: true,
+    bubbles: true, cancelable: true, button: 0, buttons: type === 'pointerup' ? 0 : 1 }));
+}
+/** A drag in steps, as a hand makes it: down on the start, moves on the wheel, up at the end. */
+function drag(from, to, kind, el) {
+  ev('pointerdown', el || D.elementFromPoint(from.x, from.y), from, kind);
+  for (let i = 1; i <= 6; i++) ev('pointermove', box(), { x: from.x + ((to.x - from.x) * i) / 6, y: from.y + ((to.y - from.y) * i) / 6 }, kind);
+  ev('pointerup', box(), to, kind);
+}
+const key = (el, k, shift) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, shiftKey: !!shift, bubbles: true, cancelable: true }));
+const hueOf = (hex) => W.SlopColors.convert.rgbToHsv(...W.SlopColors.convert.rgbOf(hex));
+
+describe('Slop Colors: the colour wheel', () => {
+  it('draws a sharp wheel with a handle per colour of the harmony', async () => {
+    localStorage.removeItem('slop-colors');
+    const fr = document.getElementById('app');
+    fr.src = '../../colors/index.html?color=ff0000&harmony=triadic&wheel=rgb';
+    await waitFor(() => { try { return fr.contentWindow.CO && fr.contentWindow.CO.main && fr.contentDocument.querySelector('#co-download') && fr.contentDocument.querySelector('.co-wh'); } catch (e) { return false; } }, { timeout: 30000 });
+    W = fr.contentWindow; D = W.document;
+    expect(S().current).toBe('#ff0000');   // the address set the colour, the harmony and the wheel
+    expect(handles().length).toBe(3);
+    expect(row()).toEqual(['#ff0000', '#00ff00', '#0000ff']);
+    const cv = D.getElementById('co-wheel-cv');
+    expect(cv.width).toBe(Math.round(cv.clientWidth * Math.min(3, W.devicePixelRatio || 1)));
+    const px = cv.getContext('2d').getImageData(Math.round(cv.width / 2), Math.round(cv.width * 0.03), 1, 1).data;   // the ring at the top is red
+    expect(px[0]).toBeGreaterThan(240); expect(px[1]).toBeLessThan(20);
+    const h = handles()[0];
+    expect(h.getAttribute('role')).toBe('slider');
+    expect(h.getAttribute('aria-label')).toBe('Base colour');
+    expect(h.getAttribute('aria-valuenow')).toBe('0');
+    expect(h.getAttribute('aria-valuetext')).toBe('Hue 0°, saturation 100%, #ff0000');
+  }, { timeout: 40000 });
+
+  it('a mouse drag of the base handle moves it; the others follow the rule; the fields and the palette row follow', async () => {
+    drag(centre(handles()[0]), spot(120, 1), 'mouse', handles()[0]);
+    expect(S().current).toBe('#00ff00');
+    expect(row()).toEqual(['#00ff00', '#0000ff', '#ff0000']);
+    expect(D.getElementById('co-in-hex').value).toBe('#00ff00');
+    expect(D.getElementById('co-big-hex').textContent).toBe('#00ff00');
+    const p = centre(handles()[1]), want = spot(240, 1);
+    expect(Math.abs(p.x - want.x) < 2 && Math.abs(p.y - want.y) < 2).toBe(true);   // the linked handle sits a third round
+    D.getElementById('co-harm-use').click();
+    expect(S().palette.colors.map((c) => c.hex)).toEqual(['#00ff00', '#0000ff', '#ff0000']);
+  });
+
+  it('a touch drag on the disc moves the base there; a drag on the ring turns only the hue', async () => {
+    drag(spot(10, 0.3), spot(240, 0.5), 'touch', box());
+    const [h, s] = hueOf(S().current);
+    expect(Math.abs(h - 240) < 2).toBe(true); expect(Math.abs(s - 50) < 2).toBe(true);
+    const ringR = (W.CO.wheelDraw.GEO.ringIn + W.CO.wheelDraw.GEO.ringOut) / 2 / W.CO.wheelDraw.GEO.disc;
+    drag(spot(0, ringR), spot(60, ringR), 'touch', box());
+    const [h2, s2] = hueOf(S().current);
+    expect(Math.abs(h2 - 60) < 2).toBe(true); expect(Math.abs(s2 - 50) < 2).toBe(true);
+  });
+
+  it('dragging a linked handle turns the whole set', async () => {
+    const before = hueOf(S().current)[0];
+    drag(centre(handles()[1]), spot(((before + 120 + 30) % 360), 0.5), 'mouse', handles()[1]);
+    expect(Math.abs(((hueOf(S().current)[0] - before + 360) % 360) - 30) < 2).toBe(true);
+  });
+
+  it('the harmony and the wheel switch from their lists; custom handles move on their own', async () => {
+    W.CO.state.set({ current: '#ff0000' });
+    const rule = D.getElementById('co-wheel-rule');
+    for (const [id, n] of [['complementary', 2], ['analogous', 4], ['brightness', 5], ['square', 4], ['custom', 5]]) {
+      rule.value = id; rule.dispatchEvent(new W.Event('change'));
+      expect(S().harmony).toBe(id);
+      expect(handles().length).toBe(n);
+      expect(row().length).toBe(n);
+    }
+    expect(D.getElementById('co-harmony-kind').value).toBe('custom');   // the panel's list is the same state
+    const others = S().custom.slice();
+    drag(centre(handles()[2]), spot(240, 1), 'mouse', handles()[2]);
+    expect(S().current).toBe('#ff0000');
+    expect(S().custom[1]).toBe('#0000ff');
+    expect(S().custom[0]).toBe(others[0]);
+    const model = D.getElementById('co-wheel-model');
+    model.value = 'ryb'; model.dispatchEvent(new W.Event('change'));
+    expect(S().wheel).toBe('ryb');
+    rule.value = 'complementary'; rule.dispatchEvent(new W.Event('change'));
+    expect(row()).toEqual(['#ff0000', '#00ff00']);   // red's complement on the artist's wheel is green
+    await waitFor(() => /wheel=ryb/.test(W.location.search) && /harmony=complementary/.test(W.location.search), { timeout: 3000 });
+  });
+
+  it('the keyboard: arrows turn and saturate the focused handle, Shift takes ten steps, the slider sets the brightness', async () => {
+    const model = D.getElementById('co-wheel-model'); model.value = 'rgb'; model.dispatchEvent(new W.Event('change'));
+    W.CO.state.set({ current: '#ff0000', harmony: 'triadic' });
+    const h = handles()[0];
+    h.focus();
+    key(h, 'ArrowRight');
+    expect(handles()[0].getAttribute('aria-valuenow')).toBe('1');
+    key(h, 'ArrowRight', true);
+    expect(handles()[0].getAttribute('aria-valuenow')).toBe('11');
+    for (let i = 0; i < 5; i++) key(h, 'ArrowDown', true);
+    const [hh, ss] = hueOf(S().current);
+    expect(Math.abs(hh - 11) < 1.5).toBe(true); expect(Math.abs(ss - 50) < 1.5).toBe(true);
+    expect(handles()[0].getAttribute('aria-valuetext')).toContain(S().current);
+    expect(D.activeElement).toBe(handles()[0]);
+    const v = D.getElementById('co-wheel-v');
+    v.value = '40'; v.dispatchEvent(new W.Event('input'));
+    expect(Math.round(hueOf(S().current)[2])).toBe(40);
+    expect(v.getAttribute('aria-valuetext')).toBe('Brightness 40%');
+    key(handles()[2], 'ArrowLeft', true);   // a linked handle's keys turn the set
+    expect(Math.abs(hueOf(S().current)[0] - 1) < 1.5).toBe(true);
+  });
+
+  it('Ctrl+K has the wheel\'s commands', async () => {
+    expect(W.SlopCmd.get('colors.wheel.rule.split').title).toBe('Wheel: set harmony to Split complementary');
+    await W.SlopCmd.exec('colors.wheel.rule.split');
+    expect(S().harmony).toBe('split');
+    await W.SlopCmd.exec('colors.wheel.model.oklch');
+    expect(S().wheel).toBe('oklch');
+    expect(D.getElementById('co-wheel-v-lab').textContent).toBe('Lightness');
+    await W.SlopCmd.exec('colors.wheel.focus');
+    expect(D.activeElement).toBe(handles()[0]);
+  });
+});
+run({ name: 'Slop Colors: the colour wheel' });
+</script>
+</body>
+</html>

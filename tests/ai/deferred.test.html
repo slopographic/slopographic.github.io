@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: tasks still work when the tools load on demand (find_tools → call), three apps, three engines</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // Covers: shared/ai/toolbox.js, shared/ai/prompt.js, shared/ai/panel-run.js, shared/ai/tools.js, shared/ai/cloud/anthropic.js,
+  //   shared/ai/cloud/openai.js, shared/ai/cloud/engine.js, shared/ai/optools.js, shared/ai/cloud/meter.js
+  // Real pages: PhotoSlop with a fake Claude (native deferred tools), Slop Workflows with a fake OpenAI (loaded tools added
+  // to the next turn), Slop Slides with the fake local engine (prompt-based: the loaded tool is described next turn).
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame;
+  const W = () => frame.contentWindow;
+  async function open(path, ready) {
+    if (frame) frame.remove();
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\./.test(k)) sessionStorage.removeItem(k);
+    for (const [k, v] of [['photoslop.tourShown', '1'], ['slop-firstrun:ai-cloud:anthropic', '1'], ['slop-firstrun:ai-cloud:openai', '1'], ['slop.consent', JSON.stringify({ v: 1, analytics: false, ads: false, t: 1 })]]) localStorage.setItem(k, v);
+    frame = document.createElement('iframe'); frame.src = '../../' + path; document.body.append(frame);
+    await waitFor(() => { const w = W(); return w.document && w.document.readyState === 'complete' && w.SlopHeader && w.SlopCmd && (!ready || ready(w)); }, { timeout: 30000 });
+    await W().SlopHeader.openAI(); await W().SlopAIPanel.ready; await W().SlopAIKit.picker.loadCloud();
+    return W();
+  }
+  async function cloud(w, provider, model) {
+    const F = CU.install(w, provider), eng = new w.SlopAIKit.CloudEngine({ provider, model, key: async () => 'sk-test-DEFERRED-0123456789' });
+    await eng.load(); await w.SlopAIPanel.use(eng);
+    return F;
+  }
+  const steps = (w) => [...w.document.querySelectorAll('.sap-step')].map((s) => (s.classList.contains('ok') ? '✓' : '✗') + s.querySelector('.sap-step-t').textContent);
+  const chats = (F, re) => F.requests.filter((r) => re.test(r.url)).map((r) => r.body);
+
+  describe('PhotoSlop, Claude: find_tools "blur" loads Gaussian blur by reference; the call runs; the tool list never changes', () => {
+    it('blurs the picture', async () => {
+      const w = await open('photoslop/', (x) => x.document.body.classList.contains('ready'));
+      const F = await cloud(w, 'anthropic', 'claude-haiku-5-5');
+      w.eval("newDocument(200, 120, '#ffffff', 'T'); const L = activeLayer(), g = L.canvas.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 100, 120); commit('Paint');");
+      const px = () => [...w.eval('activeLayer()').canvas.getContext('2d').getImageData(100, 60, 1, 1).data];
+      const before = px();
+      F.replies.push(CU.anthropic.call('find_tools', { query: 'blur' }), CU.anthropic.call('gaussian_blur', { radius: 6 }), CU.anthropic.text('Blurred it.'));
+      await w.SlopAIPanel.send('blur the picture');
+      expect(steps(w)).toEqual(['✓Find tools: blur', '✓Gaussian blur, radius 6']);
+      expect(px()).not.toEqual(before);
+      const [b1, b2, b3] = chats(F, /\/v1\/messages$/);
+      expect(b1.tools.find((t) => t.name === 'gaussian_blur').defer_loading).toBe(true);
+      expect(b1.tools.find((t) => t.name === 'find_tools').defer_loading).toBe(undefined);
+      expect(JSON.stringify(b3.tools)).toBe(JSON.stringify(b1.tools));
+      const res = b2.messages[b2.messages.length - 1].content[0];
+      expect(res.content.map((c) => c.tool_name)).toContain('gaussian_blur');
+      expect(b1.system[0].text).toMatch(/More tools here.*gaussian_blur/);
+      // the tokens line: this request's breakdown on hover
+      const line = await waitFor(() => w.document.querySelector('.sap-usage'));
+      expect(line.title).toMatch(/^This request used [\d,]+ tokens \([\d,]+ cached\): .* over 3 model turns\.\nTurn 1: /);
+    }, { timeout: 60000 });
+  });
+
+  describe('Slop Workflows, OpenAI: find_tools loads add_step (it joins the next turn\'s tools); then run_workflow on a picture', () => {
+    it('adds a step and runs a workflow', async () => {
+      const w = await open('workflows/');
+      const F = await cloud(w, 'openai', 'gpt-6-astra');
+      const c = w.document.createElement('canvas'); c.width = 320; c.height = 240; c.getContext('2d').fillRect(0, 0, 160, 120);
+      const name = 'deferred-' + Date.now() + '.png';
+      await w.SlopHub.put(await new Promise((r) => c.toBlob(r, 'image/png')), { name, from: 'test' });
+      F.replies.push(CU.openai.call('find_tools', { query: 'add step' }), CU.openai.call('add_step', { op: 'resize.image' }),
+        CU.openai.call('find_tools', { names: ['run_workflow'] }),
+        CU.openai.call('run_workflow', { workflow: { kind: 'slopflow', v: 1, name: 'Small', steps: [{ kind: 'op', id: 'resize.image', options: { mode: 'size', width: 80, height: 60, fit: 'stretch', format: 'png' } }] }, files: [name] }),
+        CU.openai.text('Done.'));
+      await w.SlopAIPanel.send('add a resize step, then make my picture 80 by 60');
+      const s = steps(w);
+      expect(s.every((x) => x.startsWith('✓'))).toBe(true);
+      expect(JSON.stringify(w.SlopCmd.state().steps)).toContain('resize.image');
+      const bodies = chats(F, /\/responses$/), names = (b) => b.tools.map((t) => t.name);
+      expect(names(bodies[0])).not.toContain('add_step');
+      expect(names(bodies[1]).slice(names(bodies[0]).length)).toContain('add_step');   // the loaded ones join at the end
+      expect(names(bodies[1]).slice(0, names(bodies[0]).length)).toEqual(names(bodies[0]));
+      expect(names(bodies[3])).toContain('run_workflow');
+      const out = (await w.SlopHub.list()).find((f) => f.from === 'ai' && /\.png$/.test(f.name));
+      const bmp = await createImageBitmap(out.blob);
+      expect([bmp.width, bmp.height]).toEqual([80, 60]);
+    }, { timeout: 60000 });
+  });
+
+  describe('Slop Slides, local model (fake engine): find_tools, then build_presentation is described and called', () => {
+    it('builds the deck from an outline', async () => {
+      const w = await open('slides/', (x) => x.document.body.classList.contains('ready'));
+      const OUTLINE = { title: 'Honey bees', slides: [{ title: 'Why bees matter', bullets: ['Pollinate crops'] }, { title: 'Thank you' }] };
+      const call = (n, a) => `<tool_call>{"name": "${n}", "arguments": ${JSON.stringify(a)}}</tool_call>`;
+      const e = new w.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0, replies: [call('find_tools', { query: 'build presentation outline' }), call('build_presentation', OUTLINE), 'Built it.'] });
+      await e.load('fake'); await w.SlopAIPanel.use(e);
+      await w.SlopAIPanel.send('make a deck about honey bees');
+      expect(steps(w)[0]).toBe('✓Find tools: build presentation outline');
+      expect(steps(w)[1]).toMatch(/^✓Build presentation from outline/);
+      expect(w.SS.app.deck.slides.length).toBe(3);
+      const sys = (i) => e.calls[i].messages[0].content;
+      expect(sys(0)).not.toMatch(/^- build_presentation\(/m); expect(sys(0)).toMatch(/More tools here.*build_presentation/);
+      expect(sys(1)).toMatch(/^- build_presentation\(/m);
+      expect(sys(0).length).toBeLessThan(12000);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop AI: tools loaded on demand' });
+  </script>
+</body>
+</html>

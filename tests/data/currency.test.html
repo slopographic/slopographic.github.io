@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · currency, exchange rates, ECB parse</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/rates-ecb.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData;
+  const st = S.store;
+  const FIXTURE = 'KEY,FREQ,CURRENCY,CURRENCY_DENOM,EXR_TYPE,EXR_SUFFIX,TIME_PERIOD,OBS_VALUE,OBS_STATUS,TITLE\n' +
+    'EXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-09,1.1600,A,US dollar/Euro\n' +
+    'EXR.D.JPY.EUR.SP00.A,D,JPY,EUR,SP00,A,2026-10-09,180.25,A,Japanese yen/Euro\n' +
+    'EXR.D.ARS.EUR.SP00.A,D,ARS,EUR,SP00,A,2020-10-30,91.5953,A,Argentine peso/Euro\n';
+  const fresh = async () => { const r = await st.erase(); if (!r.ok) throw new Error(r.message); const q = await st.ready(); if (!q.ok) throw new Error(q.message); };
+  const settings = async () => (await st.get('settings', 'main')).value;
+  const line = (o = {}) => ({ description: 'Bolt', qty: 2, unitPrice: 1050, taxRate: 2000, ...o });
+  const foreignOf = (base) => (base === 'EUR' ? 'USD' : 'EUR');
+  async function customer() { return (await st.put('customers', { name: 'Ada', stage: 'customer' })).value; }
+
+  describe('defaults and the base currency', () => {
+    beforeEach(fresh);
+    it('settings start with a currency and locale; a new invoice takes the default unless one is chosen', async () => {
+      const s = await settings();
+      expect(s.defaultCurrency).toMatch(/^[A-Z]{3}$/);
+      expect(s.locale).toMatch(/^[a-z]{2,3}(-[A-Za-z0-9]+)*$/);
+      const c = await customer();
+      const plain = (await st.put('invoices', { customerId: c.id, date: '2026-10-11', lines: [line()] })).value;
+      expect(plain.currency).toBe(s.defaultCurrency);
+      const chosen = (await st.put('invoices', { customerId: c.id, date: '2026-10-11', currency: foreignOf(s.defaultCurrency), lines: [line()] })).value;
+      expect(chosen.currency).toBe(foreignOf(s.defaultCurrency));
+    });
+    it('the base currency cannot change once an entry is posted, and can before', async () => {
+      const s = await settings();
+      const other = foreignOf(s.defaultCurrency);
+      expect((await st.put('settings', { ...s, defaultCurrency: other })).ok).toBe(true);
+      const now = await settings();
+      const posted = await S.ledger.postJournal({ date: '2026-10-11', memo: 'Opening', source: 'manual:open', lines: [{ account: '1010', debit: 100 }, { account: '3000', credit: 100 }] });
+      expect(posted.ok).toBe(true);
+      const r = await st.put('settings', { ...now, defaultCurrency: s.defaultCurrency });
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('base_locked');
+      expect((await settings()).defaultCurrency).toBe(other);
+    });
+  });
+
+  describe('exchange rates and foreign postings', () => {
+    beforeEach(fresh);
+    it('rate rows are immutable and cannot be removed; rateOn picks the latest on or before the date', async () => {
+      const s = await settings();
+      const f = foreignOf(s.defaultCurrency);
+      const a = (await S.fx.addRate({ base: f, quote: s.defaultCurrency, date: '2026-10-01', rate: 1080000 })).value;
+      await S.fx.addRate({ base: f, quote: s.defaultCurrency, date: '2026-10-05', rate: 1090000 });
+      expect((await st.put('exchangeRates', { ...a, rate: 1})).ok).toBe(false);
+      expect((await st.remove('exchangeRates', a.id)).ok).toBe(false);
+      expect((await S.fx.rateOn(f, s.defaultCurrency, '2026-10-04')).value.rate).toBe(1080000);
+      expect((await S.fx.rateOn(f, s.defaultCurrency, '2026-10-05')).value.rate).toBe(1090000);
+      expect((await S.fx.rateOn(f, s.defaultCurrency, '2026-09-01')).code).toBe('no_rate');
+    });
+    it('a foreign invoice issues at its rate, stores amountBase, and is paid in full to exactly the base total', async () => {
+      const s = await settings();
+      const base = s.defaultCurrency, f = foreignOf(base);
+      const rate = (await S.fx.addRate({ base: f, quote: base, date: '2026-10-01', rate: 1084200 })).value;
+      const c = await customer();
+      const d = (await st.put('invoices', { customerId: c.id, date: '2026-10-11', currency: f, lines: [line()] })).value;
+      const issued = await S.billing.issue(d.id);
+      expect(issued.ok).toBe(true);
+      expect(issued.value.currency).toBe(f);
+      expect(issued.value.rateId).toBe(rate.id);
+      expect(issued.value.amountBase).toBe(2732);
+      expect((await S.billing.recordPayment({ invoiceId: d.id, amount: 2520 })).ok).toBe(true);
+      expect((await st.get('invoices', d.id)).value.status).toBe('paid');
+      const t = await S.ledger.trialBalance();
+      expect(t.ok).toBe(true);
+      expect(t.value.rows.find((r) => r.code === '1200').balance).toBe(0);
+      expect(t.value.foreign[0].currency).toBe(f);
+      expect(t.value.foreign[0].debit).toBe(2520);
+    });
+  });
+
+  describe('ECB rates', () => {
+    beforeEach(fresh);
+    it('the CSV parser reads the fixture: newest date, rates scaled by 1e6, stale rows skipped', () => {
+      const r = S.rates.parseEcb(FIXTURE);
+      expect(r.ok).toBe(true);
+      expect(r.value.date).toBe('2026-10-09');
+      expect(r.value.rates[0].quote).toBe('USD');
+      expect(r.value.rates[0].rate).toBe(1160000);
+      expect(r.value.rates.length).toBe(2);
+      expect(S.rates.ECB_URL.startsWith('https://data-api.ecb.europa.eu/service/data/EXR/D..EUR.SP00.A?')).toBe(true);
+    });
+    it('with the rates category off, the button path fetches nothing and stores nothing', async () => {
+      let calls = 0;
+      const stub = () => { calls++; return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(FIXTURE) }); };
+      const r = await S.rates.updateRates({ fetch: stub });
+      expect(r.code).toBe('consent_off');
+      expect(calls).toBe(0);
+      expect((await st.list('exchangeRates')).value.length).toBe(0);
+    });
+    it('a download that fails stores nothing and says so', async () => {
+      const r = await S.rates.updateRates({ allowed: () => true, fetch: () => Promise.reject(new TypeError('offline')) });
+      expect(r.code).toBe('network');
+      expect(r.message).toContain('No rates were stored');
+      expect((await st.list('exchangeRates')).value.length).toBe(0);
+    });
+  });
+
+  run({ name: 'Data · currency, exchange rates, ECB parse' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Notes assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: notes/js/ai-commands.js, notes/js/commands.js, notes/js/actions.js, notes/js/export.js, notes/js/tabs.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  let C;
+  const run = async (id, args) => { const r = await C.exec('notes.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  async function open() {
+    f.src = '../../notes/index.html';
+    await waitFor(() => { const w = f.contentWindow; return w && w.document.readyState === 'complete' && w.document.body && w.document.body && w.document.body.classList.contains('ready') && w.SlopCmd; }, { timeout: 20000 });
+    C = W().SlopCmd;
+  }
+  const rec = async (id) => W().SlopHub.get(id);
+
+  describe('Slop Notes: the assistant writes, changes, exports and removes notes', () => {
+    it('prepare() loads the commands; delete_note is the only destructive one', async () => {
+      await open();
+      await C.prepare();
+      for (const t of ['new-note', 'new-notebook', 'insert-text', 'set-note', 'delete-note', 'export-note']) expect(!!C.get('notes.ai.' + t)).toBe(true);
+      expect(C.list().filter((c) => /^notes\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['notes.ai.delete-note']);
+    }, { timeout: 30000 });
+
+    it('new_note in a new notebook is saved to Slop Drive and opens', async () => {
+      const r = await run('new-note', { title: 'Bee log', body: '# Hives\n\n- Hive 1 calm', tags: ['#Bees', 'farm'], notebook: 'Farm' });
+      const id = r.value.id;
+      expect(C.state().open.title).toBe('Bee log');
+      const d = await rec(id);
+      expect(await d.blob.text()).toContain('Hive 1 calm');
+      expect(d.meta.tags).toEqual(['bees', 'farm']);
+      expect(C.state().notebooks).toContain('Farm');
+    }, { timeout: 20000 });
+
+    it('insert_text and set_note change the note and reach Slop Drive', async () => {
+      await run('insert-text', { text: '- Hive 2 swarming' });
+      await run('set-note', { title: 'Bee log, June', add_tags: ['urgent'], pinned: true });
+      const st = C.state().open;
+      expect(st.body).toContain('Hive 2 swarming');
+      expect(st.tags).toEqual(['bees', 'farm', 'urgent']);
+      await new Promise((r) => setTimeout(r, 1200));
+      const d = await rec(st.id);
+      expect(await d.blob.text()).toContain('Hive 2 swarming');
+      expect(d.meta.title).toBe('Bee log, June');
+    }, { timeout: 20000 });
+
+    it('export_note as Markdown and HTML to Slop Drive', async () => {
+      const m = await run('export-note', { format: 'md' });
+      const md = await rec(/id ([^)\s]+)\)/.exec(m.value)[1]);
+      expect(md.name).toBe('Bee log, June.md');
+      expect(await md.blob.text()).toContain('# Hives');
+      const h = await run('export-note', { format: 'html' });
+      const html = await rec(/id ([^)\s]+)\)/.exec(h.value)[1]);
+      expect(await html.blob.text()).toContain('<h1');
+    });
+
+    it('the checkpoint removes a note the assistant made; delete_note moves one to the Trash', async () => {
+      const back = C.checkpoint();
+      const r = await run('new-note', { title: 'Scratch' });
+      expect(C.state().notes.some((n) => n.id === r.value.id)).toBe(true);
+      back();
+      expect(C.state().notes.some((n) => n.id === r.value.id)).toBe(false);
+      const keep = C.state().open.id;
+      await run('delete-note', { note: 'Bee log, June' });
+      expect(C.state().notes.some((n) => n.id === keep)).toBe(false);
+      const d = await rec(keep);
+      expect(!!d.trashedAt).toBe(true);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Slop Notes assistant commands' });
+  </script>
+</body>
+</html>

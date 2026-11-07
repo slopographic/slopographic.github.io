@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides: PDF export, read back with pdf.js</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <!-- The real editor (iframe) writes PDFs with Arabic, Hebrew, Chinese and Hindi text, a picture and shapes; pdf.js reads
+       them back (pages, size, text) and draws them. The language fonts come through SlopFontJIT from a packs.json served
+       from memory, whose files are small subsets of the Noto fonts (fixtures/, SIL OFL 1.1, fixtures/OFL-noto.txt).
+       Covers: slides/js/io/pdf.js, slides/js/io/pdf-text.js, slides/js/io/pdf-paint.js, slides/js/io/pdf-math.js, slides/js/render/fonts.js, slides/js/ui/files.js -->
+  <script src="../harness.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const CDN = 'https://raw.githubusercontent.com/slopographic/cdn/test/packs/';
+  const PACKS = [['noto-arabic', 'Arabic (Noto Sans Arabic)', 'Noto Sans Arabic', 'NotoSansArabic-test.ttf'], ['noto-hebrew', 'Hebrew (Noto Sans Hebrew)', 'Noto Sans Hebrew', 'NotoSansHebrew-test.ttf'],
+    ['noto-devanagari', 'Devanagari (Noto Sans Devanagari)', 'Noto Sans Devanagari', 'NotoSansDevanagari-test.ttf'], ['noto-sc', 'Chinese, simplified (Noto Sans SC)', 'Noto Sans SC', 'NotoSansSC-test.otf']];
+  const hex = async (buf) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  let manifest = null, files = {}, fetched = [];
+  async function serve(w) {
+    if (!manifest) {
+      const packs = [];
+      for (const [id, name, family, file] of PACKS) {
+        const buf = await (await fetch('fixtures/' + file)).arrayBuffer();
+        files[CDN + file] = buf;
+        packs.push({ id, name, licence: 'OFL-1.1', description: 'test', size: buf.byteLength, files: [{ name: file, url: CDN + file, size: buf.byteLength, sha256: await hex(buf), family, weight: '400', style: 'normal' }] });
+      }
+      manifest = { note: 'test', hosts: ['raw.githubusercontent.com'], packs };
+    }
+    const real = w.fetch.bind(w);
+    w.fetch = async (input, init) => {
+      const url = String(input && input.url ? input.url : input);
+      if (/\/shared\/library\/packs\.json$/.test(url)) return new w.Response(JSON.stringify(manifest), { status: 200 });
+      if (files[url]) { fetched.push(url.replace(/^.*\//, '')); return new w.Response(files[url].slice(0), { status: 200 }); }
+      return real(input, init);
+    };
+  }
+  let PDFJS = null;
+  async function read(blob) {
+    const base = new URL('../../vendor/pdfjs/', location.href).href;
+    PDFJS = PDFJS || await import(base + 'pdf.min.js');
+    PDFJS.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+    return PDFJS.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), cMapUrl: base + 'cmaps/', cMapPacked: true, standardFontDataUrl: base + 'standard_fonts/' }).promise;
+  }
+  const textOf = async (page) => (await page.getTextContent()).items.map((i) => i.str).join(' ');
+  async function draw(page) {
+    const vp = page.getViewport({ scale: 1 }), cv = document.createElement('canvas');
+    cv.width = vp.width; cv.height = vp.height;
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    return cv.getContext('2d');
+  }
+  function setText(w, o, t) { o.text.paras = [{ runs: [{ t }] }]; }
+  function deck(w) {
+    const S = w.SS, d = S.model.newDeck({ title: 'World tour' });
+    setText(w, d.slides[0].objects[0], 'Hello مرحبا بالعالم');
+    setText(w, d.slides[0].objects[1], 'שלום עולם');
+    const s2 = S.model.addSlide(d, 'title-content');
+    setText(w, s2.objects[0], '你好世界，中文');
+    setText(w, s2.objects[1], 'नमस्ते दुनिया');
+    s2.objects.push(S.objects.make('shape', { shape: 'ellipse', x: 700, y: 360, w: 160, h: 120, fill: { type: 'linear', colors: ['accent1', 'accent2'], angle: 90 } }));
+    s2.objects.push(S.objects.make('shape', { shape: 'arrowLine', x: 80, y: 480, w: 300, h: 0, stroke: { color: 'accent3', width: 4, dash: 'dash', tail: 'arrow' } }));
+    const s3 = S.model.addSlide(d, 'title-only');
+    s3.hidden = true;
+    setText(w, s3.objects[0], 'Not in the PDF');
+    return d;
+  }
+
+  describe('PDF export', () => {
+    it('declining the language font still writes the PDF and names the font that is missing', async () => {
+      const w = await ST.open('../../slides/');
+      await serve(w);
+      w.localStorage.removeItem('slop-fonts.auto');
+      const d = w.SS.model.newDeck();
+      setText(w, d.slides[0].objects[0], 'Shalom שלום');
+      const p = w.SS.pdfExport.write(d);
+      const dlg = await waitFor(() => w.document.querySelector('.sui-back:not(.sui-out) .sui-dlg'), { timeout: 15000 });
+      expect(dlg.textContent).toContain('Hebrew');
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      const r = await p;
+      expect(r.missing).toEqual(['Hebrew']);
+      expect(r.pages).toBe(1);
+      expect(fetched.length).toBe(0);
+      ST.close(w);
+    }, { timeout: 40000 });
+
+    it('one page per visible slide at the slide size, with the text of four writing systems, read back by pdf.js', async () => {
+      const w = await ST.open('../../slides/');
+      await serve(w);
+      w.localStorage.setItem('slop-fonts.auto', '1');
+      const logs = [], log = console.log;
+      console.log = (...a) => { logs.push(a.join(' ')); log.apply(console, a); };
+      const d = deck(w);
+      const png = await ST.png(w, '#ff00ff', 32);
+      d.slides[1].objects.push(w.SS.objects.make('image', { x: 760, y: 40, w: 120, h: 90, media: w.SS.model.addMedia(d, await w.SS.util.blobToDataUrl(png), 'magenta.png') }));
+      const r = await w.SS.pdfExport.write(d);
+      expect(r.missing).toEqual([]);
+      expect(fetched.sort()).toEqual(['NotoSansArabic-test.ttf', 'NotoSansDevanagari-test.ttf', 'NotoSansHebrew-test.ttf', 'NotoSansSC-test.otf']);
+      const pdf = await read(r.blob);
+      expect(pdf.numPages).toBe(2);
+      const p1 = await pdf.getPage(1), p2 = await pdf.getPage(2);
+      expect(p1.view).toEqual([0, 0, 960, 540]);
+      const t1 = await textOf(p1), t2 = await textOf(p2);
+      ['Hello', 'مرحبا', 'بالعالم', 'שלום', 'עולם'].forEach((s) => expect(t1).toContain(s));
+      ['你好世界', 'नमस्ते'].forEach((s) => expect(t2).toContain(s));
+      expect(t1 + t2).not.toContain('Not in the PDF');
+      const g = await draw(p2);
+      const at = (x, y) => [...g.getImageData(x, y, 1, 1).data].slice(0, 3);
+      expect(at(820, 85)).toEqual([255, 0, 255]);            // the picture, embedded
+      const lit = (x0, y0, x1, y1) => { const px = g.getImageData(x0, y0, x1 - x0, y1 - y0).data; let n = 0; for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] + px[i + 2] > 450) n++; return n; };
+      expect(lit(60, 160, 500, 240)).toBeGreaterThan(200);    // the Hindi body line is drawn (light text on the dark theme)
+      expect(lit(60, 30, 600, 120)).toBeGreaterThan(200);     // the Chinese title is drawn
+      console.log = log;
+      expect(logs.filter((l) => /Failed to load font|Invalid font/i.test(l))).toEqual([]);
+      ST.close(w);
+    }, { timeout: 60000 });
+
+    it('File ▸ Download PDF downloads <title>.pdf and says how many pages and that hidden slides are left out', async () => {
+      const w = await ST.open('../../slides/');
+      await serve(w);
+      w.localStorage.setItem('slop-fonts.auto', '1');
+      w.SS.tabs.open(deck(w), { name: 'World tour.sslide' });
+      let got = null;
+      w.SS.util.download = (blob, name) => { got = { blob, name }; };
+      await w.SS.files.exportPdf();
+      expect(got.name).toBe('World tour.pdf');
+      expect(got.blob.type).toBe('application/pdf');
+      const toast = [...w.document.querySelectorAll('.sui-toast')].map((t) => t.textContent).join(' | ');
+      expect(toast).toContain('PDF ready: 2 pages. 1 hidden slide is left out.');
+      expect((await read(got.blob)).numPages).toBe(2);
+      ST.close(w);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

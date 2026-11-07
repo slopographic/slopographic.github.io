@@ -1,0 +1,11 @@
+{
+  "_": "The store apps' settings (mobile/README.md). android.fingerprints: the SHA-256 certificate fingerprints per app id, written to /.well-known/assetlinks.json by mobile/android/assetlinks.mjs (Play Console > App integrity: the app signing key, and the upload key). ios.apps: \"all\" bundles every app, or a list of app ids (shared/apps.js) for a focused app; ios.start: the page the app opens; ios.leaveOut: more path prefixes to leave out of the bundle; ios.icloud: an iCloud container id (iCloud.<reverse domain>) for the setting Keep files in iCloud Drive, left out for none (mobile/ios/doctypes.mjs).",
+  "android": {
+    "fingerprints": {}
+  },
+  "ios": {
+    "apps": "all",
+    "start": "/",
+    "leaveOut": []
+  }
+}

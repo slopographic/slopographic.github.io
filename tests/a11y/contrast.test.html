@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>tests/a11y/contrast.js: the text contrast audit finds unreadable text and passes readable text</title>
+<style>
+  body { margin: 0; padding: 10px; background: #fff; color: #111; font: 14px/1.4 system-ui, sans-serif; }
+  .box { margin: 4px 0; padding: 6px; }
+  #dark { background: #151518; }
+  #faded { opacity: .3; }
+  #grad { background: linear-gradient(90deg, #000080, #9ab6e0); color: #fff; }
+  #toast { position: fixed; right: 10px; bottom: 10px; padding: 6px 10px; background: #0a0a0a; color: #f1ede4; pointer-events: none; }
+  #pic { position: relative; height: 40px; }
+  #pic canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #pic span { position: relative; color: #777; }
+  input { font: inherit; padding: 4px; border: 1px solid #999; background: #fff; color: #111; }
+  #ph1::placeholder { color: #ccc; } #ph2::placeholder { color: #666; }
+  #off { color: #999; background: #fff; border: 1px solid #ccc; }
+  #big { font-size: 26px; color: #888; }
+</style></head>
+<body>
+<div class="box" id="ok">Dark text on white reads.</div>
+<div class="box" id="dark"><span id="dd">Near-black on near-black</span> <span id="dl" style="color:#f1ede4">Light on dark reads</span></div>
+<div class="box" id="faded">Faded to 30 percent</div>
+<div class="box" id="grad">White over a navy to pale gradient</div>
+<div class="box" id="pic"><canvas></canvas><span>Over a picture</span></div>
+<input id="ph1" placeholder="Too faint a placeholder"> <input id="ph2" placeholder="A readable placeholder">
+<button id="off" disabled>Disabled but legible</button>
+<div class="box" id="big">Large grey heading</div>
+<div id="toast">Saved</div>
+<script src="../harness.js"></script>
+<script src="../../shared/color/contrast.js"></script>
+<script src="contrast.js"></script>
+<script>
+// Covers: tests/a11y/contrast.js
+const { describe, it, expect } = SlopTest;
+const C = SlopContrast;
+const fails = () => C.audit(window).fails.map((f) => f.text);
+
+describe('SlopContrast', () => {
+  it('computes WCAG ratios from any CSS colour', () => {
+    expect(Math.round(C.ratio([0, 0, 0], [255, 255, 255]) * 10) / 10).toBe(21);
+    expect(C.rgba('rgb(10, 20, 30)')).toEqual([10, 20, 30, 1]);
+    expect(C.rgba('color-mix(in srgb, #ffffff 50%, #000000)').slice(0, 3).map((v) => Math.round(v / 10))).toEqual([13, 13, 13]);
+  });
+  it('flags dark on dark, faded text, the pale end of a gradient and a faint placeholder', () => {
+    const f = fails();
+    expect(f).toContain('Near-black on near-black');
+    expect(f).toContain('Faded to 30 percent');
+    expect(f).toContain('White over a navy to pale gradient');
+    expect(f).toContain('placeholder: Too faint a placeholder');
+  });
+  it('passes readable text, a toast that takes no pointer, a legible disabled button, large text at 3:1 and text over a picture', () => {
+    const f = fails();
+    for (const t of ['Dark text on white reads.', 'Light on dark reads', 'Saved', 'Disabled but legible', 'Large grey heading', 'Over a picture', 'placeholder: A readable placeholder']) expect(f).not.toContain(t);
+    expect(C.audit(window).image).toBeGreaterThan(0);
+  });
+  it('reports where, which colours and the ratio', () => {
+    const x = C.audit(window).fails.find((f) => f.text === 'Near-black on near-black');
+    expect([x.sel, x.bg, x.need]).toEqual(['span#dd', '#151518', 4.5]);
+    expect(x.ratio < 1.5).toBe(true);
+  });
+  it('rates a focus ring against what is behind it', () => {
+    const b = document.getElementById('ph2');
+    b.style.outline = '2px solid #111';
+    expect(C.indicator(window, b).ratio > 3).toBe(true);
+    b.style.outline = '2px solid #eee';
+    expect(C.indicator(window, b).ratio < 3).toBe(true);
+  });
+});
+SlopTest.run({ name: 'a11y contrast audit' });
+</script>
+</body>
+</html>

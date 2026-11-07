@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Colors: the operation colors.palette (a picture in, a palette file out)</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+<script type="module">
+// Covers: shared/ops/colors.js, shared/ops/all.js
+import * as R from '../../shared/ops/all.js';
+const { describe, it, expect, run } = SlopTest;
+async function blocks() {
+  const c = document.createElement('canvas'); c.width = 300; c.height = 100;
+  const x = c.getContext('2d');
+  [['#0b3d91', 0, 200], ['#ff6f61', 200, 100]].forEach(([f, a, w]) => { x.fillStyle = f; x.fillRect(a, 0, w, 100); });
+  return new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'Brand Shot.png', { type: 'image/png' });
+}
+describe('colors.palette', () => {
+  it('is in the one registry, under Slop Colors, with its options as the AI\'s arguments', () => {
+    const op = R.byId('colors.palette');
+    expect(op.app).toBe('colors');
+    expect(R.apps().some((a) => a.app === 'colors' && a.label === 'Slop Colors')).toBe(true);
+    expect(R.accepts(op, 'jpg')).toBe(true);
+    expect(R.accepts(op, 'pdf')).toBe(false);
+    expect(R.argsOf(op).map((a) => a.name)).toEqual(['count', 'format']);
+    expect(R.outOf(op, 'png', { format: 'tailwind' })).toBe('js');
+    expect(R.validateOptions(op, { count: '40' }).options.count).toBe(12);
+  });
+  it('a picture gives its colours, largest first, in each format', async () => {
+    const op = R.byId('colors.palette'), file = await blocks();
+    const json = await op.run([{ name: file.name, file, kind: 'png' }], { count: 4, format: 'json' });
+    expect(json[0].name).toBe('brand-shot.json');
+    expect(JSON.parse(await json[0].blob.text()).colors.map((c) => c.hex)).toEqual(['#0b3d91', '#ff6f61']);
+    expect(json.info).toContain('#0b3d91, #ff6f61');
+    const ase = await op.run([{ name: file.name, file, kind: 'png' }], { count: 4, format: 'ase' });
+    expect(ase[0].kind).toBe('ase');
+    expect(globalThis.SlopColors.ase.read(new Uint8Array(await ase[0].blob.arrayBuffer())).colors.map((c) => c.hex)).toEqual(['#0b3d91', '#ff6f61']);
+    const css = await op.run([{ name: file.name, file, kind: 'png' }], { format: 'css' });
+    expect(await css[0].blob.text()).toContain('--brand-shot-100: #0b3d91;');
+  });
+});
+run({ name: 'Slop Colors: operation' });
+</script>
+</body>
+</html>

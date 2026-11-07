@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopnodes · projects in Slop Drive</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../nodes/index.html" title="Slopnodes"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const doc = () => frame.contentDocument;
+  const win = () => frame.contentWindow;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  const dialogButton = (text) => until(() => [...win().document.querySelectorAll('.sui-dlg button')].find((b) => b.textContent.trim() === text), 'the dialog button ' + text);
+  describe('Slopnodes: projects in Slop Drive', () => {
+    it('Save to Slop Drive keeps the graph as a project; Open project (the shared Slop Drive picker) brings it back', async () => {
+      await until(() => doc().querySelectorAll('.sn-node').length === 6, 'the example');
+      const name = 'Shop check ' + Date.now();
+      doc().querySelector('#sn-save').click();
+      const field = await until(() => win().document.querySelector('.sui-dlg input'), 'the name field');
+      field.value = name;
+      (await dialogButton('Save')).click();
+      await until(() => doc().querySelector('#sn-project').textContent === name, 'the project name');
+      expect(doc().querySelector('#sn-status').textContent).toMatch(/Saved/);
+      // a new graph, then open the project again from Slop Drive
+      doc().querySelector('#sn-add-note').click();
+      const menuFile = [...doc().querySelectorAll('.smb-menu-b')].find((b) => b.textContent === 'File');
+      menuFile.click();
+      [...doc().querySelectorAll('.smb-item')].find((b) => b.textContent === 'Open project…').click();
+      // the one shared Slop Drive picker (shared/drive/picker.js), not a list of the app's own
+      // Save put it in the app's folder: open the folder, then the project
+      (await until(() => [...win().document.querySelectorAll('.hub-folder')].find((r) => r.textContent.includes('Slopnodes')), 'the Slopnodes folder in the shared picker')).click();
+      const item = await until(() => [...win().document.querySelectorAll('.hub-item:not(.hub-folder)')].find((r) => r.textContent.includes(name)), 'the project in the shared picker');
+      item.click();
+      await until(() => /Opened/.test(doc().querySelector('#sn-status').textContent), 'the project reopened');
+      expect(doc().querySelectorAll('.sn-node').length).toBe(6);
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Slopnodes: projects in Slop Drive' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: thumbnails</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, D;
+  const file = (n) => [...DR.S.files.values()].find((x) => x.name === n);
+  const T = (p, label, ms = 30000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(label + ' timed out')), ms))]);
+  const blobJson = (o) => new Blob([JSON.stringify(o)], { type: 'application/x-slop-doc' });
+
+  describe('thumbnails: making, caching and fallbacks', () => {
+    it('boots the Drive and clears the thumbnail cache', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; D = W.document;
+      await H.clear();
+      await DR.thumbCache.clear();
+      await H.put(await DT.png('#d4ff3a', 120, 90), { name: 'pic.png', from: 'photoslop' });
+      await H.put(DT.text('line one\nline two\nline three'), { name: 'read me.txt', from: 'upload' });
+      await H.put(DT.text('name,qty,price\nrod,3,1.50\nnut,9,0.10'), { name: 'stock.csv', from: 'tables' });
+      await H.put(blobJson({ blocks: [{ type: 'p', runs: [{ text: 'Hello from the first paragraph' }] }] }), { name: 'Note.sdoc', from: 'docs' });
+      await H.put(DT.text('not a picture at all'), { name: 'broken.png', from: 'upload', type: 'image/png' });
+      await DR.refresh();
+      expect(DR.S.files.size).toBe(5);
+    });
+
+    it('a PNG gets a thumbnail, made once and kept in IndexedDB', async () => {
+      const r = file('pic.png');
+      const url = await DR.thumb(r);
+      expect(typeof url).toBe('string');
+      expect(DR.mediaInfo(r).kind).toBe('image');
+      expect(DR.mediaInfo(r).w).toBe(120);
+      await waitFor(async () => (await DR.thumbCache.get(r.id)) != null, { timeout: 5000 });
+    });
+
+    it('a text file gets a text card with its first line', async () => {
+      const r = file('read me.txt');
+      await DR.thumb(r);
+      expect(DR.mediaInfo(r).kind).toBe('text');
+      expect(DR.mediaInfo(r).lines[0]).toBe('line one');
+    });
+
+    it('a CSV gets a card with its header', async () => {
+      const r = file('stock.csv');
+      await DR.thumb(r);
+      expect(DR.mediaInfo(r).kind).toBe('csv');
+      expect(DR.mediaInfo(r).header).toEqual(['name', 'qty', 'price']);
+    });
+
+    it('a Slop document gets a card with its first paragraph', async () => {
+      const r = file('Note.sdoc');
+      await DR.thumb(r);
+      expect(DR.mediaInfo(r).kind).toBe('doc');
+      expect(DR.mediaInfo(r).lines[0]).toBe('Hello from the first paragraph');
+    });
+
+    it('a cache hit does not regenerate the thumbnail', async () => {
+      const r = file('stock.csv');
+      const before = { ...DR.thumbStats };
+      DR.thumbReset();
+      await DR.thumb(r);
+      expect(DR.thumbStats.made).toBe(before.made);
+      expect(DR.thumbStats.cached).toBeGreaterThan(before.cached);
+      expect(DR.mediaInfo(r).header).toEqual(['name', 'qty', 'price']);
+    });
+
+    it('a file whose modified time changes is made again', async () => {
+      const id = file('pic.png').id;
+      await new Promise((res) => setTimeout(res, 8));
+      await H.update(id, {});
+      await DR.refresh();
+      const r = file('pic.png');
+      const before = DR.thumbStats.made;
+      DR.thumbReset();
+      await DR.thumb(r);
+      expect(DR.thumbStats.made).toBe(before + 1);
+    });
+
+    it('a removed file takes its cached thumbnail with it', async () => {
+      const id = file('broken.png').id;
+      await DR.thumb(file('broken.png'));
+      await H.remove(id);
+      await DR.refresh();
+      await waitFor(async () => (await DR.thumbCache.get(id)) == null, { timeout: 5000 });
+    });
+
+    it('a file that cannot be thumbnailed still shows a card, and the list still renders', async () => {
+      await H.put(new Blob(['not a picture at all'], { type: 'image/png' }), { name: 'broken.png', from: 'upload' });
+      await DR.refresh();
+      const r = file('broken.png');
+      const url = await DR.thumb(r);
+      expect(DR.mediaInfo(r).kind).toBe('card');
+      expect(typeof url).toBe('string');
+      DR.render();
+      expect(D.querySelectorAll('#pane .it').length).toBeGreaterThan(3);
+    });
+  });
+
+  describe('thumbnails: the 3D preview', () => {
+    it('a .s3d gets a rendered thumbnail, and its preview opens with orbit, zoom and reset', async () => {
+      if (!DR.webgl3d()) { console.info('SKIP 3D preview: WebGL is not available in this browser'); return; }
+      const { S } = await T(DR.load3d(), 'load3d');
+      await H.put(new Blob([S.format.serialize(S.model.defaultScene('Test scene'))], { type: 'application/x-slop-3d' }), { name: 'scene.s3d', from: 'slopedit' });
+      await DR.refresh();
+      const r = file('scene.s3d');
+      expect(DR.kindOf(r)).toBe('model');
+      await T(DR.thumb(r), 'thumb of the scene');
+      expect(DR.mediaInfo(r).kind).toBe('3d');
+      const box = DR.previewOf(r, true);
+      D.body.append(box);
+      const inner = box.querySelector('.pv3d');
+      await waitFor(() => inner.s3dView, { timeout: 30000 });
+      const view = inner.s3dView, canvas = box.querySelector('canvas'), reset = box.querySelector('.pv3d-reset');
+      expect(canvas).toBeTruthy();
+      expect(reset).toBeTruthy();
+      const d0 = view.cam.st.dist;
+      canvas.dispatchEvent(new W.WheelEvent('wheel', { deltaY: 300, bubbles: true, cancelable: true }));
+      expect(view.cam.st.dist).toBeGreaterThan(d0);
+      view.cam.zoom(-900); view.cam.setView('top');
+      reset.click();
+      expect(view.cam.st.view).toBe('perspective');
+      box.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Drive app: thumbnails' });
+  </script>
+</body>
+</html>

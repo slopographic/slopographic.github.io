@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop AI, wait until the app has booted (body.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('/ai/');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || f.contentWindow.document.body.classList.contains('ready')), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop AI saved place', () => {
+    it('reopens the same chat with the unsent text after leaving for Slop Drive', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slop-session'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../ai/index.html');
+      const c = W.AI.db.blank('chat');
+      c.title = 'Place test';
+      await W.AI.db.put(c);
+      await W.AI.openConv(c.id);
+      const input = W.AI.chat.input;
+      input.value = 'an unsent thought';
+      input.dispatchEvent(new W.Event('input', { bubbles: true }));
+      await sleep(600);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../ai/index.html');
+      await waitFor(() => W.AI.chat && W.AI.chat.conv && W.AI.chat.conv.id === c.id, { timeout: 10000 });
+      expect(W.AI.chat.conv.id).toBe(c.id);
+      expect(W.AI.chat.input.value).toBe('an unsent thought');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop AI · saved place' });
+  </script>
+</body>
+</html>

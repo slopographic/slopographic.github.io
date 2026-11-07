@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · purchase orders: numbers, status rules, receiving into stock, the bill as an expense</title>
+  <!-- Covers: shared/data/purchases.js, shared/data/expenses.js, shared/data/stock.js, shared/data/schema-defs.js, shared/data/schema.js, shared/data/store.js, shared/data/bundle-check.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/expenses.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/data/purchases.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData, st = S.store, P = S.purchases;
+  let sup, widget;
+  async function fresh() {
+    await st.erase(); await st.ready();
+    sup = (await st.put('customers', { name: 'Acme Supply', stage: 'customer', supplier: true })).value;
+    widget = (await st.put('products', { sku: 'W-1', name: 'Widget', price: 1000, taxRate: 2000 })).value;
+  }
+  async function po(o = {}) {
+    const r = await st.put('purchases', { customerId: sup.id, date: '2026-10-20', lines: [
+      { productId: widget.id, sku: 'W-1', description: 'Widget', qty: 10, unitPrice: 400, taxRate: 2000 },
+      { description: 'Delivery', qty: 1, unitPrice: 1500, taxRate: 0 }], ...o });
+    if (!r.ok) throw new Error(r.message);
+    return r.value;
+  }
+  const setStatus = async (x, status) => st.put('purchases', { ...(await st.get('purchases', x.id)).value, status });
+  const onHand = async () => (await S.stock.onHand(widget.id, 'main')).value;
+
+  describe('purchase orders', () => {
+    beforeEach(fresh);
+    it('a new purchase order is a draft with the next PO number and its totals', async () => {
+      const a = await po(), b = await po();
+      expect([a.number, b.number, a.status]).toEqual(['PO-0001', 'PO-0002', 'draft']);
+      expect([a.subtotal, a.tax, a.total]).toEqual([5500, 800, 6300]);
+      expect((await st.remove('purchases', a.id)).ok).toBe(false);
+    });
+    it('the flow: draft -> ordered -> received; a received order is locked; draft cannot jump to received', async () => {
+      const a = await po();
+      expect((await setStatus(a, 'received')).code).toBe('invalid_transition');
+      expect((await P.receive(a.id)).code).toBe('invalid_transition');
+      expect((await setStatus(a, 'ordered')).ok).toBe(true);
+      const r = await P.receive(a.id, { date: '2026-10-25' });
+      expect([r.ok, r.value.status, r.value.receivedAt, r.value.location]).toEqual([true, 'received', '2026-10-25', 'main']);
+      expect((await st.put('purchases', { ...r.value, notes: 'changed' })).message).toBe('a received or cancelled purchase order cannot be changed');
+      expect((await P.receive(a.id)).code).toBe('invalid_transition');
+    });
+    it('receiving puts the product lines into stock (not the delivery line), referenced by the PO number', async () => {
+      const a = await po();
+      await setStatus(a, 'ordered');
+      expect(await onHand()).toBe(0);
+      await P.receive(a.id);
+      expect(await onHand()).toBe(10);
+      const moves = (await st.list('stockMovements')).value;
+      expect(moves.map((m) => [m.qty, m.reason, m.ref])).toEqual([[10, 'receipt', 'PO-0001']]);
+    });
+    it('the bill is one posted expense with the reclaimable tax, linked to the order, and only once', async () => {
+      const a = await po();
+      expect((await P.recordBill(a.id)).code).toBe('invalid_transition');
+      await setStatus(a, 'ordered');
+      const r = await P.recordBill(a.id, { date: '2026-10-26' });
+      expect(r.ok).toBe(true);
+      expect([r.value.supplier, r.value.amount, r.value.tax, r.value.description, r.value.status]).toEqual(['Acme Supply', 6300, 800, 'Purchase order PO-0001', 'posted']);
+      expect((await st.get('purchases', a.id)).value.expenseId).toBe(r.value.id);
+      expect((await P.recordBill(a.id)).code).toBe('conflict');
+      const tb = (await S.ledger.trialBalance()).value;
+      expect(tb.debit).toBe(tb.credit);
+      expect(tb.rows.find((x) => x.code === '5000').balance).toBe(5500);
+    });
+    it('a cancelled order cannot be received or billed; a supplier is a flagged contact', async () => {
+      const a = await po();
+      expect((await setStatus(a, 'cancelled')).ok).toBe(true);
+      expect((await P.recordBill(a.id)).code).toBe('invalid_transition');
+      expect((await st.get('customers', sup.id)).value.supplier).toBe(true);
+    });
+    it('onOrder: the quantity of each product on placed (ordered) purchase orders', async () => {
+      const a = await po(); await setStatus(a, 'ordered');
+      const b = await po(); await setStatus(b, 'ordered'); await P.receive(b.id);
+      await po();   // a draft
+      const m = P.onOrder((await st.list('purchases')).value);
+      expect(m.get(widget.id)).toBe(10);
+      expect(m.size).toBe(1);
+    });
+    it('reorder suggestions: back above twice the reorder level less on hand and on order; the last supplier and price', async () => {
+      expect([P.suggestQty(5, 2, 0), P.suggestQty(5, 2, 6), P.suggestQty(5, 20, 0), P.suggestQty(undefined, 0, 0), P.suggestQty(0, 0, 0)]).toEqual([8, 2, 1, 1, 1]);
+      const a = await po({ date: '2026-01-05' });
+      const b = await po({ date: '2026-03-01', lines: [{ productId: widget.id, description: 'Widget', qty: 1, unitPrice: 450, taxRate: 1000 }] });
+      await setStatus(a, 'ordered');
+      const all = (await st.list('purchases')).value;
+      expect(P.lastBought(all, widget.id)).toEqual({ supplierId: sup.id, unitPrice: 450, taxRate: 1000 });
+      await setStatus(b, 'cancelled');
+      expect(P.lastBought((await st.list('purchases')).value, widget.id).unitPrice).toBe(400);
+      expect(P.lastBought(all, 'other')).toBe(null);
+    });
+    it('backups: a purchase order pointing at a missing supplier is refused; an export without purchases restores', async () => {
+      await po();
+      const b = (await S.exporter.exportBundle()).value;
+      expect(S.bundleCheck.validateBundle(b).ok).toBe(true);
+      const bad = JSON.parse(JSON.stringify(b)); bad.collections.purchases[0].customerId = 'gone';
+      expect(S.bundleCheck.validateBundle(bad).ok).toBe(false);
+      const old = JSON.parse(JSON.stringify(b)); delete old.collections.purchases;
+      expect(S.bundleCheck.validateBundle(old).ok).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

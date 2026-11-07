@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in SlopVector: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: slopvector/js/io/intake.js, slopvector/js/io/hub.js, slopvector/js/io/files.js, slopvector/js/tools/keys.js, slopvector/js/ui/actions.js, slopvector/js/ui/init.js
+  // SlopVector on the one intake: a drop on the window, the strip's Choose files, File ▸ Place, File ▸ Open, a paste, Open
+  // and Place from Slop Drive and ?drive=<id> (launch) reach the same reader with the same events; Open, Slop Drive's Open
+  // and launch open a document, the others place. Its own clipboard copies stay with its paste. Send to is SlopOuttake.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = '../../slopvector/index.html';
+    await waitFor(() => { try { const a = fr.contentWindow.document.getElementById('app'); return a && a.classList.contains('ready') && fr.contentWindow.SlopIntake.spec('vector'); } catch (e) { return false; } }, { timeout: 30000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('vector'), reader = s.process;
+    s.process = (f, ctx) => { seen.push([ctx.source, ctx.mode || 'place']); return reader(f, ctx); };
+    for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+  }
+  async function png(name, w = 40) {
+    const c = D.createElement('canvas'); c.width = w; c.height = 30;
+    c.getContext('2d').fillRect(0, 0, w, 30);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const svg = (name) => new W.File(['<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="50" height="50" fill="#ff3d8b"/></svg>'], name, { type: 'image/svg+xml' });
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const objects = () => W.SV.state.doc.layers.reduce((n, l) => n + l.children.length, 0);
+  async function through(source, mode, start, n = 2) {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual(Array(n).fill([source, mode]));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'vector' && e[2] === source)).toBe(true);
+  }
+
+  describe('SlopVector: one way in', () => {
+    it('a drop on the window places the files at the drop point', async () => {
+      await boot();
+      const before = objects(), files = [await png('a.png'), svg('b.svg')];
+      const st = W.SV.dom.stage, r = st.getBoundingClientRect();
+      await through('drop', 'place', () => st.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, dataTransfer: dtOf(files) })));
+      expect(objects()).toBe(before + 2);
+    }, { timeout: 45000 });
+    it("the strip's Choose files", async () => {
+      const files = [await png('c.png'), await png('d.png')];
+      await through('picker', 'place', () => { const i = D.querySelector('#svDrop input[type=file]'); i.files = dtOf(files).files; i.dispatchEvent(new W.Event('change')); });
+    });
+    it('File ▸ Place…', async () => {
+      const files = [await png('e.png'), await png('f.png')];
+      W.SlopUI.pickFiles = async () => files;
+      await through('picker', 'place', () => W.SV.runAction('file.place'));
+    });
+    it('a paste places the picture; its own clipboard copy is left to the app', async () => {
+      const f = await png('g.png');
+      await through('paste', 'place', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([f]) })), 1);
+      const own = await png('own.png', 55);
+      W.SV.buffer.ownsPasteFile = (x) => x.name === 'own.png';
+      seen = [];
+      D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([own]) }));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(seen).toEqual([]);
+    });
+    it('File ▸ Open… opens an SVG as the document', async () => {
+      W.SlopUI.pickFiles = async () => [svg('Opened.svg')];
+      await through('picker', 'new', () => W.SV.runAction('file.open'), 1);
+      await waitFor(() => W.SV.state.doc.name === 'Opened');
+    });
+    it('Place from Slop Drive', async () => {
+      const blob = await png('drive.png');
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'drive.png', type: 'image/png', blob });
+      await through('drive', 'place', () => W.SV.runAction('file.placeDrive'), 1);
+    });
+    it('Open from Slop Drive links the document', async () => {
+      const blob = svg('Linked.svg');
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x2', name: 'Linked.svg', type: 'image/svg+xml', blob });
+      await through('drive', 'new', () => W.SV.runAction('file.openDrive'), 1);
+      await waitFor(() => W.SV.state.doc.name === 'Linked');
+      expect(W.SV.hub.linked).toBe('x2');
+    });
+    it('?drive=<id> from another app (launch) opens a picture as a new artboard', async () => {
+      const blob = await png('sent.png', 64);
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x3', name: 'sent.png', type: 'image/png', blob });
+      await through('launch', 'new', () => W.SV.hub.init(), 1);
+      await waitFor(() => W.SV.state.doc.width === 64);
+    });
+  });
+
+  describe('SlopVector: one way out', () => {
+    it('File ▸ Send to is the SlopOuttake builder', () => {
+      const labels = W.SV.hub.sendItems().filter((x) => x !== '-').map((x) => x.label);
+      expect(labels).toContain('Send to PhotoSlop');
+      expect(labels).toContain('Send PNG to PhotoSlop');
+      expect(labels.filter((l) => l === 'Run a workflow…').length).toBe(1);
+    });
+  });
+  run({ name: 'Shared intake: SlopVector' });
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+/* Slop Colors, French: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('fr', {
+  'colors.wheel.label': 'Roue chromatique',
+  'colors.wheel.rule': 'Harmonie',
+  'colors.wheel.model': 'Roue',
+  'colors.wheel.bright': 'Luminosité',
+  'colors.wheel.light': 'Luminance',
+  'colors.wheel.bright_text': 'Luminosité {pct} %',
+  'colors.wheel.light_text': 'Luminance {pct} %',
+  'colors.wheel.keys': 'Faites glisser une poignée ou utilisez les flèches dessus : gauche et droite tournent la teinte, haut et bas changent la saturation, Maj avance de dix, Page préc. et Page suiv. changent la luminosité.',
+  'colors.wheel.base': 'Couleur de base',
+  'colors.wheel.handle': 'Couleur {n}',
+  'colors.wheel.value': 'Teinte {hue}°, saturation {sat} %, {hex}',
+  'colors.wheel.value_oklch': 'Teinte {hue}°, chroma {sat} %, {hex}',
+  'colors.wheel.rgb': 'RVB',
+  'colors.wheel.ryb': 'RJB (peintre)',
+  'colors.wheel.oklch': 'OKLCH (perceptuelle)',
+  'colors.harmony.brightness': 'Nuances',
+  'colors.harmony.custom': 'Personnalisée',
+  'colors.cmd.g_wheel': 'Roue chromatique',
+  'colors.cmd.wheel_rule': 'Roue : harmonie {rule}',
+  'colors.cmd.wheel_model': 'Roue : utiliser la roue {wheel}',
+  'colors.cmd.wheel_focus': 'Roue : aller à la roue chromatique',
+});

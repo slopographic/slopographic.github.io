@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>SlopCut · touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; overflow: hidden; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- SlopCut with a finger (tests/run.mjs --touch: an iPad in WebKit, an Android tablet in Chromium).
+       Covers: slopcut/js/timeline/input.js, slopcut/js/render/preview-input.js, slopcut/js/render/mask-input.js,
+       slopcut/js/render/mask-view.js, slopcut/js/ui/bin.js, slopcut/js/ui/app.js, slopcut/js/ui/insp-anim.js -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let W, SE, TL, A, cv, c1, c2;
+  const menu = () => W.document.querySelector('.sui-menu');
+  const closeMenus = () => W.document.body.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }));
+  /** The centre of a clip on the timeline canvas (a TouchKit target). */
+  const onClip = (id, dx = 0) => { const c = ST.M.clip(SE.doc, id), r = TL.clipRect(c); return { el: cv, x: r.x + r.w / 2 + dx, y: r.y + r.h / 2 }; };
+  const settle = async () => { TL.dirty(); await sleep(250); };
+
+  describe('SlopCut · touch', () => {
+    it('boots with the touch layer; the timeline and the monitor are touch surfaces', async () => {
+      W = await ST.boot('app');
+      await waitFor(() => W.SlopTouch && W.SlopTouch.ready, { timeout: 20000 });
+      SE = ST.SE; TL = SE.timeline; A = SE.app; cv = A.els.tlCanvas;
+      await ST.reset();
+      SE.change('clips', (p) => { c1 = ST.matte(p, 0, 0, 4, '#ff0000'); c2 = ST.matte(p, 0, 6, 54, '#00ff00'); });
+      c1 = SE.doc.clips[0].id; c2 = SE.doc.clips[1].id;
+      await sleep(300);
+      TL.snap = false; TL.pps = 40; TL.scrollX = 0; TL.scrollY = 0; TL.clampScroll(); await settle();
+      expect(cv.hasAttribute('data-touch-surface')).toBe(true);
+      expect(W.getComputedStyle(cv).touchAction).toBe('none');
+      expect(A.els.monStage.hasAttribute('data-touch-surface')).toBe(true);
+    }, { timeout: 60000 });
+    it('a tap selects a clip', async () => {
+      A.select([]);
+      await TouchKit.tap(onClip(c1));
+      expect([...A.sel]).toEqual([c1]);
+    });
+    it('a drag moves the selected clip along the timeline', async () => {
+      await sleep(400);
+      const s0 = ST.M.clip(SE.doc, c1).start;
+      await TouchKit.drag(onClip(c1), 40, 0, 10); // 40 px at 40 px a second: one second
+      await settle();
+      expect(ST.M.clip(SE.doc, c1).start - s0).toBeCloseTo(1, 0.15);
+    });
+    it('a finger grabs a trim edge 44 px wide (22 px either side of it)', async () => {
+      await sleep(400);
+      const c = ST.M.clip(SE.doc, c1), r = TL.clipRect(c), d0 = c.dur;
+      A.select([c1]);
+      await TouchKit.drag({ el: cv, x: r.x + r.w - 12, y: r.y + r.h / 2 }, -40, 0, 10); // 12 px inside the out edge
+      await settle();
+      expect(d0 - ST.M.clip(SE.doc, c1).dur).toBeCloseTo(1, 0.2);
+    });
+    it('a long press on a clip turns on Select mode; another opens the clip menu, and lifting does not pick an item', async () => {
+      await sleep(400);
+      await TouchKit.longPress(onClip(c1));
+      await waitFor(() => TL.multi, { timeout: 3000 });
+      expect(menu()).toBe(null);
+      await sleep(400);
+      await TouchKit.longPress(onClip(c1));
+      await waitFor(() => menu(), { timeout: 3000 });
+      await sleep(300);
+      expect(!!menu()).toBe(true);
+      expect([...A.sel]).toContain(c1);
+      closeMenus();
+      TL.setMulti(false);
+      await sleep(100);
+    });
+    it('a pinch zooms the timeline (not the page), and the still finger is not a long press', async () => {
+      await sleep(400);
+      const p0 = TL.pps;
+      await TouchKit.pinch({ el: cv, x: cv.getBoundingClientRect().width / 2, y: TL.clipRect(ST.M.clip(SE.doc, c2)).y + 20 }, 2, 10);
+      await settle();
+      expect(TL.pps / p0).toBeGreaterThan(1.6);
+      expect(TL.pps / p0).toBeLessThan(2.4);
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      expect(menu()).toBe(null);
+    });
+    it('a two-finger pan scrolls the timeline', async () => {
+      await sleep(400);
+      TL.pps = 40; TL.scrollX = 10; TL.clampScroll(); await settle();
+      const x0 = TL.scrollX;
+      await TouchKit.pan2({ el: cv, x: cv.getBoundingClientRect().width / 2, y: TL.clipRect(ST.M.clip(SE.doc, c2)).y + 20 }, -120, 0, 10);
+      await settle();
+      expect(TL.scrollX - x0).toBeCloseTo(3, 0.5); // 120 px left at 40 px a second: three seconds on
+    });
+  });
+  run({ name: 'SlopCut · touch' });
+  </script>
+</body>
+</html>

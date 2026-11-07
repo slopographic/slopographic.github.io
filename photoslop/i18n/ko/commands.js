@@ -1,0 +1,23 @@
+/* PhotoSlop, Korean: palette titles of the canvas, tool and window commands (app/commands.js). Same keys as photoslop/i18n/en/commands.js. Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'photoslop.cmd.opacity_toast': '불투명도 {pct}%',
+  'photoslop.cmd.cycle_tools': '{tools} 순환',
+  'photoslop.cmd.swap_colors': '전경색과 배경색 바꾸기',
+  'photoslop.cmd.default_colors': '기본 색(검정/흰색)',
+  'photoslop.cmd.brush_bigger': '브러시 크기 키우기',
+  'photoslop.cmd.brush_smaller': '브러시 크기 줄이기',
+  'photoslop.cmd.brush_harder': '브러시 경도 높이기',
+  'photoslop.cmd.brush_softer': '브러시 경도 낮추기',
+  'photoslop.cmd.tool_opacity': '도구 불투명도 {pct}%',
+  'photoslop.cmd.nudge_left': '왼쪽으로 {n}px 이동',
+  'photoslop.cmd.nudge_right': '오른쪽으로 {n}px 이동',
+  'photoslop.cmd.nudge_up': '위로 {n}px 이동',
+  'photoslop.cmd.nudge_down': '아래로 {n}px 이동',
+  'photoslop.cmd.next_doc': '다음 문서',
+  'photoslop.cmd.prev_doc': '이전 문서',
+  'photoslop.cmd.go_to_doc': '문서 {i}(으)로 이동',
+  'photoslop.cmd.restore_aspect': '원래 가로세로 비율로 되돌리기',
+  'photoslop.cmd.guides_panel': '안내선 패널(안내선 배치)',
+  'photoslop.cmd.search_key': '명령 검색({key})',
+  'photoslop.cmd.nav_preset': '탐색 프리셋…',
+});

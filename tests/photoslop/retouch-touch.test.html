@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>PhotoSlop Auto retouch with a finger</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Auto retouch on a touch tablet (WebKit as an iPad, Chromium as an Android tablet): a finger brushes an object away
+       with the Remove Object tool, and a finger drags the Auto Retouch dialog's before/after divider.
+       Covers: photoslop/js/retouch/tool.js, photoslop/js/retouch/dialog-view.js, photoslop/js/retouch/remove.js,
+       photoslop/js/tools/transform-idle.js (the Remove Object tool hides the layer box, so a finger paints) -->
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, win;
+  const at = (x, y) => ({ el: W.V.el, x: W.V.ox + x * W.V.zoom, y: W.V.oy + y * W.V.zoom });
+  const flatPx = (x, y) => [...W.flattenCanvas().getContext('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data].slice(0, 3);
+  /** Stripes with a red disc at (150, 110); at 100 %. */
+  function scene() {
+    W.newDocTab(300, 220, '#ffffff', 'Touch retouch'); W.actualPixels(); W.selectTool('move');
+    const c = W.mkCanvas(300, 220), g = c.getContext('2d');
+    for (let x = -220; x < 300; x += 20) { g.fillStyle = '#3c8c46'; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 10, 0); g.lineTo(x + 230, 220); g.lineTo(x + 220, 220); g.fill(); }
+    g.fillStyle = 'rgb(230,30,40)'; g.beginPath(); g.arc(150, 110, 16, 0, Math.PI * 2); g.fill();
+    W.addLayer({ name: 'Photo', canvas: c }, 'Add Photo');
+  }
+  async function rest() { W.eval('clearTimeout(autosaveTimer); autosaveTimer = 0'); await W.autosave(); await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => setTimeout(r, 50)))); }
+
+  describe('Auto retouch with a finger', () => {
+    it('boots', async () => {
+      ({ W, win } = await freshApp());
+      await waitFor(() => win.SlopTouch && win.SlopTouch.ready, { timeout: 20000 });
+      await W.psRetouch();
+    }, { timeout: 40000 });
+
+    it('a finger brushes the object away with the Remove Object tool', async () => {
+      scene();
+      W.selectTool('remove'); W.T.remove.mode = 'brush'; W.T.remove.size = 44;
+      await rest();
+      const before = W.Hist.idx;
+      // 10 px a step: a finger that moves at once is a drag, never a long press (shared/input/touch.js)
+      await TouchKit.drag(at(122, 110), 56, 0, 6);
+      await waitFor(() => W.Hist.idx === before + 1, { timeout: 30000 });
+      const p = flatPx(150, 110);
+      expect(p[0] > 150 && p[1] < 100).toBe(false);   // no red left in the middle
+      W.undo();
+      W.selectTool('move');
+    }, { timeout: 45000 });
+
+    it('a finger drags the before/after divider in the Auto Retouch dialog', async () => {
+      W.psRetouchDialog();
+      const dlg = await waitFor(() => win.document.querySelector('.sui-dlg.rt-dlg .rt-canvas') && win.document.querySelector('.sui-dlg.rt-dlg'), { timeout: 10000 });
+      await sleep(500);
+      const cv = dlg.querySelector('.rt-canvas'), knob = dlg.querySelector('.rt-knob'), r = cv.getBoundingClientRect();
+      await TouchKit.drag({ el: cv, x: r.width * 0.5, y: r.height * 0.5 }, -r.width * 0.3, 0, 8);
+      await waitFor(() => +knob.getAttribute('aria-valuenow') < 35, { timeout: 3000 });
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Cancel').click();
+    }, { timeout: 30000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop Auto retouch with a finger' });
+  </script>
+</body>
+</html>

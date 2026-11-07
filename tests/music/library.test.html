@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: library, ID3 and tags</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  // Covers: music/js/core/vorbis.js, music/js/core/id3.js, music/js/core/analyze.js, music/js/core/library.js, music/js/ui/library.js, music/js/ui/now.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const F = window.MusicFixtures;
+  let W, H, wavId, mp3Id;
+  const rows = () => [...W.document.querySelectorAll('#lib-list .mu-row')];
+  const titleOf = (li) => li.querySelector('.mu-txt b').textContent;
+  const tagButton = (tag) => [...W.document.querySelectorAll('.mu-tagbtn')].find((b) => b.firstElementChild.textContent === tag);
+
+  describe('Slop Music library', () => {
+    it('shows a WAV from Slop Drive with its name as title and its duration', async () => {
+      H = window.SlopHub;
+      await H.clear();
+      wavId = await H.put(F.wav(3), { name: 'Sunrise.wav', from: 'upload' });
+      mp3Id = await H.put(F.mp3({ title: 'Tiny ID3 Title', artist: 'Slop Tester', album: 'Test Album' }), { name: 'track-07.mp3', from: 'upload' });
+      W = await DT.frame('../../music/', (w) => w.SlopMusic && w.document.querySelectorAll('#lib-list .mu-row').length === 2);
+      const wavRow = await waitFor(() => rows().find((li) => titleOf(li) === 'Sunrise' && li.querySelector('.mu-dur').textContent === '0:03'), { timeout: 15000 });
+      expect(wavRow).toBeTruthy();
+    });
+
+    it('reads the ID3 title, artist and album of an MP3 from its tag', async () => {
+      await waitFor(() => rows().some((li) => titleOf(li) === 'Tiny ID3 Title'), { timeout: 15000 });
+      const t = W.SlopMusic.lib.track(mp3Id);
+      expect(t.artist).toBe('Slop Tester');
+      expect(t.album).toBe('Test Album');
+      expect(t.coverUrl).toBe('');
+    });
+
+    it('sorts by title and searches the library', async () => {
+      const sort = W.document.getElementById('lib-sort');
+      sort.value = 'title'; sort.dispatchEvent(new W.Event('change'));
+      await waitFor(() => titleOf(rows()[0]) === 'Sunrise', { timeout: 5000 });
+      expect(titleOf(rows()[1])).toBe('Tiny ID3 Title');
+      const q = W.document.getElementById('lib-search');
+      q.value = 'tiny'; q.dispatchEvent(new W.Event('input'));
+      await waitFor(() => rows().length === 1, { timeout: 5000 });
+      expect(titleOf(rows()[0])).toBe('Tiny ID3 Title');
+      q.value = ''; q.dispatchEvent(new W.Event('input'));
+      await waitFor(() => rows().length === 2, { timeout: 5000 });
+    });
+
+    it('tags a track "workout" and the Tags filter shows only that track', async () => {
+      await W.SlopMusic.lib.setTags(wavId, ['Workout']);
+      const btn = await waitFor(() => tagButton('workout'), { timeout: 5000 });
+      expect(btn.lastElementChild.textContent).toBe('1');
+      btn.click();
+      await waitFor(() => rows().length === 1, { timeout: 5000 });
+      expect(titleOf(rows()[0])).toBe('Sunrise');
+      expect((await H.get(wavId)).meta.tags).toEqual(['workout']);
+      tagButton('workout').click();
+      await waitFor(() => rows().length === 2, { timeout: 5000 });
+    });
+
+    it('reads the Vorbis comments and front cover of a FLAC file, and lists an album in track order', async () => {
+      const tags = (title, n) => [['TITLE', title], ['ARTIST', 'Flac Band'], ['ALBUM', 'Lossless'], ['TRACKNUMBER', n], ['DATE', '2019-05-01'], ['GENRE', 'Jazz']];
+      const two = await H.put(F.flac({ comments: tags('A second song', '2'), pictures: [[3, 'image/png', F.PNG]] }), { name: '02.flac', from: 'upload' });
+      await H.put(F.flac({ comments: tags('Zed opens the album', '1') }), { name: '01.flac', from: 'upload' });
+      await waitFor(() => rows().some((li) => titleOf(li) === 'A second song') && rows().some((li) => titleOf(li) === 'Zed opens the album'), { timeout: 20000 });
+      const t = W.SlopMusic.lib.track(two);
+      expect([t.artist, t.album, t.track, t.year, t.genre]).toEqual(['Flac Band', 'Lossless', 2, '2019', 'Jazz']);
+      expect(t.coverUrl.startsWith('blob:')).toBe(true);
+      const sort = W.document.getElementById('lib-sort');
+      sort.value = 'album'; sort.dispatchEvent(new W.Event('change'));
+      await waitFor(() => { const r = rows().map(titleOf); return r.indexOf('Zed opens the album') >= 0 && r.indexOf('Zed opens the album') + 1 === r.indexOf('A second song'); }, { timeout: 5000 });
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: library, ID3 and tags' });
+  </script>
+</body>
+</html>

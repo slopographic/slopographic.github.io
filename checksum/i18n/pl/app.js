@@ -1,0 +1,28 @@
+/* Checksum, Polish: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-pl.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'checksum.app.home': 'Strona główna Slopographic',
+  'checksum.app.lede': 'Oblicz hash pliku albo porównaj go z hashem podanym przez wydawcę. Plik jest odczytywany na tym urządzeniu i nigdy nie jest przesyłany.',
+  'checksum.app.step_choose': '1. Wybierz plik',
+  'checksum.app.drop': 'Wybierz plik albo upuść go tutaj',
+  'checksum.app.step_hash': '2. Hash',
+  'checksum.app.hash_label': 'Hash pliku',
+  'checksum.app.settings_label': 'Ustawienia hasha',
+  'checksum.app.algorithm': 'Algorytm',
+  'checksum.app.sha1_note': 'SHA-1 zostawiono tylko po to, by pasować do starszych opublikowanych hashy. Do nowych sprawdzeń używaj SHA-256.',
+  'checksum.app.check_against': 'Porównaj z opublikowanym hashem',
+  'checksum.app.expected': 'Oczekiwany hash',
+  'checksum.app.expected_ph': 'Wklej hash ze strony pobierania',
+  'checksum.app.copy': 'Kopiuj hash',
+  'checksum.app.copied': 'Skopiowano',
+  'checksum.app.copy_failed': 'Nie udało się skopiować',
+  'checksum.app.settings': 'Ustawienia',
+  'checksum.app.a_file': 'plik',
+  'checksum.app.reading': 'Odczytywanie: {name} ({mb} MB)…',
+  'checksum.app.hash_of': '{alg} pliku {name}',
+  'checksum.app.choose_first': 'Najpierw wybierz plik.',
+  'checksum.app.not_hash': 'To nie wygląda na hash (dozwolone są tylko litery od a do f i cyfry).',
+  'checksum.app.length_differs': 'Długość się różni: hash {alg} ma {n} znaków. Sprawdź algorytm.',
+  'checksum.app.match': 'Zgodne: plik jest tym, który został opublikowany.',
+  'checksum.app.no_match': 'Niezgodne: plik różni się od opublikowanego hasha.',
+});

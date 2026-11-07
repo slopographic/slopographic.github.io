@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables AI commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+  <!-- Covers: tables/js/ui/ai-commands.js -->
+  <!-- Covers: tables/js/ui/ai-ops.js -->
+  <!-- Covers: tables/js/ui/commands.js -->
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="tables.helpers.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  let W, T, C;
+  const col = (letter, n = 5) => Array.from({ length: n - 1 }, (_, i) => T.value(letter + (i + 2)));
+  const steps = () => T.S.hist.undo.length;
+  const ex = (tool, args) => C.exec('tables.ai.' + tool.replace(/_/g, '-'), args);
+
+  describe('Slop Tables · assistant commands', () => {
+    it('loads the AI commands only on prepare, hidden and with argument schemas', async () => {
+      W = await TB.boot(); T = TB.T; C = W.SlopCmd;
+      const rows = [['Item', 'Price', 'Qty'], ['Pear', 3, 4], ['Apple', 5, 2], ['Fig', 1, 10], ['Kiwi', 2, 7]];
+      rows.forEach((row, r) => row.forEach((v, c) => T.setCell('ABC'[c] + (r + 1), String(v))));
+      expect(C.get('tables.ai.sort-column')).toBe(null);
+      expect(W.performance.getEntriesByType('resource').some((e) => /ai-commands\.js/.test(e.name))).toBe(false);
+      await C.prepare();
+      const v = C.list().find((c) => c.id === 'tables.ai.sort-column');
+      expect(v.tool).toBe('sort_column');
+      expect(v.hidden).toBe(true);
+      expect(v.destructive).toBe(false);
+      expect(v.args.map((a) => a.name)).toEqual(['column', 'order']);
+      for (const t of ['filter_rows', 'clear_filter', 'add_column', 'fill_column', 'set_cell', 'undo']) expect(!!C.list().find((c) => c.tool === t)).toBe(true);
+    });
+
+    it('sorts by header name or letter, one undo step each', async () => {
+      const before = steps();
+      let r = await ex('sort_column', { column: 'price', order: 'descending' });
+      expect(r.ok).toBe(true);
+      expect(r.value).toMatch(/Sorted 4 rows by B \(Price\)/);
+      expect(col('A')).toEqual(['Apple', 'Pear', 'Kiwi', 'Fig']);
+      expect(col('C')).toEqual([2, 4, 7, 10]);
+      expect(T.value('A1')).toBe('Item');
+      expect(steps()).toBe(before + 1);
+      r = await ex('sort_column', { column: 'A' });
+      expect(col('A')).toEqual(['Apple', 'Fig', 'Kiwi', 'Pear']);
+      T.undo();
+      expect(col('A')).toEqual(['Apple', 'Pear', 'Kiwi', 'Fig']);
+      T.redo();
+    });
+
+    it('adds a column (width clamped) and fills it with a formula', async () => {
+      let r = await ex('add_column', { name: 'Total', width: 5000 });
+      expect(r.ok).toBe(true);
+      expect(r.args.width).toBe(600);
+      expect(r.notes.length).toBeGreaterThan(0);
+      expect(T.value('D1')).toBe('Total');
+      expect(T.sheet.colW(3)).toBe(600);
+      const before = steps();
+      r = await ex('fill_column', { column: 'Total', formula: '=B2*C2' });
+      expect(r.ok).toBe(true);
+      expect(col('D')).toEqual([10, 10, 14, 12]);
+      expect(T.sheet.get(4, 3).f).toBe('B5*C5');
+      expect(steps()).toBe(before + 1);
+      T.undo();
+      expect(col('D')).toEqual([null, null, null, null]);
+      expect(T.value('D1')).toBe('Total');
+      T.redo();
+      expect(col('D')).toEqual([10, 10, 14, 12]);
+    });
+
+    it('inserts a column in the middle and moves the formulas with their cells', async () => {
+      const r = await ex('add_column', { name: 'Code', position: 'Price' });
+      expect(r.ok).toBe(true);
+      expect(T.value('B1')).toBe('Code');
+      expect(T.value('C1')).toBe('Price');
+      expect(T.sheet.get(1, 4).f).toBe('C2*D2');
+      expect(col('E')).toEqual([10, 10, 14, 12]);
+      T.setCell('C3', '6');
+      expect(T.value('E3')).toBe(60);
+    });
+
+    it('filters rows and clears the filter', async () => {
+      let r = await ex('filter_rows', { column: 'Price', condition: 'greater_than', value: '2' });
+      expect(r.ok).toBe(true);
+      expect(r.value).toMatch(/showing 3 of 4 rows/);
+      expect(T.sheet.isRowHidden(1)).toBe(false);
+      expect(T.sheet.isRowHidden(3)).toBe(true); // Fig, 1
+      r = await ex('filter_rows', { column: 'item', condition: 'contains', value: 'p' });
+      expect(r.value).toMatch(/showing 2 of 4 rows/);
+      expect(C.state().filtered_rows).toBe(2);
+      r = await ex('clear_filter', {});
+      expect(r.value).toMatch(/2 were hidden/);
+      expect([1, 2, 3, 4].some((i) => T.sheet.isRowHidden(i))).toBe(false);
+    });
+
+    it('reports bad arguments as errors and changes nothing', async () => {
+      const before = steps(), json = JSON.stringify(T.S.wb.sheets[0].cells.size);
+      let r = await ex('sort_column', { column: 'Weight' });
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/No column "Weight". Columns: A \(Item\)/);
+      r = await ex('filter_rows', { column: 'Price', condition: 'approximately', value: 3 });
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/condition/);
+      r = await ex('set_cell', { cell: 'B7', value: '=SUM(' });
+      expect(r.ok).toBe(false);
+      r = await ex('set_cell', { cell: 'nowhere', value: '1' });
+      expect(r.error).toMatch(/not a cell reference/);
+      r = await ex('fill_column', { column: 'E' });
+      expect(r.error).toMatch(/formula/);
+      expect(steps()).toBe(before);
+      expect(JSON.stringify(T.S.wb.sheets[0].cells.size)).toBe(json);
+    });
+
+    it('sets a cell, sums up the state, and rolls back to a checkpoint', async () => {
+      const cp = C.checkpoint(), snap = T.csv();
+      let r = await ex('set_cell', { cell: 'E7', value: '=SUM(E2:E5)' });
+      expect(r.ok).toBe(true);
+      expect(r.value).toMatch(/→ 96/);
+      await ex('sort_column', { column: 'Qty', order: 'descending' });
+      const st = C.state();
+      expect(st.app).toBe('tables');
+      expect(st.active_sheet).toBe('Sheet1');
+      expect(st.sheets).toEqual(['Sheet1']);
+      expect(st.columns.map((c) => c.name)).toEqual(['Item', 'Code', 'Price', 'Qty', 'Total']);
+      expect(st.table.range).toBe('A1:E7');
+      expect(typeof st.selection).toBe('string');
+      expect(st.can_undo).toBe(true);
+      expect(T.csv()).not.toBe(snap);
+      expect(cp()).toBe(true);
+      expect(T.csv()).toBe(snap);
+      T.undo(); // the rollback is one more undo step
+      expect(T.value('E7')).toBe(96);
+      r = await ex('undo', { steps: 99 });
+      expect(r.args.steps).toBe(20);
+      expect(T.value('A1')).toBe('Item');
+      expect(r.value).toMatch(/Undid \d+ steps/);
+      expect(T.value('B1')).toBe('Price'); // back to the typed table: no Code or Total column
+      expect(T.value('D1')).toBe(null);
+      expect(T.S.hist.undo.length).toBe(0);
+    });
+  });
+  run({ name: 'Slop Tables · AI commands' });
+  </script>
+</body>
+</html>

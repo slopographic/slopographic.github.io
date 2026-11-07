@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · context menu tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const labelOf = (id) => PR.actions.get(id).title;
+  const menuRows = () => [...W.document.querySelectorAll('.sui-menu .sui-row')];
+  const menuText = () => menuRows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const clickItem = (label) => {
+    const row = menuRows().find((r) => r.querySelector('.sui-lbl').textContent === label);
+    if (!row) throw new Error('no menu item "' + label + '" in [' + menuText().join(' | ') + ']');
+    row.click();
+  };
+  const closeMenus = () => W.SlopUI.closeMenu();
+  const canvasAt = (x, y) => { const c = W.document.getElementById('view'), r = c.getBoundingClientRect(); return { c, x: r.left + x, y: r.top + y }; };
+  const contextAt = (el, x, y) => el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2 }));
+  const menuKey = (el, k = 'F10', o = { shiftKey: true }) => el.dispatchEvent(new W.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o)));
+  /** Screen point at the centre of an item on the canvas. */
+  const onScreen = (it) => { const v = PR.view.active(), p = PR.view.toScreen(v.x + it.x + it.w / 2, v.y + it.y + it.h / 2), c = W.document.getElementById('view').getBoundingClientRect(); return { x: c.left + p.x, y: c.top + p.y }; };
+  /** A fresh page with one rectangle selected. */
+  function makeRect() {
+    freshDoc({ pages: 1, facing: false }); PR.view.fitPage();
+    PR.tools.set('rect');
+    const c = canvasAt(330, 260), e = canvasAt(420, 320);
+    const ev = (type, p, btn) => c.c.dispatchEvent(new W.PointerEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, pointerId: 9, pointerType: 'mouse', button: btn, buttons: btn === 0 && type === 'pointerup' ? 0 : 1 }));
+    ev('pointerdown', c, 0); ev('pointermove', e, 0); ev('pointerup', e, 0);
+    PR.tools.set('select');
+    const r = PR.selected()[0]; if (!r || r.type !== 'rect') throw new Error('rect not drawn');
+    return r;
+  }
+
+  describe('context menus', () => {
+    it('right-click on an empty page offers page items, and Insert page after adds a page', async () => {
+      await bootPress();
+      freshDoc({ pages: 1, facing: false }); PR.view.fitPage(); await sleep(30);
+      PR.select([]);
+      const p = canvasAt(300, 200);
+      contextAt(p.c, p.x, p.y);
+      expect(menuText()).toContain(labelOf('layout.addPage'));
+      expect(menuText()).toContain(labelOf('view.fitPage'));
+      expect(menuText()).not.toContain(labelOf('object.lock'));
+      clickItem(labelOf('layout.addPage'));
+      expect(PR.state.doc.pages.length).toBe(2);
+      closeMenus();
+    });
+
+    it('right-click on a rectangle offers graphic items and Lock locks it', async () => {
+      const r = makeRect();
+      contextAt(W.document.getElementById('view'), ...Object.values(onScreen(r)));
+      expect(menuText()).toContain(labelOf('object.rotate90'));
+      expect(menuText()).toContain(labelOf('object.lock'));
+      expect(menuText()).not.toContain(labelOf('object.placeImage'));
+      clickItem(labelOf('object.lock'));
+      expect(!!r.locked).toBe(true);
+      closeMenus();
+    });
+
+    it('Shift+F10 on the canvas with a selection opens the same menu for it', async () => {
+      makeRect();
+      const c = W.document.getElementById('view');
+      c.focus();
+      menuKey(c);
+      expect(menuText()).toContain(labelOf('object.rotate90'));
+      expect(menuText()).not.toContain(labelOf('layout.addPage'));
+      closeMenus();
+    });
+
+    it('the Menu key on a focused page thumbnail opens the page menu', async () => {
+      PR.select([]);
+      PR.actions.run('window.pages');
+      const th = W.document.querySelector('.pthumb');
+      expect(!!th).toBe(true);
+      th.focus();
+      menuKey(th, 'ContextMenu', {});
+      expect(menuText()).toContain('Insert Page After');
+      closeMenus();
+    });
+
+    it('Shift+F10 on a focused layer row opens the layer menu', async () => {
+      PR.actions.run('window.layers');
+      await waitFor(() => W.document.querySelector('.lrow'));
+      const row = W.document.querySelector('.lrow');
+      expect(!!row).toBe(true);
+      row.focus();
+      menuKey(row);
+      expect(menuText().length).toBeGreaterThan(0);
+      closeMenus();
+    });
+    it('the Menu key on a focused swatch opens the swatch menu', async () => {
+      PR.actions.run('window.swatches');
+      await waitFor(() => [...W.document.querySelectorAll('.sw')].length > 0);
+      const sw = [...W.document.querySelectorAll('.sw')].pop();
+      sw.focus();
+      menuKey(sw, 'ContextMenu', {});
+      expect(menuText()[0]).toMatch(/^Edit /);
+      closeMenus();
+    });
+  });
+  SlopTest.run({ name: 'Slop Press · context menus' });
+  </script>
+</body>
+</html>

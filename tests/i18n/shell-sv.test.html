@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The shell in Swedish: header buttons, switcher, drawer, notifications</title>
+  <!-- Covers: shell/header.js, shell/switcher.js, shell/drawer.js, shell/notify.js, shared/tour/mount.js, shared/i18n/ui/en/shell.js, shared/i18n/ui/sv/shell.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  // The shell's own words on app pages. Slop PDF has the video tutorial (and Convert and AI); Slop Hex has a tour. The switcher
+  // and the app drawer are built on their first open, so they are opened (and closed) first; their words must follow the
+  // live switch too.
+  const openPanels = async (f) => {
+    const w = f.contentWindow;
+    w.SlopSwitcher.open(); w.SlopSwitcher.close();
+    w.SlopDrawer.open(); w.SlopDrawer.close();
+  };
+  AppSv.spec({
+    name: 'The shell (Slop PDF)', path: '../../pdf/index.html', ns: 'pdf',
+    // the Tutorial button links the app's video: a build without this site's media has none (tests/brand-facts.js)
+    ready: (doc, win) => doc.querySelector('.sh-hdr .sh-theme') && (!window.BRAND_FACTS.media || doc.querySelector('.sh-hdr .sh-tutorial')) && win.SlopSwitcher && win.SlopDrawer,
+    before: openPanels,
+    checks: [
+      ['.sh-hdr .sh-theme', 'Tema', 'Theme', 'aria-label'],
+      ['.sh-hdr .sh-switch', 'Byt app', 'Switch app', 'aria-label'],
+      ...(window.BRAND_FACTS.media ? [['.sh-hdr .sh-tutorial', 'Se videoguiden för', 'Watch the', 'aria-label']] : []),
+      ['.sh-hdr .sh-convert', 'Konvertera filer', 'Convert files', 'aria-label'],
+      ['.sh-hdr .sh-ai', 'Slop AI: fråga', 'Slop AI: ask', 'title'],
+      ['.sn-panel', 'Aviseringar', 'Notifications', 'aria-label'],
+      ['.sh-back .sh-all', 'Alla appar', 'All apps'],
+      ['.sh-back .sh-close', 'Stäng', 'Close', 'aria-label'],
+      ['.sh-dr .sh-dr-h', 'Alla appar', 'All apps'],
+      ['.sh-dr .sh-dr-hint', 'Dra en app', 'Drag an app'],
+      ['.sh-dr .sh-dr-close', 'Stäng applådan', 'Close app drawer', 'aria-label'],
+    ],
+  });
+  AppSv.spec({
+    name: 'The shell (Slop Hex, with a tour)', path: '../../hex/index.html', ns: 'hex',
+    ready: (doc, win) => doc.body.classList.contains('ready') && doc.querySelector('.sh-hdr .sh-theme') && doc.querySelector('.stour-btn') && win.SlopSwitcher,
+    before: async (f) => { const w = f.contentWindow; w.SlopSwitcher.open(); w.SlopSwitcher.close(); },
+    checks: [
+      ['.sh-hdr .sh-theme', 'Tema', 'Theme', 'aria-label'],
+      ['.stour-btn', 'Starta guiden för', 'Start the', 'aria-label'],
+      ['.sh-back .sh-all', 'Alla appar', 'All apps'],
+    ],
+  });
+  SlopTest.run({ name: 'The shell in Swedish' });
+  </script>
+</body>
+</html>

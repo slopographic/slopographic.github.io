@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CRM · the app at 390 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../crm/index.html#pipeline';
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const ready = () => win() && win().SlopCrm && doc() && doc().getElementById('boot').hidden && !doc().getElementById('view-pipeline').hidden;
+  const errors = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const S = () => win().SlopData;
+  // The open dialog on top: a dialog that is closing (.sui-out, its animation) is still in the page for a moment, and a
+  // helper that took the first .sui-dlg would fill that one under load and leave the new dialog open.
+  const dlg = () => SlopTest.topDialog(doc());
+  const field = (label) => [...dlg().querySelectorAll('.fld')]
+    .find((l) => l.querySelector('.fld-t').textContent === label).querySelector('input,select,textarea');
+  const dlgSave = () => dlg() && dlg().querySelector('.sui-primary');
+  const dlgText = () => (dlg() || { textContent: '' }).textContent;
+  const customerNamed = async (name) => (await S().store.list('customers')).value.find((c) => c.name === name);
+  const card = (name) => [...doc().querySelectorAll('.card-c')].find((c) => c.querySelector('.c-name').textContent === name);
+  const colOf = (stage) => doc().querySelector(`.col[data-stage="${stage}"]`);
+  const addCustomer = async (name) => {
+    $('pAdd').click();
+    await waitFor(() => dlg() && dlgText().includes('Add customer'));
+    field('Name').value = name;
+    dlgSave().click();
+    await waitFor(async () => (await customerNamed(name)) || false, { timeout: 8000 });
+    await waitFor(() => card(name), { timeout: 8000 });
+  };
+
+  describe('the pipeline in a 390 px wide window', () => {
+    it('opens on an empty pipeline, one column per stage, with no horizontal scroll', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      win().addEventListener('error', (e) => errors.push(e.message));
+      expect(doc().querySelectorAll('.col')).toHaveLength(4);
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+
+    it('a customer added in the form lands in the Lead column', async () => {
+      await addCustomer('Ada Mill');
+      expect(colOf('lead').textContent).toContain('Ada Mill');
+      const c = await customerNamed('Ada Mill');
+      expect(c.stage).toBe('lead');
+    });
+
+    it('a stage move from the card menu is saved and shows on the board', async () => {
+      const c = card('Ada Mill');
+      const r = c.querySelector('.c-name').getBoundingClientRect();
+      c.dispatchEvent(new (win().MouseEvent)('contextmenu', { bubbles: true, cancelable: true, clientX: r.left, clientY: r.bottom, button: 2 }));
+      await waitFor(() => [...doc().querySelectorAll('.sui-menu .sui-row')].find((x) => x.textContent.includes('Move to Contacted')));
+      [...doc().querySelectorAll('.sui-menu .sui-row')].find((x) => x.textContent.includes('Move to Contacted')).click();
+      await waitFor(async () => (await customerNamed('Ada Mill')).stage === 'contacted', { timeout: 8000 });
+      await waitFor(() => colOf('contacted').textContent.includes('Ada Mill'), { timeout: 8000 });
+      expect(colOf('lead').textContent).not.toContain('Ada Mill');
+      expect((await customerNamed('Ada Mill')).stage).toBe('contacted');
+    });
+
+    it('a card dropped on another column moves to that stage', async () => {
+      await addCustomer('Ben Ort');
+      const c = card('Ben Ort');
+      const dt = new (win().DataTransfer)();
+      dt.setData('text/plain', c.dataset.id);
+      colOf('lost').dispatchEvent(new (win().DragEvent)('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await waitFor(async () => (await customerNamed('Ben Ort')).stage === 'lost', { timeout: 8000 });
+      await waitFor(() => colOf('lost').textContent.includes('Ben Ort'), { timeout: 8000 });
+    });
+  });
+
+  describe('the customer panel', () => {
+    it('a dated note is stored with its date and shown in the panel', async () => {
+      const c = await customerNamed('Ada Mill');
+      await win().SlopCrm.customers.addNote(c.id, 'Sent the price list', '2026-10-11');
+      const saved = await customerNamed('Ada Mill');
+      expect(saved.notes).toBe('[2026-10-11] Sent the price list');
+      win().SlopCrm.app.show('customer', c.id);
+      await waitFor(() => doc().querySelector('.note-text') && doc().querySelector('.note-text').textContent === 'Sent the price list');
+      expect(doc().querySelector('.note-date').textContent).toContain('2026');
+    });
+  });
+
+  describe('import from Slop Contacts', () => {
+    const list = (contacts) => new Blob([JSON.stringify({ format: 'slop-contacts', version: 1, contacts })], { type: 'application/x-slop-contacts' });
+    const contacts = [
+      { id: 'c-1', fn: 'Cara Vale', name: { given: 'Cara', family: 'Vale' }, emails: [{ value: 'cara@example.test' }], phones: [], adr: [], groups: ['wholesale'], note: 'Met at fair' },
+      { id: 'c-2', fn: 'Dan Ruiz', emails: [], phones: [{ value: '555 0100' }], adr: [], groups: [] },
+    ];
+    it('imports the saved list once, and a second import adds no duplicates', async () => {
+      await win().SlopHub.put(list(contacts), { name: 'Contacts.scontacts', from: 'contacts' });
+      win().SlopCrm.app.show('customers');
+      $('cImport').click();
+      await waitFor(() => dlg() && dlgText().includes('2 new customers'), { timeout: 8000 });
+      dlgSave().click();
+      await waitFor(async () => (await S().store.list('customers')).value.length === 4, { timeout: 8000 });
+      const cara = await customerNamed('Cara Vale');
+      expect(cara.contactId).toBe('c-1');
+      expect(cara.categories).toEqual(['wholesale']);
+      expect(cara.stage).toBe('lead');
+      $('cImport').click();
+      await waitFor(() => dlg() && dlgText().includes('0 new customers'), { timeout: 8000 });
+      expect(dlgSave()).toBeTruthy();
+      expect(dlgSave().disabled).toBe(false);
+      dlgSave().click();
+      await sleep(300);
+      expect((await S().store.list('customers')).value).toHaveLength(4);
+    });
+    it('Choose another list… is the one shared Slop Drive picker, and the plan follows the list picked there', async () => {
+      // Covers: crm/js/ui/import.js, crm/js/core/contacts-import.js
+      const older = (await win().SlopHub.list({ trashed: false })).find((r) => r.name === 'Contacts.scontacts');
+      await win().SlopHub.put(list([{ id: 'c-3', fn: 'Eve Lund', emails: [], phones: [], adr: [], groups: [] }]), { name: 'More.scontacts', from: 'contacts' });
+      $('cImport').click();
+      await waitFor(() => dlg() && dlgText().includes('More.scontacts') && dlgText().includes('1 new customer'), { timeout: 8000 });
+      const asked = [];
+      win().SlopHub.pickFromDrive = async (o) => { asked.push(o); return win().SlopHub.get(older.id); };
+      [...dlg().querySelectorAll('button')].find((b) => b.textContent === 'Choose another list…').click();
+      await waitFor(() => dlgText().includes('Saved list: Contacts.scontacts') && dlgText().includes('0 new customers'), { timeout: 8000 });
+      expect(asked.length).toBe(1);
+      expect(asked[0].accept).toContain('application/x-slop-contacts');
+      [...dlg().querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+    });
+  });
+
+  describe('the follow-up list', () => {
+    it('a follow-up date shows on the list, and Done clears it', async () => {
+      const c = await customerNamed('Dan Ruiz');
+      await win().SlopCrm.customers.setFollowUp(c.id, '2020-01-02');
+      win().SlopCrm.app.show('followups');
+      await waitFor(() => doc().querySelector('#fRows .row.overdue'), { timeout: 8000 });
+      doc().querySelector('#fRows .row.overdue .btn').click();
+      await waitFor(async () => !(await customerNamed('Dan Ruiz')).followUp, { timeout: 8000 });
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+  });
+
+  describe('the site theme', () => {
+    it('follows the site theme (shared/biz/app.css): text reads on its background in every theme', async () => {
+      // Covers: crm/css/crm.css, crm/css/crm-labels.css, shared/biz/app.css
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        win().SlopTheme.apply(theme);
+        const inp = win().getComputedStyle(doc().querySelector('#cSearch')), body = win().getComputedStyle(doc().body);
+        expect(SlopTest.contrast(inp.webkitTextFillColor || inp.color, inp.backgroundColor) >= 4.5).toBe(true, `${theme}: input`);
+        expect(SlopTest.contrast(body.color, body.backgroundColor) >= 4.5).toBe(true, `${theme}: page`);
+      }
+    });
+  });
+
+  describe('suppliers', () => {
+    it('a contact flagged supplier (Slop Purchases) is not on the sales pipeline', async () => {
+      // Covers: crm/js/ui/board.js
+      await S().store.put('customers', { name: 'Parts Supplier', stage: 'customer', supplier: true });
+      win().SlopCrm.app.show('pipeline');
+      await waitFor(() => colOf('customer') && !doc().getElementById('view-pipeline').hidden);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(doc().getElementById('view-pipeline').textContent.includes('Parts Supplier')).toBe(false);
+    });
+    it('in the customer list a supplier reads Supplier instead of a sales stage', async () => {
+      // Covers: crm/js/ui/list.js
+      win().SlopCrm.app.show('customers');
+      await waitFor(() => [...doc().querySelectorAll('#cRows .row')].some((r) => r.dataset.name === 'Parts Supplier'), { timeout: 8000 });
+      const row = [...doc().querySelectorAll('#cRows .row')].find((r) => r.dataset.name === 'Parts Supplier');
+      expect(row.querySelector('.stage').textContent).toBe('Supplier');
+    });
+  });
+
+  describe('the local-only rule', () => {
+    it('no error reached the page', () => {
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  run({ name: 'Slop CRM · 390 px' });
+  </script>
+</body>
+</html>

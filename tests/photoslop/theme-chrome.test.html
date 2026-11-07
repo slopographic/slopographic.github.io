@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop theme chrome</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe. The shared theme switcher (SlopTheme.set) drives it. -->
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, win;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  /** Any CSS colour (rgb, color-mix, color()) as [r, g, b] through a canvas. */
+  const rgb = (css) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = css; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; };
+  const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const style = (sel) => { const el = W.document.querySelector(sel); if (!el) throw new Error('missing ' + sel); return win.getComputedStyle(el); };
+  /** The chrome read back on the page: menu bar, first panel header and its title colours. */
+  const read = () => {
+    const bar = style('.topbar'), head = style('.panel-head'), item = style('.mb-item');
+    return { bar: rgb(bar.backgroundColor), head: rgb(head.backgroundColor), title: rgb(head.color), item: rgb(item.color) };
+  };
+  const pick = (id) => { const r = win.SlopTheme.set(id); if (!r.ok) throw new Error('set ' + id + ' failed: ' + r.error); return read(); };
+
+  describe('boot', () => {
+    it('loads the app in the test frame', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 40000 });
+      W = win;
+      expect(!!win.SlopTheme).toBe(true);
+      expect(win.document.querySelectorAll('.panel-head').length).toBeGreaterThanOrEqual(5);
+    }, { timeout: 60000 });
+  });
+
+  describe('theme switcher reaches the menu bar and panel headers', () => {
+    it('Light and Dark change the menu bar and the panel header colours', () => {
+      // the bar is the theme's background (this site: #ebe7de and #0a0a0a; a build's profile sets its own, shared/theme/theme.js)
+      const bg = (id) => { const h = win.SlopTheme.THEMES.find((t) => t.id === id).tokens.background; return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); };
+      const light = pick('light');
+      expect(light.bar).toEqual(bg('light'));
+      const dark = pick('dark');
+      expect(dark.bar).toEqual(bg('dark'));
+      expect(light.bar).not.toEqual(dark.bar);
+      expect(light.head).not.toEqual(dark.head);
+      expect(win.document.documentElement.getAttribute('data-slop-theme')).toBe('dark');
+    });
+
+    it('the panel title text is at least 4.5:1 on its header in Light and in Dark', () => {
+      for (const id of ['light', 'dark']) {
+        const r = pick(id);
+        const c = ratio(r.title, r.head);
+        if (c < 4.5) throw new Error(`${id}: panel title ${r.title} on ${r.head} is ${c.toFixed(2)}:1`);
+      }
+    });
+
+    it('the menu bar text is at least 4.5:1 on the bar in Light and in Dark', () => {
+      for (const id of ['light', 'dark']) {
+        const r = pick(id);
+        const c = ratio(r.item, r.bar);
+        if (c < 4.5) throw new Error(`${id}: menu text ${r.item} on ${r.bar} is ${c.toFixed(2)}:1`);
+      }
+    });
+
+    it('an input in Light and in Dark takes the surface colour and readable text', () => {
+      for (const id of ['light', 'dark']) {
+        pick(id);
+        const input = win.document.querySelector('input[type=number]');
+        const bg = rgb(win.getComputedStyle(input).backgroundColor), fg = rgb(win.getComputedStyle(input).color);
+        if (ratio(fg, bg) < 4.5) throw new Error(`${id}: input text ${fg} on ${bg} is below 4.5:1`);
+      }
+    });
+
+    it('leaves the theme on System when done', () => {
+      win.SlopTheme.set('system');
+      expect(win.SlopTheme.get()).toBe('system');
+    });
+  });
+
+  run({ name: 'PhotoSlop theme chrome' });
+  </script>
+</body>
+</html>

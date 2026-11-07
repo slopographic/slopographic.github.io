@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Photo Sorter: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: sorter/js/ai-commands.js, sorter/js/app.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('sorter.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const png = (c) => new Promise((res) => { const cv = document.createElement('canvas'); cv.width = cv.height = 8; const g = cv.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, 8, 8); cv.toBlob(res, 'image/png'); });
+
+  describe('Photo Sorter: assistant commands', () => {
+    it('add photos from Slop Drive, decide, tag, remove, export; the rollback', async () => {
+      f.src = '../../sorter/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopSorter && f.contentWindow.SlopSorter.app && f.contentWindow.SlopCmd && f.contentWindow.SlopHub, { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      for (const [n, c] of [['red.png', '#f00'], ['green.png', '#0f0'], ['blue.png', '#00f']]) await W.SlopHub.put(await png(c), { name: n });
+      await run('add-photos', { files: ['red.png', 'green.png', 'blue.png'] });
+      expect(C.state().counts.all).toBe(3);
+      await run('set-decision', { photos: ['red.png', 'blue.png'], decision: 'liked' });
+      await run('set-decision', { photos: ['green.png'], decision: 'disliked' });
+      await run('add-tags', { photos: ['red.png'], tags: ['Warm', 'bright'] });
+      expect(C.state().photos.find((p) => p.name === 'red.png').tags).toEqual(['warm', 'bright']);
+      await run('remove-tag', { photos: ['red.png'], tag: 'bright' });
+      let r = await run('export-photos', { what: 'decisions_csv' });
+      const csv = await (await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).blob.text();
+      expect(csv).toContain('green.png,,disliked,');
+      r = await run('export-photos', { what: 'liked_zip' });
+      const Z = await import('../../shared/office/zip.js');
+      const map = await Z.readZip((await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).blob);
+      expect([...map.keys()].sort()).toEqual(['blue.png', 'red.png']);
+      const back = C.checkpoint();
+      await run('remove-photos', { photos: ['blue.png'] });
+      await run('set-decision', { photos: ['red.png'], decision: 'none' });
+      expect(C.state().counts.all).toBe(2);
+      back();
+      expect(C.state().counts.liked).toBe(1);
+      expect(C.state().counts.all).toBe(2);   // a removed photo is not brought back (the Drive file is still there)
+    }, { timeout: 40000 });
+
+    it('new_sort clears the pile and its decisions and starts again with Drive photos', async () => {
+      expect(C.get('sorter.ai.new-sort').destructive).toBe(true);
+      expect((await C.exec('sorter.ai.new-sort', { files: ['nope.png'] })).ok).toBe(false);
+      expect(C.state().counts.all).toBe(2);   // a missing file leaves the old pile alone
+      let r = await run('new-sort', { files: ['green.png', 'blue.png'] });
+      expect(r.value).toMatch(/2 photo\(s\) and their decisions cleared\) with 2 photo/);
+      const c = C.state().counts;
+      expect([c.all, c.unsorted, c.liked, c.tags.length]).toEqual([2, 2, 0, 0]);
+      r = await run('new-sort', {});
+      expect(C.state().counts.all).toBe(0);
+      expect(W.document.getElementById('soWork').hidden).toBe(true);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Photo Sorter: assistant commands' });
+  </script>
+</body>
+</html>

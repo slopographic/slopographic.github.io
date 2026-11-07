@@ -1,0 +1,32 @@
+/* Slop AI, German: the mini-app builder, its preview and the starter templates. Same keys as ai/i18n/en/build.js.
+ * Terms: shared/i18n/glossary-de.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'ai.build.new': 'Neue Mini-App',
+  'ai.build.hello': 'Eine Mini-App bauen',
+  'ai.build.hello_lead': 'Eine App, ein Spiel oder eine Seite beschreiben. Das Modell schreibt eine HTML-Datei, und sie läuft hier in einer Sandbox. Oder mit einer Vorlage starten:',
+  'ai.build.placeholder': 'Die App beschreiben oder was geändert werden soll',
+  'ai.build.none_yet': 'Noch keine Mini-Apps',
+  'ai.build.delete_q': 'Diese Mini-App löschen?',
+  'ai.build.delete_body': 'Chat und Code werden entfernt.',
+  'ai.build.no_html': 'In dieser Antwort steht keine vollständige HTML-Datei. Erneut fragen oder „Schick die ganze Datei“ schreiben.',
+  'ai.build.starter_reply': 'Startvorlage. Mitteilen, was geändert werden soll.',
+  'ai.build.from_chat': 'Mini-App aus dem Chat',
+  'ai.build.tpl_tip': 'Mit der Vorlage {name} beginnen',
+  'ai.build.preview': 'Vorschau',
+  'ai.build.code': 'Code',
+  'ai.build.modes': 'Vorschau oder Code',
+  'ai.build.back_chat': '← Chat',
+  'ai.build.preview_title': 'Vorschau der Mini-App (Sandbox)',
+  'ai.build.sandboxed': '🔒 in Sandbox',
+  'ai.build.sandbox_tip': 'sandbox="allow-scripts", kein same-origin, kein Netzwerkzugriff',
+  'ai.build.restart': 'App neu starten',
+  'ai.build.download_tip': '.html herunterladen',
+  'ai.build.nothing': 'Noch nichts zur Vorschau',
+  'ai.build.nothing_lead': 'Die App erscheint hier, sobald das Modell eine vollständige HTML-Datei sendet.',
+  'ai.tpl.game': 'Spiel',
+  'ai.tpl.game_blurb': 'Den fallenden Schleim auffangen',
+  'ai.tpl.calculator': 'Rechner',
+  'ai.tpl.calculator_blurb': 'Ein übersichtlicher Rechner',
+  'ai.tpl.landing': 'Landingpage',
+  'ai.tpl.landing_blurb': 'Eine Website auf einer Seite'
+});

@@ -1,0 +1,15 @@
+#FLAGGA 0
+#PROGRAM "Faktureringsprogrammet" 2.1
+#FORMAT PC8
+#GEN 20260202
+#SIETYP 4
+#FNAMN "Testbolaget Ankan AB"
+#KONTO 1510 "Kundfordringar"
+#KONTO 3001 "Försäljning"
+#KONTO 2611 "Utgående moms"
+#VER "" "" 20260201 "Faktura 1002"
+{
+#TRANS 1510 {} 1250.00
+#TRANS 3001 {} -1000.00
+#TRANS 2611 {} -250.00
+}

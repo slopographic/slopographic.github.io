@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Contacts: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: contacts/js/app/drop-import.js, contacts/js/app/io-dialogs.js, contacts/js/app/photo-ui.js, contacts/js/app/main.js, contacts/js/app/groups.js
+  // Slop Contacts on the one intake: a drop on the list, Import ▸ Choose files…, a paste and ?drive=<id> (launch) reach the
+  // same reader (the import flow, the whole batch) with the same events. A contact's photo is a part of its own.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  const VCF = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ada Lovelace\r\nN:Lovelace;Ada;;;\r\nEND:VCARD\r\n';
+  const vcf = (name) => new W.File([VCF], name, { type: 'text/vcard' });
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(source, start, n = 1, app = 'contacts') {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'contacts') expect(seen).toEqual([[source, n]]);
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Contacts: one way in', () => {
+    it('a drop on the list', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../contacts/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopContacts.ready && fr.contentWindow.SlopIntake.spec('contacts'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('contacts'), reader = s.processAll;
+      s.processAll = (files, ctx) => { seen.push([ctx.source, files.length]); return reader(files, ctx); };
+      W.SlopContacts.importFlow.run = async () => true; // the preview is not what this test is about
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      await through('drop', () => D.querySelector('.col-list').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([vcf('a.vcf'), vcf('b.vcf')]) })), 2);
+    }, { timeout: 40000 });
+    it('Import ▸ Choose files…', async () => {
+      W.SlopUI.pickFiles = async () => [vcf('c.vcf')];
+      await through('picker', () => W.SlopContacts.dropImport.pick());
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([vcf('d.vcf')]) })));
+    });
+    it('?drive=<id> (launch)', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'all.scontacts', type: 'application/json', blob: new W.Blob(['{}'], { type: 'application/json' }) });
+      await through('launch', () => W.SlopContacts.dropImport.launch());
+    });
+    it('Choose photo… is a part of its own', async () => {
+      const c = D.createElement('canvas'); c.width = c.height = 20; c.getContext('2d').fillRect(0, 0, 20, 20);
+      const f = new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'me.png', { type: 'image/png' });
+      W.SlopUI.pickFiles = async () => [f];
+      seen = [];
+      let uri;
+      await through('picker', async () => { uri = await W.SlopContacts.dropImport.pickPhoto(); }, 1, 'contacts.photo');
+      expect(seen).toEqual([]);
+      expect(uri.startsWith('data:image/jpeg')).toBe(true);
+    });
+  });
+  run({ name: 'Shared intake: Slop Contacts' });
+</script>
+</body>
+</html>

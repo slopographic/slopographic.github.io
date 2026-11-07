@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Tables: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script src="../tables/tables.helpers.js"></script>
+<script>
+  // Covers: tables/js/ui/drop.js, tables/js/ui/storage.js, tables/js/ui/actions.js, tables/js/ui/templates.js
+  // Slop Tables on the one intake: Open file from this device, a drop on the grid, a pasted file, Open from Slop Drive (the
+  // tab stays linked) and ?drive=<id> (launch) reach the same reader with the same events, each file in a tab of its own.
+  // A template is a part of its own.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  const csv = (name, text = 'a,b\r\n1,2\r\n') => new W.File([text], name, { type: 'text/csv' });
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(source, start, n = 1, app = 'tables') {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'tables') expect(seen).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Tables: one way in', () => {
+    it('Open file from this device', async () => {
+      W = await TB.boot(); D = W.document;
+      const s = W.SlopIntake.spec('tables'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      W.SlopUI.pickFiles = async () => [csv('one.csv'), csv('two.csv')];
+      await through('picker', () => TB.T.command('file.openFile'), 2);
+      expect(TB.T.S.file.name).toBe('two');
+    }, { timeout: 40000 });
+    it('a drop on the grid', async () => {
+      await through('drop', () => D.getElementById('grid').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([csv('dropped.csv')]) })));
+      expect(TB.T.S.file.name).toBe('dropped');
+    });
+    it('a pasted file (pasted cells stay the grid’s)', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([csv('pasted.csv')]) })));
+      expect(TB.T.S.file.name).toBe('pasted');
+    });
+    it('Open from Slop Drive links the tab to the record', async () => {
+      const blob = TB.T.native();
+      W.SlopHub.pickFromDrive = async () => ({ id: 'd1', name: 'Linked.stab', type: blob.type, blob });
+      await through('drive', () => TB.T.command('file.open'));
+      expect(TB.T.S.file.driveId).toBe('d1');
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'd2', name: 'sent.csv', type: 'text/csv', blob: csv('sent.csv') });
+      await through('launch', () => W.SlopIntake.launch({ to: 'tables' }));
+      expect(TB.T.S.file.name).toBe('sent');
+    });
+    it('Import a template is a part of its own', async () => {
+      const T = TB.T;
+      const blob = T.templates.exportBlob({ name: 'Part test', description: '', native: { format: 'slop-tables', version: 1, sheets: [{ name: 'S', cells: [[0, 0, { v: 1 }]] }] } });
+      W.SlopUI.pickFiles = async () => [new W.File([blob], 'Part test.stab-template', { type: blob.type })];
+      const before = (await T.templates.listMine()).length;
+      seen = [];
+      await through('picker', () => { T.templates.openTemplates(); [...D.querySelectorAll('.sui-dlg button')].find((b) => b.textContent === 'Import file…').click(); }, 1, 'tables.template');
+      expect(seen).toEqual([]);
+      await waitFor(async () => (await T.templates.listMine()).length === before + 1);
+    });
+  });
+  run({ name: 'Shared intake: Slop Tables' });
+</script>
+</body>
+</html>

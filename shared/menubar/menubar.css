@@ -1,0 +1,32 @@
+/* SlopMenuBar: the app's menu bar. Tokens from the theme (--sl-*). Sits above the app; menus drop down over it. */
+.smb-bar { position: sticky; top: 0; z-index: 900; display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; min-height: 42px; padding: 4px 10px; box-sizing: border-box;
+  background: var(--sl-surface, #fff); color: var(--sl-text, #1b1b1f); border-bottom: 1px solid var(--sl-border, #d9d9de); font: 13px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.smb-brand { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; font-weight: 700; }
+.smb-mark { display: block; width: 22px; height: 22px; fill: var(--sl-accent, #1b1b1f); }
+/* The page's "100% local" badge, moved next to the app name by mount(): one place and one look in every app. */
+.smb-bar .local-badge { margin: 0; flex: none; display: inline-flex; align-items: center; padding: 2px 9px; border: 1px solid var(--sl-border, #d9d9de); border-radius: 999px; font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--sl-text, #1b1b1f) 72%, transparent); white-space: nowrap; }
+.smb-app { font-weight: 600; margin-right: 4px; }
+.smb-menus { display: flex; gap: 2px; }
+.smb-menu { position: relative; }
+.smb-menu-b, .smb-tool { min-height: 30px; padding: 4px 9px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.smb-menu-b:hover, .smb-menu-b[aria-expanded="true"], .smb-tool:hover { background: color-mix(in srgb, var(--sl-text, #1b1b1f) 9%, transparent); }
+.smb-tool { border: 1px solid var(--sl-border, #d9d9de); }
+.smb-tool:disabled, .smb-item:disabled { opacity: .45; cursor: default; }
+.smb-pop { position: absolute; top: calc(100% + 4px); inset-inline-start: 0; min-width: 220px; padding: 4px; background: var(--sl-surface, #fff); border: 1px solid var(--sl-border, #d9d9de); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / .18); }
+.smb-item { display: flex; justify-content: space-between; gap: 16px; width: 100%; min-height: 30px; padding: 4px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.smb-item:hover:not(:disabled), .smb-item:focus-visible { background: color-mix(in srgb, var(--sl-accent, #2563eb) 14%, transparent); outline: none; }
+.smb-keys { color: color-mix(in srgb, var(--sl-text, #1b1b1f) 55%, transparent); font-size: 12px; }
+.smb-sep { margin: 4px 6px; border: 0; border-top: 1px solid var(--sl-border, #d9d9de); }
+.smb-sub { position: relative; }
+.smb-has-sub { align-items: center; }
+.smb-caret { color: color-mix(in srgb, var(--sl-text, #1b1b1f) 55%, transparent); }
+.smb-pop-sub { top: -5px; inset-inline-start: calc(100% + 2px); }
+[dir="rtl"] .smb-caret { display: inline-block; transform: scaleX(-1); }   /* the submenu opens to the left */
+.smb-hold { display: none !important; }
+.smb-tools { margin-left: auto; display: flex; flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; min-width: 0; }
+@media (max-width: 640px) { .smb-app, .smb-bar .local-badge { display: none; } }
+/* The bar is the first thing in the body. An app whose root is 100% high (most mini apps) shares the screen with it: the body
+ * is a column, the bar keeps its height and the app takes the rest. */
+body:has(> .smb-bar) { display: flex; flex-direction: column; }
+body > .smb-bar { flex: none; }
+body:has(> .smb-bar) > :not(.smb-bar) { min-width: 0; min-height: 0; }

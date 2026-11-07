@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopIsolate presets from a task page's link: ?bg=white&format=jpg</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:800px" src="../../slopisolate/index.html?bg=white&format=jpg"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: slopisolate/js/core/state.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const W = () => document.getElementById('app').contentWindow;
+  describe('SlopIsolate presets', () => {
+    it('reads the background and the export format from the address, for this visit only', async () => {
+      await waitFor(() => W().CO && W().CO.state && W().CO.state.defaults, { timeout: 30000 });
+      const S = W().CO.state;
+      expect([S.defaults.bg.mode, S.defaults.bg.color, S.exportOpts.format]).toEqual(['color', '#ffffff', 'jpg']);
+      expect(W().localStorage.getItem('slop-cutout.export') || '').not.toContain('jpg');   // not remembered
+    }, { timeout: 40000 });
+    it('presetOf: known values only', async () => {
+      const P = W().CO.state.presetOf;
+      expect(P('?bg=blur&format=webp')).toEqual({ bg: { mode: 'blur' }, format: 'webp' });
+      expect(P('?bg=transparent')).toEqual({ bg: { mode: 'transparent' } });
+      expect(P('?bg=<b>&format=exe')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+  });
+  SlopTest.run({ name: 'SlopIsolate presets' });
+  </script>
+</body>
+</html>

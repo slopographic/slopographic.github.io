@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: storage and timeouts</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, H, D;
+  const MODEL = 'https://huggingface.co/mlc-ai/Storage-Test-Model/resolve/main/';
+  const LOCAL = 'https://local-model.slopographic.invalid/Imported-Model/';
+  describe('Slop Drive: clear local cache keeps files and documents', () => {
+    it('removes only regenerable caches and keeps Drive files, documents and imported models', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; D = W.document;
+      await H.clear();
+      const docId = await H.put(DT.text('A letter'), { name: 'Letter.txt', from: 'docs' });
+      const pic = await DT.png('#5cc8ff', 40, 30);
+      const picId = await H.put(pic, { name: 'pic.png', from: 'photoslop' });
+      await DR.refresh();
+      await DR.thumbCache.put({ id: picId, modified: 1, ver: 1, blob: pic, info: { peaks: [1, 2] } });
+      await W.SlopFaces.cache.put('drive', picId, '1', { w: 40, h: 30, faces: [] });
+      const c = await W.caches.open('webllm/model');
+      await c.put(MODEL + 'ndarray-cache.json', new W.Response('{"records":[]}'));
+      await c.put(LOCAL + 'ndarray-cache.json', new W.Response('{"records":[]}'));
+      expect(await DR.thumbCache.get(picId)).toBeTruthy();
+
+      const n = await W.SlopRegen.clear();
+      expect(n.thumbs).toBeGreaterThanOrEqual(1);
+      expect(n.faces).toBeGreaterThanOrEqual(1);
+      expect(n.models).toBeGreaterThanOrEqual(1);
+      // regenerable: gone
+      expect(await DR.thumbCache.get(picId)).toBeFalsy();
+      expect(await c.match(MODEL + 'ndarray-cache.json')).toBe(undefined);
+      // kept: the Drive files and documents, and a model imported from a folder (it has no download to repeat)
+      expect(!!(await H.get(docId))).toBe(true);
+      expect(!!(await H.get(picId))).toBe(true);
+      expect(!!(await c.match(LOCAL + 'ndarray-cache.json'))).toBe(true);
+      await c.delete(LOCAL + 'ndarray-cache.json');
+    }, { timeout: 60000 });
+
+    it('the Storage note asks first, then clears, and the list still shows the files', async () => {
+      await DR.refresh(); DR.render();
+      const doc = await H.put(DT.text('Keep me'), { name: 'Keep.txt', from: 'docs' });
+      await DR.refresh();
+      W.SlopUI.confirm = async (title) => { window.__asked = title; return true; };
+      await DR.renderMeter();
+      const btn = await waitFor(() => D.querySelector('#meter [data-act="clear-cache"]'));
+      btn.click();
+      await waitFor(() => window.__asked === 'Clear local cache?');
+      await waitFor(() => D.querySelector('.sui-toast') && /Your files are unchanged/.test(D.querySelector('.sui-toast').textContent));
+      expect(DR.S.files.has(doc)).toBe(true);
+    }, { timeout: 30000 });
+  });
+
+  describe('Slop Drive: a stuck storage call does not freeze the list', () => {
+    it('gives up after the limit, shows a toast with Retry, and Retry runs the operation again', async () => {
+      let calls = 0, retried = null;
+      const stuckThenOk = () => (++calls === 1 ? new Promise(() => {}) : 'listed');
+      const first = await DR.timed('Loading Slop Drive', stuckThenOk, { ms: 40, onRetry: (v) => { retried = v; } });
+      expect(first.ok).toBe(false);
+      const toast = await waitFor(() => { const t = D.querySelector('.sui-toast'); return t && /taking too long/.test(t.textContent) ? t : null; });
+      const retry = toast.querySelector('.sui-toast-act');
+      expect(retry.textContent).toBe('Retry');
+      retry.click();
+      await waitFor(() => retried === 'listed');
+      expect(calls).toBe(2);
+    });
+    it('a finished operation resolves with its value at once', async () => {
+      const r = await DR.timed('Loading Slop Drive', async () => 42, { ms: 1000 });
+      expect(r).toEqual({ ok: true, value: 42 });
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'Slop Drive: storage and timeouts' });</script>
+</body>
+</html>

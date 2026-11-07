@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut first visit: what it makes and how, and the sample project fills the timeline</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:800px" src="../../slopcut/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: slopcut/css/base.css, slopcut/js/render/preview.js, slopcut/css/panels.css, slopcut/js/io/sample.js, assets/shots/slopedit.jpg
+  const { describe, it, expect, waitFor } = SlopTest;
+  const win = () => document.getElementById('app').contentWindow, doc = () => win().document;
+  const ready = () => waitFor(() => win() && win().SE && win().SE.doc && doc().querySelector('#monMsg .sd-preview'), { timeout: 20000 });
+  describe('SlopCut first visit', () => {
+    it('the empty monitor shows a picture of a finished edit and three steps; the bin has Import and Sample project', async () => {
+      await ready();
+      const m = doc().getElementById('monMsg');
+      expect(m.hidden).toBe(false);
+      SlopTest.shot(m.querySelector('.sd-pic img'), '../assets/shots/slopedit.jpg');
+      expect([...m.querySelectorAll('.sd-steps li')].map((li) => li.textContent))
+        .toEqual(['Drop video, audio or pictures', 'Cut and arrange them on the timeline', 'Export a video file']);
+      expect([...doc().querySelectorAll('.bin-empty button')].map((b) => b.textContent)).toEqual(['Import files', 'Sample project']);
+    });
+    it('one place to add files: the drop strip over the monitor stays hidden until it has files or a result to show', async () => {
+      const strip = doc().getElementById('scDrop');
+      expect(win().getComputedStyle(strip).display).toBe('none');
+      strip.querySelector('.sd-status').textContent = 'notes.txt is not a video, audio, picture or project';
+      expect(win().getComputedStyle(strip).display).toBe('block');
+      strip.querySelector('.sd-status').textContent = '';
+      expect(win().getComputedStyle(strip).display).toBe('none');
+    });
+    it('Sample project builds the edit: both clips in order with a crossfade, the title, the logo and the music', async () => {
+      const SE = win().SE, make = SE.sample.makeMedia;
+      SE.sample.makeMedia = (o) => make(Object.assign({}, o, { small: true })); // the same media, smaller: the full size takes ~30 s here
+      [...doc().querySelectorAll('.bin-empty button')].find((b) => b.textContent === 'Sample project').click();
+      await waitFor(() => SE.doc.clips.length >= 6 && doc().getElementById('monMsg').hidden, { timeout: 60000 });
+      const named = (n) => SE.doc.clips.filter((c) => c.kind !== 'audio' && SE.doc.media.some((m) => m.id === c.media && m.name.startsWith(n)));
+      const [a] = named('Sunset run'), [b] = named('Slime lab'), [logo] = named('Sloppo logo');
+      expect({ sameTrack: a.track === b.track, inOrder: b.start > a.start, cross: b.trIn && b.trIn.type, logo: logo.scale,
+        title: SE.doc.clips.find((c) => c.kind === 'title').text.str,
+        music: SE.doc.clips.some((c) => c.kind === 'audio' && SE.doc.media.some((m) => m.id === c.media && m.name === 'Goo groove.wav')),
+        intro: doc().getElementById('monMsg').hidden })
+        .toEqual({ sameTrack: true, inOrder: true, cross: 'cross', logo: 0.18, title: 'SLOPCUT', music: true, intro: true });
+    }, { timeout: 90000 });
+    it('at 390 px the intro shows the steps without the picture, and there is no sideways scroll', async () => {
+      const old = document.getElementById('app'), f = document.createElement('iframe');
+      f.id = 'app'; f.style.cssText = 'width:390px;height:844px'; f.src = '../../slopcut/index.html';
+      old.replaceWith(f);
+      await ready();
+      const m = doc().getElementById('monMsg');
+      const pic = m.querySelector('.sd-pic');   // a build without media has no picture at all
+      if (BRAND_FACTS.media) expect(win().getComputedStyle(pic).display).toBe('none'); else expect(pic).toBe(null);
+      expect(m.querySelectorAll('.sd-steps li').length).toBe(3);
+      expect(m.getBoundingClientRect().right <= 390).toBe(true);
+      expect(doc().documentElement.scrollWidth <= 390).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'SlopCut: first visit' });
+  </script>
+</body>
+</html>

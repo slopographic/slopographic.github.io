@@ -1,0 +1,116 @@
+/* Slop Effects. Themed by the shared --sl-* tokens (shared/theme) with dark fallbacks. Phone width (under 760 px) stacks the
+   preview, the properties and the timeline in one column with a 16 px gutter and no horizontal page scroll. */
+.fx-app { --fx-bg: var(--sl-background, #0a0a0a); --fx-surface: var(--sl-surface, #151518); --fx-text: var(--sl-text, #f1ede4);
+  --fx-accent: var(--sl-accent, #d4ff3a); --fx-border: var(--sl-border, #2a2a30); --fx-dim: color-mix(in srgb, var(--fx-text) 60%, transparent);
+  min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; background: var(--fx-bg); color: var(--fx-text);
+  font: 13px/1.4 var(--sui-font, Inter, system-ui, sans-serif); overflow-x: hidden; }
+body { margin: 0; }
+/* slopui.css sets its --s-* names only inside its dialogs and menus; the page sets them for the .sui-btn and .sui-input
+   it uses outside them, and the shared header buttons (Tour, Theme, Apps: shared/ui/hbtn.css) wear the .sui-btn look. */
+.fx-app { --s-bg2: var(--fx-surface); --s-input: var(--fx-bg); --s-line: var(--fx-border); --s-fg: var(--fx-text);
+  --s-hover: color-mix(in srgb, var(--fx-text) 8%, var(--fx-surface)); --s-accent: var(--fx-accent); --s-accent-ink: var(--sl-on-accent, #0a0a0a);
+  --s-radius: 6px; }
+.fx-top { --slop-hbtn-h: 28px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: var(--s-bg2); --slop-hbtn-line: var(--s-line); --slop-hbtn-hover: var(--s-hover); --slop-hbtn-fs: 13px; }
+.fx-app *, .fx-app *::before, .fx-app *::after { box-sizing: border-box; }
+.fx-app button { font: inherit; color: inherit; }
+.fx-top { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--fx-border); }
+.fx-brand { font-weight: 700; color: var(--fx-text); text-decoration: none; white-space: nowrap; }
+.fx-name { width: min(260px, 40vw); }
+@media (max-width: 1180px) { .fx-name { width: 150px; } }   /* one header row at 1024 px, the shared buttons as icons */
+.fx-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.fx-tools .sui-btn { padding: 0 10px; }
+.fx-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: minmax(300px, 1fr) minmax(240px, 300px);
+  grid-template-areas: "stage side" "tl side"; gap: 12px; padding: 12px 16px 16px; min-height: 0; }
+.fx-stage { grid-area: stage; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; min-width: 0; min-height: 0; }
+.fx-view { position: relative; min-height: 200px; display: grid; place-items: center; background: repeating-conic-gradient(#2a2a2a 0 25%, #1c1c1c 0 50%) 0 0/16px 16px; border-radius: 8px; overflow: hidden; }
+.fx-view canvas { display: block; box-shadow: 0 0 0 1px var(--fx-border); background: transparent; }
+.fx-side { grid-area: side; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; border: 1px solid var(--fx-border); border-radius: 8px; background: var(--fx-surface); }
+.fx-panel { overflow: auto; padding: 12px; display: grid; gap: 14px; align-content: start; }
+.fx-tl { grid-area: tl; display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; border: 1px solid var(--fx-border); border-radius: 8px; background: var(--fx-surface); overflow: hidden; }
+.fx-tabs { display: flex; gap: 2px; padding: 6px; border-bottom: 1px solid var(--fx-border); overflow-x: auto; }
+.fx-tabs button { border: 0; background: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; color: var(--fx-dim); }
+.fx-tabs button[aria-selected="true"] { background: color-mix(in srgb, var(--fx-accent) 18%, transparent); color: var(--fx-text); font-weight: 600; }
+.fx-transport { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px; background: var(--fx-surface); border: 1px solid var(--fx-border); border-radius: 8px; }
+.fx-transport input[type="range"] { flex: 1 1 200px; min-width: 120px; accent-color: var(--fx-accent); }
+.fx-transport .fx-time { font: 12px var(--sui-mono, ui-monospace, monospace); white-space: nowrap; color: var(--fx-dim); }
+.fx-transport button[aria-pressed="true"] { background: var(--fx-accent); color: var(--sl-on-accent, #0a0a0a); }
+.fx-tl-body { overflow: auto; min-height: 0; }
+.fx-timeline { overflow: auto; min-height: 0; position: relative; }
+.fx-graph { padding: 12px; overflow: auto; min-height: 0; }
+.fx-group { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--fx-border); border-radius: 8px; }
+.fx-group h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--fx-dim); }
+.fx-row { display: grid; grid-template-columns: minmax(84px, 110px) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.fx-row > label, .fx-row > span.fx-lbl { color: var(--fx-dim); white-space: nowrap; }
+.fx-row .sui-input { min-width: 0; width: 100%; }
+.fx-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; min-width: 0; }
+.fx-pair .sui-input { min-width: 0; width: 100%; }
+.fx-key { min-width: 30px; height: 28px; border-radius: 6px; border: 1px solid var(--fx-border); background: none; cursor: pointer; }
+.fx-key[aria-pressed="true"] { background: var(--fx-accent); color: var(--sl-on-accent, #0a0a0a); border-color: var(--fx-accent); }
+.fx-key[data-keyed-now="true"] { box-shadow: inset 0 0 0 2px var(--fx-accent); }
+.fx-empty { color: var(--fx-dim); padding: 24px 8px; text-align: center; }
+.fx-card { border: 1px solid var(--fx-border); border-radius: 8px; padding: 8px; display: grid; gap: 6px; }
+.fx-card.is-sel { border-color: var(--fx-accent); }
+.fx-card header { display: flex; gap: 6px; align-items: center; }
+.fx-card header b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fx-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.fx-chips button { font-size: 12px; padding: 3px 8px; }
+.fx-warn { color: #ffb020; }
+.fx-status { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); pointer-events: none; opacity: 0; transition: opacity .2s; background: var(--fx-surface); border: 1px solid var(--fx-border); padding: 6px 12px; border-radius: 999px; }
+.fx-status.is-on { opacity: 1; }
+
+/* Timeline: a label column and a time area. */
+.fx-tl-grid { position: relative; min-width: 100%; }
+.fx-ruler { position: sticky; top: 0; z-index: 3; height: 30px; background: var(--fx-surface); border-bottom: 1px solid var(--fx-border); }
+.fx-ruler-track { position: absolute; top: 0; bottom: 0; touch-action: none; } /* a finger scrubs, it does not scroll */
+.fx-tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid color-mix(in srgb, var(--fx-text) 16%, transparent); font: 10px var(--sui-mono, monospace); color: var(--fx-dim); padding: 4px 0 0 3px; }
+.fx-head-cell { position: sticky; left: 0; z-index: 2; background: var(--fx-surface); }
+.fx-lrow { position: relative; display: flex; min-height: 30px; border-bottom: 1px solid color-mix(in srgb, var(--fx-border) 70%, transparent); }
+.fx-lrow.is-sel { background: color-mix(in srgb, var(--fx-accent) 10%, transparent); }
+.fx-lcell { position: sticky; left: 0; z-index: 2; width: 230px; flex: none; display: flex; gap: 4px; align-items: center; padding: 4px 6px; background: var(--fx-surface); border-right: 1px solid var(--fx-border); cursor: pointer; }
+.fx-lcell b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.fx-lcell .fx-ic { width: 22px; text-align: center; color: var(--fx-dim); }
+.fx-lcell button { border: 0; background: none; cursor: pointer; padding: 2px 4px; border-radius: 4px; color: var(--fx-dim); }
+.fx-lcell button[aria-pressed="true"] { color: var(--fx-accent); }
+.fx-lcell .fx-warn { font-size: 11px; }
+.fx-lane { position: relative; flex: none; min-height: 30px; }
+.fx-prow { position: relative; display: flex; min-height: 24px; border-bottom: 1px dashed color-mix(in srgb, var(--fx-border) 60%, transparent); }
+.fx-prow .fx-lcell { font-size: 12px; padding-left: 26px; color: var(--fx-dim); }
+.fx-diamond { position: absolute; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; background: var(--fx-accent); transform: rotate(45deg); border-radius: 2px; cursor: grab; touch-action: none; z-index: 1; }
+/* A finger-sized key: an invisible 44 px square around the diamond under a coarse pointer (--slop-hit: shared/input) */
+.fx-diamond::after { content: ''; position: absolute; left: 50%; top: 50%; width: var(--slop-hit, 0px); height: var(--slop-hit, 0px); transform: translate(-50%, -50%); }
+.fx-diamond.is-sel { background: var(--fx-text); box-shadow: 0 0 0 2px var(--fx-accent); }
+.fx-diamond.is-hold { background: transparent; border: 2px solid var(--fx-accent); }
+.fx-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: #ff4f6e; z-index: 4; pointer-events: none; }
+.fx-playhead::before { content: ""; position: absolute; top: 0; left: -5px; border: 5px solid transparent; border-top: 7px solid #ff4f6e; }
+.fx-zoom { display: flex; gap: 6px; align-items: center; height: 30px; padding: 0 8px; color: var(--fx-dim); font-size: 12px; overflow: hidden; }
+.fx-zoom .sui-btn { padding: 2px 8px; font-size: 12px; }
+.fx-zoom input { width: 120px; accent-color: var(--fx-accent); }
+
+/* Graph editor. */
+.fx-graph-wrap { display: grid; grid-template-columns: minmax(200px, 320px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.fx-curve { width: 100%; max-width: 320px; aspect-ratio: 1; border-radius: 8px; background: var(--fx-bg); border: 1px solid var(--fx-border); touch-action: none; }
+.fx-graph-side { display: grid; gap: 10px; align-content: start; }
+.fx-phone { display: none; }
+@media (max-width: 760px) {
+  .fx-main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "stage" "tl"; padding: 12px 16px 24px; }
+  /* the Properties panel is a bottom sheet: shared/ui/sheet.js gives its place, motion and ×; the × sits over the tab row's end */
+  .fx-tools .fx-phone { display: inline-block; }
+  .fx-side { --ssh-z: 70; height: min(62vh, 520px); }   /* over the spotlight dock (z 60) */
+  .ssh-phone .fx-side > .ssh-x { position: absolute; inset: 2px 2px auto auto; margin: 0; }
+  .fx-side .fx-tabs { padding-right: 48px; }
+  .fx-top { padding: 8px 16px; }
+  .fx-brand { margin-right: auto; }   /* the shared buttons share the first row with the name; the field and tools follow */
+  .fx-name { order: 1; }
+  .fx-tools { order: 2; }
+  .fx-tools { margin-left: 0; width: 100%; }
+  .fx-tools .sui-btn { flex: 1 1 auto; }
+  .fx-name { width: 100%; }
+  .fx-view { min-height: 46vh; }
+  .fx-panel { max-height: none; }
+  .fx-tl { min-height: 320px; }
+  .fx-lcell { width: 170px; }
+  .fx-row { grid-template-columns: minmax(70px, 90px) minmax(0, 1fr) auto; }
+  .fx-graph-wrap { grid-template-columns: minmax(0, 1fr); }
+  .fx-curve { max-width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .fx-status { transition: none; } }

@@ -1,0 +1,19 @@
+/* Slop Drive — the Drives section of the sidebar (ui/prov-tree.js), its rows, and the destination picker
+ * (ui/prov-picker.js). Colours come from the theme's --sl-* variables only, so the theme switcher applies here too. */
+.pvtree { flex: none; max-height: 42vh; overflow: auto; padding: 0 8px 6px; }
+.pvrow { cursor: pointer; }
+.pvrow.pv-file { cursor: grab; }
+.pvrow.off { cursor: default; opacity: .8; }
+.pvrow .pv-allow { margin-left: auto; font-size: 11px; color: var(--sl-accent); text-decoration: underline; text-underline-offset: 2px; }
+.pvrow .pv-allow:disabled { color: var(--sl-text); text-decoration: none; }
+.pvrow.pv-root .nm { font-weight: 600; }
+.pv-note { padding: 2px 12px 4px calc(12px + var(--d, 0) * 14px); color: color-mix(in srgb, var(--sl-text) 65%, transparent); font-size: 11px; line-height: 1.4; }
+.pv-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 12px 2px; }
+.pv-actions .linkish { font-size: 11px; }
+.pick-body { display: grid; gap: 8px; }
+.pick-tree { display: grid; gap: 1px; max-height: 50vh; overflow: auto; padding: 6px; border: 1px solid var(--sl-border); border-radius: 6px; background: var(--sl-surface); }
+.pick-row { width: 100%; }
+.pick-row.off { opacity: .5; cursor: not-allowed; }
+.pick-hint { min-height: 1em; margin: 0; color: var(--sl-accent); }
+.pv-help { display: grid; gap: 8px; }
+.pv-help p { margin: 0; color: var(--sl-text); }

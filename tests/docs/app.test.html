@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs app: boot, typing, formatting, Slop Drive</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/hub.js"></script>
+<script src="../../shared/intake/outtake.js"></script>
+<script src="../../shared/ops/entry.js"></script>
+<script>
+/* Runs the real page (docs/index.html) in an iframe and drives it with the same events a keyboard and a
+ * pointer produce: input events on the hidden text box, keydown events and clicks on the toolbar. */
+const { describe, it, expect, waitFor, beforeEach } = SlopTest;
+const H = window.SlopHub;
+const frames = [];
+/** Each describe starts with no open tabs and no saved drafts, so one test's autosave never reopens in the next. */
+async function clearDrafts() {
+  for (const f of frames.splice(0)) f.remove();
+  await new Promise((res) => setTimeout(res, 300)); // a removed page still flushes its tabs on pagehide: let that land first
+  localStorage.removeItem('slop.doctabs.docs.v1');
+  await new Promise((res) => { const r = indexedDB.deleteDatabase('slop-doctabs'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+}
+async function open(src, width = 1100) {
+  const f = document.createElement('iframe');
+  f.style.cssText = `width:${width}px;height:720px;border:0`;
+  f.src = src;
+  document.body.append(f);
+  frames.push(f);
+  await waitFor(() => f.contentWindow && f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready && f.contentWindow.document.querySelector('#pages .page'), { timeout: 20000 });
+  return f.contentWindow;
+}
+function close(W) { const f = frames.find((x) => x.contentWindow === W); if (f) { f.remove(); frames.splice(frames.indexOf(f), 1); } }
+/** Write the autosave now: the open tabs (their content, as the strip's session keeps it on this device). */
+const draftSaved = (W) => W.SlopDocs.session.flush();
+function typeText(W, s) {
+  const ime = W.document.getElementById('ime');
+  for (const ch of s) { ime.value = ch; ime.dispatchEvent(new W.InputEvent('input', { inputType: 'insertText', data: ch, bubbles: true })); }
+}
+function press(W, key, opts = {}) {
+  const e = new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...opts });
+  W.document.getElementById('ime').dispatchEvent(e);
+  return e;
+}
+const text = (W) => W.SlopDocs.doc.blocks.map((b) => W.SlopDocEngine.M.paraText(b));
+const para = (W, i = 0) => W.SlopDocs.doc.blocks[i];
+const spans = (W) => [...W.document.querySelectorAll('#pages .t')];
+const click = (W, id) => W.document.getElementById(id).click();
+
+describe('boot', () => {
+  beforeEach(clearDrafts);
+  it('opens a blank page with the engine, the toolbar and a caret', async () => {
+    const W = await open('../../docs/');
+    expect(W.document.title).toContain('Slop Docs');
+    expect(W.document.querySelectorAll('#pages .page').length).toBe(1);
+    expect(W.document.querySelector('.caret')).toBeTruthy();
+    expect(text(W)).toEqual(['']);
+    expect(W.document.getElementById('pageInfo').textContent).toBe('Page 1 of 1');
+    expect(W.SlopCmd).toBeTruthy();
+    close(W);
+  });
+  it('restores the open tabs on a plain open, and New opens a blank tab after them', async () => {
+    const W1 = await open('../../docs/');
+    typeText(W1, 'Draft words');
+    await draftSaved(W1);
+    close(W1);
+    const W2 = await open('../../docs/');
+    expect(text(W2)).toEqual(['Draft words']);
+    expect(W2.SlopDocs.file.dirty).toBeTruthy();
+    await W2.SlopDocs.newDoc();
+    expect(text(W2)).toEqual(['']);
+    expect(W2.SlopDocs.tabsApi().tabs().length).toBe(2);
+    close(W2);
+  });
+  it('shows the page at Letter size with 1-inch margins (816 px wide at 100%)', async () => {
+    const W = await open('../../docs/');
+    const pg = W.document.querySelector('#pages .page');
+    expect(Math.round(pg.getBoundingClientRect().width)).toBe(816);
+    close(W);
+  });
+});
+
+describe('typing', () => {
+  beforeEach(clearDrafts);
+  it('types text, splits paragraphs on Enter and deletes with Backspace', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'Hello');
+    press(W, 'Enter');
+    typeText(W, 'World');
+    expect(text(W)).toEqual(['Hello', 'World']);
+    press(W, 'Backspace');
+    press(W, 'Backspace');
+    expect(text(W)).toEqual(['Hello', 'Wor']);
+    press(W, 'Backspace'); press(W, 'Backspace'); press(W, 'Backspace');
+    expect(text(W)).toEqual(['Hello', '']);
+    press(W, 'Backspace');
+    expect(text(W)).toEqual(['Hello']);
+    close(W);
+  });
+  it('lays the typed text out as spans on the page', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'Lay me out');
+    const t = spans(W).map((s) => s.textContent).join('');
+    expect(t).toBe('Lay me out');
+    close(W);
+  });
+  it('moves the caret with the arrow keys and extends the selection with Shift', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'abcdef');
+    press(W, 'ArrowLeft'); press(W, 'ArrowLeft');
+    expect(W.SlopDocs.sel.f.o).toBe(4);
+    press(W, 'ArrowLeft', { shiftKey: true });
+    expect(W.SlopDocs.sel.f.o).toBe(3);
+    expect(W.SlopDocs.sel.a.o).toBe(4);
+    press(W, 'Home');
+    expect(W.SlopDocs.sel.f.o).toBe(0);
+    press(W, 'End');
+    expect(W.SlopDocs.sel.f.o).toBe(6);
+    close(W);
+  });
+  it('types over a selection and undoes the last step with Ctrl+Z', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'one two');
+    W.SlopDocs.A.selectAll();
+    typeText(W, 'three');
+    expect(text(W)).toEqual(['three']);
+    press(W, 'z', { ctrlKey: true });
+    expect(text(W)).toEqual(['one two']);
+    press(W, 'z', { ctrlKey: true, shiftKey: true });
+    expect(text(W)).toEqual(['three']);
+    close(W);
+  });
+  it('handles a paste of several lines as several paragraphs', async () => {
+    const W = await open('../../docs/');
+    W.SlopDocs.A.paste('first\nsecond\nthird');
+    expect(text(W)).toEqual(['first', 'second', 'third']);
+    close(W);
+  });
+});
+
+describe('menus, palette and keys', () => {
+  beforeEach(clearDrafts);
+  it('opens the File menu with the save and export rows, and the palette lists the commands', async () => {
+    const W = await open('../../docs/');
+    W.document.querySelector('[data-menu="file"]').click();
+    await waitFor(() => W.document.querySelector('.sui-menu'), { timeout: 3000 });
+    const labels = [...W.document.querySelectorAll('.sui-menu .sui-lbl')].map((x) => x.textContent);
+    expect(labels).toContain('Save to Slop Drive');
+    expect(labels).toContain('Download Word (.docx)');
+    W.SlopUI.closeMenu();
+    const ids = W.SlopCmd.list().map((c) => c.id);
+    expect(ids).toContain('format.bold');
+    expect(ids).toContain('file.save');
+    expect(W.SlopCmd.keyFor('format.bold')).toBe('Ctrl+B');
+    close(W);
+  });
+  it('saves with Ctrl+S (the shortcut is a command, so the browser save dialog does not open)', async () => {
+    const id = await H.put(new Blob([], { type: 'application/x-slop-doc' }), { name: 'Keys.sdoc', from: 'drive' });
+    const W = await open('../../docs/?drive=' + id);
+    typeText(W, 'Saved by key');
+    const e = press(W, 's', { ctrlKey: true });
+    expect(e.defaultPrevented).toBeTruthy();
+    await waitFor(async () => (await H.get(id)).size > 0, { timeout: 8000 });
+    const data = JSON.parse(await (await H.get(id)).blob.text());
+    expect(data.blocks[0].runs[0].text).toBe('Saved by key');
+    close(W);
+  });
+  it('fits the page to a phone-width screen (390 px): no sideways scroll of the page', async () => {
+    const W = await open('../../docs/', 390);
+    expect(W.SlopDocs.zoom).toBeLessThan(1);
+    const pg = W.document.querySelector('#pages .page');
+    expect(pg.getBoundingClientRect().width).toBeLessThanOrEqual(390);
+    expect(W.document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    close(W);
+  });
+});
+
+describe('formatting', () => {
+  beforeEach(clearDrafts);
+  it('toggles bold over a selection from the toolbar and reflects it on the page', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'Make it bold');
+    W.SlopDocs.A.selectAll();
+    click(W, 'tbBold');
+    expect(para(W).runs.every((r) => r.b)).toBeTruthy();
+    expect(spans(W)[0].style.fontWeight).toBe('700');
+    expect(W.document.getElementById('tbBold').getAttribute('aria-pressed')).toBe('true');
+    click(W, 'tbBold');
+    expect(para(W).runs.some((r) => r.b)).toBeFalsy();
+    close(W);
+  });
+  it('toggles italic and underline with Ctrl+I and Ctrl+U at the caret, for the text typed next', async () => {
+    const W = await open('../../docs/');
+    press(W, 'i', { ctrlKey: true });
+    typeText(W, 'it');
+    press(W, 'i', { ctrlKey: true });
+    press(W, 'u', { ctrlKey: true });
+    typeText(W, 'u');
+    const runs = para(W).runs;
+    expect(runs[0].i).toBeTruthy();
+    expect(runs[runs.length - 1].u).toBeTruthy();
+    expect(spans(W).some((s) => s.style.fontStyle === 'italic')).toBeTruthy();
+    close(W);
+  });
+  it('sets the font size and the alignment from the toolbar', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'Sized');
+    W.SlopDocs.A.selectAll();
+    const size = W.document.getElementById('selSize');
+    size.value = '20';
+    size.dispatchEvent(new W.Event('change'));
+    expect(para(W).runs[0].size).toBe(20);
+    click(W, 'tbCenter');
+    expect(para(W).props.align).toBe('center');
+    close(W);
+  });
+  it('makes a bulleted list and removes it again', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'Item one');
+    click(W, 'tbBullets');
+    expect(para(W).props.list.id).toBe('bul');
+    expect(!!W.SlopDocs.doc.lists.bul).toBeTruthy();
+    click(W, 'tbBullets');
+    expect(para(W).props.list).toBeFalsy();
+    close(W);
+  });
+  it('changes the paragraph style to a heading and back', async () => {
+    const W = await open('../../docs/');
+    typeText(W, 'Title here');
+    const sel = W.document.getElementById('selStyle');
+    sel.value = 'H1';
+    sel.dispatchEvent(new W.Event('change'));
+    expect(para(W).style).toBe('H1');
+    expect(W.SlopDocEngine.S.headingLevel('H1')).toBe(1);
+    close(W);
+  });
+});
+
+describe('Slop Drive', () => {
+  beforeEach(clearDrafts);
+  it('saves a new Drive document back to the same record and keeps its folder', async () => {
+    const folder = await H.createFolder('Letters');
+    const id = await H.put(new Blob([], { type: 'application/x-slop-doc' }), { name: 'Letter.sdoc', from: 'drive', folderId: folder });
+    const W = await open('../../docs/?drive=' + id);
+    expect(W.SlopDocs.file.id).toBe(id);
+    expect(text(W)).toEqual(['']);
+    typeText(W, 'Dear Drive');
+    click(W, 'btnSave');
+    await waitFor(async () => { const r = await H.get(id); return r && r.size > 0; }, { timeout: 8000 });
+    const r = await H.get(id);
+    expect(r.folderId).toBe(folder);
+    expect(r.name).toBe('Letter.sdoc');
+    const data = JSON.parse(await r.blob.text());
+    expect(data.blocks[0].runs.map((x) => x.text).join('')).toBe('Dear Drive');
+    expect(W.SlopDocs.file.dirty).toBeFalsy();
+    close(W);
+  });
+  it('reopens the saved document with ?drive=<id> and shows the same text and formatting', async () => {
+    const id = await H.put(new Blob([], { type: 'application/x-slop-doc' }), { name: 'Again.sdoc', from: 'drive' });
+    const W1 = await open('../../docs/?drive=' + id);
+    typeText(W1, 'Keep me');
+    W1.SlopDocs.A.selectAll();
+    click(W1, 'tbItalic');
+    click(W1, 'tbBullets');
+    await W1.SlopDocs.save();
+    await draftSaved(W1);
+    close(W1);
+    const W2 = await open('../../docs/?drive=' + id);
+    expect(text(W2)).toEqual(['Keep me']);
+    expect(para(W2).runs[0].i).toBeTruthy();
+    expect(para(W2).props.list.id).toBe('bul');
+    expect(W2.location.search).toContain('drive=' + id);
+    close(W2);
+  });
+  it('keeps unsaved typing as a draft and restores it on the next launch', async () => {
+    const id = await H.put(new Blob([], { type: 'application/x-slop-doc' }), { name: 'Draft.sdoc', from: 'drive' });
+    const W1 = await open('../../docs/?drive=' + id);
+    typeText(W1, 'Not saved yet');
+    expect(W1.SlopDocs.file.dirty).toBeTruthy();
+    await draftSaved(W1);
+    close(W1);
+    const W2 = await open('../../docs/?drive=' + id);
+    expect(text(W2)).toEqual(['Not saved yet']);
+    expect(W2.SlopDocs.file.dirty).toBeTruthy();
+    close(W2);
+  });
+  it('opens a Word or Markdown file from Drive as a new document (no overwrite of the original)', async () => {
+    const md = new Blob(['# From markdown\n\nSome **text**.'], { type: 'text/markdown' });
+    const id = await H.put(md, { name: 'notes.md', from: 'drive' });
+    const W = await open('../../docs/?drive=' + id);
+    expect(W.SlopDocs.file.id).toBeFalsy();
+    expect(text(W)).toEqual(['From markdown', 'Some text.']);
+    expect(para(W).style).toBe('H1');
+    expect(para(W, 1).runs.some((r) => r.b && r.text === 'text')).toBeTruthy();
+    close(W);
+    expect((await H.get(id)).type).toBe('text/markdown');
+  });
+});
+SlopTest.run({ name: 'Slop Docs app' });
+</script>
+</body>
+</html>

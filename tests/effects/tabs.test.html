@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Effects · the panel and timeline tabs (SlopTabs): click and arrow keys</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../effects/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: effects/js/main.js, effects/index.html, shared/ui/tabs.js, shared/commands/commands.js (a focused tab strip keeps its arrows)
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const D = () => f.contentDocument, $ = (id) => D().getElementById(id);
+  const key = (el, k) => el.dispatchEvent(new (f.contentWindow.KeyboardEvent)('keydown', { key: k, bubbles: true, cancelable: true }));
+  const box = (k) => D().querySelector(`#fx-panel [data-panel="${k}"]`);
+  const tab = (list, k) => D().querySelector(`#${list} [data-view="${k}"]`);
+
+  describe('Slop Effects tabs', () => {
+    it('the side panel opens on Layer; a click shows Effects', async () => {
+      await waitFor(() => D() && box('layer') && tab('fx-tabs', 'layer').getAttribute('aria-selected') === 'true', { timeout: 20000 });
+      expect(box('fx').hidden).toBe(true);
+      tab('fx-tabs', 'fx').click();
+      expect(box('fx').hidden).toBe(false);
+      expect(box('layer').hidden).toBe(true);
+      expect(tab('fx-tabs', 'fx').tabIndex).toBe(0);
+    });
+    it('the arrow keys move between the panel tabs and focus them', () => {
+      tab('fx-tabs', 'fx').focus();
+      key(tab('fx-tabs', 'fx'), 'ArrowRight');
+      expect(box('motion').hidden).toBe(false);
+      expect(D().activeElement).toBe(tab('fx-tabs', 'motion'));
+      key(tab('fx-tabs', 'motion'), 'Home');
+      expect(box('layer').hidden).toBe(false);
+    });
+    it('the timeline strip switches between the timeline and the graph editor', () => {
+      expect($('fx-timeline').hidden).toBe(false);
+      expect($('fx-graph').hidden).toBe(true);
+      tab('fx-tl-tabs', 'timeline').focus();
+      key(tab('fx-tl-tabs', 'timeline'), 'ArrowRight');
+      expect($('fx-graph').hidden).toBe(false);
+      expect($('fx-timeline').hidden).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopClean in Swedish</title>
+  <!-- Covers: clean/index.html, clean/i18n/index.js, clean/js/app/layout.js, clean/js/app/main.js, clean/js/ui/report.js, clean/js/ui/choices.js, clean/js/io/files.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'SlopClean', path: '../../clean/index.html', ns: 'clean',
+    ready: (doc) => doc.querySelector('#cl-side .sf-h') && doc.querySelector('#cl-all'),
+    checks: [
+      ['#cl-open', 'Öppna bilder…', 'Open pictures…'],
+      ['#cl-side .sf-h', 'Vad som ska tas bort', 'What to remove'],
+      ['#cl-all', 'Kopiera och rensa: ladda ned', 'Copy and clean: download'],
+      ['#cl-empty h2', 'Släpp bilder här', 'Drop pictures here'],
+      ['#cl-remove-all', 'Markera standardkategorierna', 'Tick the default categories', 'title'],
+    ],
+  });
+  SlopTest.run({ name: 'SlopClean in Swedish' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Signature assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1280px; height: 860px; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: signature/js/ai-commands.js, signature/js/app.js, signature/index.html, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D, C;
+  const run = async (id, args) => { const r = await C.exec('signature.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const sig = () => D.getElementById('sgSig');
+
+  describe('Slop Signature: the assistant makes and exports a signature', () => {
+    it('the page has SlopCmd; prepare() loads the commands', async () => {
+      try { localStorage.removeItem('slop-signature'); } catch (e) { /* none */ }
+      const f = document.getElementById('app');
+      f.src = '../../signature/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopSignature && f.contentWindow.SlopSignature.app && f.contentWindow.SlopCmd, { timeout: 20000 });
+      W = f.contentWindow; D = W.document; C = W.SlopCmd;
+      await C.prepare();
+      for (const t of ['new-signature', 'set-fields', 'set-style', 'add-links', 'add-picture', 'export-signature']) expect(C.get('signature.ai.' + t).destructive).toBe(false);
+    }, { timeout: 30000 });
+
+    it('new_signature, set_fields, set_style and add_links draw the signature', async () => {
+      await run('new-signature', { name: 'Ada Bee', title: 'Head beekeeper', company: 'Hive & Co', email: 'ada@hive.example', template: 'side', accent: '#aa6600' });
+      expect(sig().textContent).toContain('Ada Bee');
+      expect(sig().querySelector('a[href="mailto:ada@hive.example"]') !== null).toBe(true);
+      expect(C.state().template).toBe('side');
+      await run('set-fields', { phone: '+44 117 496 0001', website: 'hive.example' });
+      expect(sig().querySelector('a[href="https://hive.example"]') !== null).toBe(true);
+      await run('set-style', { template: 'compact', font: 'Georgia, serif' });
+      expect(C.state().font).toBe('Georgia, serif');
+      const r = await run('add-links', { links: { linkedin: 'linkedin.com/in/adabee' } });
+      expect(r.value).toMatch(/1 social link/);
+      expect((await C.exec('signature.ai.add-links', { links: { myspace: 'x' } })).ok).toBe(false);
+      const p = await run('set-fields', { email: 'not an address' });
+      expect(p.value).toMatch(/Check: Email/);
+      await run('set-fields', { email: 'ada@hive.example' });
+    });
+
+    it('add_picture from Slop Drive keeps it inside; the checkpoint puts the old details back', async () => {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 40; c.getContext('2d').fillRect(0, 0, 40, 40);
+      await W.SlopHub.put(await new Promise((r) => c.toBlob(r, 'image/png')), { name: 'logo.png' });
+      await run('set-style', { template: 'side' });   // the compact template has no picture
+      const back = C.checkpoint();
+      await run('add-picture', { file: 'logo.png', image_size: 64 });
+      expect(sig().querySelector('img').getAttribute('src').startsWith('data:image/png')).toBe(true);
+      await run('set-fields', { name: 'Someone Else' });
+      back();
+      expect(sig().textContent).toContain('Ada Bee');
+      expect(sig().querySelector('img')).toBe(null);
+    }, { timeout: 20000 });
+
+    it('export_signature as HTML and text to Slop Drive', async () => {
+      const h = await run('export-signature', { format: 'html' });
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(h.value)[1]);
+      expect(rec.name).toBe('ada-bee-signature.html');
+      expect(await rec.blob.text()).toContain('mailto:ada@hive.example');
+      const t = await run('export-signature', { format: 'txt' });
+      const trec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(t.value)[1]);
+      expect(await trec.blob.text()).toContain('Head beekeeper');
+    });
+  });
+  SlopTest.run({ name: 'Slop Signature assistant commands' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Gallery on a phone: the filters drawer</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: gallery/js/ui/sidebar.js, gallery/js/ui/commands.js, gallery/css/gallery.css, gallery/index.html -->
+  <iframe id="f" src="../../gallery/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D, G;
+  const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('390 × 844: the library panel is a SlopSheet drawer from the left', () => {
+    it('Filters opens the drawer at the left edge; Filters again closes it', async () => {
+      W = document.getElementById('f').contentWindow;
+      await waitFor(() => W.SlopGallery && W.SlopGallery.sidebar && W.SlopGallery.sidebar.sheet, { timeout: 30000 });
+      D = W.document; G = W.SlopGallery;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const btn = D.getElementById('btnFilters'), side = D.getElementById('side');
+      expect([G.sidebar.sheet.isPhone(), G.sidebar.sheet.isOpen()]).toEqual([true, false]);
+      btn.click();
+      expect([G.sidebar.sheet.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+      const r = side.getBoundingClientRect();
+      expect([Math.round(r.left), r.width <= 320]).toEqual([0, true]);
+      btn.click();
+      expect([G.sidebar.sheet.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([false, 'false']);
+    });
+    it('the × closes it and gives focus back to Filters; Escape closes it; a view picked in it closes it', () => {
+      const btn = D.getElementById('btnFilters');
+      btn.focus(); btn.click();
+      const x = D.querySelector('#side > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close filters');
+      x.click();
+      expect([G.sidebar.sheet.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc();
+      expect(G.sidebar.sheet.isOpen()).toBe(false);
+      btn.click(); D.querySelector('#side [data-view="favourites"]').click();
+      expect(G.sidebar.sheet.isOpen()).toBe(false);
+      D.querySelector('#side [data-view="photos"]').click();
+    });
+  });
+  SlopTest.run({ name: 'Slop Gallery: phone drawer' });
+  </script>
+</body>
+</html>

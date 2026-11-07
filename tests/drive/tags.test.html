@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: tags</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, D;
+  const q = (s) => D.querySelector(s), qa = (s) => [...D.querySelectorAll(s)];
+  const file = (n) => [...DR.S.files.values()].find((x) => x.name === n);
+  const folder = (n) => [...DR.S.folders.values()].find((x) => x.name === n);
+  const tagsOf = (n) => DR.tagsOf(file(n));
+  const boot = async () => {
+    W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+    DR = W.DR; H = W.SlopHub; D = W.document;
+  };
+
+  describe('tags on files', () => {
+    it('boots with a folder and four files', async () => {
+      try { localStorage.removeItem('slop-drive.prefs'); } catch (e) { /* blocked */ }
+      await boot();
+      await H.clear();
+      const docs = await H.createFolder('Docs');
+      await H.put(DT.text('one'), { name: 'invoice-1.pdf', from: 'pdf', folderId: docs });
+      await H.put(DT.text('two'), { name: 'invoice-2.pdf', from: 'pdf', folderId: docs });
+      await H.put(DT.text('three'), { name: 'photo.png', from: 'photoslop', folderId: null });
+      await H.put(DT.text('four'), { name: 'notes.txt', from: 'upload', folderId: null });
+      await DR.refresh(); DR.setView('list'); DR.go(null);
+      expect(file('invoice-1.pdf').meta).toEqual({});
+    });
+
+    it('adds tags in lowercase, without duplicates, and leaves the modified date alone', async () => {
+      const before = file('invoice-1.pdf').modified;
+      await DR.addTags([file('invoice-1.pdf')], 'Invoice, 2026 , invoice,  Tax Year ');
+      expect(tagsOf('invoice-1.pdf')).toEqual(['invoice', '2026', 'tax year']);
+      expect(file('invoice-1.pdf').modified).toBe(before);
+      expect((await H.get(file('invoice-1.pdf').id)).meta.tags).toEqual(['invoice', '2026', 'tax year']);
+      await DR.addTags([file('invoice-1.pdf')], '2026');
+      expect(tagsOf('invoice-1.pdf')).toEqual(['invoice', '2026', 'tax year']);
+    });
+
+    it('removes a tag', async () => {
+      expect(await DR.removeTag([file('invoice-1.pdf')], '2026')).toBe(1);
+      expect(tagsOf('invoice-1.pdf')).toEqual(['invoice', 'tax year']);
+    });
+
+    it('the details panel shows the tags, with add and remove', async () => {
+      await DR.addTags([file('invoice-2.pdf'), file('photo.png')], 'invoice, family');
+      expect(tagsOf('photo.png')).toEqual(['invoice', 'family']);
+      await DR.removeTag([file('photo.png')], 'invoice');
+      DR.select(['f:' + file('invoice-1.pdf').id]);
+      DR.toggleInfo(true);
+      const info = D.getElementById('info');
+      expect([...info.querySelectorAll('.tag')].map((t) => t.firstChild.textContent)).toEqual(['invoice', 'tax year']);
+      info.querySelector('[aria-label="Remove tag tax year"]').click();
+      await waitFor(() => tagsOf('invoice-1.pdf').length === 1);
+      expect(tagsOf('invoice-1.pdf')).toEqual(['invoice']);
+      const input = await waitFor(() => D.querySelector('#info .tag-in'));
+      input.value = 'Receipts, Paid';
+      input.dispatchEvent(DT.key('Enter'));
+      await waitFor(() => tagsOf('invoice-1.pdf').length === 3);
+      expect(tagsOf('invoice-1.pdf')).toEqual(['invoice', 'receipts', 'paid']);
+      expect(D.querySelectorAll('#info .tag').length).toBe(3);
+    });
+
+    it('tags survive a reload', async () => {
+      const id = file('invoice-1.pdf').id;
+      W.__frame.remove();
+      await boot();
+      expect(tagsOf('invoice-1.pdf')).toEqual(['invoice', 'receipts', 'paid']);
+      DR.select(['f:' + id]);
+      DR.toggleInfo(true);
+      expect([...D.querySelectorAll('#info .tag')].map((t) => t.firstChild.textContent)).toEqual(['invoice', 'receipts', 'paid']);
+    });
+  });
+
+  describe('the tag filter in the sidebar', () => {
+    it('lists each tag with its file count', async () => {
+      await DR.addTags([file('invoice-2.pdf')], 'tax year, invoice');
+      await DR.addTags([file('notes.txt')], 'family');
+      await DR.addTags([file('photo.png')], 'vacation, family');
+      await DR.removeTag([file('invoice-1.pdf')], 'paid');
+      // family: invoice-2, photo, notes. invoice: invoice-1, invoice-2. The rest are on one file each.
+      expect(DR.tagCounts()).toEqual([['family', 3], ['invoice', 2], ['receipts', 1], ['tax year', 1], ['vacation', 1]]);
+      const listed = qa('#tags [data-tag]').map((b) => [b.dataset.tag, b.querySelector('small').textContent]);
+      expect(listed).toEqual([['family', '3'], ['invoice', '2'], ['receipts', '1'], ['tax year', '1'], ['vacation', '1']]);
+    });
+
+    it('filtering by a tag shows only the files that carry it, drive-wide', () => {
+      q('#tags [data-tag="invoice"]').click();
+      expect(DR.S.tag).toBe('invoice');
+      expect(q('#tags [data-tag="invoice"]').getAttribute('aria-pressed')).toBe('true');
+      const shown = qa('#pane .row .nm').map((n) => n.textContent);
+      expect(shown.length).toBe(Number(q('#tags [data-tag="invoice"] small').textContent));
+      expect(shown).toEqual(['invoice-1.pdf', 'invoice-2.pdf']);
+    });
+
+    it('the count follows the files, and a second click clears the filter', async () => {
+      await DR.removeTag([file('invoice-2.pdf')], 'invoice');
+      expect(q('#tags [data-tag="invoice"] small').textContent).toBe('1');
+      expect(qa('#pane .row').length).toBe(1);
+      q('#tags [data-tag="invoice"]').click();
+      expect(DR.S.tag).toBe('');
+      const here = DR.children(DR.S.cwd);   // back to the folder's own contents
+      expect(qa('#pane .row').length).toBe(here.folders.length + here.files.length);
+    });
+
+    it('the Tags column shows the tags of each file', () => {
+      DR.setView('list'); DR.go(folder('Docs').id);
+      DR.S.cols = { order: ['name', 'type', 'size', 'modified', 'tags', 'location'], on: { tags: true }, widths: {} };
+      DR.render();
+      const row = qa('#pane .row').find((r) => r.querySelector('.nm').textContent === 'invoice-1.pdf');
+      expect(row.querySelector('.c-tags').textContent).toBe('invoice, receipts');
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: tags' });
+  </script>
+</body>
+</html>

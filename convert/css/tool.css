@@ -1,0 +1,149 @@
+@import url("../../shared/frame/frame.css");   /* the page's view + right panel (js/ui/frame.js, shared/frame) */
+/* File convert: the tool itself (js/ui/mount-tool.js mountTool): the drop zone, the file cards with their Convert to and
+ * Options, the bulk bar, Convert and the results. Every rule is under the tool's root class (.cv-tool), and the tool has its
+ * own colour tokens and container queries, so it looks the same on File convert's pages and inside a dialog of another
+ * app, at any width. convert.css imports this file; mountTool adds it to a page that has not loaded it (--cv-tool tells). */
+.cv-tool {
+  --bg: #0a0a0a; --panel: #161618; --panel-2: #1f1f23; --ink: #f1ede4; --muted: #b3ada3;
+  --line: #3a3a40; --accent: #d4ff3a; --accent-ink: #0a0a0a; --danger: #ff8a9b; --focus: #ffffff;
+  --cv-tool: 1; container: cv-tool / inline-size; color-scheme: dark; color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow-wrap: anywhere;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .cv-tool { --bg: #f6f3ec; --panel: #ffffff; --panel-2: #efebe2; --ink: #161616; --muted: #58534b; --line: #c9c3b6; --accent: #3d5a00; --accent-ink: #ffffff; --danger: #b00020; --focus: #161616; color-scheme: light; }
+}
+:root[data-theme="light"] .cv-tool { --bg: #f6f3ec; --panel: #ffffff; --panel-2: #efebe2; --ink: #161616; --muted: #58534b; --line: #c9c3b6; --accent: #3d5a00; --accent-ink: #ffffff; --danger: #b00020; --focus: #161616; color-scheme: light; }
+.cv-tool, .cv-tool * { box-sizing: border-box; }
+.cv-tool [hidden] { display: none !important; }
+.cv-tool a, .cv-tool button { color: inherit; }
+.cv-tool a:focus-visible, .cv-tool button:focus-visible, .cv-tool input:focus-visible, .cv-tool select:focus-visible, .cv-tool [tabindex]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.cv-tool .cv-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cv-tool .cv-section { margin: 18px 0; }
+/* The "PDF → DOCX" picture (shared/ui/flow.js), centred above the drop zone. */
+.cv-tool .cv-flow { display: flex; justify-content: center; padding: 4px 0 18px; color: var(--muted); }
+.cv-tool .cv-flow[hidden] { display: none; }
+.cv-tool.cv-compact .cv-flow { padding-block-end: 10px; }
+.cv-tool .cv-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; min-height: 150px; padding: 22px 16px; border: 2px dashed var(--line); border-radius: 14px; background: var(--panel); }
+.cv-tool .cv-drop:hover { border-color: var(--accent); }
+.cv-tool .cv-drop > .sd-zone { width: 100%; }
+/* Once there are files the drop zone stays where it is as a strip of one fixed height ("Add more files"); the files being
+ * read are listed in the file list below, so the zone's own progress list and status are not shown (nothing grows). */
+.cv-tool .cv-drop .sd-list, .cv-tool .cv-drop .sd-status { display: none !important; }
+.cv-tool .cv-drop.cv-drop-has, .cv-tool.cv-compact .cv-drop { min-height: 0; height: 76px; padding: 8px 16px; overflow: hidden; }
+.cv-tool .cv-drop.cv-drop-has .sd-zone, .cv-tool.cv-compact .cv-drop .sd-zone { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 12px; }
+.cv-tool .cv-drop.cv-drop-has .sd-zone > p:not(.sd-msg), .cv-tool.cv-compact .cv-drop .sd-zone > p:not(.sd-msg) { display: none; }
+.cv-tool .cv-drop.cv-drop-has .sd-msg, .cv-tool.cv-compact .cv-drop .sd-msg { flex: 0 1 auto; text-align: start; }
+.cv-tool .cv-drop.cv-drop-has .sd-choose, .cv-tool.cv-compact .cv-drop .sd-choose { flex: none; }
+.cv-tool .cv-flow.cv-flow-blank { visibility: hidden; }
+.cv-tool .cv-hint { color: var(--muted); font-size: 14px; margin: 0; }
+.cv-tool .cv-page-note { color: var(--muted); margin: 0 0 12px; }
+
+.cv-tool .cv-files, .cv-tool .cv-out { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cv-tool .cv-file, .cv-tool .cv-out-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.cv-tool .cv-file-main { min-width: 0; display: flex; flex-direction: column; }
+.cv-tool .cv-file-name { font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.cv-tool .cv-file-meta { color: var(--muted); font-size: 14px; }
+.cv-tool .cv-file-msg { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--muted); }
+.cv-tool .cv-error { color: var(--danger); }
+.cv-tool .cv-empty { color: var(--muted); padding: 6px 2px; }
+.cv-tool .cv-skip { opacity: .75; }
+
+.cv-tool .cv-form { display: grid; gap: 14px; margin: 18px 0 10px; }
+.cv-tool .cv-opt { display: flex; flex-direction: column; gap: 6px; }
+.cv-tool .cv-opt label, .cv-tool .cv-check label { font-weight: 600; font-size: 15px; }
+.cv-tool .cv-check label { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+.cv-tool .cv-opts-body { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.cv-tool .cv-opts-body .cv-hint { font-size: 13px; }
+.cv-tool select, .cv-tool input[type="text"], .cv-tool input[type="number"] { width: 100%; min-height: 44px; padding: 8px 10px; font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.cv-tool input[type="color"] { width: 64px; height: 44px; padding: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.cv-tool input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--accent); }
+.cv-tool output { color: var(--muted); font-weight: 500; }
+.cv-tool .cv-note { color: var(--muted); font-size: 14px; margin: 0; min-height: 1em; }
+.cv-tool .cv-actions, .cv-tool .cv-res-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.cv-tool .cv-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; font: inherit; font-weight: 600; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; cursor: pointer; }
+.cv-tool .cv-btn:hover:not(:disabled) { border-color: var(--accent); }
+.cv-tool .cv-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cv-tool .cv-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.cv-tool .cv-small { min-height: 36px; padding: 4px 12px; font-size: 14px; }
+.cv-tool .cv-status { min-height: 1.5em; color: var(--muted); margin: 6px 0; }
+.cv-tool .cv-results { margin-top: 18px; }
+.cv-tool .cv-out-item { grid-template-columns: minmax(0, 1fr) auto auto; }
+.cv-tool .cv-file { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.cv-tool .cv-file-check { inline-size: 20px; block-size: 20px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.cv-tool .cv-file.cv-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.cv-tool .cv-file-to { display: inline-flex; align-items: center; gap: 8px; min-inline-size: 0; }
+.cv-tool .cv-file-to-h { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.cv-tool .cv-to { display: inline-flex; align-items: center; gap: 8px; min-block-size: 40px; min-inline-size: 0; max-inline-size: 280px; padding-block: 4px; padding-inline: 6px 10px;
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; text-align: start; }
+.cv-tool .cv-to:hover:not(:disabled), .cv-tool .cv-to[aria-expanded="true"] { border-color: var(--accent); }
+.cv-tool .cv-to:disabled { opacity: .6; cursor: default; }
+.cv-tool .cv-to-label { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-tool .cv-to-caret { color: var(--muted); font-size: 12px; }
+.cv-tool .cv-to .sflow-solo { flex: none; }
+.cv-tool .cv-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-block-size: 54px; margin-block-end: 8px; padding-block: 8px; padding-inline: 12px; border: 1px dashed var(--line); border-radius: 10px; }
+.cv-tool .cv-bulk-all { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; font-size: 14px; cursor: pointer; }
+.cv-tool .cv-bulk-n { font-weight: 600; font-size: 14px; }
+.cv-tool .cv-bulk-none { flex: 1 1 220px; margin: 0; font-size: 14px; color: var(--muted); }
+@container cv-tool (max-width: 600px) {
+  .cv-tool .cv-file { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .cv-tool .cv-file-main { grid-column: 2 / -1; }
+  .cv-tool .cv-file-to { grid-column: 2; grid-row: 2; }
+  .cv-tool .cv-file .cv-file-to-h { display: none; }   /* the button's label still says "Convert <file> to" */
+  .cv-tool .cv-file .cv-file-rm { grid-column: 3; grid-row: 2; justify-self: end; }
+  .cv-tool .cv-file.cv-skip .cv-file-rm { grid-column: 2 / -1; justify-self: start; }
+  .cv-tool .cv-to { max-inline-size: 100%; }
+}
+/* Each card's Options (js/ui/file-opts.js): a disclosure under the row with the options of that file's target; the bulk
+ * bar's sets every selected file. The summary names what differs from the defaults. */
+.cv-tool .cv-file-opts { grid-column: 1 / -1; min-inline-size: 0; border-block-start: 1px solid var(--line); padding-block-start: 4px; margin-block-start: -2px; }
+.cv-tool .cv-file-opts > summary { display: flex; align-items: center; gap: 10px; min-block-size: 32px; cursor: pointer; font-size: 14px; font-weight: 600; list-style: none; }
+.cv-tool .cv-file-opts > summary::-webkit-details-marker { display: none; }
+.cv-tool .cv-file-opts > summary::before { content: "▸"; flex: none; inline-size: 1em; color: var(--muted); }
+.cv-tool .cv-file-opts[open] > summary::before { content: "▾"; }
+.cv-tool .cv-file-opts > summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.cv-tool .cv-file-opts-sum { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 400; }
+.cv-tool .cv-file-opts > .cv-opts-body { padding-block: 8px 4px; }
+.cv-tool .cv-bulk-opts { flex: 1 1 100%; }
+@container cv-tool (max-width: 480px) {
+  .cv-tool .cv-out-item { grid-template-columns: minmax(0, 1fr); }
+  .cv-tool .cv-out-item .cv-btn { justify-self: start; }
+  .cv-tool .cv-actions .cv-btn { flex: 1 1 140px; }
+}
+@media (prefers-reduced-motion: no-preference) { .cv-tool .cv-drop { transition: border-color .15s; } }
+/* A card's route (js/ui/chain-row.js): SIE → [CSV ▾] → JSON  + Then…  ×, under the row; it wraps on a phone. The tiles in
+ * the middle are menu buttons; the route's Options has one group per step (js/ui/chain-opts.js). */
+.cv-tool .cv-file-to { flex-wrap: wrap; }
+.cv-tool .cv-route { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-inline-size: 0; }
+.cv-tool .cv-bulk .cv-route { flex: 1 1 100%; }
+.cv-tool .cv-route-arrow { color: var(--muted); font-weight: 700; }
+.cv-tool .cv-route-mid { display: inline-flex; align-items: center; gap: 4px; min-block-size: 44px; padding-block: 3px; padding-inline: 4px 8px; font: inherit; color: var(--ink);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.cv-tool .cv-route-mid:hover:not(:disabled), .cv-tool .cv-route-mid[aria-expanded="true"] { border-color: var(--accent); }
+.cv-tool .cv-route-mid:disabled { cursor: default; background: none; border-color: transparent; }
+.cv-tool .cv-route-mid:disabled .cv-to-caret { display: none; }
+.cv-tool .cv-route-end { display: inline-flex; }
+.cv-tool .cv-route-then, .cv-tool .cv-route-x { white-space: nowrap; }
+.cv-tool .cv-route-x { min-inline-size: 36px; padding-inline: 8px; font-size: 18px; line-height: 1; }
+.cv-tool .cv-route + .cv-file-opts { margin-block-start: 0; }
+.cv-tool .cv-step-opts + .cv-step-opts { margin-block-start: 6px; padding-block-start: 6px; border-block-start: 1px dashed var(--line); }
+.cv-tool .cv-step-h { margin: 6px 0 4px; font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--muted); }
+.cv-tool .cv-route-opts .cv-opts-body { padding-block: 2px 4px; }
+.cv-tool .cv-keep { margin-block: 8px 4px; }
+/* The page's layout (js/ui/frame.js): the files on the left, the panel on the right with Convert at its foot. The panel
+ * takes the tool's colours (shared/frame paints with --sl-* tokens) and stays in sight while the page scrolls. */
+.cv-tool .cv-frame { --sl-surface: var(--panel); --sl-background: var(--bg); --sl-text: var(--ink); --sl-border: var(--line); --sl-accent: var(--accent); align-items: flex-start; gap: 0; }
+.cv-tool .cv-frame:not(.sf-phone) > .cv-main { padding-inline-end: 18px; }
+.cv-tool .cv-frame:not(.sf-phone) > .cv-side { position: sticky; inset-block-start: 12px; max-block-size: calc(100vh - 24px); border: 1px solid var(--line); border-radius: 12px; }
+.cv-tool .cv-frame:not(.sf-phone) > .cv-side .sf-p-title { border-radius: 12px 12px 0 0; }
+.cv-tool .cv-frame:not(.sf-phone) > .cv-side .sf-p-foot { border-radius: 0 0 12px 12px; }
+.cv-tool .cv-frame > .sf-grip { align-self: stretch; }
+.cv-tool .cv-side .cv-results { margin: 0; }
+.cv-tool .cv-side .cv-res-head h2 { display: none; }
+.cv-tool .cv-side .cv-out-item { grid-template-columns: minmax(0, 1fr) auto; }
+.cv-tool .cv-side .cv-out-item .cv-file-meta { grid-row: 2; }
+.cv-tool .cv-side .cv-out-item .cv-btn { grid-column: 2; grid-row: 1 / 3; }
+.cv-tool .cv-side .cv-status { margin: 0; font-size: 14px; }
+.cv-tool .cv-side .cv-note:empty, .cv-tool .cv-side .cv-status:empty { display: none; }
+.cv-tool .cv-side .sf-foot-acts .cv-btn { min-height: 44px; padding-inline: 10px; }
+.cv-tool .cv-side .sf-foot-acts .cv-primary { flex-grow: 2; }
+.cv-tool .cv-side .sf-foot-more { min-height: 44px; padding: 8px 12px; font: inherit; font-weight: 600; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.cv-tool .cv-side .sf-h, .cv-tool .cv-side .sf-note { color: var(--muted); }   /* the panel's small headings in the tool's muted ink (contrast) */

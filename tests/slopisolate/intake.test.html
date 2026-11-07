@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopIsolate intake tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- One way in: every route that adds files ends in CO.files.take, once per batch, and the first-use notice is asked
+       once per batch whichever route it came by. No model runs here (the queue is stubbed).
+       Covers: slopisolate/js/io/files.js, slopisolate/js/io/drive.js, slopisolate/js/ui/menus.js, slopisolate/js/ui/queue.js, slopisolate/js/ui/main.js,
+       slopisolate/js/video/item.js -->
+  <script src="../harness.js"></script>
+  <script src="intake.spec.js"></script>
+  <script>SlopTest.run({ name: 'SlopIsolate intake' });</script>
+</body>
+</html>

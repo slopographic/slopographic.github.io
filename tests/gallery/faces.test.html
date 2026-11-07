@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery tests: faces and People</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real Gallery in a same-origin iframe. The detector is STUBBED: the width of each picture decides its faces
+       (40 px wide: one face, 50 px: two, 60 px: none). No model is needed. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const T = GT;
+  let W = null, G = null, D = null, calls = 0;
+  // A fixed embedding per face (no model): the vector depends on the box position only.
+  const fakeEmbed = async (src, f) => { const v = new Array(128).fill(0); v[Math.round(f.x) % 128] = 1; return v; };
+  const stub = () => ({ detect: async (src) => { calls++; const n = src.width >= 60 ? 0 : src.width >= 50 ? 2 : 1; return Array.from({ length: n }, (_, i) => ({ x: 2 + i * 12, y: 2, w: 8, h: 8, score: 0.9 })); } });
+  const labels = () => [...D.querySelectorAll('#tlContent .vhead-l')].map((e) => e.textContent);
+
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = 'about:blank';
+    await sleep(40);
+    fr.src = '../../gallery/index.html?db=' + T.dbName + '-faces';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.SlopGallery && fr.contentWindow.SlopGallery.ready, { timeout: 30000 });
+    W = fr.contentWindow; G = W.SlopGallery; D = W.document;
+    await G.library.load();
+    await G.db.destroy();
+    G.library._reset();
+    await G.library.load();
+    await W.SlopFaces.cache.clear();
+    W.SlopProfile.reset('faces');
+    W.SlopFaces.setBackend(stub());
+    W.SlopFaces.setEmbedder(fakeEmbed); // no recogniser model in the test: a fixed vector per face
+    return W;
+  }
+
+  describe('Gallery: face counts in the background, and People', () => {
+    it('boots with detection off by default; nothing is scanned', async () => {
+      await boot();
+      expect(W.SlopFaces.enabled()).toBe(false);
+      expect(G.people.stats().checked).toBe(0);
+      expect(G.people.groups(G.library.list()).length).toBe(0);
+    });
+
+    it('turning it on scans the library in the background and stores one result per photo', async () => {
+      W.SlopFaces.setEnabled(true);
+      const r = await G.importer.run([
+        { file: await T.jpegFile('one.jpg', 40, 30, { colour: '#3a7bd5' }), name: 'one.jpg' },
+        { file: await T.jpegFile('two.jpg', 50, 30, { colour: '#d53a7b' }), name: 'two.jpg' },
+        { file: await T.jpegFile('none.jpg', 60, 30, { colour: '#7bd53a' }), name: 'none.jpg' },
+      ]);
+      expect(r.added).toBe(3);
+      await waitFor(() => G.people.stats().checked === 3, { timeout: 20000 });
+      expect(calls).toBe(3);
+      expect((await W.SlopFaces.cache.all('gallery')).size).toBe(3);
+    });
+
+    it('groups the photos by face count: one face, two or more, none', async () => {
+      const groups = G.people.groups(G.library.list()).map((g) => [g.label, g.items.length]);
+      expect(JSON.parse(JSON.stringify(groups))).toEqual([['One face', 1], ['Two or more faces', 1], ['No faces', 1]]);
+    });
+
+    it('the People view shows the groups as headings, and the bar counts them', async () => {
+      G.state.setView('people');
+      await waitFor(() => !D.getElementById('peopleBar').hidden);
+      await waitFor(() => labels().length === 3);
+      expect(labels()).toEqual(['One face', 'Two or more faces', 'No faces']);
+      expect(G.timeline.count).toBe(3);
+      expect(D.getElementById('peopleText').textContent).toContain('3 of 3 checked');
+      expect(D.getElementById('peopleOn').hidden).toBe(true);
+    });
+
+    it('the viewer shows a "2 faces" badge; opening it draws the boxes of that photo', async () => {
+      const ids = G.library.list().map((m) => m.id);
+      const two = G.library.list().find((m) => m.name === 'two.jpg');
+      G.viewer.open(ids, ids.indexOf(two.id));
+      await waitFor(() => D.querySelector('.v-top .face-badge'), { timeout: 8000 });
+      expect(D.querySelector('.v-top .face-badge').textContent).toBe('2 faces');
+      expect(D.querySelectorAll('.v-pic svg.face-ov rect').length).toBe(0); // hidden by default
+      D.querySelector('.v-top .face-badge').click();
+      await waitFor(() => D.querySelectorAll('.v-pic svg.face-ov rect').length === 2, { timeout: 8000 });
+      expect(D.querySelectorAll('.v-pic svg.face-ov rect').length).toBe(2);
+      G.viewer.close();
+    });
+
+    it('turning it off stops the scan, hides the groups and puts the switch back to "off"', async () => {
+      W.SlopProfile.set('faces', 'detect', false);
+      // The Profile page is another tab: it writes the same key, and this tab gets a storage event.
+      W.dispatchEvent(new W.StorageEvent('storage', { key: 'slop-profile' }));
+      await waitFor(() => D.getElementById('peopleText').textContent.includes('Face detection is off'));
+      expect(labels()).toEqual([]);
+      const before = calls;
+      const extra = await G.importer.run([{ file: await T.jpegFile('extra.jpg', 40, 30, { colour: '#111' }), name: 'extra.jpg' }]);
+      expect(extra.added).toBe(1);
+      await sleep(400);
+      expect(calls).toBe(before);
+      expect(W.SlopFaces.enabled()).toBe(false);
+    });
+  });
+  SlopTest.run({ name: 'Slop Gallery · faces and People (stubbed)' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · sections, jump links and the phone width</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let win, doc;
+  const ready = HomeTest.openHome().then((w) => { win = w; doc = w.document; });
+  const ORDER = ['documents', 'converters', 'labels', 'business', 'creative', 'tools'];
+  const shelves = () => [...doc.querySelectorAll('#app-sections > section.shelf')];
+
+  describe('homepage sections', () => {
+    it('the six sections are there, in order, each with an h2 and a one-line description', async () => {
+      await ready;
+      const ids = shelves().map((s) => s.id);
+      expect(ids.slice(0, 6)).toEqual(ORDER);
+      for (const id of ORDER) {
+        const sec = doc.getElementById(id);
+        expect(sec.tagName).toBe('SECTION');
+        expect(sec.querySelector('h2').textContent.length).toBeGreaterThan(3);
+        expect(sec.querySelector('header p').textContent.length).toBeGreaterThan(20);
+      }
+    });
+    it('the hero comes first, then the search and finder, and the jump links sit under the finder', async () => {
+      await ready;
+      const finder = doc.getElementById('app-finder');
+      const hero = doc.getElementById('hero');
+      const jump = doc.getElementById('jump-links');
+      expect(!!(hero.compareDocumentPosition(finder) & win.Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(!!(finder.compareDocumentPosition(jump) & win.Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(finder.querySelector('input[type="search"]') !== null).toBe(true);
+    });
+    it('each section has its cards, and every card links to its app', async () => {
+      await ready;
+      for (const id of ORDER) {
+        const cards = doc.querySelectorAll(`#${id} [data-perch="card"]`);
+        if (!cards.length) throw new Error('no cards in ' + id);
+        for (const c of cards) expect(c.getAttribute('href')).toBeTruthy();
+      }
+      const app = (id) => [...doc.querySelectorAll('#business [data-perch="card"]')].find((c) => c.dataset.id === id);
+      expect(app('orders').getAttribute('href')).toBe('orders/');
+      expect(app('contacts').getAttribute('href')).toBe('contacts/');
+    });
+    it('the converters have their in-and-out lines, and Print links to the first app that has it', async () => {
+      await ready;
+      const conv = doc.querySelector('#converters [data-id="convert"] .app-tag').textContent;
+      expect(conv).toBe('Images, PDFs, CSV, JSON or Markdown in; PNG, PDF, XLSX or JSON out.');
+      const print = doc.querySelector('#labels [data-id="print"]');
+      expect(print.getAttribute('href')).toBe('html2pdf/');
+      expect(print.querySelector('h3').textContent).toBe('Print');
+    });
+    it('the sections keep the apps the map does not name, in their old group', async () => {
+      await ready;
+      const shelved = (section, id) => !!doc.querySelector(`#${section} [data-id="${id}"]`);
+      expect(shelved('business', 'ai')).toBe(true);
+      expect(shelved('business', 'press')).toBe(true);
+      expect(shelved('creative', 'clean')).toBe(true);
+    });
+    it('the Experiments shelf comes after the six sections and holds the apps no section names', async () => {
+      await ready;
+      const exp = doc.getElementById('experiments');
+      if (BRAND_FACTS.tone === 'plain') return expect(exp).toBe(null);   // a plain build has no Experiments shelf
+      expect(exp.hidden).toBe(false);
+      expect(!!exp.querySelector('[data-id="paint-classic"]')).toBe(true);
+      expect(!!doc.querySelector('#experiments [data-id="authenticator"]')).toBe(false);
+      expect(shelves().map((s) => s.id).slice(-1)[0]).toBe('experiments');
+    });
+    it('the jump links point at each section, and their targets exist', async () => {
+      await ready;
+      const links = [...doc.querySelectorAll('#jump-links a')];
+      expect(links.map((a) => a.getAttribute('href'))).toEqual(['#documents', '#converters', '#labels', '#business', '#creative', '#tools'].concat(BRAND_FACTS.tone === 'plain' ? [] : ['#experiments']));
+      for (const a of links) {
+        const target = doc.querySelector(a.getAttribute('href'));
+        if (!target) throw new Error('no target for ' + a.getAttribute('href'));
+        expect(target.querySelector('h2').textContent).toBe(a.textContent);
+      }
+    });
+  });
+
+  describe('phone width', () => {
+    it('at 390 px wide there is no horizontal scroll and the search is above the fold', async () => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'width:390px;height:844px';
+      f.src = '../../index.html';
+      document.body.prepend(f);
+      await new Promise((r) => f.addEventListener('load', r, { once: true }));
+      const w = f.contentWindow;
+      await waitFor(() => w.document.querySelector('.app-card') && w.document.querySelector('#app-finder input'), { timeout: 15000 });
+      const d = w.document;
+      expect(w.innerWidth).toBe(390);
+      expect(d.documentElement.scrollWidth <= w.innerWidth).toBe(true);
+      expect(d.body.scrollWidth <= w.innerWidth).toBe(true);
+      const input = d.querySelector('#app-finder input');
+      expect(input.getBoundingClientRect().height >= 44).toBe(true);
+      f.remove();
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

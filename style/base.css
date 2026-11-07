@@ -1,0 +1,142 @@
+/* Slopographic site styles, part 1: tokens, base, nav and buttons. Black, bone, one acid accent. */
+:root {
+  --ink: #0a0a0a;
+  --ink-2: #111111;
+  --ink-3: #1a1a1a;
+  --bone: #f1ede4;
+  --bone-dim: rgba(241, 237, 228, 0.62);
+  --bone-faint: rgba(241, 237, 228, 0.38);
+  --line: rgba(241, 237, 228, 0.13);
+  --slop: #d4ff3a;
+  --slop-deep: #9fcc00;
+  --chrome: linear-gradient(180deg, #ffffff 0%, #d9d9d9 30%, #6f6f6f 48%, #f7f7f7 60%, #b9b9b9 78%, #ffffff 100%);
+  /* The brand family first (shared/fonts/fonts.css, tools/fonts/css.mjs), then a local font sized like it. */
+  --cond: /*profile:fontCond*/"Slopographic Condensed", /*profile:fontCondFallback*/"Archivo Fallback", "Arial Narrow", sans-serif;
+  --serif: /*profile:fontSerif*/"Slopographic Serif", /*profile:fontSerifFallback*/"Instrument Serif Fallback", Georgia, serif;
+  --sans: /*profile:fontSans*/"Slopographic Sans", /*profile:fontSansFallback*/"Inter Tight Fallback", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: /*profile:fontMono*/"Slopographic Mono", /*profile:fontMonoFallback*/"JetBrains Mono Fallback", ui-monospace, Menlo, monospace;
+  --sui-font: var(--sans);   /* the shared UI (shared/slopui.css, the shell) in the same family on these pages */
+  --sui-mono: var(--mono);
+  --emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Film grain over everything. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: var(--z-grain, 100);
+  pointer-events: none;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+::selection { background: var(--slop); color: var(--ink); }
+
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--slop); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+em { font-family: var(--serif); font-style: italic; font-weight: 400; }
+
+/* ---------- nav ---------- */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header, 20);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 24px;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 9px; color: var(--bone); text-decoration: none; }
+.mark { width: 22px; height: 22px; }
+.mark path { fill: var(--slop); }
+.mark .shine { fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; opacity: 0.8; }
+.brand-name {
+  font-family: var(--cond);
+  font-stretch: 62%;
+  font-weight: 800;
+  font-size: 22px;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.tabs { display: flex; gap: 2px; margin-left: 12px; }
+.tab {
+  border: 0;
+  background: none;
+  padding: 7px 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bone-faint);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+}
+.tab:hover { color: var(--bone); }
+.tab[aria-current="page"] { color: var(--bone); border-bottom-color: var(--slop); }
+
+
+/* ---------- page ---------- */
+
+main { overflow: clip; }
+
+.kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0 0 18px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--bone-dim);
+}
+.kicker span + span::before { content: "/"; margin-right: 22px; color: var(--bone-faint); }
+
+
+.btn[hidden] { display: none; }   /* a hidden button stays hidden: .btn's own display must not show it while the page loads */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--bone);
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.btn:hover { border-color: var(--bone); }
+.btn.primary { background: var(--slop); border-color: var(--slop); color: var(--ink); font-weight: 600; }
+.btn.primary:hover { background: #e4ff7a; }
+.btn.ghost { border-color: transparent; color: var(--bone-dim); }
+

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · hero links, keyboard list and buttons</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="hero-boot.js"></script>
+  <script>
+  // Covers: home/globe/globe.js, home/globe/list.js, home/globe/sphere.js, shared/apps.js, home/browse.js, index.html
+  /* The hero's links: every globe icon is a link to its app with the app's name, pointing at one brings it to the front
+   * and shows the name, the keyboard list holds every app as one tab stop moved with the arrow keys, Open the apps puts the cursor in
+   * the finder's search (a touch tap only scrolls there), How it works opens its page; the copy is translated through shared/i18n. */
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  // the page's copy in its language: English here, the build's start language elsewhere (tests/harness.js said)
+  const said = (key, english) => SlopTest.said(win, key, english);
+  let win, doc;
+  const ready = HeroTest.open({ width: 1280 }).then((w) => { win = w; doc = w.document; });
+  const label = (a) => win.slopAppLabel(a, win.slopBrandNamesOn());
+
+  describe('globe icons', () => {
+    it('opens on the lead apps (shared/apps.js SLOP_LEAD, the PDF family): the PDF editor front-most, the family in front with it', async () => {
+      await ready;
+      const lead = win.SLOP_LEAD || [];
+      if (win.SLOP_APPS.some((a) => a.id === 'pdf')) expect(lead.slice(0, 3)).toEqual(['pdf', 'html2pdf', 'ocr']);
+      if (!lead.length) return;
+      const check = () => {
+        const icons = win.SlopGlobe.icons();
+        expect(icons.reduce((m, i) => (i.z > m.z ? i : m)).id).toBe(lead[0]);   // the first front-facing icon
+        for (const id of lead) expect(icons.find((i) => i.id === id).z).toBeGreaterThan(0.5);   // beside it, facing you
+      };
+      check();
+      win.SlopGlobe.reduce(true);   // the still globe (reduced motion) opens the same way
+      expect(win.SlopGlobe.tier()).toBe('static');
+      check();
+      win.SlopGlobe.reduce(false);
+    });
+    it('each icon is a link to an app, named after it, out of the tab order and hidden from screen readers', async () => {
+      await ready;
+      const icons = [...doc.querySelectorAll('.gx-layer .gx-i')];
+      expect(icons.length).toBeGreaterThan(10);
+      expect(new Set(icons.map((n) => n.dataset.id)).size).toBe(icons.length);   // each app once
+      for (const n of icons) {
+        expect(n.tagName).toBe('A');
+        const app = win.SLOP_APPS.find((a) => a.id === n.dataset.id);
+        if (!app) throw new Error('no app for icon ' + n.dataset.id);
+        expect(n.getAttribute('href')).toBe(app.path);
+        expect(n.getAttribute('aria-label')).toBe(label(app));
+        expect(n.querySelector('.gx-name').textContent).toBe(label(app));
+        expect(n.querySelector('svg.gx-svg') !== null).toBe(true);
+        expect(n.getAttribute('tabindex')).toBe('-1');
+        expect(n.getAttribute('aria-hidden')).toBe('true');
+      }
+      expect(doc.querySelector('.gx-layer').getAttribute('aria-hidden')).toBe('true');
+    });
+    it('pointing at an icon stops the turn, brings it round to the front and shows its name; leaving resumes the turn', async () => {
+      await ready;
+      await waitFor(() => win.SlopGlobe.icons().some((i) => i.opacity > 0.5 && i.z > 0 && i.z < 0.6), { timeout: 8000 });
+      const ic = win.SlopGlobe.icons().filter((i) => i.opacity > 0.5 && i.z > 0 && i.z < 0.6)[0];
+      ic.el.dispatchEvent(new win.PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse', clientX: 1, clientY: 1 }));
+      expect(ic.el.classList.contains('is-hot')).toBe(true);
+      expect(win.SlopGlobe.view().focus).toBe(ic.id);
+      await waitFor(() => win.getComputedStyle(ic.el.querySelector('.gx-name')).opacity === '1', { timeout: 5000 });
+      expect(Number(ic.el.style.opacity)).toBe(1);
+      await waitFor(() => win.SlopGlobe.icons().find((i) => i.id === ic.id).z > 0.55, { timeout: 5000 });   // eased round to the front
+      const g = win.SlopGlobe.view().geom;
+      await sleep(1500);
+      expect(win.SlopGlobe.view().vel).toBe(0);   // no idle turn while it is pointed at
+      const held = () => win.SlopGlobe.icons().find((i) => i.id === ic.id);
+      expect(win.SlopGlobe.view().focus).toBe(ic.id);
+      try { await waitFor(() => held().z > 0.55 && Math.abs(held().x - g.cx) < g.r * 0.1, { timeout: 6000 }); }   // it waits at the front
+      catch (e) { throw new Error('not at the front: ' + JSON.stringify({ x: held().x - g.cx, z: held().z, v: win.SlopGlobe.view() })); }
+      ic.el.dispatchEvent(new win.PointerEvent('pointerout', { bubbles: true, pointerType: 'mouse', relatedTarget: doc.body }));
+      expect(ic.el.classList.contains('is-hot')).toBe(false);
+      expect(win.SlopGlobe.view().focus).toBe(null);
+      const y2 = win.SlopGlobe.view().yaw;
+      await waitFor(() => win.SlopGlobe.view().yaw - y2 > 0.01, { timeout: 8000 });   // the idle turn resumes
+    }, { timeout: 30000 });
+  });
+
+  describe('the keyboard list', () => {
+    it('lists every app with an icon and a page, as one tab stop', async () => {
+      await ready;
+      const links = [...doc.querySelectorAll('.gx-nav a')];
+      const want = win.SlopGlobeMath.leadFirst(win.SLOP_APPS.filter((a) => !a.path.startsWith('#') && win.SLOP_ICONS[a.id]), win.SLOP_LEAD);
+      expect(links.slice(0, win.SLOP_LEAD.length).map((a) => a.dataset.id)).toEqual(win.SLOP_LEAD);   // the lead apps first, as the globe
+      expect(links.map((a) => a.getAttribute('href'))).toEqual(want.map((a) => a.path));
+      expect(links.map((a) => a.textContent)).toEqual(want.map(label));
+      expect(links.filter((a) => a.tabIndex === 0).length).toBe(1);
+      expect(doc.querySelector('.gx-nav').getAttribute('aria-label')).toBe(said('hero.apps', 'Every app'));
+      expect(links[0].getBoundingClientRect().width).toBeLessThan(2);   // hidden until focused
+    });
+    it('the arrow keys move along it; the focused app shows as a chip and its icon comes round to the front', async () => {
+      await ready;
+      const links = [...doc.querySelectorAll('.gx-nav a')];
+      links[0].focus();
+      const key = (k) => doc.activeElement.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true }));
+      key('ArrowRight');
+      expect(doc.activeElement).toBe(links[1]);
+      expect(links[1].tabIndex).toBe(0);
+      expect(links[0].tabIndex).toBe(-1);
+      key('ArrowLeft'); key('ArrowLeft');
+      expect(doc.activeElement).toBe(links[links.length - 1]);
+      key('Home');
+      expect(doc.activeElement).toBe(links[0]);
+      // the farthest icon's app: focused, it turns all the way round to the front
+      const far = win.SlopGlobe.icons().reduce((m, i) => (i.z < m.z ? i : m));
+      const target = links.find((a) => a.dataset.id === far.id);
+      target.focus();
+      expect(target.getBoundingClientRect().width).toBeGreaterThan(40);
+      expect(far.el.classList.contains('is-hot')).toBe(true);
+      await waitFor(() => win.SlopGlobe.icons().find((i) => i.id === far.id).z > 0.55, { timeout: 6000 });
+      target.blur();
+      expect(far.el.classList.contains('is-hot')).toBe(false);
+      expect(win.SlopGlobe.state()).toBe('running');
+    }, { timeout: 30000 });
+  });
+
+  describe('buttons and copy', () => {
+    it('Open the apps scrolls to the finder and puts the cursor in its search', async () => {
+      await ready;
+      const btn = doc.querySelector('.hx-cta a[data-to-finder]');
+      expect(btn.textContent.trim().startsWith(said('hero.open', 'Open the apps'))).toBe(true);
+      expect(btn.getAttribute('href')).toBe('#app-finder');   // without scripts it still lands on the finder
+      if (doc.activeElement) doc.activeElement.blur();   // the search may have focus already (autofocus on desktop)
+      expect(doc.activeElement === doc.querySelector('#app-finder .fd-input')).toBe(false);
+      btn.click();
+      expect(doc.activeElement).toBe(doc.querySelector('#app-finder .fd-input'));
+      await waitFor(() => Math.abs(doc.getElementById('app-finder').getBoundingClientRect().top) < 200, { timeout: 5000 });
+      win.scrollTo(0, 0);
+    });
+    it('a tap on a touch screen scrolls to the finder without focusing its search (no on-screen keyboard)', async () => {
+      await ready;
+      const btn = doc.querySelector('.hx-cta a[data-to-finder]'), input = doc.querySelector('#app-finder .fd-input');
+      // a click as a touch screen sends it (no hover, a coarse pointer), only while the click is handled; reduced motion too,
+      // so the jump is instant (a smooth scroll in a test frame can stall); the page answers every other query as before
+      const mm = win.matchMedia;
+      const touchClick = (detail) => {
+        win.matchMedia = (q) => (/hover|pointer|reduced-motion/.test(q) ? { matches: /coarse|hover: none|reduce/.test(q), media: q, addEventListener() {}, removeEventListener() {} } : mm.call(win, q));
+        try { btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true, detail })); } finally { win.matchMedia = mm; }
+      };
+      if (doc.activeElement) doc.activeElement.blur();
+      touchClick(1);
+      expect(doc.activeElement === input).toBe(false);
+      await waitFor(() => Math.abs(doc.getElementById('app-finder').getBoundingClientRect().top) < 200, { timeout: 5000 });
+      win.scrollTo(0, 0);
+      touchClick(0);   // Enter on the link: the keyboard's user gets the cursor
+      expect(doc.activeElement).toBe(input);
+      await waitFor(() => Math.abs(doc.getElementById('app-finder').getBoundingClientRect().top) < 200, { timeout: 5000 });
+      win.scrollTo(0, 0);
+    });
+    it('How it works opens the how-it-works page; the meta line links the source on GitHub', async () => {
+      await ready;
+      const how = [...doc.querySelectorAll('.hx-cta a')].find((a) => a.textContent.includes(said('hero.how', 'How it works')));
+      expect(how.getAttribute('href')).toBe('how-it-works/');
+      const res = await fetch('../../how-it-works/');
+      expect(res.ok).toBe(true);
+      expect(doc.querySelector('.hx-meta a').getAttribute('href')).toBe('https://github.com/slopographic/apps');
+      expect(doc.querySelector('.hx-meta').textContent).toContain(said('hero.offline', 'Works offline') + said('hero.no_account', 'No account needed'));
+    });
+    it('one h1, the headline, with its accent word in the serif; the copy follows the language', async () => {
+      await ready;
+      expect(doc.querySelectorAll('#view-home h1').length).toBe(1);   // (the Authenticator view has its own)
+      const h1 = doc.querySelector('#view-home h1');
+      expect(h1.closest('#hero') !== null).toBe(true);
+      expect(win.getComputedStyle(h1.querySelector('em')).fontFamily).toMatch(/Instrument Serif/);
+      win.SlopI18n.set('es');
+      await win.SlopI18n.ready();   // the Spanish tables load on demand (shared/i18n/i18n.js)
+      expect(doc.querySelector('[data-i18n="hero.open"]').textContent).toBe('Abrir las apps');
+      expect(h1.querySelector('em').textContent).toBe('gratis en tu navegador.');
+      expect(doc.querySelector('.hx-marquee .mq-list').getAttribute('aria-label')).toBe('Lo que hacen las apps');
+      win.SlopI18n.set('en');
+      expect(h1.querySelector('.tone-playful').textContent).toBe('Office and creative apps, free in your browser.');   // the plain tone's headline is hidden here
+    });
+  });
+
+  ready.then(() => run({ name: 'Homepage · hero links, keyboard list and buttons' }));
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+/* Slop Press, Spanish: the menu bar's menus and submenus (ui/menus.js, ui/context.js) and the command groups. Every other language copies these keys. Terms: shared/i18n/glossary-es.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'press.menu.layout': 'Maquetación',
+  'press.menu.type': 'Texto',
+  'press.menu.object': 'Objeto',
+  'press.menu.window': 'Ventana',
+  'press.menu.tools': 'Herramientas',
+  'press.menu.styles': 'Estilos',
+  'press.menu.send_to': 'Enviar a',
+  'press.menu.pages': 'Páginas',
+  'press.menu.para_style': 'Estilo de párrafo',
+  'press.menu.char_style': 'Estilo de carácter',
+  'press.menu.alignment': 'Alineación',
+  'press.menu.special_char': 'Insertar carácter especial',
+  'press.menu.composer': 'Compositor',
+  'press.menu.arrange': 'Organizar',
+  'press.menu.fitting': 'Ajuste',
+  'press.menu.text_wrap': 'Ajuste de texto',
+  'press.menu.theme': 'Tema',
+  'press.menu.hub_unavailable': 'Slop Hub no disponible',
+  'press.menu.none': '(ninguno)',
+});

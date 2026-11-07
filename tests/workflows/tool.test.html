@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows tool: two tools on one page, each on its own; the Run a workflow dialog at 600 px with the app's files</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 14px system-ui; } .host { width: 900px; height: 640px; display: flex; border: 1px solid #333; margin: 8px; }</style>
+</head>
+<body>
+  <div class="host" id="h1"></div>
+  <div class="host" id="h2"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ui/flow.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/ui/undo.js"></script>
+  <script src="../../shared/ui/sheet.js"></script>
+  <script src="../../shared/frame/frame.js"></script>
+  <script src="../../shared/frame/panel.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../../shared/drop/panel.js"></script>
+  <script src="../../shared/drop/drop.js"></script>
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="helpers.js"></script>
+  <script type="module">
+  // Covers: workflows/js/ui/mount.js, workflows/js/ui/markup.js, shared/ops/dialog.js, shared/ops/entry.js, shared/ops/dialog.css, workflows/css/tool.css
+  import { mountWorkflow } from '../../workflows/js/ui/mount.js';
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let a, b;
+
+  describe('Two workflow tools on one page', () => {
+    it('each tool has its own ids, workflow, files and Undo', async () => {
+      a = mountWorkflow(document.getElementById('h1'), { compact: true, workflow: 'product-photos' });
+      b = mountWorkflow(document.getElementById('h2'), { compact: true, workflow: 'scans-pdf' });
+      await Promise.all([a.ready, b.ready]);
+      expect(a.ns).toBe('wf'); expect(b.ns).toBe('wf2');
+      expect(!!document.getElementById('wf-run') && !!document.getElementById('wf2-run')).toBe(true);
+      expect(new Set([...document.querySelectorAll('[id]')].map((e) => e.id)).size).toBe(document.querySelectorAll('[id]').length);
+      expect(a.S.doc.steps.length).toBe(5); expect(b.S.doc.steps.length).toBe(2);
+      await a.addFiles([await WFT.picture('one.png')]);
+      expect(a.S.files.length).toBe(1); expect(b.S.files.length).toBe(0);
+      expect(document.getElementById('wf-run').disabled).toBe(false);
+      expect(document.getElementById('wf2-run').disabled).toBe(true);
+      b.root.querySelector('.wf-step .wf-x').click();
+      expect(b.S.doc.steps.length).toBe(1); expect(a.S.doc.steps.length).toBe(5);
+      await b.undo();
+      expect(b.S.doc.steps.length).toBe(2);
+      expect(a.S.history.size).toBe(1);   // only its own template
+    });
+
+    it('Open ▾ lists the templates and opens one in that tool only', async () => {
+      document.getElementById('wf2-open').click();
+      const menu = await waitFor(() => document.querySelector('.smb-menu[role="menu"]'));
+      const row = [...menu.querySelectorAll('.smb-row')].find((r) => r.textContent.includes('Protect and send'));
+      row.click();
+      expect(b.S.doc.steps.map((s) => s.id)).toEqual(['merge-pdf', 'pdf-protect']);
+      expect(a.S.doc.name).toBe('Product photos');
+    });
+
+    it('runs one tool and hands its results to onResults', async () => {
+      const got = [];
+      const host = document.createElement('div'); host.className = 'host'; document.body.append(host);
+      const c = mountWorkflow(host, { compact: true, onResults: (outs) => got.push(...outs) });
+      await c.ready;
+      c.addStep('to-webp', { quality: 80 });
+      await c.addFiles([await WFT.picture('x.png'), await WFT.picture('y.png')]);
+      const r = await c.run();
+      expect(r.ok).toBe(true);
+      expect(got.map((o) => o.name)).toEqual(['x.webp', 'y.webp']);
+      c.destroy();
+      expect(host.children.length).toBe(0);
+    }, { timeout: 30000 });
+  });
+
+  describe('The Run a workflow dialog', () => {
+    it('opens with the app’s files (slop:convert-files), and at 600 px the run column goes under the steps', async () => {
+      const pic = await WFT.picture('from-app.png');
+      addEventListener('slop:convert-files', (e) => e.detail.provide(() => [pic], { app: 'Test app' }));
+      const ctl = await SlopWorkflowEntry.open({ workflow: 'web-photos' });
+      const tool = await ctl.ready;
+      const box = document.querySelector('.sui-dlg.sl-wf-dlg');
+      expect(!!box).toBe(true);
+      box.style.width = '600px';
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      expect(box.querySelector('.sl-wf-from').textContent).toBe('From Test app: from-app.png');
+      expect(tool.S.files.map((f) => f.name)).toEqual(['from-app.png']);
+      expect(tool.S.doc.steps.map((s) => s.id)).toEqual(['clean.metadata', 'resize.image', 'to-webp']);
+      const main = tool.root.querySelector('.wf-main').getBoundingClientRect(), side = tool.root.querySelector('.wf-side').getBoundingClientRect();
+      expect(side.top >= main.bottom - 1).toBe(true);
+      expect(tool.root.scrollWidth <= tool.root.clientWidth + 1).toBe(true);
+      expect(!!getComputedStyle(tool.root).getPropertyValue('--wf-bg')).toBe(true);
+      ctl.close();
+      await ctl.done;
+      await waitFor(() => !document.querySelector('.sl-wf-dlg'));
+    }, { timeout: 30000 });
+
+    it('menuItems gives Run a workflow… and Add to a workflow… for a file menu', async () => {
+      const items = SlopWorkflowEntry.menuItems(() => []);
+      expect(items.map((i) => i.label)).toEqual(['Run a workflow…', 'Add to a workflow…']);
+      let got = null;
+      SlopWorkflowEntry.register((p) => { got = p; });
+      expect(got.id).toBe('workflows');
+    });
+  });
+  run({ name: 'Slop Workflows tool' });
+  </script>
+</body>
+</html>

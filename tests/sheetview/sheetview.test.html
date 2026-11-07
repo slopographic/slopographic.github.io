@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Sheets tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real viewer runs in an iframe. The test opens an XLSX and a CSV fixture through the viewer's own open
+       path (window.SlopSheetView.open), then clicks the sort and filter controls like a person would.
+       Covers: sheetview/js/filter-ui.js, sheetview/js/view.js, shared/sheets/table.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <div id="preview-box" style="width:640px;height:300px;overflow:hidden;background:#fff"></div>
+  <script src="../harness.js"></script>
+  <script type="module">
+  import { xlsxFixture, csvFixture } from './fixtures.js';
+  import { read } from '../../shared/sheets/read.js';
+  import '../../shared/sheets/index.js';
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const q = (sel) => W().document.querySelector(sel);
+  const dataRows = () => qa('.ss-table tbody tr[data-row]');
+  const cellsOf = (tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent);
+  const colHead = (i) => qa('.ss-table thead th')[i + 1];
+
+  /** Load the viewer fresh and wait until its page is ready. */
+  async function openViewer() {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../sheetview/index.html';
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname.endsWith('/sheetview/index.html') && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready') && w.SlopSheetView; }, { timeout: 15000 });
+  }
+  const openFiles = async (...files) => { await W().SlopSheetView.open(files); await sleep(60); };
+  const waitRows = (n) => waitFor(() => dataRows().length === n || null, { timeout: 8000 }).catch(() => {});
+
+  describe('Slop Sheets: opening files', () => {
+    it('opens an XLSX with a tab for each sheet and shows the first sheet', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitFor(() => qa('#sv-sheets [role="tab"]').length === 2, { timeout: 8000 });
+      expect(qa('#sv-sheets [role="tab"]').map((b) => b.textContent)).toEqual(['Sales', 'Notes']);
+      expect(qa('#sv-sheets [role="tab"]')[0].getAttribute('aria-selected')).toBe('true');
+      const rows = dataRows();
+      expect(rows.length).toBe(6);
+      expect(cellsOf(rows[0])).toEqual(['Region', 'Units', 'Price', 'Date']);
+      expect(cellsOf(rows[1])).toEqual(['North', '12', '3.5', '2026-01-05']);
+      expect(rows[1].dataset.row).toBe('2');
+      expect(q('#sv-name').textContent).toBe('sales.xlsx');
+    });
+
+    it('shows column letters and row numbers, and the header stays in the table', async () => {
+      expect(colHead(0).textContent).toContain('A');
+      expect(colHead(3).textContent).toContain('D');
+      expect(dataRows()[0].querySelector('th').textContent).toBe('1');
+      expect(getComputedStyle(q('.ss-table thead th')).position).toBe('sticky');
+    });
+
+    it('opens a CSV as a second tab, with quoted commas read as one cell', async () => {
+      await openFiles(csvFixture());
+      await waitFor(() => qa('.sv-doctab-name').length === 2, { timeout: 8000 });
+      const names = qa('.sv-doctab-name').map((b) => b.textContent);
+      expect(names).toEqual(['sales', 'people']);
+      await waitRows(4);
+      const rows = dataRows();
+      expect(rows.length).toBe(4);
+      expect(cellsOf(rows[1])).toEqual(['Smith, J', '3']);
+      expect(cellsOf(rows[2])).toEqual(['Ann', '10']);
+    });
+  });
+
+  describe('Slop Sheets: sort and filter', () => {
+    it('sorts a column ascending, then descending, then back to the sheet order', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitRows(6);
+      const sortBtn = () => colHead(1).querySelector('.ss-sort');
+      const firstUnits = () => cellsOf(dataRows()[0])[1];
+      expect(firstUnits()).toBe('Units');
+      sortBtn().click();
+      await sleep(40);
+      expect(colHead(1).getAttribute('aria-sort')).toBe('ascending');
+      // The header row (bold, over a number column) stays on top; the data rows sort under it.
+      expect(dataRows()[0].dataset.row).toBe('1');
+      expect(dataRows()[1].dataset.row).toBe('5');
+      expect(cellsOf(dataRows()[1])[1]).toBe('3');
+      sortBtn().click();
+      await sleep(40);
+      expect(colHead(1).getAttribute('aria-sort')).toBe('descending');
+      // The header stays first in either direction, then 30.
+      expect(cellsOf(dataRows()[0])[1]).toBe('Units');
+      expect(cellsOf(dataRows()[1])[1]).toBe('30');
+      expect(colHead(1).querySelector('.ss-arrow').textContent).toBe('▼');
+      sortBtn().click();
+      await sleep(40);
+      expect(colHead(1).getAttribute('aria-sort')).toBe('none');
+      expect(dataRows()[0].dataset.row).toBe('1');
+      expect(q('#sv-status').textContent).toMatch(/5 rows/);
+    });
+
+    it('filters a column by its distinct values, shows that the filter is on, and clears it', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitRows(6);
+      colHead(0).querySelector('.ss-filter').click();
+      await waitFor(() => W().document.querySelector('.sv-filter'), { timeout: 3000 });
+      const panel = W().document.querySelector('.sv-filter');
+      const item = [...panel.querySelectorAll('.sv-fitem')].find((l) => l.querySelector('.sv-ftext').textContent === 'North');
+      expect(item).toBeTruthy();
+      // The header text is not one of the column's values.
+      expect([...panel.querySelectorAll('.sv-ftext')].map((t) => t.textContent)).toEqual(['East', 'North', 'South', 'West']);
+      item.querySelector('input').click();
+      [...panel.querySelectorAll('button')].find((b) => b.textContent === 'Apply').click();
+      await sleep(60);
+      const rows = dataRows();
+      expect(rows.length).toBe(4);
+      expect(rows.map((r) => cellsOf(r)[0])).toEqual(['Region', 'South', 'East', 'West']);
+      expect(colHead(0).querySelector('.ss-filter').classList.contains('on')).toBeTruthy();
+      expect(q('#sv-status').textContent).toMatch(/1 filter on/);
+      expect(q('#sv-clear').disabled).toBeFalsy();
+      q('#sv-clear').click();
+      await sleep(60);
+      expect(dataRows().length).toBe(6);
+      expect(colHead(0).querySelector('.ss-filter').classList.contains('on')).toBeFalsy();
+    });
+
+    it('a number filter keeps rows greater than a value, and combines with a text filter', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitRows(6);
+      colHead(1).querySelector('.ss-filter').click();
+      await waitFor(() => W().document.querySelector('.sv-filter'), { timeout: 3000 });
+      const panel = W().document.querySelector('.sv-filter');
+      panel.querySelector('.sv-fop').value = '>';
+      panel.querySelector('.sv-fop').dispatchEvent(new (W().Event)('change'));
+      panel.querySelector('.sv-fnum').value = '10';
+      [...panel.querySelectorAll('button')].find((b) => b.textContent === 'Apply').click();
+      await sleep(60);
+      // The header row is not filtered: it stays on top of the rows that pass.
+      expect(dataRows().map((r) => cellsOf(r)[1])).toEqual(['Units', '12', '30', '18']);
+    });
+
+    it('the sample price list (a plain CSV header) keeps its header on top when sorted and out of the filter list', async () => {
+      await openViewer();
+      await openFiles(W().SlopSamples.docs.csv());
+      await waitRows(25);
+      colHead(3).querySelector('.ss-sort').click();
+      colHead(3).querySelector('.ss-sort').click();
+      await sleep(40);
+      expect(cellsOf(dataRows()[0])[0]).toBe('SKU');
+      expect(cellsOf(dataRows()[1])[3]).toBe('46.00');
+      colHead(2).querySelector('.ss-filter').click();
+      await waitFor(() => W().document.querySelector('.sv-filter'), { timeout: 3000 });
+      const texts = [...W().document.querySelectorAll('.sv-filter .sv-ftext')].map((t) => t.textContent);
+      expect(texts.includes('Category')).toBeFalsy();
+      expect(texts.includes('Coffee')).toBeTruthy();
+      expect(q('#sv-status').textContent).toMatch(/24 rows/);
+    });
+  });
+
+  describe('Slop Sheets: table styles', () => {
+    it('remembers the table style and colours on this device, and applies them', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitRows(6);
+      const style = q('#sv-style'), palette = q('#sv-palette');
+      style.value = 'grid';
+      style.dispatchEvent(new (W().Event)('change'));
+      palette.value = 'lime';
+      palette.dispatchEvent(new (W().Event)('change'));
+      await sleep(40);
+      expect(q('.ss-grid').dataset.style).toBe('grid');
+      expect(q('.ss-grid').dataset.palette).toBe('lime');
+      const saved = JSON.parse(W().localStorage.getItem('sheetview.table'));
+      expect(saved).toEqual({ style: 'grid', palette: 'lime' });
+    });
+  });
+
+  describe('Slop Sheets: the preview other apps use, without the viewer page', () => {
+    it('window.SlopSheets.preview draws the first sheet with the same grid, read-only', async () => {
+      const box = document.getElementById('preview-box');
+      const res = await window.SlopSheets.preview(box, await xlsxFixture());
+      expect(res.sheet).toBe('Sales');
+      expect(res.sheets).toEqual(['Sales', 'Notes']);
+      const rows = box.querySelectorAll('tbody tr[data-row]');
+      expect(rows.length).toBe(6);
+      expect(rows[1].querySelectorAll('td')[0].textContent).toBe('North');
+      expect(box.querySelectorAll('.ss-sort').length).toBe(0);
+      expect(box.querySelector('.ss-grid')).toBeTruthy();
+    });
+    it('window.SlopSheets.read parses a CSV file', async () => {
+      const r = await window.SlopSheets.read(csvFixture());
+      expect(r.format).toBe('csv');
+      expect(r.sheets[0].text[1][0]).toBe('Smith, J');
+    });
+  });
+
+  describe('Slop Sheets: hand-offs and export', () => {
+    it('Open in Slop Table sends the current sheet as CSV (no byte-order mark) through Slop Drive', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitRows(6);
+      const sent = [];
+      W().SlopHub.sendTo = async (app, blob, name) => { sent.push({ app, name, text: await blob.text() }); return 'id'; };
+      q('#sv-hub').click();
+      await waitFor(() => sent.length || null, { timeout: 3000 });
+      expect(sent[0].app).toBe('tables');
+      expect(sent[0].name).toBe('sales - Sales.csv');
+      expect(sent[0].text.startsWith('Region,Units,Price,Date\r\n')).toBeTruthy();
+      expect(sent[0].text.startsWith('\uFEFF')).toBeFalsy();
+      expect(sent[0].text.split('\r\n').length).toBe(7);
+    });
+
+    it('Export writes the visible rows as CSV, and every sheet as XLSX that reads back', async () => {
+      await openViewer();
+      await openFiles(await xlsxFixture());
+      await waitRows(6);
+      // Keep only North in the Region column.
+      colHead(0).querySelector('.ss-filter').click();
+      await waitFor(() => W().document.querySelector('.sv-filter'), { timeout: 3000 });
+      let panel = W().document.querySelector('.sv-filter');
+      for (const v of ['South', 'East', 'West']) {
+        [...panel.querySelectorAll('.sv-fitem')].find((l) => l.querySelector('.sv-ftext').textContent === v).querySelector('input').click();
+      }
+      [...panel.querySelectorAll('button')].find((b) => b.textContent === 'Apply').click();
+      await sleep(60);
+      const saved = [];
+      W().SlopUI.download = (blob, name) => saved.push({ blob, name });
+      const pickRow = (label) => {
+        const row = [...W().document.querySelectorAll('.sui-row')].find((r) => r.textContent.includes(label));
+        if (!row) throw new Error('No menu row: ' + label);
+        row.click();
+      };
+      q('#sv-export').click();
+      await waitFor(() => W().document.querySelector('.sui-menu'), { timeout: 3000 });
+      pickRow('Visible rows: CSV');
+      await waitFor(() => saved.length || null, { timeout: 3000 });
+      expect(saved[0].name).toBe('sales (visible rows).csv');
+      const lines = (await saved[0].blob.text()).replace(/^\uFEFF/, '').split('\r\n').filter(Boolean);
+      expect(lines.length).toBe(3);
+      expect(lines[1].startsWith('North,12,')).toBeTruthy();
+
+      q('#sv-export').click();
+      await waitFor(() => W().document.querySelector('.sui-menu'), { timeout: 3000 });
+      pickRow('All rows: XLSX');
+      await waitFor(() => saved.length > 1 || null, { timeout: 5000 });
+      expect(saved[1].name).toBe('sales.xlsx');
+      const back = await read(saved[1].blob, { name: 'sales.xlsx' });
+      expect(back.sheets.map((x) => x.name)).toEqual(['Sales', 'Notes']);
+      expect(back.sheets[0].height).toBe(6);
+      expect(back.sheets[0].text[1][3]).toBe('2026-01-05');
+      expect(back.sheets[0].bold.has(0)).toBeTruthy();
+      expect(back.sheets[1].text[0][0]).toBe('Hello from the second sheet');
+    });
+  });
+
+  run({ name: 'Slop Sheets tests' });
+  </script>
+</body>
+</html>

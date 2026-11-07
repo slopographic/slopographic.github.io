@@ -1,0 +1,53 @@
+/* Slop Image to 3D: layout. Colours come from the shared theme's --sl-* tokens (shared/theme/theme.js), with a dark
+ * fallback. The app's own names are --i3-* so they never clash with the shared styles. */
+:root {
+  --i3-bg: var(--sl-background, #0e0e10);
+  --i3-panel: var(--sl-surface, #17181c);
+  --i3-ink: var(--sl-text, #f1ede4);
+  --i3-accent: var(--sl-accent, #d4ff3a);
+  --i3-accent-ink: var(--sl-on-accent, #0e0e10);
+  --i3-line: var(--sl-border, #2c2e35);
+  --i3-muted: color-mix(in srgb, var(--i3-ink) 62%, transparent);
+  --i3-danger: #d0304f;
+  --i3-view: #1b1b1f;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--i3-bg); color: var(--i3-ink); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+button, select, input { font: inherit; color: inherit; }
+.app { display: grid; grid-template-rows: auto 1fr; height: 100vh; height: 100dvh; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--i3-panel); border-bottom: 1px solid var(--i3-line); flex-wrap: wrap; min-width: 0; }
+/* Tour (shared/ui/hbtn.css) wears the look of .tb-btn. */
+.topbar { --slop-hbtn-h: 30px; --slop-hbtn-radius: 6px; --slop-hbtn-line: transparent; --slop-hbtn-fs: 13px; }
+.topbar > .stour-btn { margin-left: auto; }
+.topbar .brand { display: grid; place-items: center; width: 28px; height: 28px; flex: none; color: var(--i3-ink); }
+.topbar .brand-mark { width: 20px; height: 20px; fill: currentColor; }
+.appname b { font-size: 14px; white-space: nowrap; }
+.actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.tb-btn, .btn { box-sizing: border-box; height: 30px; display: inline-flex; align-items: center; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 0 9px; cursor: pointer; color: var(--i3-ink); text-decoration: none; white-space: nowrap; }
+.tb-btn:hover { background: color-mix(in srgb, var(--i3-ink) 8%, transparent); border-color: var(--i3-line); }
+.tb-btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--i3-accent); color: var(--i3-accent-ink); border-color: var(--i3-accent); }
+.btn.primary:disabled { opacity: .45; cursor: default; }
+:focus-visible { outline: 2px solid var(--i3-accent); outline-offset: 1px; }
+.work { min-height: 0; }   /* SlopFrame's view and the settings panel on the right (shared/frame/frame.css) */
+.i3-more { justify-self: start; margin-top: 4px; }
+.panel .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.panel .row:has(> input[type="checkbox"]) { flex-wrap: nowrap; }
+.panel .row input[type="range"] { flex: 1 1 100%; accent-color: var(--i3-accent); }
+.panel output { margin-left: auto; color: var(--i3-muted); font-variant-numeric: tabular-nums; }
+.panel select { background: var(--i3-bg); border: 1px solid var(--i3-line); border-radius: 6px; padding: 3px 6px; }
+.meta { color: var(--i3-muted); font-size: 12px; margin: 4px 0; overflow-wrap: anywhere; }
+.stage { overflow: hidden; display: grid; grid-template-rows: 1fr auto; min-width: 0; min-height: 0; }
+.vp { position: relative; background: var(--i3-view); min-height: 0; overflow: hidden; }
+.vp canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.vp canvas:active { cursor: grabbing; }
+.hint { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; color: #9a9ca6; pointer-events: none; text-align: center; padding: 16px; }
+.hint[hidden] { display: none; }
+.status { margin: 0; padding: 6px 12px; border-top: 1px solid var(--i3-line); background: var(--i3-panel); color: var(--i3-muted); font-size: 12px; min-height: 28px; }
+.status.err { color: var(--i3-danger); }
+@media (max-width: 720px) {
+  .appname { flex: 1 1 auto; }
+  .topbar > .stour-btn { order: 1; }
+  .topbar > .actions { order: 2; }
+}

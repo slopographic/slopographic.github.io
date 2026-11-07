@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive on a phone</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: drive/js/ui/info.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, H, D;
+  const q = (s) => D.querySelector(s);
+  const tap = (el) => { const r = el.getBoundingClientRect(), o = { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10, pointerType: 'touch', pointerId: 3, isPrimary: true };
+    el.dispatchEvent(new W.PointerEvent('pointerdown', o)); el.dispatchEvent(new W.PointerEvent('pointerup', o)); el.dispatchEvent(new W.MouseEvent('click', o)); };
+
+  describe('390 × 844 layout', () => {
+    it('boots at phone width without sideways scrolling', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 390, height: 844 });
+      DR = W.DR; H = W.SlopHub; D = W.document;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      await H.clear();
+      const f = await H.createFolder('Photos');
+      await H.put(await DT.png(), { name: 'pic.png', from: 'photoslop', folderId: f });
+      await H.put(DT.text('hi'), { name: 'hi.txt' });
+      await DR.refresh(); DR.setView('grid'); DR.go(null);
+      expect(DR.isMobile()).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(getComputedStyle(q('#side')).position).toBe('fixed');
+      expect(q('#btnSide').offsetWidth).toBeGreaterThan(0);
+    });
+    it('the sidebar is a drawer from the left (SlopSheet): Folders opens it, again closes it, × and Escape and a tap outside close it', async () => {
+      const side = q('#side'), btn = q('#btnSide'), esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      btn.click();
+      expect([DR.drawerUI.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+      expect(Math.round(side.getBoundingClientRect().left)).toBe(0);
+      btn.click(); expect(DR.drawerUI.isOpen()).toBe(false);
+      btn.click(); q('#side > .ssh-x').click();
+      expect([DR.drawerUI.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc(); expect(DR.drawerUI.isOpen()).toBe(false);
+      expect(DR.S.section).toBe('folder');   // Escape only closed the drawer
+      btn.click(); tap(q('.status')); expect(DR.drawerUI.isOpen()).toBe(false);
+      btn.click(); tap(q('#places .place[data-section="recent"]')); expect(DR.drawerUI.isOpen()).toBe(false);
+      DR.go(null);
+    });
+    it('tapping a folder opens it; tapping a file shows the details sheet', async () => {
+      tap(q(`#pane [data-key="d:${[...DR.S.folders.keys()][0]}"]`));
+      expect(DR.S.cwd).toBe([...DR.S.folders.keys()][0]);
+      const k = 'f:' + [...DR.S.files.values()].find((r) => r.name === 'pic.png').id;
+      tap(q(`#pane [data-key="${k}"]`));
+      expect(DR.sheetUI.isOpen()).toBe(true);
+      expect(q('#info').hidden).toBe(false);
+      expect(q('#info').textContent).toContain('pic.png');
+      const r = q('#info').getBoundingClientRect();
+      expect(Math.round(r.width)).toBe(390);
+      expect(r.bottom).toBeLessThanOrEqual(845);
+      await sleep(0); expect(q('#info').firstElementChild.classList.contains('ssh-x')).toBe(true);   // the × survives the panel's redraw
+      tap(q('.status'));
+      expect(DR.sheetUI.isOpen()).toBe(false);
+    });
+    it('the details sheet (SlopSheet): Info opens it, again closes it, × and Escape close it', async () => {
+      const btn = q('#btnInfo'), esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      btn.click(); expect([DR.sheetUI.isOpen(), q('#info').hidden]).toEqual([true, false]);
+      expect(Math.round(q('#info').getBoundingClientRect().bottom)).toBeGreaterThan(830);
+      btn.click(); expect(DR.sheetUI.isOpen()).toBe(false);
+      btn.click(); q('#info > .ssh-x').click(); expect([DR.sheetUI.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc(); expect(DR.sheetUI.isOpen()).toBe(false);
+    });
+    it('long-press selects and opens the menu; the selection bar shows', async () => {
+      const k = 'f:' + [...DR.S.files.values()].find((r) => r.name === 'pic.png').id, el = q(`#pane [data-key="${k}"]`), r = el.getBoundingClientRect();
+      el.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerType: 'touch', pointerId: 4 }));
+      await waitFor(() => q('.sui-menu'), { timeout: 5000 });
+      expect(DR.S.sel.has(k)).toBe(true);
+      expect(q('#selbar').hidden).toBe(false);
+      W.SlopUI.closeMenu();
+      el.dispatchEvent(new W.PointerEvent('pointerup', { bubbles: true, pointerType: 'touch', pointerId: 4 }));
+    });
+    it('every view fits the phone', () => {
+      for (const v of ['list', 'compact', 'columns', 'nodes', 'usage', 'grid']) {
+        DR.setView(v);
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      }
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: phone' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+/* SlopLabel — Classic 98 theme details: bevels, title bars, square corners */
+:root[data-theme="classic"] .menubar { background: var(--sl-background, #c0c0c0); border-bottom: 0; box-shadow: inset 0 -1px var(--sl-border, #808080), inset 0 -2px var(--sl-surface, #fff); }
+:root[data-theme="classic"] .brand { background: linear-gradient(90deg, var(--sl-accent, #000080), color-mix(in srgb, var(--sl-accent, #000080) 60%, var(--sl-surface, #fff))); color: var(--sl-on-accent, #fff); height: 22px; padding: 0 8px; }
+:root[data-theme="classic"] .brand-dot { background: var(--accent); }
+:root[data-theme="classic"] .mb:hover, :root[data-theme="classic"] .mb.open { background: var(--sl-accent, #000080); color: var(--sl-on-accent, #fff); }
+:root[data-theme="classic"] .btn { border: 0; }
+:root[data-theme="classic"] .btn.ghost { box-shadow: none; }
+:root[data-theme="classic"] .btn.ghost:hover:not(:disabled) { background: var(--sl-background, #c0c0c0); box-shadow: var(--bevel-btn); }
+:root[data-theme="classic"] .btn.primary { background: var(--sl-background, #c0c0c0); color: var(--sl-text, #000); font-weight: 700; outline: 1px solid var(--sl-text, #000); outline-offset: -1px; }
+:root[data-theme="classic"] .ctrlbar { background: var(--sl-background, #c0c0c0); border-bottom: 0; box-shadow: inset 0 -1px var(--sl-border, #808080); }
+:root[data-theme="classic"] .chip { border: 0; background: var(--sl-surface, #fff); }
+:root[data-theme="classic"] .toolbox { border-right: 0; box-shadow: var(--bevel-out); }
+:root[data-theme="classic"] .tool { color: var(--sl-text, #000); border-radius: 0; }
+:root[data-theme="classic"] .tool:hover { background: var(--sl-background, #c0c0c0); box-shadow: var(--bevel-btn); color: var(--sl-text, #000); }
+:root[data-theme="classic"] .tool.on { background: repeating-conic-gradient(var(--sl-surface, #fff) 0 25%, var(--sl-background, #c0c0c0) 0 50%) 0 0 / 2px 2px; color: var(--sl-text, #000); box-shadow: var(--bevel-btn-down); }
+:root[data-theme="classic"] .dock { border-left: 0; box-shadow: var(--bevel-out); }
+:root[data-theme="classic"] .tabs { background: var(--sl-background, #c0c0c0); border-bottom: 1px solid var(--sl-surface, #fff); }
+:root[data-theme="classic"] .tab { color: var(--sl-text, #000); border-radius: 0; }
+:root[data-theme="classic"] .tab.on { background: var(--sl-background, #c0c0c0); border: 0; box-shadow: inset 1px 1px var(--sl-surface, #fff), inset -1px 0 var(--sl-text, #0a0a0a), inset -2px 0 var(--sl-border, #808080); }
+:root[data-theme="classic"] .inp, :root[data-theme="classic"] .dock-body select, :root[data-theme="classic"] .dock-body textarea { border: 0; border-radius: 0; background: var(--sl-surface, #fff); color: var(--sl-text, #000); }
+:root[data-theme="classic"] .seg { border: 0; border-radius: 0; }
+:root[data-theme="classic"] .seg button { background: var(--sl-background, #c0c0c0); color: var(--sl-text, #000); box-shadow: var(--bevel-btn); }
+:root[data-theme="classic"] .seg button + button { border-left: 0; }
+:root[data-theme="classic"] .seg button.on { box-shadow: var(--bevel-btn-down); background: repeating-conic-gradient(var(--sl-surface, #fff) 0 25%, var(--sl-background, #c0c0c0) 0 50%) 0 0 / 2px 2px; }
+:root[data-theme="classic"] .sec-h { color: var(--sl-accent, #000080); }
+:root[data-theme="classic"] .status { background: var(--sl-background, #c0c0c0); border-top: 0; color: var(--sl-text, #000); box-shadow: inset 1px 1px var(--sl-border, #808080), inset -1px -1px var(--sl-surface, #fff); }
+:root[data-theme="classic"] .tbl-wrap, :root[data-theme="classic"] .stock-list { border: 0; border-radius: 0; box-shadow: var(--bevel-in); }
+:root[data-theme="classic"] .tpl { border: 0; border-radius: 0; background: var(--sl-background, #c0c0c0); box-shadow: var(--bevel-btn); }
+:root[data-theme="classic"] .tpl:hover { outline: 1px dotted var(--sl-text, #000); outline-offset: -4px; }
+:root[data-theme="classic"] .pd-canvas, :root[data-theme="classic"] .tpl .tp { border-radius: 0; }
+:root[data-theme="classic"] .li { border-radius: 0; }
+:root[data-theme="classic"] .code-view { border: 0; border-radius: 0; box-shadow: var(--bevel-in); background: var(--sl-surface, #fff); color: var(--sl-text, #000); }
+:root[data-theme="classic"] .pform .pf-card { border-radius: 0; border: 0; background: var(--sl-background, #c0c0c0); box-shadow: var(--bevel-out), 2px 2px 0 rgba(0, 0, 0, .4); }
+:root[data-theme="classic"] .sui-dlg .sui-body { color: var(--sl-text, #000); }
+:root[data-theme="classic"] .sui-dlg .inp, :root[data-theme="classic"] .sui-dlg select.inp, :root[data-theme="classic"] .sui-dlg textarea.inp { border: 0; border-radius: 0; background: var(--sl-surface, #fff); color: var(--sl-text, #000); }
+:root[data-theme="classic"] .sui-dlg .row > span:first-child, :root[data-theme="classic"] .sui-dlg .hint, :root[data-theme="classic"] .sui-dlg .chk { color: var(--sl-text, #000); }

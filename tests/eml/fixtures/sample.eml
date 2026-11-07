@@ -1,0 +1,55 @@
+From: =?UTF-8?Q?Ann_Example?= <ann@example.com>
+To: Ben <ben@example.org>, "Cy, Jr." <cy@example.net>
+Cc: team@example.com
+Date: Tue, 6 Oct 2026 09:30:00 +0000
+Subject: =?UTF-8?Q?Quarterly_report_=E2=9C=93?=
+Message-ID: <sample-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="MIX"
+
+This is a multi-part message in MIME format.
+--MIX
+Content-Type: multipart/related; boundary="REL"
+
+--REL
+Content-Type: multipart/alternative; boundary="ALT"
+
+--ALT
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Hello Ben,
+
+The report is attached and online at https://example.com/report.
+Smile =E2=98=BA (that emoji cannot be drawn in the PDF font).
+
+--ALT
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>Hello <b>Ben</b>,</p>
+<p>The report is attached. <a href=3D"https://example.com/report">Open the report</a>.</p>
+<p><img src=3D"https://tracker.example.com/pixel.gif" alt=3D"tracker" width=3D"1" height=3D"1"></p>
+<p><img src=3D"cid:logo@example.com" alt=3D"Logo" width=3D"80"></p>
+<p>Smile =E2=98=BA</p></body></html>
+
+--ALT--
+
+--REL
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-ID: <logo@example.com>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
+
+--REL--
+
+--MIX
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename*=UTF-8''Q3%20report%20%E2%82%AC.pdf
+
+JVBERi0xLjQKJSVFT0YK
+
+--MIX--

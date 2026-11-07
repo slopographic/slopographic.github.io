@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ad slots fixture</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Loaded in an iframe by slot.test.html. ?slots=<json> replaces slots.json; the parent collects AdSense loads. -->
+  <div id="home-footer" data-slop-ad="home-footer" hidden></div>
+  <div id="empty-slot" data-slop-ad="empty-slot" hidden></div>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      try { window.SLOP_ADS_SLOTS = JSON.parse(q.get('slots') || '[]'); } catch (e) { window.SLOP_ADS_SLOTS = []; }
+      window.SLOP_CONSENT_LOADER = function (src) { try { window.parent.__adsLoads.push(src); } catch (e) { /* no parent */ } };
+    })();
+  </script>
+  <script src="../../shared/consent/config.js"></script>
+  <script src="../../shared/consent/state.js"></script>
+  <script src="../../shared/consent/consent-mode.js"></script>
+  <script src="../../shared/ads/ads.js"></script>
+</body>
+</html>

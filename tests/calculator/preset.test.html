@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopculator presets from a task page's link: ?panel=convert</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 390px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../calculator/index.html?panel=convert"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: calculator/js/route.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow, $ = (id) => f.contentDocument.getElementById(id);
+  const inView = () => { const r = $('sc-conv-h').getBoundingClientRect(); return r.top >= 0 && r.bottom <= W().innerHeight; };
+  describe('Slopculator presets', () => {
+    it('?panel=convert brings the Convert panel into view on a phone', async () => {
+      await waitFor(() => $('sc-conv-h') && $('sc-conv-cat') && $('sc-conv-cat').options.length > 0 && inView(), { timeout: 20000 });
+      expect(inView()).toBe(true);
+    });
+    it('without it the page opens at the top', async () => {
+      f.src = '../../calculator/index.html';
+      await waitFor(() => W().location.search === '' && $('sc-conv-cat') && $('sc-conv-cat').options.length > 0, { timeout: 20000 });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(inView()).toBe(false);
+    });
+  });
+  run({ name: 'Slopculator presets' });
+  </script>
+</body>
+</html>

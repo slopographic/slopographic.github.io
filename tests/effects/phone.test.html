@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Effects on a phone: the Properties panel is a SlopSheet</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: effects/js/main.js, effects/css/effects.css, effects/index.html, shared/frame/panel.js, shared/frame/frame.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D;
+  const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('Slop Effects at 390 × 844', () => {
+    it('the preview and the timeline share the page; of the Properties panel only its foot (Render) shows', async () => {
+      const f = document.createElement('iframe'); f.src = '../../effects/index.html'; document.body.append(f);
+      await waitFor(() => f.contentWindow.SlopEffects && f.contentWindow.SlopEffects.app, { timeout: 40000 });
+      W = f.contentWindow; D = f.contentDocument;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const side = D.querySelector('.fx-side'), render = D.getElementById('fx-render');
+      expect(D.querySelector('header').contains(render)).toBe(false);
+      expect(render.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(render.getBoundingClientRect().top).toBeGreaterThan(740);
+      expect(render.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      expect(D.getElementById('fx-tabs').getBoundingClientRect().height).toBe(0);
+      expect(side.getBoundingClientRect().height).toBeLessThan(120);
+      expect(D.querySelector('.fx-tl').getBoundingClientRect().top).toBeLessThan(D.querySelector('.fx-stage').getBoundingClientRect().bottom + 20);
+    }, { timeout: 60000 });
+    it('Properties opens the bottom sheet, again closes it, × closes and refocuses, Escape and a tap outside close it', () => {
+      const btn = D.getElementById('fx-props'), s = W.SlopEffects.app.sheet, side = D.querySelector('.fx-side');
+      btn.click();
+      expect([s.isOpen(), btn.getAttribute('aria-expanded'), Math.round(side.getBoundingClientRect().bottom)]).toEqual([true, 'true', 844]);
+      btn.click(); expect(s.isOpen()).toBe(false);
+      btn.focus(); btn.click();
+      const x = side.querySelector(':scope > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close properties');
+      expect(x.getBoundingClientRect().top - side.getBoundingClientRect().top).toBeLessThan(8);   // over the tab row, not a row of its own
+      x.click(); expect([s.isOpen(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc(); expect(s.isOpen()).toBe(false);
+      btn.click(); D.getElementById('fx-canvas').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+      expect(s.isOpen()).toBe(false);
+    });
+    it('the side tabs still switch inside the sheet', () => {
+      const s = W.SlopEffects.app.sheet; s.open();
+      D.querySelector('#fx-tabs [data-view="motion"]').click();
+      expect([s.isOpen(), D.querySelector('#fx-tabs [data-view="motion"]').getAttribute('aria-selected')]).toEqual([true, 'true']);
+      s.close();
+    });
+    it('the foot\'s Properties button opens the sheet too, and Render stays at the bottom of the open sheet', () => {
+      const s = W.SlopEffects.app.sheet;
+      D.querySelector('.fx-side .sf-foot-more').click();
+      expect(s.isOpen()).toBe(true);
+      expect(Math.round(D.getElementById('fx-render').getBoundingClientRect().bottom)).toBeLessThanOrEqual(844);
+      expect(D.getElementById('fx-tabs').getBoundingClientRect().height).toBeGreaterThan(0);
+      s.close();
+    });
+  });
+  SlopTest.run({ name: 'Slop Effects: phone sheet' });
+  </script>
+</body>
+</html>

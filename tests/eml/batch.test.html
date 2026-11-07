@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop EML: many messages at once (list, selection, mailbox) and every export</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: eml/js/app.js, eml/js/list.js, eml/js/side.js, eml/js/export.js, eml/js/export-ui.js, eml/js/actions.js,
+       eml/js/commands.js, eml/js/main.js, eml/js/mbox.js, eml/js/batch.js, eml/js/pdf.js, eml/js/pdf-doc.js, eml/js/pdf-out.js,
+       eml/js/view.js, eml/js/attachments.js, shared/frame/frame.js, shared/frame/panel.js, eml/index.html -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="eml.helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow, D = () => W().document, A = () => W().EmlApp;
+  const q = (s) => D().querySelector(s), qa = (s) => [...D().querySelectorAll(s)];
+  const rows = () => { W().EmlList.flush(); return qa('.em-row'); };
+  const froms = () => rows().map((r) => r.querySelector('.em-row-from').textContent);
+  async function load() {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow.location.href === 'about:blank');
+    f.src = '../../eml/index.html';
+    await waitFor(() => W().location.pathname.endsWith('/eml/index.html') && D().body && D().body.classList.contains('ready'), { timeout: 20000 });
+    await A().openFiles(await EH.batch(W()));
+    W().EmlList.flush();
+  }
+  const subjects = (docs) => docs.map((d) => d.summary.subject);
+
+  describe('Slop EML: a batch goes to the list', () => {
+    it('ten messages opened together are listed (newest first), not tabs; the list column shows', async () => {
+      await load();
+      expect(rows().length).toBe(10);
+      expect(qa('.em-tab').length).toBe(0);
+      expect(q('#em-frame').classList.contains('sf-nolist')).toBe(false);
+      expect(froms()[0]).toBe('Erik Johansson');
+      expect(froms()[9]).toBe('Fatima Zahra');
+      expect(q('#em-count').textContent).toBe('10 messages');
+      expect(rows()[0].querySelector('.em-row-att').textContent).toBe('1');
+    }, { timeout: 30000 });
+
+    it('sorts by sender and subject, and searches every word', async () => {
+      const sort = q('#em-sort');
+      sort.value = 'from:asc'; sort.dispatchEvent(new Event('change'));
+      expect(froms()[0]).toBe('Anna Lindqvist');
+      sort.value = 'subject:asc'; sort.dispatchEvent(new Event('change'));
+      expect(rows()[0].querySelector('.em-row-subj').textContent).toBe('Budget för andra kvartalet');
+      const s = q('#em-search');
+      s.value = 'exempel'; s.dispatchEvent(new Event('input'));
+      expect(rows().length).toBe(3);
+      expect(q('#em-count').textContent).toBe('3 of 10 messages');
+      s.value = 'invoice pdf'; s.dispatchEvent(new Event('input'));
+      expect(froms()).toEqual(['Ben Carter']);
+      s.value = 'nothing-like-this'; s.dispatchEvent(new Event('input'));
+      W().EmlList.flush();
+      expect(q('#em-noresults').hidden).toBe(false);
+      s.value = ''; s.dispatchEvent(new Event('input'));
+      sort.value = 'date:desc'; sort.dispatchEvent(new Event('change'));
+      expect(rows().length).toBe(10);
+    });
+
+    it('ticks: a click, a shift-click range, the box at the top for all; the panel follows', async () => {
+      const box = (i) => rows()[i].querySelector('.em-row-check');
+      box(1).click();
+      box(4).dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+      // the click handler runs after the box changes: the shift-click range ticks 1 to 4
+      await sleep(30);
+      expect(A().checkedDocs().length).toBe(4);
+      W().EmlSide.render();
+      expect(q('#em-side .sf-p-h').textContent).toBe('4 selected');
+      expect(q('#em-p-combine')).toBeTruthy();
+      expect(q('#em-check-all').indeterminate).toBe(true);
+      q('#em-check-all').click();
+      expect(A().checkedDocs().length).toBe(10);
+      q('#em-check-all').click();
+      expect(A().checkedDocs().length).toBe(0);
+      expect(q('#em-side .sf-p-h').textContent).toBe('Message');
+    });
+
+    it('keys: Down opens the next message, Space ticks it, Enter opens', async () => {
+      const first = rows()[0].querySelector('.em-row-open');
+      first.click();
+      first.focus();
+      first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(A().current().summary.from).toContain('Chen Wei');
+      expect(D().activeElement.closest('.em-row').dataset.id).toBe(String(A().current().id));
+      D().activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+      expect(A().isChecked(A().current().id)).toBe(true);
+      A().checkAll(false);
+      expect(q('#em-subject').textContent).toBe(A().current().summary.subject);
+    });
+
+    it('a mailbox (.mbox) opens as one message each, with >From lines unquoted', async () => {
+      A().closeAll();
+      await A().openFiles([await EH.mbox(W())]);
+      expect(A().docs().length).toBe(11);
+      const quoted = A().docs().find((d) => d.summary.subject === 'Quoted');
+      expect(quoted.msg.text).toContain('\nFrom the start of a line');
+      expect(quoted.name).toBe('Inbox 11.eml');
+      A().closeAll();
+      await A().openFiles(await EH.batch(W()));
+    });
+  });
+
+  describe('Slop EML: exports', () => {
+    it('Combine into one PDF: date order, a contents page with page numbers, Swedish and Arabic text, PDF attachments as pages', async () => {
+      await EH.stubFonts(W());
+      const pick = A().visible().filter((d) => /Fika|تقرير|Invoice/.test(d.summary.subject));
+      const f1 = await W().EmlExport.make('pdf', pick, { attachments: true, append: true });
+      expect(f1.name).toBe('3 messages, 2026-02-11 to 2026-03-03.pdf');
+      const got = await EH.readPdf(await f1.blob.arrayBuffer());
+      expect(got.outline).toEqual(['تقرير المبيعات الشهري', 'Re: Invoice 2026-118', 'Fika på fredag – åtta personer']);
+      expect(got.pages[0]).toContain('3 messages');
+      expect(got.pages[0]).toContain('Fika på fredag – åtta personer');
+      // cover, Arabic message, its 2-page PDF, the invoice message, its logo, its 1-page PDF, the Swedish message
+      expect(got.n).toBe(8);
+      expect(got.pages[2]).toContain('Sales report page 1');
+      expect(got.pages[3]).toContain('Sales report page 2');
+      expect(got.pages[4]).toContain('Re: Invoice 2026-118');
+      expect(got.pages[5]).toContain('Attachment: logo.png');
+      expect(got.pages[6]).toContain('Invoice 2026-118 page 1');
+      expect(got.pages[7]).toContain('Hej allihop!');
+      expect(got.pages[7]).toContain('kärleksmums');
+      expect(got.pages[1].replace(/\s+/g, '')).toContain('محمد');
+      expect(got.pages[0].replace(/\s+/g, ' ')).toMatch(/åtta personer\s+8/);
+      expect(got.pages[7]).toContain('Page 8 of 8');
+    }, { timeout: 90000 });
+
+    it('Save each as PDF (ZIP): one PDF per message, named by date and subject', async () => {
+      const pick = A().visible().slice(0, 3);
+      const z = await W().EmlExport.make('pdfzip', pick, {});
+      const entries = await W().SlopZip.unzip(z.blob);
+      expect(entries.map((e) => e.name)).toEqual(['2026-03-04 Shipping schedule.pdf', '2026-03-04 会议纪要 Meeting notes.pdf', '2026-03-09 Budget för andra kvartalet.pdf']);
+      for (const e of entries) expect(String.fromCharCode(...e.bytes.slice(0, 4))).toBe('%PDF');
+    }, { timeout: 60000 });
+
+    it('Save all attachments (ZIP): a folder per message, safe and unique names', async () => {
+      const z = await W().EmlExport.make('atts', A().visible(), {});
+      const names = (await W().SlopZip.unzip(z.blob)).map((e) => e.name);
+      expect(names.length).toBe(8);
+      expect(names).toContain('2026-02-16 Re_ Invoice 2026-118/Invoice 2026-118.pdf');
+      expect(names).toContain('2026-02-21 Photos from the offsite/team.png');
+      expect(z.name).toBe('10 messages attachments.zip');
+    });
+
+    it('Export list (CSV), text, HTML, Markdown and the original .eml files', async () => {
+      const all = A().visible();
+      const csv = await (await W().EmlExport.make('csv', all, {})).blob.text();
+      const lines = csv.replace(/^﻿/, '').trim().split('\r\n');
+      expect(lines.length).toBe(11);
+      expect(lines[0]).toBe('Date,From,To,Subject,Attachments');
+      expect(lines.some((l) => l.includes('Invoice 2026-118.pdf; logo.png'))).toBe(true);
+      const anna = all.find((d) => /Fika/.test(d.summary.subject));
+      const md = await (await W().EmlExport.make('md', [anna], {})).blob.text();
+      expect(md.startsWith('# Fika på fredag – åtta personer')).toBe(true);
+      expect(md).toContain('- meny.csv');
+      const txt = await (await W().EmlExport.make('txt', [anna], {})).blob.text();
+      expect(txt).toContain('Hej allihop!');
+      const html = await W().EmlExport.make('html', all.slice(0, 2), {});
+      expect((await W().SlopZip.unzip(html.blob)).map((e) => e.name.endsWith('.html'))).toEqual([true, true]);
+      const eml = await W().EmlExport.make('eml', all, {});
+      const back = await W().SlopZip.unzip(eml.blob);
+      expect(back.length).toBe(10);
+      expect(back[0].bytes.length).toBe(all[0].bytes.length);
+    });
+
+    it('Open in Slop PDF puts the PDF in Slop Drive and opens Slop PDF with ?drive=<id>', async () => {
+      const opened = [];
+      const real = W().open;
+      W().open = (u) => { opened.push(String(u)); return {}; };
+      try {
+        A().select(A().visible().find((d) => /Shipping/.test(d.summary.subject)).id);
+        const r = await W().EmlActions.openInPdf();
+        expect(opened.length).toBe(1);
+        expect(opened[0]).toContain('/pdf/?drive=' + r.id);
+        const rec = await W().SlopHub.get(r.id);
+        expect(rec.type).toBe('application/pdf');
+        expect(rec.name).toBe('10.pdf');
+        await W().SlopHub.remove(r.id);
+      } finally { W().open = real; }
+    }, { timeout: 60000 });
+
+    it('the commands are registered and the File menu lists them', async () => {
+      for (const id of ['export', 'combine', 'pdfzip', 'attzip', 'csv', 'topdf', 'selectall', 'panel']) expect(!!W().SlopCmd.get('eml.' + id)).toBe(true);
+      expect(W().SlopCmd.keyFor('eml.panel')).toBeTruthy();
+      const file = qa('.smb-menu-b').find((b) => b.textContent === 'File');
+      file.click();
+      await sleep(50);
+      const items = qa('.smb-pop [role="menuitem"], .smb-pop button').map((b) => b.textContent);
+      file.click();
+      expect(items.join('|')).toContain('Combine messages into one PDF');
+    });
+  });
+  SlopTest.run({ name: 'Slop EML: many messages at once' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+/* Slop AI shared words, Portuguese (Brazil): “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-pt-BR.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'ui.ai.cloud.or_signin': 'Entrar com {name}',
+  'ui.ai.cloud.or_note': 'Ainda sem chave? Entre e o {name} cria uma chave para este navegador, paga com seus próprios créditos do {name}. Você pode limitá-la ou revogá-la em {link}.',
+  'ui.ai.cloud.or_privacy': 'O login vai direto deste navegador para o {name}; nada passa pelos servidores do {brand}.',
+  'ui.ai.cloud.or_manage': 'Suas chaves do {name}, criadas ao entrar ou à mão, podem ser limitadas ou revogadas em {link}. Esquecer chave só a remove deste navegador.',
+  'ui.ai.cloud.or_going': 'Abrindo o {name}…',
+  'ui.ai.cloud.or_finishing': 'Concluindo o login com o {name}…',
+  'ui.ai.cloud.or_done': 'Conectado com o {name}: a chave deste navegador foi guardada como uma colada.',
+  'ui.ai.cloud.or_denied': 'O acesso não foi permitido no {name}, então nada foi conectado. Toque em Entrar com {name} para tentar de novo, ou cole uma chave.',
+  'ui.ai.cloud.or_state': 'Este login não começou nesta aba, então foi recusado para proteger sua conta. Toque em Entrar com {name} para começar de novo.',
+  'ui.ai.cloud.or_used': 'Esse código de login já foi usado ou expirou (os códigos valem 10 minutos). Toque em Entrar com {name} para começar de novo.',
+  'ui.ai.cloud.or_failed': 'O {name} não forneceu uma chave ({why}). Toque em Entrar com {name} para tentar de novo, ou cole uma chave.',
+  'ui.ai.cloud.or_offline': 'O navegador está offline, então o login não pôde ser concluído. Conecte-se à internet e toque de novo em Entrar com {name}.',
+  'ui.ai.cloud.or_network': 'Não foi possível acessar o {name} para concluir o login. Verifique sua conexão e toque de novo em Entrar com {name}.',
+  'ui.ai.cloud.or_no_crypto': 'Este navegador não consegue entrar com {name} aqui (é preciso Web Crypto em uma página https). Cole uma chave em vez disso.',
+  'ui.ai.cloud.or_key_label': '{brand} neste navegador',
+  'ui.ai.cloud.or_badge': 'Entrar',
+  'ui.ai.cloud.or_badge_t': 'Nenhuma chave para copiar: entre com sua conta do {name} e uma chave é criada para este navegador.',
+});

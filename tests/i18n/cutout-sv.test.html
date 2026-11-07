@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopIsolate in Swedish</title>
+  <!-- Covers: slopisolate/i18n/index.js, slopisolate/js/core/util.js, slopisolate/js/core/history.js, slopisolate/js/core/brush.js,
+       slopisolate/js/ui/menus.js, slopisolate/js/ui/commands.js, slopisolate/js/ui/ctxmenu.js, slopisolate/js/ui/ctxbar.js,
+       slopisolate/js/ui/panel.js, slopisolate/js/ui/panel-look.js, slopisolate/js/ui/panel-head.js, slopisolate/js/ui/kit.js,
+       slopisolate/js/ui/queue.js, slopisolate/js/ui/main.js, slopisolate/js/ui/openin.js, slopisolate/js/ui/view-state.js,
+       slopisolate/js/ui/bulk.js, slopisolate/js/ui/bulk-act.js, slopisolate/js/ui/macros.js, slopisolate/js/io/files.js,
+       slopisolate/js/io/export.js, slopisolate/js/io/send.js, slopisolate/js/io/drive.js, slopisolate/js/io/config.js,
+       slopisolate/js/video/player.js, slopisolate/js/video/item.js, slopisolate/js/video/limits.js,
+       slopisolate/js/video/encode.js, slopisolate/js/video/source.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // SlopIsolate in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../slopisolate/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('#menus .menu-b')
+      && f.contentDocument.querySelector('#ctxbar .seg-b') && f.contentDocument.querySelector('#props .pp-h') && f.contentWindow.SlopCmd
+      && f.contentWindow.SlopCmd.get('co.file-open'), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(cutout|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menus .menu-b')].map((b) => b.textContent.trim());
+  const tools = (doc) => [...doc.querySelectorAll('#ctxbar [data-tool]')].map((b) => b.textContent.trim());
+  const sections = (doc) => [...doc.querySelectorAll('#props .pp-h')].map((h) => h.textContent.trim());
+  async function fileMenu(f) {
+    f.contentDocument.querySelector('#menus .menu-b').click();
+    const m = await waitFor(() => f.contentDocument.querySelector('.sui-menu'), { timeout: 30000 });
+    const items = [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+    f.contentDocument.body.click();
+    return items;
+  }
+
+  describe('SlopIsolate in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, tools, panel, empty view, status bar and palette, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc)).toEqual(['Arkiv', 'Redigera', 'Visa', 'Hjälp']);
+      expect(tools(doc)).toEqual(['Panorera', 'Behåll', 'Ta bort']);
+      expect(sections(doc)).toContain('Kanter');
+      expect(sections(doc)).toContain('Bakgrund');
+      expect(sections(doc)).not.toContain('Edges');
+      expect(doc.querySelector('[data-i18n="cutout.app.drop_title"]').textContent).toBe('Släpp bilder här');
+      expect(doc.querySelector('#emptyOpen').textContent.trim()).toBe('Välj bilder');
+      expect(doc.querySelector('#statusLeft').textContent).toBe('Ingen bild');
+      expect(W.SlopCmd.get('co.file-open').title).toBe('Öppna bilder…');
+      expect(W.SlopCmd.get('co.tool-keep').title).toBe('Verktyg: Behåll-pensel');
+      const items = await fileMenu(f);
+      expect(items.join(' | ')).toContain('Exempelbild');
+      expect(KEY.test(items.join('\n'))).toBe(false);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow, I = W.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && tools(doc)[0] === 'Pan' && sections(doc).includes('Edges'), { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(doc.querySelector('[data-i18n="cutout.app.drop_title"]').textContent).toBe('Drop images here');
+      expect(doc.querySelector('#emptyOpen').textContent.trim()).toBe('Choose images');
+      expect(doc.querySelector('#statusLeft').textContent).toBe('No image');
+      expect(W.SlopCmd.get('co.file-open').title).toBe('Open images…');
+      expect((await fileMenu(f)).join(' | ')).toContain('Sample image');
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv' && tools(doc)[0] === 'Panorera' && sections(doc).includes('Kanter'), { timeout: 20000 });
+      expect(doc.querySelectorAll('#props .sf-p-foot').length).toBe(1);   // one footer, kept through the rebuild
+      expect(doc.querySelector('#props .sf-p-foot #btnDownload')).toBeTruthy();
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      const bar = doc.querySelector('.topbar');
+      expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'SlopIsolate in Swedish' });
+  </script>
+</body>
+</html>

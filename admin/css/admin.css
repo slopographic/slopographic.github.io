@@ -1,0 +1,24 @@
+/* Slop Admin: only what is its own. The base (theme tokens from the site theme, inputs, buttons, tabs, cards, notes, the top
+ * bar, form grids and tables) is shared/biz/app.css. Here: the labels, the danger card and the Get started steps. At 390 px
+ * the forms stack in one column, and the tables scroll inside their own box, never the page. */
+a { color: var(--accent); }
+.main { max-width: 900px; }
+.danger-card { border-color: var(--danger); }
+.card .h2 { font-size: 20px; margin: 0 0 6px; }
+.toolbar { align-items: center; margin: 8px 0; }
+label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--mute); min-width: 0; margin-bottom: 8px; }
+input[type="text"], input[type="number"], input[type="file"], select, textarea { min-width: 0; width: 100%; color: var(--ink); }
+.msg { color: var(--danger); margin: 6px 0; }
+.preview { color: var(--accent); font-variant-numeric: tabular-nums; }
+.num { text-align: right !important; }
+.sui-dlg.danger-dlg .sui-title { color: var(--danger); }
+
+/* Get started: the first steps, ticked when done */
+.start-head { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.start-head progress { flex: 1 1 auto; max-width: 320px; height: 10px; accent-color: var(--accent); }
+.start-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.start-step { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-s); }
+.start-step .start-text { display: grid; gap: 2px; min-width: 0; }
+.start-mark { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; font-weight: 700; }
+.start-step.is-done .start-mark { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.start-step.is-done b { text-decoration: line-through; text-decoration-color: var(--mute); }

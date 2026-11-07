@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop preset picker tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // The effect preset picker (Layer ▸ Apply Effect Preset…): choosing a row previews it on the layer with no history
+  // step; Apply writes it as one undo step; Close restores the layer; a person's own preset can be deleted.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, W;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const q = (sel) => win.document.querySelector(sel);
+  const types = (L) => (L.fx || []).map((e) => e.type);
+  const layer = (id) => W.D.layers.find((l) => l.id === id);
+  /** A fresh document with one layer that has a drop shadow, plus a target layer. Returns the target's id. */
+  function setup(name) {
+    W.newDocTab(300, 200, '#ffffff', name); W.selectTool('move');
+    const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#000'; g.fillRect(60, 40, 180, 120);
+    W.addLayer({ name: 'Target', canvas: c }, 'Add Target');
+    return W.activeLayer().id;
+  }
+  const closeWithX = async () => { q('.sui-back:not(.sui-out) .sui-x').click(); await waitFor(() => !q('.sp-list'), { timeout: 3000 }); };
+
+  describe('PhotoSlop effect preset picker', () => {
+    it('boots with the presets library', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      win = frame.contentWindow;
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      await waitFor(() => win.SlopPresets.isLoaded(), { timeout: 10000 });
+      expect(typeof W.openFxPresetPicker).toBe('function');
+    }, { timeout: 40000 });
+
+    it('choosing a preset previews it on the layer without a history step; Apply makes one undo step; Remove takes the effect off again', async () => {
+      const id = setup('Picker apply');
+      W.fxPresetPick(id);
+      await waitFor(() => q('.sp-list .sp-row[data-id="neon-glow"]'));
+      const before = W.Hist.idx;
+      q('.sp-row[data-id="neon-glow"]').click(); await sleep(30);
+      expect(types(layer(id))).toEqual(['glow']);
+      expect(W.Hist.idx).toBe(before);
+      q('.sp-row[data-id="soft-shadow"]').click(); await sleep(30);
+      expect(types(layer(id))).toEqual(['shadow']);
+      expect(W.Hist.idx).toBe(before);
+      q('.sui-foot .sui-primary').click();
+      await waitFor(() => !q('.sp-list'), { timeout: 3000 });
+      expect(types(layer(id))).toEqual(['shadow']);
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Apply Preset: Soft shadow');
+      // Remove: the effect row's delete takes it off the layer, and undo brings it back.
+      const fx = layer(id).fx[0];
+      W.removeFx(id, fx.id);
+      expect(types(layer(id))).toEqual([]);
+      W.undo();
+      expect(types(layer(id))).toEqual(['shadow']);
+    });
+
+    it('Close after a preview puts the layer back as it was', async () => {
+      const id = setup('Picker close');
+      W.fxPresetPick(id);
+      await waitFor(() => q('.sp-list .sp-row'));
+      const before = W.Hist.idx;
+      q('.sp-row[data-id="hard-shadow"]').click(); await sleep(30);
+      expect(types(layer(id))).toEqual(['shadow']);
+      await closeWithX();
+      expect(types(layer(id))).toEqual([]);
+      expect(W.Hist.idx).toBe(before);
+    });
+
+    it('a preset the person saved can be deleted from the picker (confirmed) and is gone from the library', async () => {
+      const id = setup('Picker delete');
+      W.addLayer({ name: 'Source', canvas: W.mkCanvas(300, 200) }, 'Add Source');
+      const src = W.activeLayer().id;
+      W.setFxStack(src, [{ id: W.uid(), type: 'shadow', on: true, p: W.fxDefaults('shadow') }], 'Add Shadow');
+      const saved = await W.fxPresetSave(src, 'Picker delete me', 'Browser test');
+      expect(saved.ok).toBe(true);
+      W.fxPresetPick(id);
+      await waitFor(() => q(`.sp-row[data-id="${saved.id}"]`));
+      q(`.sp-row[data-id="${saved.id}"]`).click(); await sleep(30);
+      q('.sp-tools .sui-danger').click();
+      // The confirm dialog is the top one (the picker is underneath it).
+      await waitFor(() => win.document.querySelectorAll('.sui-back:not(.sui-out)').length >= 2, { timeout: 3000 });
+      const top = [...win.document.querySelectorAll('.sui-back:not(.sui-out)')].pop();
+      top.querySelector('.sui-danger').click();
+      await waitFor(() => !W.SlopPresets.get(saved.id), { timeout: 5000 });
+      await closeWithX();
+      expect(types(layer(id))).toEqual([]);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop preset picker' });
+  </script>
+</body>
+</html>

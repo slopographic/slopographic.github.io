@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF first view: the rest after the first paint, the PDF libraries on demand</title>
+  <!-- Covers: pdf/index.html, shared/load/load.js, pdf/js/ui/app.js, pdf/js/core/pdfjs.js, pdf/js/core/text.js, pdf/js/ui/main.js, pdf/js/ui/drop.js, pdf/js/ui/menus.js, pdf/js/ui/route.js, pdf/js/ui/rename.js, pdf/js/ui/commands.js, pdf/js/io/export.js, pdf/js/io/convert.js, pdf/js/io/sample.js -->
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const fr = document.getElementById('app');
+  async function boot() {
+    fr.src = 'about:blank';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.location.href === 'about:blank');
+    fr.src = '../../pdf/index.html';
+    await waitFor(() => { const w = fr.contentWindow; return w && w.SP && w.SP.app && w.SP.app.isReady && w.document.documentElement.classList.contains('ready'); }, { timeout: 30000 });
+    return fr.contentWindow;
+  }
+  // The page makes more requests than the resource timing buffer holds (250), so the libraries are found by what they leave:
+  // pdf-lib's script element (SlopLoad) and window.PDFLib, pdf.js's window.pdfjsLib (core/pdfjs.js)
+  const writer = (w) => w.document.querySelectorAll('script[src$="/vendor/pdf-lib/pdf-lib.min.js"]').length + (w.PDFLib ? 10 : 0);
+  const reader = (w) => (w.pdfjsLib ? 1 : 0);
+
+  describe('Slop PDF first view', () => {
+    it('the empty page loads neither pdf-lib nor pdf.js', async () => {
+      const w = await boot();
+      await sleep(1500);   // idle loads have run too
+      expect(w.SP.engine.state.pages.length).toBe(0);
+      expect(writer(w)).toBe(0);
+      expect(reader(w)).toBe(0);
+    }, { timeout: 60000 });
+
+    it('runs only the first view before the first paint: the rest of the app is fetched after it', async () => {
+      const w = fr.contentWindow, d = w.document;
+      const tpl = d.getElementById('pdf-later');
+      const later = new Set(Array.from(tpl.content.querySelectorAll('script[src], link[href]')).map((el) => new URL(el.getAttribute('src') || el.getAttribute('href'), d.baseURI).href));
+      expect(later.size > 100).toBe(true);
+      // they are not parser-blocking: the page is parsed and its first view built (DOMContentLoaded) before any is asked for.
+      // (A page that is shown asks for them after its first paint; a test frame in a background tab may not paint at all.)
+      const nav = w.performance.getEntriesByType('navigation')[0];
+      const entries = w.performance.getEntriesByType('resource').filter((e) => later.has(e.name));
+      expect(entries.length > 20).toBe(true);   // the buffer (250 entries) may have dropped the last of them
+      expect(entries.filter((e) => e.startTime < nav.domContentLoadedEventEnd).map((e) => e.name)).toEqual([]);
+      // no script of the page's first view is named again in the later group
+      const first = Array.from(d.querySelectorAll('body > script[src]')).map((s) => s.src);
+      expect(first.length < 40).toBe(true);
+      expect(first.filter((s) => later.has(s))).toEqual([]);
+      // the first view is whole: the rail, the menus, the Organize panel, the drop zone and the command button
+      expect(d.querySelectorAll('#rail .rail-b').length).toBe(13);
+      expect(d.querySelectorAll('#menus .menu-b').length).toBe(4);
+      expect(d.querySelector('#props .pp-title h2').textContent).toBe('Organize pages');
+      expect(!!d.querySelector('#pdfDrop .sd-choose')).toBe(true);
+      expect(d.querySelectorAll('#btnCmd').length).toBe(1);
+    }, { timeout: 30000 });
+
+    it('opening a PDF loads both libraries, once', async () => {
+      const w = fr.contentWindow;
+      const bytes = await (await fetch('fixtures/owner-only.pdf')).arrayBuffer();
+      await w.SP.app.addFiles([new w.File([new w.Uint8Array(bytes)], 'owner-only.pdf', { type: 'application/pdf' })]);
+      await waitFor(() => w.SP.engine.state.pages.length > 0, { timeout: 20000 });
+      expect(writer(w)).toBe(11);
+      expect(reader(w)).toBe(1);
+      expect(typeof w.PDFLib.PDFDocument).toBe('function');
+      await w.SP.engine.pdflib();
+      expect(writer(w)).toBe(11);   // once
+      // no stored tabs for the next boot, so it opens empty
+      w.SP.util.store.set('autosave', false); w.SP.app.setAutosave(false);
+      await w.SP.util.idb.del('session');
+    }, { timeout: 60000 });
+
+    it('the sample (made with pdf-lib) loads it on a fresh page too', async () => {
+      const w = await boot();
+      expect(w.SP.engine.state.pages.length).toBe(0);
+      expect(writer(w)).toBe(0);
+      await w.SP.app.loadSample();
+      expect(w.SP.engine.state.pages.length).toBe(4);
+      expect(writer(w)).toBe(11);
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Slop PDF · first view' });
+  </script>
+</body>
+</html>

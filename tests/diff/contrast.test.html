@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Compare: the result reads in every theme</title>
+<style>body { margin: 0; background: #888; } iframe { border: 0; display: block; width: 1280px; height: 800px; }</style></head>
+<body>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/theme/theme.js"></script>
+<script src="../harness.js"></script>
+<script src="../../shared/color/contrast.js"></script>
+<script src="../a11y/contrast.js"></script>
+<script>
+// Covers: diff/css/diff.css, diff/css/result.css, diff/js/core/render.js
+// The contrast sweep (tests/a11y/sweep-37) sees the empty page; this opens the sample's result (changed lines and words, in
+// both views) and a CSV result in each theme, and checks every text of the result against its background.
+const { describe, it, expect, waitFor } = SlopTest;
+async function open(theme) {
+  localStorage.clear();
+  localStorage.setItem('slop.consent', JSON.stringify({ v: 1, analytics: false, ads: false, t: 1 }));
+  SlopTheme.set(theme);
+  const old = document.getElementById('app'), f = document.createElement('iframe');
+  f.id = 'app';
+  if (old) old.replaceWith(f); else document.body.append(f);
+  f.src = '../../diff/index.html';
+  await waitFor(() => f.contentWindow && f.contentWindow.SlopCompare && f.contentWindow.SlopCompare.ready, { timeout: 30000 });
+  const st = f.contentDocument.createElement('style');
+  st.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}';
+  f.contentDocument.head.append(st);
+  return f.contentWindow;
+}
+const lines = (r) => r.fails.map((x) => `${x.sel} "${x.text}" ${x.fg} on ${x.bg} = ${x.ratio}`);
+describe('Slop Compare: the result in every theme', () => {
+  for (const theme of ['light', 'dark', 'classic', 'lime']) {
+    it(`${theme}: changed lines and words, side by side and unified, and a CSV table`, async () => {
+      const W = await open(theme), D = W.document;
+      D.querySelector('#df-drop .sd-sample').click();
+      await waitFor(() => W.SlopCompare.S.result, { timeout: 15000 });
+      W.SlopCompare.go(1);
+      const root = D.getElementById('df-res');
+      expect(lines(SlopContrast.audit(W, { root }))).toEqual([]);
+      D.querySelector('#df-opt-view [data-value="unified"]').click();
+      await waitFor(() => D.querySelector('#df-out .df-unified'));
+      expect(lines(SlopContrast.audit(W, { root }))).toEqual([]);
+      await W.SlopIntake.take([new W.File(['id,v\n1,a\n2,b\n'], 'a.csv', { type: 'text/csv' }), new W.File(['id,v\n1,a\n2,c\n3,d\n'], 'b.csv', { type: 'text/csv' })], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result && W.SlopCompare.S.result.kind === 'csv');
+      expect(lines(SlopContrast.audit(W, { root }))).toEqual([]);
+    }, { timeout: 60000 });
+  }
+});
+SlopTest.run();
+</script>
+</body>
+</html>

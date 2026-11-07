@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive model tests</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, H;
+
+  describe('migration from the v1 flat Drive', () => {
+    it('upgrades v1 records with folderId, starred, trashedAt and modified', async () => {
+      await DT.delDb('dt-mig');
+      const d = await DT.openRaw('dt-mig', 1, (db) => db.createObjectStore('files', { keyPath: 'id' }).createIndex('time', 'time'));
+      const t = d.transaction('files', 'readwrite');
+      t.objectStore('files').put({ id: 'old1', name: 'a.png', type: 'image/png', size: 3, from: 'photoslop', time: 1000, meta: {}, blob: new Blob(['abc'], { type: 'image/png' }) });
+      t.objectStore('files').put({ id: 'old2', name: 'b.txt', type: 'text/plain', size: 1, from: 'pdf', time: 2000, meta: {}, blob: new Blob(['x']) });
+      await new Promise((r) => { t.oncomplete = r; });
+      d.close();
+      const w = await DT.frame('frame.html?db=dt-mig');
+      const list = await w.SlopHub.list();
+      expect(list.map((r) => r.id)).toEqual(['old2', 'old1']);
+      // the stored records themselves were rewritten by the upgrade
+      const d2 = await DT.openRaw('dt-mig');
+      expect(d2.version).toBe(2);
+      expect([...d2.objectStoreNames].sort()).toEqual(['files', 'folders']);
+      const raw = await DT.req(d2.transaction('files').objectStore('files').get('old1'));
+      d2.close();
+      expect([raw.folderId, raw.starred, raw.trashedAt, raw.modified]).toEqual([null, false, null, 1000]);
+      expect(await raw.blob.text()).toBe('abc');
+      w.__frame.remove();
+    });
+    it('normalises records written later by an old cached hub', async () => {
+      const w = await DT.frame('frame.html?db=dt-mig2');
+      await w.SlopHub.list(); // creates v2
+      const d = await DT.openRaw('dt-mig2');
+      const t = d.transaction('files', 'readwrite');
+      t.objectStore('files').put({ id: 'legacy', name: 'c.png', type: 'image/png', size: 1, from: 'x', time: 5, blob: new Blob(['c']) });
+      await new Promise((r) => { t.oncomplete = r; }); d.close();
+      const r = await w.SlopHub.get('legacy');
+      expect([r.folderId, r.starred, r.trashedAt]).toEqual([null, false, null]);
+      expect((await w.SlopHub.list({ folderId: null })).map((x) => x.id)).toEqual(['legacy']);
+      w.__frame.remove();
+    });
+  });
+
+  describe('folders and files', () => {
+    it('boots a fresh drive', async () => {
+      W = await DT.frame('frame.html?db=dt-model'); H = W.SlopHub;
+      await H.clear();
+      expect(await H.list()).toEqual([]);
+      expect(await H.listFolders()).toEqual([]);
+    });
+    it('creates nested folders and walks the path', async () => {
+      const a = await H.createFolder('Alpha'), b = await H.createFolder('Beta', a), c = await H.createFolder('Gamma', b);
+      expect((await H.folderPath(c)).map((f) => f.name)).toEqual(['Alpha', 'Beta', 'Gamma']);
+      expect((await H.listFolders({ parentId: a })).map((f) => f.name)).toEqual(['Beta']);
+      expect((await H.listFolders({ parentId: null })).map((f) => f.name)).toEqual(['Alpha']);
+      W.ids = { a, b, c };
+    });
+    it('puts files into folders and lists by folder', async () => {
+      const { a, c } = W.ids;
+      const f1 = await H.put(DT.text('one'), { name: 'one.txt', from: 'test', folderId: a });
+      const f2 = await H.put(DT.text('two'), { name: 'two.txt', from: 'test', folderId: c });
+      const f3 = await H.put(DT.text('root'), { name: 'root.txt', from: 'test' });
+      expect((await H.list({ folderId: a })).map((r) => r.name)).toEqual(['one.txt']);
+      expect((await H.list({ folderId: null })).map((r) => r.name)).toEqual(['root.txt']);
+      expect((await H.list()).length).toBe(3);
+      expect((await H.list({ accept: 'text/*' })).length).toBe(3);
+      expect((await H.list({ accept: 'image/*' })).length).toBe(0);
+      Object.assign(W.ids, { f1, f2, f3 });
+    });
+    it('moves and renames with update / updateFolder', async () => {
+      const { a, b, f2 } = W.ids;
+      const r = await H.update(f2, { folderId: a, name: 'moved.txt' });
+      expect([r.folderId, r.name]).toEqual([a, 'moved.txt']);
+      expect(r.modified).toBeGreaterThanOrEqual(r.time);
+      const f = await H.updateFolder(b, { parentId: null, name: 'Beta root' });
+      expect(f.parentId).toBe(null);
+      expect((await H.folderPath(W.ids.c)).map((x) => x.name)).toEqual(['Beta root', 'Gamma']);
+    });
+    it('replacing the blob updates size and type', async () => {
+      const r = await H.update(W.ids.f3, { blob: new Blob(['hello world'], { type: 'text/markdown' }) });
+      expect([r.size, r.type]).toEqual([11, 'text/markdown']);
+      expect(await (await H.get(W.ids.f3)).blob.text()).toBe('hello world');
+    });
+    it('trash hides files from list() and inTrash sees through folders', async () => {
+      const { a, f1 } = W.ids;
+      await H.updateFolder(a, { trashedAt: Date.now() });
+      const folders = new Map((await H.listFolders()).map((f) => [f.id, f]));
+      const one = await H.get(f1);
+      expect(one.trashedAt).toBe(null);
+      expect(H.inTrash(one, folders)).toBe(true);
+      await H.update(f1, { trashedAt: Date.now() });
+      expect((await H.list()).some((r) => r.id === f1)).toBe(false);
+      expect((await H.list({ trashed: true })).map((r) => r.id)).toEqual([f1]);
+      expect((await H.list({ trashed: 'any' })).length).toBe(3);
+    });
+    it('touch() records an open without changing modified', async () => {
+      const before = await H.get(W.ids.f3);
+      await sleep(5);
+      await H.touch(W.ids.f3);
+      const after = await H.get(W.ids.f3);
+      expect(after.opened).toBeGreaterThan(0);
+      expect(after.modified).toBe(before.modified);
+    });
+    it('remove and removeFolder delete for good; clear empties both stores', async () => {
+      await H.remove(W.ids.f3);
+      expect(await H.get(W.ids.f3)).toBe(undefined);
+      await H.removeFolder(W.ids.c);
+      expect(await H.getFolder(W.ids.c)).toBe(undefined);
+      await H.clear();
+      expect((await H.list({ trashed: 'any' })).length + (await H.listFolders()).length).toBe(0);
+    });
+    it('keeps the old API: put/get/list/sendTo/consumeLaunch/pickFromDrive/register', () => {
+      for (const k of ['put', 'get', 'list', 'remove', 'clear', 'sendTo', 'sendMenuItems', 'consumeLaunch', 'pickFromDrive', 'register', 'appsAccepting', 'on', 'emit', 'self']) expect(!!H[k]).toBe(true);
+    });
+    it('sendTo can open an existing file and put into a folder', async () => {
+      const opened = [];
+      W.open = (u) => { opened.push(u); return {}; };
+      const f = await H.createFolder('Inbox');
+      const id = await H.sendTo('pdf', DT.text('%PDF', 'application/pdf'), 'x.pdf', { folderId: f });
+      expect((await H.get(id)).folderId).toBe(f);
+      await H.sendTo('pdf', null, 'x.pdf', { id });
+      expect(opened.length).toBe(2);
+      expect(opened[1]).toContain('pdf/?drive=' + id);
+      expect((await H.list()).length).toBe(1);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: model and migration' });
+  </script>
+</body>
+</html>

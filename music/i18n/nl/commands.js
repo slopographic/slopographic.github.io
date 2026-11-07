@@ -1,0 +1,28 @@
+/* Slop Music, Dutch: the titles and groups of the commands in the Ctrl+K palette (js/app/ai-commands.js). Their
+ * descriptions and arguments are for the assistant and stay English. Same keys as music/i18n/en/commands.js. Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'music.cmd.play': 'Afspelen',
+  'music.cmd.pause': 'Pauzeren',
+  'music.cmd.play_pause': 'Afspelen of pauzeren',
+  'music.cmd.play_track': 'Een nummer afspelen…',
+  'music.cmd.play_playlist': 'Een afspeellijst afspelen…',
+  'music.cmd.next': 'Volgend nummer',
+  'music.cmd.previous': 'Vorig nummer',
+  'music.cmd.seek': 'Naar positie springen',
+  'music.cmd.volume': 'Het volume instellen',
+  'music.cmd.speed': 'De snelheid instellen',
+  'music.cmd.shuffle': 'Willekeurig',
+  'music.cmd.repeat': 'Herhalen',
+  'music.cmd.queue_track': 'Een nummer aan de wachtrij toevoegen…',
+  'music.cmd.find_tracks': 'Nummers zoeken…',
+  'music.cmd.tag_track': 'Een nummer taggen…',
+  'music.cmd.create_playlist': 'Nieuwe afspeellijst…',
+  'music.cmd.rename_playlist': 'Afspeellijst hernoemen…',
+  'music.cmd.add_to_playlist': 'Een nummer aan een afspeellijst toevoegen…',
+  'music.cmd.remove_from_playlist': 'Een nummer uit een afspeellijst verwijderen…',
+  'music.cmd.delete_playlist': 'Afspeellijst verwijderen…',
+  'music.cmd.export_playlist': 'Een afspeellijst exporteren…',
+  'music.cmd.group_player': 'Speler',
+  'music.cmd.group_library': 'Bibliotheek',
+  'music.cmd.group_playlists': 'Afspeellijsten',
+});

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · views, the shared kit and the footer wordmark</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Covers: home/view.js, home/footer-mark.js, index.html, style/footer.css, style/base.css -->
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let win, doc;
+  const ready = HomeTest.openHome().then((w) => { win = w; doc = w.document; });
+  const loaded = () => win.performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname)
+    .concat([...doc.querySelectorAll('script[src], link[rel="stylesheet"][href]')].map((n) => new URL(n.src || n.href).pathname));
+  const ROOT = () => new URL('../../', location.href).pathname;   // the site root as the iframe sees it
+  const rel = (p) => p.startsWith(ROOT()) ? p.slice(ROOT().length) : p;
+
+  describe('the home view loads only what it shows', () => {
+    it('none of the legacy files, nor the detector, load with the home view', async () => {
+      await ready;
+      const files = loaded().map(rel);
+      for (const f of files) {
+        expect(/^(slop\/|app\.js$|motion\.js$|style\/detector\.css$|detector\/)/.test(f) ? f : '').toBe('');
+      }
+      expect(win.SlopDetect).toBe(undefined);
+      expect(doc.getElementById('view-detector').children.length).toBe(0);
+    });
+    it('window.SlopUI is the shared kit, so the header menus and toasts work here too', async () => {
+      await ready;
+      await waitFor(() => win.SlopUI && typeof win.SlopUI.menu === 'function', { timeout: 10000 });
+      for (const k of ['menu', 'toast', 'dialog', 'el']) expect(typeof win.SlopUI[k]).toBe('function');
+      expect(win.SlopUI.randSeed).toBe(undefined);   // the homepage no longer owns a one-function SlopUI of its own
+    });
+    it('the Theme button opens its menu (it threw "SlopUI.menu is not a function" while the page owned SlopUI)', async () => {
+      await ready;
+      const b = await waitFor(() => doc.querySelector('.sh-theme'), { timeout: 10000 });
+      const errors = [];
+      win.addEventListener('error', (e) => errors.push(e.message));
+      b.click();
+      const menu = await waitFor(() => doc.querySelector('.sui-menu'), { timeout: 3000 });
+      expect(menu.textContent.length).toBeGreaterThan(0);
+      expect(errors).toEqual([]);
+      win.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      doc.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+    });
+    it('--top is the sticky header’s height', async () => {
+      await ready;
+      expect(doc.documentElement.style.getPropertyValue('--top')).toBe(doc.querySelector('.nav').offsetHeight + 'px');
+    });
+  });
+
+  describe('the Authenticator view (home/view.js)', () => {
+    it('a [data-view] card opens it: the detector/ files load once, the text box takes focus', async () => {
+      await ready;
+      const card = doc.querySelector('a[data-view="detector"]');
+      expect(card != null).toBe(true);
+      card.click();
+      await waitFor(() => !doc.getElementById('view-detector').hidden, { timeout: 8000 });
+      expect(win.location.hash).toBe('#detector');
+      expect(doc.getElementById('view-home').hidden).toBe(true);
+      await waitFor(() => doc.activeElement === doc.getElementById('detect-input'), { timeout: 3000 });
+      expect(win.SlopHomeView.current()).toBe('detector');
+      const count = () => loaded().map(rel).filter((f) => f === 'detector/detector.js').length;
+      const before = count();
+      doc.querySelector('.brand').click();
+      await waitFor(() => !doc.getElementById('view-home').hidden);
+      expect(win.location.hash).toBe('');
+      win.location.hash = '#detector';
+      await waitFor(() => !doc.getElementById('view-detector').hidden, { timeout: 8000 });
+      expect(count()).toBe(before);
+      expect(doc.querySelectorAll('#view-detector h1').length).toBe(1);
+      doc.querySelector('.brand').click();
+      await waitFor(() => !doc.getElementById('view-home').hidden);
+    });
+    it('going home while it loads stays home', async () => {
+      await ready;
+      win.SlopHomeView.show('detector');
+      win.SlopHomeView.show('home');
+      await win.SlopHomeView.detector();
+      await sleep(50);
+      expect(doc.getElementById('view-home').hidden).toBe(false);
+      expect(doc.getElementById('view-detector').hidden).toBe(true);
+    });
+    it('opening the page at #detector shows it with its heading', async () => {
+      const w = await HomeTest.openHome({ fresh: false, hash: '#detector' });
+      const d = w.document;
+      await waitFor(() => !d.getElementById('view-detector').hidden, { timeout: 8000 });
+      expect(d.getElementById('view-home').hidden).toBe(true);
+      expect(d.querySelector('#view-detector h1.page-title').textContent).toBe('The ' + 'Authenticator');   // its markup, which a build keeps
+      win = await HomeTest.openHome({ fresh: false });
+      doc = win.document;
+    });
+  });
+
+  describe('the footer wordmark (home/footer-mark.js)', () => {
+    // a plain-tone build shows no wordmark there (style/tone.css)
+    if (BRAND_FACTS.tone === 'plain') it('a plain build leaves it out', async () => { await ready; expect(win.getComputedStyle(doc.querySelector('.footer-mark')).display).toBe('none'); });
+    else it('is scaled to fill its row without spilling', async () => {
+      await ready;
+      const m = doc.querySelector('.footer-mark');
+      await win.SlopFooterMark.fontsReady;
+      win.SlopFooterMark.fit();
+      expect(m.style.fontSize.endsWith('px')).toBe(true);
+      const range = doc.createRange();
+      range.selectNodeContents(m);
+      expect(range.getBoundingClientRect().width <= m.clientWidth + 1).toBe(true);
+    });
+    if (BRAND_FACTS.tone !== 'plain') it('fills when scrolled into view, unless reduced motion is asked for', async () => {
+      await ready;
+      const m = doc.querySelector('.footer-mark');
+      doc.documentElement.style.scrollBehavior = 'auto';
+      m.scrollIntoView({ block: 'center' });
+      if (win.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        await sleep(300);
+        expect(m.classList.contains('filled')).toBe(false);
+      } else await waitFor(() => m.classList.contains('filled'), { timeout: 3000 });
+      win.scrollTo(0, 0);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

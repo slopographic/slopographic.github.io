@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business · SlopBiz keeps what loaded before it</title>
+  <!-- Covers: shared/biz/biz.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/biz/setup.js"></script>
+  <script src="../../shared/biz/router.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script>
+  // biz.js used to replace window.SlopBiz, so setup.js or router.js loaded before it were lost (Slop Admin loads them first).
+  const { describe, it, expect, run } = SlopTest;
+  describe('SlopBiz load order', () => {
+    it('biz.js merges into SlopBiz: the parts that loaded before it are still there', () => {
+      expect(typeof window.SlopBiz.setup.steps).toBe('function');
+      expect(typeof window.SlopBiz.router.start).toBe('function');
+      expect(typeof window.SlopBiz.refusal).toBe('function');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: player</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const F = window.MusicFixtures;
+  const NAMES = ['a-one', 'b-two', 'c-three', 'd-four', 'e-five', 'f-six'];
+  let W, E, ids = [];
+
+  describe('Slop Music player', () => {
+    it('plays and pauses from the Now playing button', async () => {
+      const H = window.SlopHub;
+      await H.clear();
+      for (const n of NAMES) ids.push(await H.put(F.wav(20), { name: n + '.wav', from: 'test' }));
+      W = await DT.frame('../../music/', (w) => w.SlopMusic && w.SlopMusic.lib.list().length === 6 && w.SlopMusic.lib.list().every((t) => t.analyzed));
+      E = W.SlopMusic.engine;
+      await E.setQueue(ids, ids[0]);
+      await waitFor(() => E.state().playing, { timeout: 8000 });
+      expect(E.state().trackId).toBe(ids[0]);
+      W.document.getElementById('now-play').click();
+      await waitFor(() => !E.state().playing, { timeout: 5000 });
+      W.document.getElementById('now-play').click();
+      await waitFor(() => E.state().playing, { timeout: 8000 });
+      expect(W.document.getElementById('now-play').getAttribute('aria-label')).toBe('Pause');
+      E.pause();
+      expect(E.state().playing).toBe(false);
+    });
+
+    it('the view tabs are SlopTabs: an arrow on a tab moves to the next view and does not seek the track', async () => {
+      // Covers: music/js/app/main.js, music/index.html, shared/ui/tabs.js
+      const D = W.document, at = E.state().time;
+      const tab = D.querySelector('.mu-tabs [data-view="library"]');
+      tab.click();
+      await waitFor(() => !D.getElementById('v-library').hidden);
+      tab.focus();
+      tab.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+      await waitFor(() => !D.getElementById('v-playlists').hidden && W.location.hash === '#playlists');
+      expect(D.activeElement.dataset.view).toBe('playlists');
+      expect(Math.abs(E.state().time - at) < 1).toBe(true);
+    });
+
+    it('next moves to the next track in the queue, previous goes back', async () => {
+      await E.next();
+      expect(E.state().trackId).toBe(ids[1]);
+      await E.prev();
+      expect(E.state().trackId).toBe(ids[0]);
+      E.pause();
+    });
+
+    it('shuffle keeps the current track first and changes the play order', async () => {
+      await E.setQueue(ids, ids[0]);
+      E.setShuffle(true);
+      const q = E.state().queue;
+      expect(q.shuffle).toBe(true);
+      expect(q.order[0]).toBe(E.state().trackId);
+      expect([...q.order].sort()).toEqual([...ids].sort());
+      expect(q.order).not.toEqual(ids);
+      E.setShuffle(false);
+      expect(E.state().queue.order).toEqual(ids);
+      E.pause();
+    });
+
+    it('repeat one replays the same track when it ends', async () => {
+      await E.setQueue(ids, ids[2]);
+      E.setRepeat('one');
+      const before = E.state().trackId;
+      E.audio.dispatchEvent(new Event('ended'));
+      await waitFor(() => E.state().playing, { timeout: 8000 });
+      expect(E.state().trackId).toBe(before);
+      expect(E.state().queue.index).toBe(2);
+      E.pause();
+    });
+
+    it('repeat off stops at the end of the queue, repeat all wraps to the first track', async () => {
+      E.setRepeat('off');
+      await E.setQueue(ids, ids[5]);
+      E.audio.dispatchEvent(new Event('ended'));
+      expect(E.state().playing).toBe(false);
+      E.setRepeat('all');
+      await E.setQueue(ids, ids[5]);
+      E.audio.dispatchEvent(new Event('ended'));
+      await waitFor(() => E.state().trackId === ids[0], { timeout: 5000 });
+      E.pause();
+      E.setRepeat('off');
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: player' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+{
+ "photoslop": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "vector": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "pdf": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "label": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "cutout": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "aitools": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "reports": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "ocr": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "scan": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "html2pdf": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "clean": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "ai": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "docs": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "tables": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "slides": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "press": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "remix": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "slopedit": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "resize": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "upscale": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "watermark": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "contacts": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "inventory": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "orders": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "quotes": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "purchases": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "timesheets": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "expenses": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "invoices": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "notes": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "paste": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "effects": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "img3d": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "sheetview": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "hex": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "eml": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "checksum": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "diff": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "nodes": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "serials": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "transcribe": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "recorder": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "signature": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "qr": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "colors": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "fontcreator": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "workflows": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "convert": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "calculator": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "time": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "crm": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "calendar": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "todo": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "projects": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "reminders": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "ledger": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "admin": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "records",
+  "snapshot": "page",
+  "driven": true
+ },
+ "drive": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "code": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "sorter": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "gallery": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "3d": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ },
+ "music": {
+  "create": true,
+  "add": true,
+  "edit": true,
+  "export": true,
+  "state": "app",
+  "snapshot": "page",
+  "driven": true
+ }
+}

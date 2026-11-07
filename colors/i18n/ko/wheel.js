@@ -1,0 +1,25 @@
+/* Slop Colors, Korean: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'colors.wheel.label': '색상환',
+  'colors.wheel.rule': '조화 색',
+  'colors.wheel.model': '색상환 종류',
+  'colors.wheel.bright': '밝기',
+  'colors.wheel.light': '명도',
+  'colors.wheel.bright_text': '밝기 {pct}%',
+  'colors.wheel.light_text': '명도 {pct}%',
+  'colors.wheel.keys': '핸들을 드래그하거나 핸들에서 방향키를 사용하세요. 왼쪽·오른쪽은 색상 회전, 위·아래는 채도 변경, Shift는 열 단계 이동, Page Up·Page Down은 밝기 변경입니다.',
+  'colors.wheel.base': '기준 색',
+  'colors.wheel.handle': '색 {n}',
+  'colors.wheel.value': '색상 {hue}°, 채도 {sat}%, {hex}',
+  'colors.wheel.value_oklch': '색상 {hue}°, 크로마 {sat}%, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (화가용)',
+  'colors.wheel.oklch': 'OKLCH (지각 기반)',
+  'colors.harmony.brightness': '명암 단계',
+  'colors.harmony.custom': '사용자 지정',
+  'colors.cmd.g_wheel': '색상환',
+  'colors.cmd.wheel_rule': '색상환: 조화 색을 {rule}(으)로 설정',
+  'colors.cmd.wheel_model': '색상환: {wheel} 색상환 사용',
+  'colors.cmd.wheel_focus': '색상환: 색상환으로 이동',
+});

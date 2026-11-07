@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Gallery, wait until the library has loaded (SlopGallery.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('gallery');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.SlopGallery && f.contentWindow.SlopGallery.ready)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop Gallery saved place', () => {
+    it('comes back to the same view and filter after leaving for Slop Drive', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slop-session'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../gallery/index.html');
+      W.SlopGallery.state.setView('favourites');
+      W.SlopGallery.state.setQuery({ text: 'beach' });
+      await sleep(600);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../gallery/index.html');
+      expect(W.SlopGallery.state.state.view).toBe('favourites');
+      expect(W.SlopGallery.state.state.query.text).toBe('beach');
+      expect(W.SlopGallery.state.state.query.fav).toBe(true);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Gallery · saved place' });
+  </script>
+</body>
+</html>

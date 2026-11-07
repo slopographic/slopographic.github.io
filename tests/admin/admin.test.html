@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Admin · the app at 390 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: admin/js/ui/app.js, shared/biz/router.js, admin/js/ui/company.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../admin/index.html';
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const S = () => win().SlopData;
+  const A = () => win().SlopAdmin;
+  const ready = () => win() && win().SlopAdmin && doc() && doc().getElementById('boot').hidden && !!$('cSave');
+  const errors = [];
+  const counts = async () => (await A().overview.counts()).value;
+  const live = (c) => Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v.live]));
+  const openDlg = () => doc().querySelector('.sui-back:not(.sui-out) .sui-dlg');
+  const dlgSave = () => openDlg().querySelector('.sui-primary');
+  const captured = [];
+  let seeded = null;
+
+  describe('Slop Admin in a 390 px wide window', () => {
+    it('with nothing set up it opens on Get started: five steps, none done, with no horizontal scroll', async () => {
+      // Covers: admin/js/ui/start.js, admin/js/ui/app.js, admin/css/admin.css, shared/biz/setup.js
+      await waitFor(ready, { timeout: 20000 });
+      win().addEventListener('error', (e) => errors.push(e.message));
+      await waitFor(() => !$('view-start').hidden && doc().querySelectorAll('#sSteps .start-step').length === 5);
+      expect($('sCount').textContent).toBe('0 of 5 done');
+      expect(doc().querySelector('[data-step="sell"] a').getAttribute('href')).toBe('../invoices/#new');
+      expect($('cName').value).toBe('');
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      win().SlopAdmin.app.show('company');
+      await waitFor(() => !$('view-company').hidden);
+    });
+
+    it('saves the company profile, with the tax rate as a percentage stored in basis points', async () => {
+      $('cName').value = 'Acme Test Ltd';
+      $('cRate').value = '7.5';
+      $('cCur').value = 'usd';
+      $('cLocale').value = 'en-US';
+      $('cSave').click();
+      await waitFor(async () => (await S().store.get('settings', 'main')).value.companyName === 'Acme Test Ltd', { timeout: 8000 });
+      const s = (await S().store.get('settings', 'main')).value;
+      expect(s.defaultTaxRate).toBe(750);
+      expect(s.defaultCurrency).toBe('USD');
+      expect(s.docLang).toBe('en');   // none stored: the first save keeps the page's language as the documents' (SlopBiz.docLang)
+    });
+
+    it('the Document language lists the languages with business tables and persists the choice', async () => {
+      // a render that read the profile before a save must not put the old values back when it finishes (the form went stale)
+      const U = win().SlopAdmin.util, real = U.settings;
+      const held = [];   // every read made while it is held (the app may read too) waits for release()
+      U.settings = async () => { const s = await real(); await new Promise((r) => held.push(r)); return s; };
+      const release = () => held.splice(0).forEach((r) => r());
+      if (doc().activeElement) doc().activeElement.blur();   // a render leaves a form being typed in alone
+      const late = win().SlopAdmin.views.company.render();
+      await waitFor(() => held.length);
+      U.settings = real;
+      $('cName').value = 'Acme Test Ltd';
+      $('cSave').click();
+      await waitFor(async () => (await S().store.get('settings', 'main')).value.companyName === 'Acme Test Ltd', { timeout: 8000 });
+      $('cName').value = 'Acme Newer Ltd';
+      $('cSave').click();
+      await waitFor(async () => (await S().store.get('settings', 'main')).value.companyName === 'Acme Newer Ltd', { timeout: 8000 });
+      release();
+      await late;
+      expect($('cName').value).toBe('Acme Newer Ltd');
+      $('cName').value = 'Acme Test Ltd';
+      $('cSave').click();
+      await waitFor(async () => (await S().store.get('settings', 'main')).value.companyName === 'Acme Test Ltd', { timeout: 8000 });
+      doc().activeElement.blur();
+      await win().SlopAdmin.views.company.render();
+      expect($('cName').value).toBe('Acme Test Ltd');
+      const opts = [...$('cDocLang').options].map((o) => o.value);
+      expect(opts).toEqual(win().SlopI18n.shipped('biz'));
+      expect(opts.includes('sv')).toBe(true);
+      $('cDocLang').value = 'sv';
+      $('cSave').click();
+      await waitFor(async () => (await S().store.get('settings', 'main')).value.docLang === 'sv', { timeout: 8000 });
+      $('cDocLang').value = 'en';
+      await win().SlopAdmin.views.company.render();
+      expect($('cDocLang').value).toBe('sv');
+      expect((await S().store.get('settings', 'main')).value.defaultTaxRate).toBe(750);   // the rest of the profile is kept
+      const bad = await win().SlopAdmin.profile.save({ companyName: 'Acme Test Ltd', defaultCurrency: 'USD', locale: 'en-US', defaultTaxRate: '7.5', docLang: 'xx' });
+      expect(bad.ok).toBe(false);
+      expect((await S().store.get('settings', 'main')).value.docLang).toBe('sv');
+    });
+
+    it('follows the site theme (shared/biz/app.css): text reads on its background in every theme', async () => {
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        win().SlopTheme.apply(theme);
+        const inp = win().getComputedStyle($("cName")), body = win().getComputedStyle(doc().body);
+        const fill = inp.webkitTextFillColor || inp.color;
+        expect(SlopTest.contrast(fill, inp.backgroundColor) >= 4.5).toBe(true, `${theme}: input ${fill} on ${inp.backgroundColor}`);
+        expect(SlopTest.contrast(body.color, body.backgroundColor) >= 4.5).toBe(true, `${theme}: page`);
+      }
+    });
+    it('the company step is ticked once the profile has a name', async () => {
+      win().SlopAdmin.app.show('start');
+      await waitFor(() => $('sCount').textContent === '1 of 5 done');
+      expect(doc().querySelector('[data-step="company"]').classList.contains('is-done')).toBe(true);
+      win().SlopAdmin.app.show('company');
+    });
+
+    it('refuses a tax rate out of range with a message, and keeps the old value', async () => {
+      $('cRate').value = '150';
+      $('cSave').click();
+      await waitFor(() => $('cMsg').textContent.includes('from 0 to 100'), { timeout: 8000 });
+      expect((await S().store.get('settings', 'main')).value.defaultTaxRate).toBe(750);
+    });
+
+    it('the invoice number can only move forward', async () => {
+      win().SlopAdmin.app.show('numbering');
+      await waitFor(() => doc().querySelector('[data-seq="invoice"] [data-field="next"]'), { timeout: 8000 });
+      const card = doc().querySelector('[data-seq="invoice"]');
+      card.querySelector('[data-field="prefix"]').value = 'SI-';
+      card.querySelector('[data-field="next"]').value = '5';
+      card.querySelector('.btn.primary').click();
+      await waitFor(async () => (await S().store.get('numbering', 'invoice')).value.next === 5, { timeout: 8000 });
+      card.querySelector('[data-field="next"]').value = '2';
+      card.querySelector('.btn.primary').click();
+      await waitFor(() => card.querySelector('.msg').textContent.includes('only move forward'), { timeout: 8000 });
+      expect((await S().store.get('numbering', 'invoice')).value.next).toBe(5);
+      expect((await S().store.get('numbering', 'invoice')).value.prefix).toBe('SI-');
+    });
+
+    it('seeds some records, then the backup downloads and restores to the same counts', async () => {
+      for (const name of ['Ann', 'Bo', 'Cy']) await S().store.put('customers', { name });
+      const gone = await S().store.put('customers', { name: 'Old' });
+      await S().store.remove('customers', gone.value.id);
+      await S().store.put('products', { sku: 'T-1', name: 'Tee', price: 1000, taxRate: 2000 });
+      seeded = await counts();
+      expect(seeded.customers.live).toBe(3);
+      expect(seeded.customers.deleted).toBe(1);
+      win().SlopUI.download = (blob, name) => captured.push({ blob, name });
+      win().SlopAdmin.app.show('data');
+      await waitFor(() => doc().querySelector('[data-collection="customers"]'), { timeout: 8000 });
+      $('dBackup').click();
+      await waitFor(() => captured.length === 1, { timeout: 8000 });
+      expect(captured[0].name).toMatch(/^slop-data-\d{4}-\d{2}-\d{2}\.json$/);
+      await S().store.put('customers', { name: 'Extra after backup' });
+      expect((await counts()).customers.live).toBe(4);
+      const text = await captured[0].blob.text();
+      const dt = new (win().DataTransfer)();
+      dt.items.add(new (win().File)([text], 'backup.json', { type: 'application/json' }));
+      win().SlopUI.pickFiles = async () => [...dt.files]; // Restore is the intake's picker (part admin.backup)
+      $('dRestore').click();
+      await waitFor(() => openDlg(), { timeout: 8000 });
+      dlgSave().click();
+      await waitFor(async () => (await counts()).customers.live === 3, { timeout: 8000 });
+      expect(live(await counts())).toEqual(live(seeded));
+      expect(await counts()).toEqual(seeded);
+    });
+
+    it('a broken backup file changes nothing', async () => {
+      const before = await counts();
+      const good = JSON.parse(await captured[0].blob.text());
+      good.collections.customers.push({ id: 'bad-1', name: '' });
+      const dt = new (win().DataTransfer)();
+      dt.items.add(new (win().File)([JSON.stringify(good)], 'broken.json', { type: 'application/json' }));
+      win().SlopUI.pickFiles = async () => [...dt.files]; // Restore is the intake's picker (part admin.backup)
+      $('dRestore').click();
+      await waitFor(() => $('dRestoreMsg').textContent.includes('not restored'), { timeout: 8000 });
+      expect(openDlg()).toBe(null);
+      expect(await counts()).toEqual(before);
+      const notJson = new (win().DataTransfer)();
+      notJson.items.add(new (win().File)(['{ not json'], 'junk.json', { type: 'application/json' }));
+      win().SlopUI.pickFiles = async () => [...notJson.files]; // Restore is the intake's picker (part admin.backup)
+      $('dRestore').click();
+      await waitFor(() => $('dRestoreMsg').textContent.includes('not valid JSON'), { timeout: 8000 });
+      expect(await counts()).toEqual(before);
+    });
+
+    it('reset needs the typed word RESET, and the backup is offered before anything is erased', async () => {
+      captured.length = 0;
+      $('dReset').click();
+      await waitFor(() => openDlg(), { timeout: 8000 });
+      doc().getElementById('rInput').value = 'reset';
+      dlgSave().click();
+      await waitFor(() => openDlg() && openDlg().querySelector('.msg').textContent.includes('Type RESET'), { timeout: 8000 });
+      expect(captured.length).toBe(0);
+      expect((await counts()).customers.live).toBe(3);
+      doc().getElementById('rInput').value = 'RESET';
+      dlgSave().click();
+      await waitFor(async () => (await counts()).customers.live === 0, { timeout: 8000 });
+      expect(captured.length).toBe(1);
+      const offered = JSON.parse(await captured[0].blob.text());
+      expect(offered.collections.customers.length).toBe(4);
+      expect((await S().store.get('settings', 'main')).value.companyName).toBeFalsy();
+    });
+  });
+
+  describe('the local-only rule', () => {
+    it('no error reached the page', () => {
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  run({ name: 'Slop Admin · 390 px' });
+  </script>
+</body>
+</html>

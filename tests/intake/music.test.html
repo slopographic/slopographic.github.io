@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake in Slop Music: every way in is the same path</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../music/fixtures.js"></script>
+  <script>
+  // Covers: music/js/ui/library.js, music/js/ui/playlists.js, music/js/app/main.js
+  // Slop Music on the one intake: Add files, the empty library's button, a drop on the library, a paste and a PWA launch
+  // reach the same reader (the file goes into Slop Drive, the library) with the same events; ?drive=<id> of a track the
+  // library has plays it. Open a playlist from Slop Drive is a part of its own.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const F = window.MusicFixtures;
+  let W, D, seen = [], events = [];
+  const wavFile = (name) => new W.File([F.wav(1)], name, { type: 'audio/wav' });
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const count = () => W.SlopMusic.lib.list().length;
+  async function through(source, start, n = 1, app = 'music') {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'music') expect(seen).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Music: one way in', () => {
+    it('the empty library’s Add files', async () => {
+      await window.SlopHub.clear();
+      W = await DT.frame('../../music/', (w) => w.SlopMusic && w.SlopIntake && w.SlopIntake.spec('music') && w.SlopIntake.spec('music.playlist'));
+      D = W.document;
+      const s = W.SlopIntake.spec('music'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      const files = [wavFile('One.wav'), wavFile('Two.wav')];
+      W.SlopUI.pickFiles = async () => files;
+      await through('picker', () => D.getElementById('lib-add-empty').click(), 2);
+      await waitFor(() => count() === 2);
+    }, { timeout: 40000 });
+    it('the header’s Add files', async () => {
+      W.SlopUI.pickFiles = async () => [wavFile('Three.wav')];
+      await through('picker', () => D.getElementById('mu-add').click());
+      await waitFor(() => count() === 3);
+    });
+    it('a drop on the library', async () => {
+      await through('drop', () => D.getElementById('v-library').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([wavFile('Four.wav')]) })));
+      await waitFor(() => count() === 4);
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([wavFile('Five.wav')]) })));
+      await waitFor(() => count() === 5);
+    });
+    it('?drive=<id> of a library track plays it (nothing is added twice)', async () => {
+      const t = W.SlopMusic.lib.list()[0], rec = await W.SlopHub.get(t.id);
+      W.SlopHub.consumeLaunch = async () => rec;
+      await through('launch', () => W.SlopIntake.launch({ to: 'music' }));
+      expect(count()).toBe(5);
+      expect(W.SlopMusic.engine.state().trackId).toBe(t.id);
+    });
+    it('Open a playlist from Slop Drive is a part of its own', async () => {
+      const ids = W.SlopMusic.lib.list().slice(0, 2).map((x) => x.id);
+      const blob = W.SlopMusic.plfile.build('Road trip', ids.map((id) => ({ id })));
+      W.SlopHub.pickFromDrive = async () => ({ id: 'pl1', name: 'Road trip.splaylist', type: W.SlopMusic.plfile.MIME, blob });
+      await through('drive', () => D.getElementById('pl-open').click(), 1, 'music.playlist');
+      expect(seen).toEqual([]);
+      await waitFor(() => W.SlopMusic.playlists.all().some((p) => p.name === 'Road trip'));
+    });
+  });
+  SlopTest.run({ name: 'Shared intake: Slop Music' });
+  </script>
+</body>
+</html>

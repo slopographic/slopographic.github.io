@@ -1,0 +1,85 @@
+/* SlopIsolate — Classic 98 overrides, touch and responsive layouts. */
+/* ---------------------------------------------------------------- Classic 98 */
+:root[data-slop-theme="classic"] .topbar, :root[data-slop-theme="classic"] .ctxbar, :root[data-slop-theme="classic"] .statusbar { box-shadow: inset 0 1px var(--input), inset 0 -1px var(--line); border-color: var(--line); }
+:root[data-slop-theme="classic"] .topbar { background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--input))); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .appname b { font: 700 13px var(--font-ui); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .home-link { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .menu-b, :root[data-slop-theme="classic"] .topbar .tb { color: var(--accent-ink); border-radius: 0; }
+:root[data-slop-theme="classic"] .menu-b:hover, :root[data-slop-theme="classic"] .topbar .tb:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .brand { border-radius: 0; box-shadow: var(--bevel); background: var(--bg); }
+:root[data-slop-theme="classic"] .local-badge { border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel); font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .btn, :root[data-slop-theme="classic"] .seg, :root[data-slop-theme="classic"] .model { border: 0; border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel); font-weight: 400; }
+:root[data-slop-theme="classic"] .btn:active:not(:disabled), :root[data-slop-theme="classic"] .model.on { box-shadow: var(--bevel-in); transform: none; background: var(--hover); color: var(--fg); }
+:root[data-slop-theme="classic"] .btn.primary { outline: 1px solid var(--fg); outline-offset: -1px; background: var(--bg); color: var(--fg); font-weight: 700; }
+:root[data-slop-theme="classic"] .seg-b { border-radius: 0; color: var(--fg); }
+:root[data-slop-theme="classic"] .seg-b.on { background: var(--accent); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .inp { border: 0; border-radius: 0; box-shadow: var(--bevel-in); background: var(--input); color: var(--fg); }
+:root[data-slop-theme="classic"] .queue, :root[data-slop-theme="classic"] .props { box-shadow: var(--bevel); }
+:root[data-slop-theme="classic"] .q-item, :root[data-slop-theme="classic"] .q-add { border-radius: 0; }
+:root[data-slop-theme="classic"] .q-item.on { border-color: var(--accent); }
+:root[data-slop-theme="classic"] .pp-title { background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--input))); color: var(--accent-ink); padding: 6px 10px; }
+:root[data-slop-theme="classic"] .pp-title .ic { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .pp-title h2 { font: 700 12px var(--font-ui); }
+:root[data-slop-theme="classic"] .pp-h { color: var(--fg); font-family: var(--font-ui); text-transform: none; letter-spacing: 0; font-size: 11px; }
+:root[data-slop-theme="classic"] .pp-row > span:first-child, :root[data-slop-theme="classic"] .pp-val, :root[data-slop-theme="classic"] .pp-note, :root[data-slop-theme="classic"] .chk { color: var(--fg); }
+:root[data-slop-theme="classic"] .model small, :root[data-slop-theme="classic"] .model .m-size { color: var(--dim); }
+:root[data-slop-theme="classic"] .no-wm { border-radius: 0; background: var(--input); color: var(--fg); box-shadow: var(--bevel-in); font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .drop-card { border-radius: 0; background: var(--bg); border: 0; box-shadow: var(--bevel), 4px 4px 0 rgba(0, 0, 0, .4); }
+:root[data-slop-theme="classic"] .drop-card h1 { font: 700 26px var(--font-ui); }
+:root[data-slop-theme="classic"] .drop-card p, :root[data-slop-theme="classic"] .empty-privacy, :root[data-slop-theme="classic"] .empty-hint { color: var(--fg) !important; }
+:root[data-slop-theme="classic"] .busy { border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel), 3px 3px 0 rgba(0, 0, 0, .5); }
+:root[data-slop-theme="classic"] .busy-bar { border-radius: 0; background: var(--input); box-shadow: var(--bevel-in); height: 14px; }
+:root[data-slop-theme="classic"] .busy-bar i { background: repeating-linear-gradient(90deg, var(--accent) 0 10px, transparent 10px 12px); }
+:root[data-slop-theme="classic"] .statusbar, :root[data-slop-theme="classic"] .st-msg, :root[data-slop-theme="classic"] .st-local { color: var(--fg); }
+:root[data-slop-theme="classic"] .ctxbar .tb { color: var(--fg); border-radius: 0; }
+:root[data-slop-theme="classic"] .ctxbar .tb:hover:not(:disabled) { box-shadow: var(--bevel); background: var(--bg); }
+:root[data-slop-theme="classic"] .ctxbar .tb.on { box-shadow: var(--bevel-in); background: var(--hover); color: var(--fg); }
+:root[data-slop-theme="classic"] .ctx-label, :root[data-slop-theme="classic"] .ctx-val, :root[data-slop-theme="classic"] .tb-zoom { color: var(--fg); font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .tb-group { border-color: color-mix(in srgb, var(--accent-ink) 30%, transparent); }
+
+/* ---------------------------------------------------------------- touch */
+@media (hover: none) { .q-x, .q-chk { opacity: 1; } }
+
+/* ---------------------------------------------------------------- responsive */
+/* Up to 1500 px the badge keeps its lock and title only, so the shared header buttons keep their labels. */
+@media (max-width: 1500px) { .local-badge span { display: none; } .local-badge { padding: 0 6px; } }
+@media (max-width: 1180px) { :root { --props-w: 280px; } }
+/* Below 1180 px Open in… and Clear saved work move to the More menu (js/ui/menus.js), so the top bar keeps one row. */
+@media (max-width: 1180px) { #btnClearSaved { display: none; } #btnMore { display: inline-flex; } }
+@media (max-width: 900px) {
+  :root { --status-h: 0px; --queue-h: 74px; }
+  .app, .app.no-panel, .app[data-mode="empty"], .app[data-mode="empty"].no-panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--top-h) minmax(0, 1fr) var(--queue-h); grid-template-areas: "top" "work" "queue"; }
+  .app[data-mode="empty"] { grid-template-rows: var(--top-h) minmax(0, 1fr) 0; }
+  .statusbar { display: none; }
+  .queue { flex-direction: row; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+  .q-item, .q-add { width: auto; height: 100%; }
+  .q-head { position: sticky; top: auto; left: -8px; margin: 0 0 0 -8px; padding: 0 6px; justify-content: center; width: 78px; height: 100%; box-sizing: border-box; }
+  .q-all { white-space: nowrap; font-size: 11px; padding: 0 4px; }
+  .q-chk, .q-x { width: 18px; height: 18px; }
+  .q-chk { left: 3px; top: 3px; border-radius: 5px; }
+  .q-chk::after { left: 4px; top: 1px; width: 4px; height: 8px; }
+  .pp-title { padding-right: 52px; }
+  /* the settings panel is a bottom sheet: shared/ui/sheet.js gives its place, motion, × and closing */
+  .props { display: flex !important; border-left: 0; padding-bottom: env(safe-area-inset-bottom); --ssh-z: 40; }
+  .pp-title { border-radius: 18px 18px 0 0; }
+  #btnPanel, #btnMore { display: inline-flex; }
+  .menus, .tb-group { display: none; }
+  .local-badge span { display: none; }
+  .ctxbar { padding: 0 6px; }
+  .ctx-range { width: 72px; }
+}
+@media (max-width: 560px) {
+  .topbar { gap: 4px; padding: 0 6px 0 8px; }
+  .appname { margin: 0 2px; }
+  .appname, .local-badge { display: none; }   /* the app's icon stays; the shared header buttons need the room */
+  .topbar .btn.dl span { display: none; }
+  .topbar .btn.dl { padding: 0 10px; }
+  .tb-l span { display: none; }
+  .drop-card { padding: 28px 16px 20px; }
+  .empty { justify-content: flex-start; }
+  .pp-row { grid-template-columns: 84px minmax(0, 1fr) 40px; }
+  .ctx-hide-sm { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+/* The shared header buttons keep their own light face on the title bar: dark text on it. */
+:root[data-slop-theme="classic"] .topbar .slop-hbtn { color: var(--fg); }

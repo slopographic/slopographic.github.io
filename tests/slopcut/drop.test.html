@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut drop tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe. Drags are built in the app's own realm (its DataTransfer and DragEvent).
+       A file drop imports the file once (one media item in the bin); a click on the zone opens the picker once; the zone
+       never sits over the top bar. The picker is counted (its click is stubbed, so no native dialog opens). -->
+  <iframe id="app" src="../../slopcut/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, picks = 0, realClick = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const $ = (sel) => win.document.querySelector(sel);
+  const media = () => win.SE.doc.media.length;
+
+  /** A drag holding one PNG, built in the app's realm. */
+  async function dragOf(name = 'picture.png') {
+    const c = win.document.createElement('canvas'); c.width = 32; c.height = 24;
+    const g = c.getContext('2d'); g.fillStyle = '#d4ff3a'; g.fillRect(0, 0, 32, 24);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    const dt = new win.DataTransfer();
+    dt.items.add(new win.File([blob], name, { type: 'image/png' }));
+    return dt;
+  }
+  const centre = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }; };
+  const fire = (el, type, dt) => el.dispatchEvent(new win.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, ...centre(el) }));
+  /** Enter, over and drop on one element, as a real drag does. */
+  function dropOn(el, dt) { fire(el, 'dragenter', dt); fire(el, 'dragover', dt); fire(el, 'drop', dt); }
+  /** Lets the import finish, then returns how many media items it added (a second import would show by then). */
+  async function added(before) {
+    await waitFor(() => media() > before, { timeout: 20000 });
+    await sleep(800);
+    return media() - before;
+  }
+  const overlaps = (a, b) => { const x = a.getBoundingClientRect(), y = b.getBoundingClientRect(); return x.left < y.right && y.left < x.right && x.top < y.bottom && y.top < x.bottom; };
+
+  describe('SlopCut file drops', () => {
+    it('boots with the picker counted', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready') && frame.contentWindow.SE && frame.contentWindow.SE.doc, { timeout: 40000 });
+      win = frame.contentWindow;
+      realClick = win.HTMLInputElement.prototype.click;
+      // A file input's click counts as a picker opening and opens nothing (no native dialog in the test).
+      win.HTMLInputElement.prototype.click = function () { if (this.type === 'file') { picks++; return undefined; } return realClick.call(this); };
+      expect($('#scDrop')).toBeTruthy();
+    }, { timeout: 60000 });
+
+    it('a picture dropped on the monitor is imported once', async () => {
+      const before = media();
+      dropOn($('#monitor'), await dragOf('monitor.png'));
+      expect(await added(before)).toBe(1);
+    });
+
+    it('a picture dropped on the zone itself is imported once', async () => {
+      const before = media();
+      dropOn($('#scDrop'), await dragOf('zone.png'));
+      expect(await added(before)).toBe(1);
+    });
+
+    it('a picture dropped on the timeline (no lane) is imported once, not twice', async () => {
+      const before = media();
+      dropOn($('#tlCanvas'), await dragOf('timeline.png'));
+      expect(await added(before)).toBe(1);
+    });
+
+    it('a click on the zone and its message opens the picker zero times; Choose files opens it once', async () => {
+      picks = 0;
+      $('#scDrop .sd-msg').click();
+      $('#scDrop').click();
+      expect(picks).toBe(0);
+      $('#scDrop .sd-choose').click();
+      expect(picks).toBe(1);
+    });
+
+    // The strip is hidden at rest (the Media panel adds files); it shows while it has a result, and then it must sit clear.
+    const showing = (fn) => { const st = $('#scDrop .sd-status'); st.textContent = 'Added 1 file'; try { return fn(); } finally { st.textContent = ''; } };
+    it('the zone is not positioned over the top bar', () => showing(() => {
+      const zone = $('#scDrop'), bar = win.document.querySelector('header.topbar');
+      expect(zone.getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(overlaps(zone, bar)).toBe(false);
+      expect(overlaps(zone, $('#btnExport'))).toBe(false);
+    }));
+
+    it('the zone does not cover the playback controls', () => showing(() => {
+      expect(overlaps($('#scDrop'), $('#transport'))).toBe(false);
+    }));
+  });
+
+  SlopTest.run({ name: 'SlopCut file drops' });
+  </script>
+</body>
+</html>

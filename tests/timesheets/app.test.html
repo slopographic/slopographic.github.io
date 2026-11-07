@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Timesheets: log, timer, filter, bill to a draft invoice, locked billed time, CSV, at 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: timesheets/index.html, timesheets/js/ui/app.js, timesheets/js/ui/list.js, timesheets/js/ui/timer.js, timesheets/js/ui/editor.js
+  // Covers: timesheets/js/ui/bill.js, timesheets/js/ui/commands.js, timesheets/js/core/entries.js, timesheets/js/core/time.js, timesheets/css/timesheets.css
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, ada;
+  const $ = (id) => D.getElementById(id);
+  const set = (id, v) => { const e = $(id); if (e.type === 'checkbox') e.checked = v; else e.value = v; e.dispatchEvent(new W.Event('input', { bubbles: true })); e.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const rows = () => [...D.querySelectorAll('#tRows .sl-row')];
+  const S = () => W.SlopData;
+  async function boot(hash = '') {
+    const f = document.getElementById('app');
+    f.src = '../../timesheets/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopTimesheets && f.contentWindow.SlopTimesheets.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  async function logTime(o) {
+    W.SlopTimesheets.app.go('new');
+    await waitFor(() => !$('view-edit').hidden && $('eCustomer').options.length > 1 && $('eTitle').textContent === 'Log time');
+    if (o.customer !== undefined) set('eCustomer', o.customer);
+    await waitFor(() => $('eCurrency').value !== '' && $('eBillable').checked === !!o.customer);
+    set('eDescription', o.description); set('eDuration', o.duration);
+    if (o.rate !== undefined) set('eRate', o.rate);
+    if (o.project) set('eProject', o.project);
+    if (o.date) set('eDate', o.date);
+    $('eSave').click();
+  }
+
+  describe('Slop Timesheets', () => {
+    it('opens on an empty week with the timer stopped (fresh data)', async () => {
+      await boot();
+      await S().store.erase(); await S().store.ready();
+      try { W.localStorage.removeItem('slop-timesheets.timer'); } catch (e) { /* blocked */ }
+      ada = (await S().store.put('customers', { name: 'Ada Ltd', stage: 'customer' })).value;
+      await boot('#list');
+      await waitFor(() => $('tSummary').textContent === '0 entries');
+      expect($('tmGo').textContent).toBe('Start timer');
+      expect($('tPeriod').value).toBe('week');
+    });
+    it('log time: 1.5 means 1:30; it is billable for a customer, at the typed rate', async () => {
+      await logTime({ customer: ada.id, description: 'Homepage design', duration: '1.5', rate: '80', project: 'Website' });
+      await waitFor(() => !$('view-list').hidden && rows().length === 1);
+      const e = (await S().store.list('timeEntries')).value[0];
+      expect([e.minutes, e.rate, e.billable, e.project]).toEqual([90, 8000, true, 'Website']);
+      expect(rows()[0].textContent).toContain('1:30 h');
+      expect(rows()[0].textContent).toContain('To bill');
+      expect($('tTotal').textContent).toContain('$120.00');
+    });
+    it('a new entry for the same customer takes the last rate and project; a bad time is refused in plain words', async () => {
+      W.SlopTimesheets.app.go('new');
+      await waitFor(() => !$('view-edit').hidden && $('eCustomer').options.length > 1);
+      set('eCustomer', ada.id);
+      await waitFor(() => $('eRate').value === '80.00' && $('eProject').value === 'Website');
+      set('eDescription', 'x'); set('eDuration', 'lots');
+      $('eSave').click();
+      await waitFor(() => $('eMsg').textContent.startsWith('Enter the time worked'));
+    });
+    it('internal time has no customer and is not billable', async () => {
+      await logTime({ customer: '', description: 'Bookkeeping', duration: '45m' });
+      await waitFor(() => !$('view-list').hidden && rows().length === 2);
+      set('tState', 'internal');
+      await waitFor(() => rows().length === 1 && rows()[0].textContent.includes('Internal'));
+      set('tState', 'all');
+    });
+    it('the timer: Start keeps running across a reload; Stop opens a filled entry', async () => {
+      set('tmDesc', 'Call with Ada');
+      $('tmGo').click();
+      expect($('tmGo').textContent).toBe('Stop');
+      await boot('#list');
+      await waitFor(() => $('tmGo').textContent === 'Stop' && $('tmDesc').value === 'Call with Ada');
+      $('tmGo').click();
+      await waitFor(() => !$('view-edit').hidden && $('eDescription').value === 'Call with Ada' && $('eDuration').value === '0:01');
+      W.SlopTimesheets.app.go('list');
+    });
+    it('Bill: the open hours of Ada become one draft invoice; the time is billed and locked', async () => {
+      await logTime({ customer: ada.id, description: 'Copywriting', duration: '2:00', rate: '60' });
+      await waitFor(() => rows().length === 3);
+      W.SlopTimesheets.app.go(`bill/${ada.id}`);
+      await waitFor(() => !$('view-bill').hidden && D.querySelectorAll('#bRows input:checked').length === 2);
+      set('bTax', '20');
+      expect($('bTotal').textContent).toContain('$288.00');
+      $('bMake').click();
+      await waitFor(() => !$('bDone').hidden);
+      const inv = (await S().store.list('invoices')).value[0];
+      expect([inv.status, inv.lines.length, inv.total]).toEqual(['draft', 2, 28800]);
+      expect($('bNone').hidden).toBe(false);
+      W.SlopTimesheets.app.go('list');
+      await waitFor(() => rows().filter((r) => r.textContent.includes('Billed')).length === 2);
+      expect(rows().filter((r) => r.textContent.includes('on a draft invoice')).length).toBe(2);
+      const billed = (await S().store.list('timeEntries')).value.find((e) => e.description === 'Copywriting');
+      W.SlopTimesheets.app.go(`t/${billed.id}`);
+      await waitFor(() => !$('eBilled').hidden && $('eDuration').disabled);
+      expect($('eDelete').hidden).toBe(true);
+      expect($('eBilled').textContent).toContain('Void that invoice');
+    });
+    it('the CSV holds what is shown, and the page has no sideways scroll at 390 px', async () => {
+      W.SlopTimesheets.app.go('list');
+      await waitFor(() => rows().length === 3);
+      let got = null;
+      W.SlopUI.download = (blob, name) => { got = { blob, name }; };
+      $('tCsv').click();
+      await waitFor(() => !!got);
+      const text = await got.blob.text();
+      expect(text.split('\r\n')[0]).toBe('Date,Customer,Project,Description,Hours,Time,Rate,Amount,Currency,Billable,State');
+      expect(text).toContain('Homepage design,1.50,1:30,80.00,120.00,USD,yes,billed');
+      document.getElementById('app').style.width = '390px';
+      await waitFor(() => W.innerWidth === 390);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+      W.SlopTimesheets.app.go('bill');
+      await waitFor(() => !$('view-bill').hidden);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

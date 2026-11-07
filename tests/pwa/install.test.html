@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PWA · install button</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } .btn { display: inline-flex; }</style>
+</head>
+<body>
+  <button id="pwa-install" class="btn pwa-install" hidden>Install Slopographic</button>
+  <script src="../../shared/pwa.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const btn = document.getElementById('pwa-install');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // A stand-in for the browser's BeforeInstallPromptEvent.
+  function installEvent(onPrompt = () => {}) {
+    const ev = new Event('beforeinstallprompt', { cancelable: true });
+    ev.prompt = async () => onPrompt();
+    ev.userChoice = Promise.resolve({ outcome: 'accepted' });
+    return ev;
+  }
+
+  describe('install button', () => {
+    it('mounts with the button hidden', () => {
+      expect(window.SlopPWA.mount({ install: '#pwa-install', register: false })).toBe(true);
+      expect(btn.hidden).toBe(true);
+    });
+    it('does not appear without a beforeinstallprompt event', async () => {
+      await sleep(50);
+      expect(btn.hidden).toBe(true);
+      expect(window.SlopPWA.canInstall()).toBe(false);
+    });
+    it('appears when beforeinstallprompt is dispatched, and the event is claimed', () => {
+      const ev = installEvent();
+      window.dispatchEvent(ev);
+      expect(btn.hidden).toBe(false);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(window.SlopPWA.canInstall()).toBe(true);
+    });
+    it('clicking it calls the captured prompt once and hides the button', async () => {
+      let prompted = 0;
+      window.dispatchEvent(installEvent(() => { prompted++; }));
+      expect(btn.hidden).toBe(false);
+      btn.click();
+      await waitFor(() => prompted === 1, { timeout: 2000 });
+      expect(btn.hidden).toBe(true);
+      btn.click();
+      await sleep(50);
+      expect(prompted).toBe(1);
+    });
+    it('hides again after the app is installed', () => {
+      window.dispatchEvent(installEvent());
+      expect(btn.hidden).toBe(false);
+      window.dispatchEvent(new Event('appinstalled'));
+      expect(btn.hidden).toBe(true);
+      expect(window.SlopPWA.canInstall()).toBe(false);
+    });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop EML in Swedish</title>
+  <!-- Covers: eml/i18n/index.js, eml/js/main.js, eml/js/side.js, eml/js/actions.js, eml/js/commands.js, eml/js/view.js, eml/js/list.js, eml/js/preview.js, eml/js/export-ui.js, eml/js/export.js, eml/js/app.js, eml/js/pdf-out.js, eml/js/pdf-doc.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop EML', path: '../../eml/index.html', ns: 'eml',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#em-side .sf-h') && doc.querySelector('#em-sort option'),
+    checks: [
+      ['#em-open', 'Öppna', 'Open'],
+      ['#em-open2', 'Öppna e-postfiler', 'Open email files'],
+      ['#em-search', 'Sök avsändare', 'Search sender', 'placeholder'],
+      ['#em-side .sf-h', 'Kom igång', 'Start'],
+      ['#em-sort option[value="date:desc"]', 'Nyast först', 'Newest first'],
+      ['#em-sample', 'Prova med ett exempelmejl', 'Try it with a sample email'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop EML in Swedish' });
+  </script>
+</body>
+</html>

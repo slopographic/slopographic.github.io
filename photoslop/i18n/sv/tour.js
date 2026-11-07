@@ -1,0 +1,20 @@
+/* PhotoSlop, Swedish: the guided tour (shared/tour/tours/photoslop.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'photoslop.tour.title': 'Rundtur i PhotoSlop',
+  'photoslop.tour.new_title': 'Starta en fil',
+  'photoslop.tour.new_text': 'Ny anger storlek, förinställning och bakgrund för ett dokument (under Mer ▾ i ett smalt fönster); Öppna läser in en PSD, ORA eller bild. Varje fil får en flik.',
+  'photoslop.tour.menus_title': 'Menyrad',
+  'photoslop.tour.menus_text': 'Arkiv, Redigera, Bild, Lager, Markera och Filter finns här. Varje meny listar sina kommandon.',
+  'photoslop.tour.tools_title': 'Verktyg',
+  'photoslop.tour.tools_text': 'Penslar, markering, text och beskärning finns i verktygslådan. Välj ett och ställ in det i alternativfältet.',
+  'photoslop.tour.options_title': 'Verktygsalternativ',
+  'photoslop.tour.options_text': 'Alternativfältet ändras med det aktiva verktyget: storlek, opacitet, blandningsläge med mera.',
+  'photoslop.tour.canvas_title': 'Arbetsytan',
+  'photoslop.tour.canvas_text': 'Måla, markera och omforma på arbetsytan. Statusfältet visar zoom och storlek.',
+  'photoslop.tour.panels_title': 'Lager och paneler',
+  'photoslop.tour.panels_text': 'Lager, historik och egenskaper finns i den här kolumnen. På en telefon visar knappen Lager dem.',
+  'photoslop.tour.export_title': 'Exportera',
+  'photoslop.tour.export_text': 'Exportera PNG, JPEG, WebP eller PSD. Filen skapas på din enhet; inget laddas upp.',
+  'photoslop.tour.theme_title': 'Tema',
+  'photoslop.tour.theme_text': 'Växla mellan Pro, Ljust och Paint ’98.',
+});

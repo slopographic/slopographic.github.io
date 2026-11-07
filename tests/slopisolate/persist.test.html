@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Isolate saved work</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="persist.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop Isolate saved work' });</script>
+</body>
+</html>

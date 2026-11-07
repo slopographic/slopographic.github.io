@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shell · each app hands its open file to the Convert dialog (slop:convert-files)</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1200px; height: 760px; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/convert/provided.js, sheetview/js/export.js, tables/js/ui/main.js, docs/js/ui/files.js, slides/js/ui/files.js,
+  //   photoslop/js/io/hub.js, gallery/js/io/export.js, drive/js/ui/select.js, notes/js/main.js, code/js/main.js, hex/js/actions.js,
+  //   music/js/core/engine.js, label/js/ui/export.js, press/js/io/hub.js
+  // The contract (shared/convert/HANDOFF.md): the dialog fires slop:convert-files; an app answers with provide(fn), and fn
+  // gives [{ name, blob }] (or File objects), or null when nothing is open.
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  async function frame(app) {
+    const f = document.createElement('iframe');
+    f.src = `../../${app}/index.html`;
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentWindow.location.pathname.includes(app), { timeout: 40000 });
+    return f;
+  }
+  /** What the app hands over now: asks the way the dialog does (provided.js). */
+  async function offered(W) {
+    const { ask } = await W.eval(`import(${JSON.stringify(new URL('/shared/convert/provided.js', W.location.href).href)})`);
+    return (await ask()).files;
+  }
+  const head = async (blob, n = 4) => Array.from(new Uint8Array(await blob.slice(0, n).arrayBuffer()));
+  const ZIP = [0x50, 0x4b, 0x03, 0x04], PNG = [0x89, 0x50, 0x4e, 0x47], PDF = [0x25, 0x50, 0x44, 0x46];
+
+  const CASES = [
+    ['tables', (W) => W.SlopTables && W.SlopTables.ready, async ([f]) => { expect(f.name).toMatch(/\.xlsx$/); expect(await head(f)).toEqual(ZIP); }],
+    ['sheetview', async (W) => { if (!W.SlopSheetView) return false; await W.SlopSheetView.open([new W.File(['a,b\n1,2\n'], 'Budget.csv', { type: 'text/csv' })]); return !!W.SlopSheetView.store.doc(); },
+      async ([f]) => { expect(f.name).toBe('Budget.xlsx'); expect(await head(f)).toEqual(ZIP); }],
+    ['docs', (W) => W.SlopDocs && W.SlopDocs.doc, async ([f]) => { expect(f.name).toMatch(/\.docx$/); expect(f.type).toMatch(/wordprocessingml/); expect(await head(f)).toEqual(ZIP); }],
+    ['slides', (W) => W.SS && W.SS.app && W.SS.app.deck, async ([f]) => { expect(f.name).toMatch(/\.pptx$/); expect(await head(f)).toEqual(ZIP); }],
+    ['photoslop', (W) => W.eval('typeof CUR !== "undefined" && !!CUR'), async ([f]) => { expect(f.name).toMatch(/\.png$/); expect(await head(f)).toEqual(PNG); }],
+    ['label', (W) => W.eval('typeof App !== "undefined" && !!App.doc'), async ([f]) => { expect(f.name).toMatch(/\.pdf$/); expect(await head(f)).toEqual(PDF); }],
+    ['press', (W) => W.PR && W.PR.state && W.PR.state.doc, async ([f]) => { expect(f.name).toMatch(/\.pdf$/); expect(await head(f)).toEqual(PDF); }],
+    ['code', async (W) => {
+      if (!W.SlopCode || !W.document.body.classList.contains('ready')) return false;
+      const id = await W.SlopHub.put(new W.Blob(['print("hi")\n'], { type: 'text/plain' }), { name: 'hello-convert.py', from: 'code' });
+      await W.SlopCode.openRecord(await W.SlopHub.get(id));
+      return !!W.SlopCode.docs.current();
+    }, async ([f]) => { expect(f.name).toBe('hello-convert.py'); expect(await f.text()).toBe('print("hi")\n'); }],
+    ['hex', (W) => !!W.HexApp, (list) => { expect(list).toEqual([]); }],   // a new blank tab is nothing to convert
+    ['music', (W) => W.SlopMusic && W.SlopMusic.engine, (list) => { expect(list).toEqual([]); }],   // no track playing
+    ['drive', (W) => W.DR && W.DR.selected, (list) => { expect(list).toEqual([]); }],   // nothing selected
+    ['gallery', (W) => W.SlopGallery && W.SlopGallery.state, (list) => { expect(list).toEqual([]); }],
+  ];
+
+  describe('apps hand over what they have open', () => {
+    for (const [app, ready, check] of CASES) {
+      it(app, async () => {
+        const f = await frame(app), W = f.contentWindow;
+        await waitFor(() => Promise.resolve(ready(W)).catch(() => false), { timeout: 30000 });
+        await sleep(300);
+        await check(await offered(W));
+        f.remove();
+      }, { timeout: 70000 });
+    }
+    it('notes: the open note as Markdown, or nothing without one', async () => {
+      const f = await frame('notes'), W = f.contentWindow;
+      await waitFor(() => W.document.body.classList.contains('ready'), { timeout: 30000 });
+      const list = await offered(W);
+      if (list.length) { expect(list[0].name).toMatch(/\.md$/); expect(list[0].type).toMatch(/markdown/); }
+      else expect(list).toEqual([]);
+      f.remove();
+    }, { timeout: 60000 });
+  });
+
+  SlopTest.run({ name: 'Shell Convert providers' });
+  </script>
+</body>
+</html>

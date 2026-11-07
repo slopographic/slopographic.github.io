@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+<GrpHdr><MsgId>M1</MsgId><CreDtTm>2026-11-01T06:00:00+01:00</CreDtTm></GrpHdr>
+<Stmt>
+<Id>S-OCT</Id>
+<FrToDt><FrDtTm>2026-10-01T00:00:00+02:00</FrDtTm><ToDtTm>2026-10-31T23:59:59+01:00</ToDtTm></FrToDt>
+<Acct><Id><Othr><Id>9999-1234567</Id></Othr></Id><Ccy>EUR</Ccy></Acct>
+<Bal><Tp><CdOrPrtry><Cd>PRCD</Cd></CdOrPrtry></Tp><Amt Ccy="EUR">50.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Dt><Dt>2026-09-30</Dt></Dt></Bal>
+<Bal><Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp><Amt Ccy="EUR">100.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><DtTm>2026-10-31T23:59:59+01:00</DtTm></Dt></Bal>
+<Ntry>
+<Amt Ccy="EUR">200.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts>
+<BookgDt><DtTm>2026-10-02T10:15:00+02:00</DtTm></BookgDt><ValDt><Dt>2026-10-02</Dt></ValDt>
+<NtryDtls><TxDtls>
+<Refs><EndToEndId>E2E-77</EndToEndId></Refs>
+<RltdPties><Dbtr><Pty><Nm>Beispiel GmbH</Nm></Pty></Dbtr></RltdPties>
+<RmtInf><Strd><CdtrRefInf><Ref>RF18539007547034</Ref></CdtrRefInf></Strd></RmtInf>
+</TxDtls></NtryDtls>
+</Ntry>
+<Ntry>
+<Amt Ccy="EUR">50.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><RvslInd>true</RvslInd><Sts><Cd>BOOK</Cd></Sts>
+<BookgDt><Dt>2026-10-03</Dt></BookgDt>
+<AddtlNtryInf>Reversal of a credit</AddtlNtryInf>
+</Ntry>
+</Stmt>
+</BkToCstmrStmt>
+</Document>

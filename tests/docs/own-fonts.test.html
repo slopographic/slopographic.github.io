@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs own fonts</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: docs/js/ui/state.js, docs/js/fonts/registry.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Opens Slop Docs in a fresh iframe (a new page: nothing from an earlier open is registered) and waits for it to boot. */
+  async function open() {
+    const want = new URL('../../docs/index.html', location.href).pathname;
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../docs/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const panel = (W) => W.document.querySelector('.sf-ov');
+  const rowOf = (W, name) => panel(W) && panel(W).querySelector(`.sf-row[data-family="${name}"]`);
+  /** The engine face a family renders with, once its file is loaded. */
+  const loadedFace = (W, name) => W.SlopDocEngine.F.face(name);
+  /** Whether a text node is drawn in the given CSS family name. */
+  const drawnIn = (W, css) => [...W.document.querySelectorAll('div, span')].some((n) => n.style && n.style.fontFamily.includes(css));
+
+  describe('Slop Docs: your own font', () => {
+    it('a TTF dropped on a missing row is listed in the font select, drawn in that font and kept with the document', async () => {
+      const W = await open();
+      const S = W.SlopDocs, E = W.SlopDocEngine;
+      const file = await (await fetch('../pdf/fixtures/Barlow-Regular.ttf')).arrayBuffer();
+      S.setDoc(E.M.newDoc(), { file: { id: null, name: 'Own font test', dirty: false } });
+      const para = [...E.M.docBlocks(S.doc)].find((b) => b.type === 'p');
+      para.runs = [{ text: 'Set in a font the app does not ship', font: 'Gill Sans' }];
+      W.document.getElementById('tbFonts').click();
+      await waitFor(() => rowOf(W, 'Gill Sans'), { timeout: 10000 });
+      const picked = new W.File([file], 'Barlow-Regular.ttf', { type: 'font/ttf' });
+      W.SlopUI.pickFiles = async () => [picked]; // the row's Drop your own font… is the intake's picker (part fonts.file)
+      [...rowOf(W, 'Gill Sans').querySelectorAll('button')].find((b) => /Drop your own font/.test(b.textContent)).click();
+      await waitFor(() => rowOf(W, 'Gill Sans') && rowOf(W, 'Gill Sans').textContent.includes('Installed from your file'), { timeout: 15000 });
+      expect(!!W.document.querySelector('#selFont option[value="Gill Sans"]')).toBe(true);
+      expect(S.doc.fonts.length).toBe(1);
+      await waitFor(() => loadedFace(W, 'Gill Sans'), { timeout: 15000 });
+      expect(loadedFace(W, 'Gill Sans').bytes.byteLength).toBe(file.byteLength);
+      expect(E.textWidth(loadedFace(W, 'Gill Sans'), 'Wiw', 20)).not.toBe(E.textWidth(E.bestFace('Carlito'), 'Wiw', 20));
+      await waitFor(() => drawnIn(W, E.cssFamily(E.familyOf('Gill Sans'))), { timeout: 10000 });
+      expect(drawnIn(W, E.cssFamily(E.familyOf('Gill Sans')))).toBe(true);
+      // the document carries the file: a fresh page that opens the saved copy registers it again
+      const saved = JSON.stringify(S.doc);
+      S.file.dirty = false; // the page is left on purpose: no unsaved-changes prompt
+      const W2 = await open();
+      W2.SlopDocs.setDoc(W2.SlopDocEngine.M.normalizeDoc(JSON.parse(saved)), { file: { id: null, name: 'Own font test', dirty: false } });
+      await waitFor(() => loadedFace(W2, 'Gill Sans'), { timeout: 15000 });
+      expect(loadedFace(W2, 'Gill Sans').bytes.byteLength).toBe(file.byteLength);
+    });
+
+    it('a WOFF file is refused with a message that says WOFF is not supported in Slop Docs', async () => {
+      const W = await open();
+      const S = W.SlopDocs;
+      S.setDoc(W.SlopDocEngine.M.newDoc(), { file: { id: null, name: 'Own font refusal', dirty: false } });
+      const para = [...W.SlopDocEngine.M.docBlocks(S.doc)].find((b) => b.type === 'p');
+      para.runs = [{ text: 'Set in a font the app does not ship', font: 'Gill Serif' }];
+      W.document.getElementById('tbFonts').click();
+      await waitFor(() => rowOf(W, 'Gill Serif'), { timeout: 10000 });
+      const before = (S.doc.fonts || []).length;
+      const picked = new W.File([new Uint8Array([119, 79, 70, 70])], 'Gill.woff', { type: 'font/woff' });
+      W.SlopUI.pickFiles = async () => [picked]; // the row's Drop your own font… is the intake's picker (part fonts.file)
+      [...rowOf(W, 'Gill Serif').querySelectorAll('button')].find((b) => /Drop your own font/.test(b.textContent)).click();
+      await waitFor(() => rowOf(W, 'Gill Serif').textContent.includes('WOFF fonts cannot be used in Slop Docs'), { timeout: 10000 });
+      expect((S.doc.fonts || []).length).toBe(before);
+      expect(!!W.document.querySelector('#selFont option[value="Gill Serif"]')).toBe(false);
+    });
+  });
+  run({ name: 'Slop Docs · own fonts' });
+  </script>
+</body>
+</html>

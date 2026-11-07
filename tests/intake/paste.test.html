@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Pastebin: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: paste/js/actions.js, paste/js/main.js
+  // Slop Pastebin's pictures on the one intake: Add image… and a pasted picture (also in the text box) reach the same
+  // reader with the same events; pasted text stays the page's own.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = c.height = 8;
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  describe('Slop Pastebin: one way in', () => {
+    it('Add image…, a pasted picture and a picture pasted in the text box', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../paste/index.html';
+      await waitFor(() => { try { return fr.contentDocument.body.classList.contains('ready') && fr.contentWindow.SlopIntake.spec('paste'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('paste'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      const f = await png('pic.png');
+      W.SlopUI.pickFiles = async () => [f];
+      D.getElementById('pb-add-img').click();
+      await waitFor(() => seen.length === 1);
+      D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('a.png')]) }));
+      await waitFor(() => seen.length === 2);
+      D.getElementById('pb-src').dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('b.png')]) }));
+      await waitFor(() => seen.length === 3);
+      expect(seen).toEqual(['picker', 'paste', 'paste']);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Pastebin' });
+</script>
+</body>
+</html>

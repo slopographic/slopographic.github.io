@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut: the Slop AI panel makes a reel (fake engine)</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #app { width: 1280px; height: 760px; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script src="ai.helpers.js"></script>
+  <script>
+  // "Cut this video into a 15-second vertical reel with captions": a scripted model calls SlopCut's tools (an edit list,
+  // captions from the edit's own sound through Slop Transcribe's engine, a fake Whisper here, and an export), and the reel
+  // is in Slop Drive: 15 s, vertical, with caption pixels where the words are.
+  // Covers: slopcut/js/ai/build.js, slopcut/js/ai/cmd-text.js, slopcut/js/ai/cmd-export.js, shared/ops/speech.js, shared/ai/cmdtools.js, shared/ai/tools.js, shared/ai/apptools.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const call = (name, args) => `<tool_call>{"name": "${name}", "arguments": ${JSON.stringify(args)}}</tool_call>`;
+  describe('a 15-second vertical reel with captions, asked in words', () => {
+    it('the panel runs build_from_edit_list, add_captions and export_video; the reel is in Slop Drive', async () => {
+      const win = await ST.boot('app'), SE = ST.SE;
+      if (!(await ST.canEncode())) return;
+      const src = await AIT.clip(SE, win, { frames: 170, fps: 10, name: 'holiday' });
+      await AIT.toDrive(win, src);
+      let heard = 0;
+      win.SlopSpeechEngine = { transcribe: async (blob) => { heard = blob.size; return [{ start: 1, end: 3, text: 'WE MADE IT' }, { start: 9, end: 11, text: 'BEST DAY' }]; } };
+      const btn = await waitFor(() => win.document.querySelector('.sh-ai'), { timeout: 15000 });
+      btn.click();
+      await waitFor(() => win.SlopAIPanel && win.SlopAIPanel.isOpen, { timeout: 15000 });
+      await win.SlopAIPanel.ready;
+      const eng = new win.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0, replies: [
+        call('build_from_edit_list', { edit_list: { name: 'Holiday reel', aspect: '9:16', clips: [{ source: 'holiday', in: 0, out: 15 }], reframe: { aspect: '9:16', focus: 0.5 } } }),
+        call('add_captions', { transcribe: 'timeline', size: 0.06, color: '#ffffff' }),
+        call('export_video', { width: 180, height: 320, fps: 10, quality: 'medium', name: 'Holiday reel' }),
+        'Your 15-second vertical reel with captions is in Slop Drive.'] });
+      await eng.load('fake');
+      await win.SlopAIPanel.use(eng);
+      await win.SlopAIPanel.send('cut this video into a 15-second vertical reel with captions');
+      const steps = [...win.document.querySelectorAll('.sap-step')].map((s) => s.textContent);
+      if (!steps.length || steps.some((s) => s.startsWith('✗'))) throw new Error('steps: ' + steps.join(' | '));
+      expect(steps.length).toBe(3);
+      expect(heard).toBeGreaterThan(1000);
+      const files = await win.SlopHub.list();
+      const reel = files.find((f) => /^Holiday reel\.(mp4|webm)$/.test(f.name));
+      if (!reel) throw new Error('not in Drive: ' + files.map((f) => f.name).join(', '));
+      const d = await AIT.decode((await win.SlopHub.get(reel.id)).blob);
+      expect([d.w, d.h]).toEqual([180, 320]);
+      expect(Math.abs(d.dur - 15)).toBeLessThan(0.3);
+      const on = AIT.bright(await d.frame(2)), off = AIT.bright(await d.frame(6));
+      if (!(on > off + 30)) throw new Error(`caption pixels at 2 s ${on}, at 6 s ${off}`);
+      d.close();
+      expect(win.document.querySelector('.sap-list').textContent).toContain('vertical reel');
+    }, { timeout: 180000 });
+  });
+  SlopTest.run({ name: 'SlopCut AI panel' });
+  </script>
+</body>
+</html>

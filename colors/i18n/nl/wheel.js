@@ -1,0 +1,25 @@
+/* Slop Colors, Dutch: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'colors.wheel.label': 'Kleurenwiel',
+  'colors.wheel.rule': 'Harmonie',
+  'colors.wheel.model': 'Wiel',
+  'colors.wheel.bright': 'Helderheid',
+  'colors.wheel.light': 'Lichtheid',
+  'colors.wheel.bright_text': 'Helderheid {pct}%',
+  'colors.wheel.light_text': 'Lichtheid {pct}%',
+  'colors.wheel.keys': 'Sleep een handvat, of gebruik de pijltjestoetsen erop: links en rechts draaien de tint, omhoog en omlaag wijzigen de verzadiging, Shift zet tien stappen, Page Up en Page Down wijzigen de helderheid.',
+  'colors.wheel.base': 'Basiskleur',
+  'colors.wheel.handle': 'Kleur {n}',
+  'colors.wheel.value': 'Tint {hue}°, verzadiging {sat}%, {hex}',
+  'colors.wheel.value_oklch': 'Tint {hue}°, chroma {sat}%, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (kunstenaars)',
+  'colors.wheel.oklch': 'OKLCH (perceptueel)',
+  'colors.harmony.brightness': 'Tinten',
+  'colors.harmony.custom': 'Eigen',
+  'colors.cmd.g_wheel': 'Kleurenwiel',
+  'colors.cmd.wheel_rule': 'Wiel: de harmonie instellen op {rule}',
+  'colors.cmd.wheel_model': 'Wiel: het {wheel}-wiel gebruiken',
+  'colors.cmd.wheel_focus': 'Wiel: naar het kleurenwiel gaan',
+});

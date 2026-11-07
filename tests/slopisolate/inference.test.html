@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cutout inference tests</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <!-- Real ONNX inference in the worker (WebAssembly backend, single thread), on synthetic images. -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/cutout/pipeline.js"></script>
+  <script src="../../shared/cutout/models.js"></script>
+  <script src="../../shared/cutout/cutout.js"></script>
+  <script src="inference.helpers.js"></script>
+  <script src="inference.spec-fast.js"></script>
+  <script>SlopTest.run({ name: 'Slop Cutout inference (Fast)' });</script>
+</body>
+</html>

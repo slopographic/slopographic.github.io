@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopnodes assistant commands</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <iframe id="app" src="../../nodes/index.html" title="Slopnodes"></iframe>
+  <script>
+  // Covers: nodes/js/ai-commands.js, nodes/js/commands.js, nodes/js/app.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('nodes.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const res = (name) => { const A = W.SlopNodesApp, n = A.graph().nodes.find((x) => x.name === name); return n && A.results().get(n.id); };
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+
+  const num = (r) => (r && r.value && typeof r.value === 'object' ? r.value.v : r && r.value);   // results are { t, v }
+  describe('Slopnodes assistant commands', () => {
+    it('prepare() loads the commands; build_graph makes values, formulas and an output that compute', async () => {
+      const f = document.getElementById('app');
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopNodesApp && f.contentWindow.SlopNodesApp.graph() && f.contentWindow.SlopCmd, { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      expect(C.list().filter((c) => /^nodes\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['nodes.ai.delete-node']);
+      expect(SlopCmdArgs.jsonSchema(C.get('nodes.ai.build-graph').args).properties.nodes.type).toBe('array');
+      const r = await run('build-graph', { name: 'Shop', nodes: [{ name: 'price', type: 'value', expr: '4' }, { name: 'qty', type: 'value', expr: '3' },
+        { name: 'total', type: 'output', expr: 'price * qty', inputs: ['price', 'qty'] }] });
+      expect(r.value).toMatch(/total = 12/);
+      expect(W.SlopNodesApp.graph().links.length).toBe(2);
+    }, { timeout: 30000 });
+
+    it('add_node, connect, set_node, disconnect, delete_node: one undo step each; refusals change nothing', async () => {
+      await run('add-node', { type: 'formula', name: 'vat', expr: 'total * 0.2', inputs: ['total'] });
+      expect(res('vat').text).toBe('2.4');
+      await run('set-node', { node: 'price', expr: '5' });
+      expect(num(res('total'))).toBe(15);
+      W.SlopNodesApp.undo();
+      expect(num(res('total'))).toBe(12);
+      const n = W.SlopNodesApp.graph().nodes.length;
+      expect((await C.exec('nodes.ai.add-node', { name: 'bad', inputs: ['nope'] })).ok).toBe(false);
+      expect(W.SlopNodesApp.graph().nodes.length).toBe(n);
+      expect((await C.exec('nodes.ai.connect', { from: 'vat', to: 'total' })).ok).toBe(false);   // a loop
+      await run('disconnect', { from: 'total', to: 'vat' });
+      expect(W.SlopNodesApp.graph().links.length).toBe(2);
+      await run('connect', { from: 'total', to: 'vat' });
+      await run('delete-node', { node: 'vat' });
+      expect(res('vat')).toBe(undefined);
+      const st = C.state();
+      expect(st.wires).toContain('price → total');
+    });
+
+    it('save_project and export_graph to Slop Drive, read back; the rollback restores the graph', async () => {
+      const back = C.checkpoint();
+      const s = await run('save-project', { name: 'Shop' });
+      const proj = JSON.parse(await (await W.SlopHub.get(driveId(s))).blob.text());
+      expect(proj.format).toBe('slopnodes');
+      expect(proj.graph.nodes.length).toBe(3);
+      const e = await run('export-graph', { format: 'csv' });
+      const csv = await (await W.SlopHub.get(driveId(e))).blob.text();
+      expect(csv.split('\n')[0]).toBe('name,type,formula,result');
+      expect(csv).toContain('total,output,price * qty,12');
+      await run('new-graph', { name: 'Empty' });
+      expect(W.SlopNodesApp.graph().nodes.length).toBe(0);
+      back();
+      expect(W.SlopNodesApp.graph().nodes.length).toBe(3);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slopnodes assistant commands' });
+  </script>
+</body>
+</html>

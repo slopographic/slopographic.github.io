@@ -1,0 +1,7 @@
+/* PhotoSlop guides: cursors over guides and rulers; the shared guide panel sits under the app menus. */
+.viewport.on-guide-v, .viewport.on-guide-v canvas { cursor: col-resize !important; }
+.viewport.on-guide-h, .viewport.on-guide-h canvas { cursor: row-resize !important; }
+.viewport.on-ruler, .viewport.on-ruler canvas { cursor: default !important; }
+.sgd-panel { z-index: 90; top: 120px; right: 290px; }
+body.no-panels .sgd-panel { right: 16px; }
+@media (max-width: 900px) { .sgd-panel { right: 16px; } }

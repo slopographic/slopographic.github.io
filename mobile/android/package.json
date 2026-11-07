@@ -1,0 +1,8 @@
+{
+  "name": "store-android",
+  "private": true,
+  "description": "The Android app (a Trusted Web Activity) is generated from the site's manifest by generate.mjs; see ../README.md.",
+  "dependencies": {
+    "@bubblewrap/core": "1.27.0"
+  }
+}

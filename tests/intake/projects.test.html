@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Projects: a backup comes in one way</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: projects/js/ui/files.js
+  // Slop Projects: Open a backup, the empty page's zone (a drop, its sample) and a paste of a backup reach the same reader.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(src, start) { const k = seen.length; await start(); await waitFor(() => seen.length === k + 1, { timeout: 15000 }); expect(seen[k]).toBe(src); }
+  describe('Slop Projects: one way in', () => {
+    it('the sample, a drop on the zone, Open a backup and a paste', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../projects/index.html';
+      await waitFor(() => { try { return f.contentWindow.SlopProjects.app.reload && f.contentDocument.getElementById('boot').hidden; } catch (e) { return false; } }, { timeout: 20000 });
+      W = f.contentWindow; D = W.document;
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      W.SlopProjects.files.mountEmpty();
+      await waitFor(() => W.SlopIntake.spec('projects'));
+      const s = W.SlopIntake.spec('projects'), reader = s.process;
+      s.process = (file, ctx) => { seen.push(ctx.source); return reader(file, ctx); };
+      await through('sample', () => W.SlopProjects.files.trySample());
+      const backup = () => W.SlopProjects.files.sampleFile();
+      await through('drop', () => D.getElementById('pDrop').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([backup()]) })));
+      W.SlopUI.pickFiles = async () => [backup()];
+      await through('picker', () => W.SlopProjects.files.importFile());
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([backup()]) })));
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Projects' });
+</script>
+</body>
+</html>

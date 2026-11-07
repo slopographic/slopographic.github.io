@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop 3D touch</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  /* Slop 3D with a finger: the viewport is a touch surface, one finger orbits, two fingers pinch the camera in (and the
+     page stays at its scale), a long press opens the viewport menu. Without WebGL the viewport tests pass as skipped.
+     Covers: 3d/js/app/viewport.js */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const hasGL = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } })();
+  let fr, W, cv;
+  const st = () => W.Slop3D.app.cam.st;
+
+  describe('Slop 3D on touch', () => {
+    it('opens with the viewport as a touch surface', async () => {
+      fr = document.createElement('iframe');
+      fr.src = '../../3d/index.html';
+      document.body.append(fr);
+      await waitFor(() => { const d = fr.contentDocument; return d && d.body && d.body.dataset.ready === '1' && fr.contentWindow.Slop3D && fr.contentWindow.SlopTouch && fr.contentWindow.SlopTouch.ready; }, { timeout: 45000, step: 100 });
+      W = fr.contentWindow;
+      if (!hasGL || !W.Slop3D.app) return;
+      cv = W.Slop3D.app.stage.renderer ? W.Slop3D.app.stage.renderer.domElement : W.document.querySelector('canvas');
+      cv = W.document.querySelector('[data-touch-surface]') || cv;
+      expect(cv.tagName).toBe('CANVAS');
+      expect(W.getComputedStyle(cv).touchAction).toBe('none');
+      await sleep(400);
+    }, { timeout: 60000 });
+    it('one finger orbits the camera', async () => {
+      if (!cv) return;
+      const yaw = st().yaw;
+      await TouchKit.drag({ el: cv, x: cv.clientWidth * 0.2, y: cv.clientHeight * 0.3 }, 120, 0, 10);
+      await waitFor(() => Math.abs(st().yaw - yaw) > 0.05, { timeout: 3000 });
+    });
+    it('two fingers pinch the camera in, not the page', async () => {
+      if (!cv) return;
+      const d0 = st().dist;
+      await TouchKit.pinch({ el: cv, x: cv.clientWidth * 0.5, y: cv.clientHeight * 0.5 }, 2, 10);
+      await waitFor(() => st().dist < d0 * 0.8, { timeout: 3000 });
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+    it('a long press opens the viewport menu', async () => {
+      if (!cv) return;
+      await TouchKit.longPress({ el: cv, x: cv.clientWidth * 0.15, y: cv.clientHeight * 0.8 });
+      await waitFor(() => W.document.querySelector('.sui-menu'), { timeout: 3000 });
+      W.SlopUI.closeMenu && W.SlopUI.closeMenu();
+    });
+  });
+  SlopTest.run({ name: 'Slop 3D touch' });
+  </script>
+</body>
+</html>

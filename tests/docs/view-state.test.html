@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Docs, wait until the app has booted (SlopDocs.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('docs');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop Docs saved place', () => {
+    it('comes back to the same document, zoom and caret after leaving for Slop Drive', async () => {
+      let W = await open('../../docs/index.html');
+      const S = W.SlopDocs;
+      S.setDoc(W.SlopDocEngine.M.newDoc(), { file: { id: null, name: 'Place test', dirty: false } });
+      S.zoom = 1.25;
+      const zs = W.document.getElementById('zoomSel');
+      if (![...zs.options].some((o) => Number(o.value) === 1.25)) zs.append(new W.Option('125%', '1.25'));
+      zs.value = '1.25';
+      S.select({ b: 0, o: 0 }, { b: 0, o: 0 });
+      S.file.dirty = true;
+      S.emit('change'); // the unsaved draft is written about a second later
+      await sleep(1800);
+      S.file.dirty = false;
+      W.SlopGuard.setUnsaved('docs', false); // saved to the draft just now, so the leave-page prompt does not hold the navigation
+      W.document.body.click();
+      await sleep(500);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../docs/index.html');
+      expect(W.SlopDocs.zoom).toBeCloseTo(1.25, 1e-6);
+      expect(W.SlopDocs.file.name).toBe('Place test');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Docs · saved place' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs in Swedish</title>
+  <!-- Covers: docs/i18n/index.js, docs/index.html, docs/js/ui/state.js, docs/js/ui/toolbar.js, docs/js/ui/menus.js,
+       docs/js/ui/commands.js, docs/js/ui/panel.js, docs/js/ui/outline.js, docs/js/ui/ctxmenu.js, docs/js/ui/hf.js,
+       docs/js/ui/random.js, docs/js/ui/files.js, docs/js/ui/tabs.js, docs/js/ui/main.js -->
+  <!-- Covers (strings): docs/js/ui/intake.js docs/js/ui/output.js docs/js/ui/buffer.js docs/js/ui/outline-menu.js
+        docs/js/ui/outline-actions.js docs/js/io/config.js docs/js/fonts/registry.js docs/js/io/docx-in.js
+        docs/js/layout/index.js docs/js/ui/ai-commands.js docs/js/ui/ai-create.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop Docs in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../docs/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('#pages .page') && f.contentWindow.SlopShell && f.contentWindow.SlopShell.currentApp, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(docs|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const menuNames = (doc) => [...doc.querySelectorAll('#menus .menu-btn')].map((b) => b.textContent.trim());
+  const aria = (doc, id) => doc.getElementById(id).getAttribute('aria-label');
+  async function menu(f, name) {
+    const doc = f.contentDocument;
+    doc.querySelector(`#menus .menu-btn[data-menu="${name}"]`).click();
+    const m = await waitFor(() => doc.querySelector('.sui-menu'), { timeout: 10000 });
+    const items = [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+    doc.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    doc.body.click();
+    return items;
+  }
+
+  describe('Slop Docs in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, toolbar, status bar, outline, panel and palette titles, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menuNames(doc)).toEqual(['Arkiv', 'Redigera', 'Format', 'Hjälp']);
+      expect(aria(doc, 'tbBold')).toBe('Fet');
+      expect(aria(doc, 'tbLeft')).toBe('Vänsterjustera');
+      expect(doc.querySelector('#selStyle option[value="H1"]').textContent).toBe('Rubrik 1');
+      await waitFor(() => /^Sida \d+ av \d+$/.test(doc.getElementById('pageInfo').textContent), { timeout: 10000 });
+      expect(doc.querySelector('.ol-title').textContent).toBe('Disposition');
+      expect(doc.querySelector('#docPanel').textContent).toContain('Ladda ned och skicka');
+      expect(W.SlopCmd.get('file.save').title).toBe('Spara i Slop Drive');
+      expect(W.SlopCmd.get('outline.add').title).toBe('Lägg till avsnitt');
+      const items = await menu(f, 'file');
+      expect(items.join(' | ')).toContain('Ladda ned PDF (.pdf)');
+      expect(KEY.test(items.join('\n'))).toBe(false);
+      const fmt = await menu(f, 'format');
+      expect(fmt.join(' | ')).toContain('Rensa formatering');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('the context menu picks the format rows in Swedish too, and the Header and footer panel is Swedish', async () => {
+      const f = await open('sv');
+      const W = f.contentWindow, S = W.SlopDocs;
+      const rows = S.ctxmenu.resolve(f.contentDocument.getElementById('ime'), null).filter((i) => i && i.label).map((i) => i.label);
+      expect(rows).toContain('Styckeformat');
+      expect(rows).toContain('Klistra in');
+      S.openHF();
+      const dlg = await waitFor(() => f.contentDocument.querySelector('.hf-dlg'), { timeout: 10000 });
+      expect(dlg.textContent).toContain('Sidhuvud');
+      expect(dlg.textContent).toContain('Annorlunda förstasida');
+      expect(KEY.test(dlg.textContent)).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow, I = W.SlopI18n;
+      I.set('en');
+      await waitFor(() => menuNames(doc)[0] === 'File' && aria(doc, 'tbBold') === 'Bold', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(/^Page \d+ of \d+$/.test(doc.getElementById('pageInfo').textContent)).toBe(true);
+      expect(doc.querySelector('.ol-title').textContent).toBe('Outline');
+      expect(W.SlopCmd.get('file.save').title).toBe('Save to Slop Drive');
+      expect(doc.querySelector('#docPanel').textContent).toContain('Download and send');
+      expect((await menu(f, 'file')).join(' | ')).toContain('Download PDF (.pdf)');
+      I.set('sv');
+      await waitFor(() => menuNames(doc)[0] === 'Arkiv' && aria(doc, 'tbBold') === 'Fet' && W.SlopCmd.get('file.save').title === 'Spara i Slop Drive', { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      const bar = doc.querySelector('.topbar');
+      expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Docs in Swedish' });
+  </script>
+</body>
+</html>

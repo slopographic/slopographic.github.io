@@ -1,0 +1,13 @@
+{
+  "name": "store-ios",
+  "private": true,
+  "description": "The iPhone and iPad app: Capacitor around the app's own copy of the site; see ../README.md.",
+  "dependencies": {
+    "@capacitor/cli": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/share": "8.0.3",
+    "@resvg/resvg-js": "2.6.2"
+  }
+}

@@ -1,0 +1,25 @@
+/* Slop Colors, Russian: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'colors.wheel.label': 'Цветовой круг',
+  'colors.wheel.rule': 'Гармония',
+  'colors.wheel.model': 'Круг',
+  'colors.wheel.bright': 'Яркость',
+  'colors.wheel.light': 'Светлота',
+  'colors.wheel.bright_text': 'Яркость {pct} %',
+  'colors.wheel.light_text': 'Светлота {pct} %',
+  'colors.wheel.keys': 'Перетащите маркер или используйте на нём стрелки: влево и вправо — поворот оттенка, вверх и вниз — изменение насыщенности, Shift — десять шагов, Page Up и Page Down — изменение яркости.',
+  'colors.wheel.base': 'Основной цвет',
+  'colors.wheel.handle': 'Цвет {n}',
+  'colors.wheel.value': 'Оттенок {hue}°, насыщенность {sat} %, {hex}',
+  'colors.wheel.value_oklch': 'Оттенок {hue}°, цветность {sat} %, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (художника)',
+  'colors.wheel.oklch': 'OKLCH (перцептивный)',
+  'colors.harmony.brightness': 'Тона',
+  'colors.harmony.custom': 'Своя',
+  'colors.cmd.g_wheel': 'Цветовой круг',
+  'colors.cmd.wheel_rule': 'Круг: задать гармонию «{rule}»',
+  'colors.cmd.wheel_model': 'Круг: использовать круг {wheel}',
+  'colors.cmd.wheel_focus': 'Круг: перейти к цветовому кругу',
+});

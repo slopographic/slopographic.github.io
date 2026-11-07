@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop 3D assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: 3d/js/app/ai-commands.js, 3d/js/app/ai-io.js, 3d/js/app/main.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame, W, C, S3;
+  const run = async (id, args) => { const r = await C.exec('3d.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const doc = () => S3.state.s.doc;
+  const byName = (n) => Object.values(doc().nodes).find((x) => x.name === n);
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+  /** The JSON chunk of a GLB file. */
+  async function glbJson(blob) {
+    const b = new Uint8Array(await blob.arrayBuffer()), dv = new DataView(b.buffer);
+    expect(new TextDecoder().decode(b.slice(0, 4))).toBe('glTF');
+    const len = dv.getUint32(12, true);
+    return JSON.parse(new TextDecoder().decode(b.slice(20, 20 + len)));
+  }
+
+  describe('Slop 3D assistant commands', () => {
+    it('prepare() loads them; new_scene, build_scene and delete_object are the destructive ones', async () => {
+      frame = document.createElement('iframe');
+      frame.src = '../../3d/index.html';
+      document.getElementById('stage').append(frame);
+      await waitFor(() => { const d = frame.contentDocument; return d && d.body && d.body.dataset.ready === '1' && frame.contentWindow.Slop3D; }, { timeout: 45000, step: 100 });
+      W = frame.contentWindow; C = W.SlopCmd; S3 = W.Slop3D;
+      expect(C.get('3d.ai.add-object')).toBe(null);
+      await C.prepare();
+      const ids = C.list().filter((c) => /^3d\.ai\./.test(c.id));
+      expect(ids.length).toBeGreaterThan(12);
+      expect(ids.filter((c) => c.destructive).map((c) => c.id).sort()).toEqual(['3d.ai.build-scene', '3d.ai.delete-object', '3d.ai.new-scene']);
+      expect(SlopCmdArgs.jsonSchema(C.get('3d.ai.build-scene').args).properties.objects.type).toBe('array');
+    }, { timeout: 60000 });
+
+    it('new_scene, add_object, set_transform, set_material, set_light, set_shape, rename: one undo step each', async () => {
+      await run('new-scene', { name: 'Desk' });
+      expect(S3.state.s.file.name).toBe('Desk');
+      expect(Object.values(doc().nodes).filter((n) => n.type === 'light').length).toBe(2);
+      let r = await run('add-object', { kind: 'sphere', name: 'Ball', position: [1, 2, 3], color: 'red', roughness: 0.2, params: { radius: 2 } });
+      expect(r.value).toMatch(/Ball/);
+      const b = byName('Ball');
+      expect([b.transform.p, b.material.color, b.material.roughness, b.geom.radius]).toEqual([[1, 2, 3], '#ff0000', 0.2, 2]);
+      await run('set-transform', { object: 'Ball', position: '0, 1, 0', rotation: [0, 45, 0], uniform_scale: 2 });
+      expect([byName('Ball').transform.p, byName('Ball').transform.r, byName('Ball').transform.s]).toEqual([[0, 1, 0], [0, 45, 0], [2, 2, 2]]);
+      S3.actions.undo();
+      expect(byName('Ball').transform.p).toEqual([1, 2, 3]);
+      await run('set-material', { object: 'Ball', color: '#00ff00', metallic: 1 });
+      expect([byName('Ball').material.color, byName('Ball').material.metallic]).toEqual(['#00ff00', 1]);
+      await run('set-light', { object: 'Sun', intensity: 5 });
+      expect(byName('Sun').light.intensity).toBe(5);
+      expect((await C.exec('3d.ai.set-light', { object: 'Ball', intensity: 1 })).ok).toBe(false);
+      await run('set-shape', { object: 'Ball', params: { segments: 48 } });
+      expect(byName('Ball').geom.segments).toBe(48);
+      await run('rename-object', { object: 'Ball', name: 'Globe' });
+      expect(!!byName('Globe')).toBe(true);
+      await run('set-background', { color: '#202040' });
+      expect(doc().background).toBe('#202040');
+      expect((await C.exec('3d.ai.set-material', { object: 'Nope', color: 'red' })).ok).toBe(false);
+    });
+
+    it('build_scene, add_model from Slop Drive, delete_object, state and the rollback', async () => {
+      await run('build-scene', { name: 'Table', objects: [{ kind: 'cube', name: 'Top', position: [0, 1, 0], scale: [2, 0.1, 1] }, { kind: 'cylinder', name: 'Leg', position: [0, 0.5, 0] }] });
+      expect(['Top', 'Leg'].every((n) => !!byName(n))).toBe(true);
+      expect(byName('Top').transform.s).toEqual([2, 0.1, 1]);
+      const obj = 'o Tri\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n';
+      await W.SlopHub.put(new Blob([obj], { type: 'text/plain' }), { name: 'tri.obj' });
+      const n0 = Object.keys(doc().nodes).length;
+      await run('add-model', { file: 'tri.obj' });
+      expect(Object.keys(doc().nodes).length).toBeGreaterThan(n0);
+      const back = C.checkpoint();
+      await run('delete-object', { object: 'Leg' });
+      expect(!!byName('Leg')).toBe(false);
+      const st = C.state();
+      expect(st.objects.some((o) => o.name === 'Top')).toBe(true);
+      expect(back()).toBe(true);
+      expect(!!byName('Leg')).toBe(true);
+    }, { timeout: 30000 });
+
+    it('export_scene: GLB and .s3d to Slop Drive, read back', async () => {
+      const r = await run('export-scene', { format: 'glb' });
+      const rec = await W.SlopHub.get(driveId(r));
+      const j = await glbJson(rec.blob);
+      const names = (j.nodes || []).map((n) => n.name).concat((j.meshes || []).map((m) => m.name));
+      expect(names.some((n) => /Top/.test(n || ''))).toBe(true);
+      const s = await run('export-scene', { format: 's3d' });
+      const scene = JSON.parse(await (await W.SlopHub.get(driveId(s))).blob.text());
+      expect(Object.values(scene.nodes).some((n) => n.name === 'Leg')).toBe(true);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop 3D assistant commands' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides animation data tests</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="load.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  let SS, MO;
+  const TRANSITIONS = ['none', 'fade', 'push-left', 'push-right', 'push-up', 'push-down', 'wipe', 'zoom-in', 'zoom-out', 'cube'];
+
+  /** A slide with two shapes: `box` (animated) and `dot`, both at 100, 100. */
+  function slideWith(anims) {
+    const d = SS.model.newDeck({ empty: true });
+    const s = SS.model.addSlide(d, 'blank');
+    s.objects.push(SS.objects.make('shape', { id: 'box', x: 100, y: 100, w: 200, h: 100, name: 'Box', anims: anims.box || [] }));
+    s.objects.push(SS.objects.make('shape', { id: 'dot', x: 400, y: 100, w: 50, h: 50, name: 'Dot', anims: anims.dot || [] }));
+    return { d, s };
+  }
+
+  describe('transitions data', () => {
+    it('boots the engine, the animation module and the file code', async () => {
+      SS = await loadSlides(['core', 'render', 'anim', 'io']);
+      MO = window.SlopMotion;
+      expect(typeof MO.presets.apply).toBe('function');
+      expect(typeof SS.anim.plan).toBe('function');
+    }, { timeout: 30000 });
+    it('the transition names are the engine names (none, fade, push, wipe, zoom, cube)', () => {
+      expect(SS.anim.transitionNames()).toEqual(TRANSITIONS.slice().sort());
+    });
+    it('durations are kept between 0.2 and 3 seconds, to a tenth', () => {
+      expect(SS.anim.clampDuration(0.05)).toBe(0.2);
+      expect(SS.anim.clampDuration(9)).toBe(3);
+      expect(SS.anim.clampDuration(1.26)).toBe(1.3);
+      expect(SS.anim.clampDuration('nonsense')).toBe(0.6);
+    });
+    it('a slide without a valid transition reads as none', () => {
+      expect(SS.anim.transitionOf({})).toEqual({ name: 'none', duration: 0.6 });
+      expect(SS.anim.transitionOf({ transition: { name: 'magic', duration: 1 } })).toEqual({ name: 'none', duration: 1 });
+    });
+    it('a new slide carries the none transition as { name, duration }', () => {
+      const s = SS.model.newSlide(SS.model.newDeck({ empty: true }), 'blank');
+      expect(s.transition).toEqual({ name: 'none', duration: 0.6 });
+      expect(s.builds).toBe(undefined);
+    });
+  });
+
+  describe('object animations', () => {
+    it('a fade-in at t = 0 is hidden on its first frame and visible when it ends', () => {
+      const { s } = slideWith({ box: [SS.anim.make('fade-in', 'with')] });
+      const plan = SS.anim.plan(s);
+      expect(SS.anim.stateAt(plan, 0).box.opacity).toBe(0);
+      expect(SS.anim.stateAt(plan, 0.2).box.opacity).toBeGreaterThan(0);
+      expect(SS.anim.stateAt(plan, 0.2).box.opacity).toBeLessThan(1);
+      expect(SS.anim.stateAt(plan, 0.4).box.opacity).toBe(1);
+      expect(SS.anim.stateAt(plan, 5).box.opacity).toBe(1);
+    });
+    it('the delay holds the object hidden until it starts, and the duration stretches the preset', () => {
+      const a = Object.assign(SS.anim.make('fade-in', 'with'), { at: 1, timeScale: 2 });
+      expect(SS.anim.duration(a)).toBeCloseTo(0.8);
+      const { s } = slideWith({ box: [a] });
+      const plan = SS.anim.plan(s);
+      expect(SS.anim.stateAt(plan, 0.9).box.opacity).toBe(0);
+      expect(SS.anim.stateAt(plan, 1.4).box.opacity).toBeLessThan(1);
+      expect(SS.anim.stateAt(plan, 1.8).box.opacity).toBe(1);
+    });
+    it('"with previous" starts with the animation before it; "on click" starts a new build after the last one ends', () => {
+      const first = SS.anim.make('pop', 'click');
+      const second = Object.assign(SS.anim.make('fade-in', 'with'), { at: 0.2 });
+      const third = SS.anim.make('shake', 'click');
+      const { s } = slideWith({ box: [first, second], dot: [third] });
+      const plan = SS.anim.plan(s);
+      expect(plan.steps.length).toBe(2);
+      expect(plan.steps[0].click).toBe(true);
+      expect(plan.steps[0].from).toBe(0);
+      expect(plan.steps[0].to).toBeCloseTo(0.6);
+      expect(plan.steps[0].items[1].start).toBeCloseTo(0.2);
+      expect(plan.steps[1].click).toBe(true);
+      expect(plan.steps[1].from).toBeCloseTo(0.6);
+      expect(plan.steps[1].to).toBeCloseTo(1.1);
+      expect(plan.clicks).toBe(2);
+      expect(SS.anim.stateAt(plan, 0).box.opacity).toBe(0);
+      expect(SS.anim.stateAt(plan, 0).dot.opacity).toBe(1);
+    });
+    it('an animation with no click trigger at the start of the slide is an automatic step', () => {
+      const { s } = slideWith({ box: [SS.anim.make('fade-in', 'with')], dot: [SS.anim.make('pulse', 'click')] });
+      const plan = SS.anim.plan(s);
+      expect(plan.steps.length).toBe(2);
+      expect(plan.steps[0].click).toBe(false);
+      expect(plan.steps[0].items.length).toBe(1);
+      expect(plan.steps[1].click).toBe(true);
+      expect(plan.steps[1].from).toBeCloseTo(0.4);
+    });
+    it('a slide with no animations has no builds and no state', () => {
+      const { s } = slideWith({});
+      const plan = SS.anim.plan(s);
+      expect(plan.clicks).toBe(0);
+      expect(Object.keys(SS.anim.stateAt(plan, 0)).length).toBe(0);
+    });
+    it('a pop scales from nothing at its start and rests at 1; spin-in rotates back to 0', () => {
+      const { s } = slideWith({ box: [SS.anim.make('pop', 'with')], dot: [SS.anim.make('spin-in', 'with')] });
+      const plan = SS.anim.plan(s);
+      expect(SS.anim.stateAt(plan, 0).box.m[0]).toBeCloseTo(0);
+      expect(SS.anim.stateAt(plan, 0.6).box.m[0]).toBeCloseTo(1);
+      expect(SS.anim.stateAt(plan, 0).dot.opacity).toBe(0);
+      expect(SS.anim.stateAt(plan, 0.6).dot.m[1]).toBeCloseTo(0);
+    });
+    it('cleanList drops unknown presets and clamps numbers', () => {
+      const out = SS.anim.cleanList([{ preset: 'explode', trigger: 'with' }, { id: 'x', preset: 'pop', trigger: 'click', at: -4, timeScale: 999 }, null]);
+      expect(out.length).toBe(1);
+      expect(out[0].id).toBe('x');
+      expect(out[0].trigger).toBe('click');
+      expect(out[0].at).toBe(0);
+      expect(out[0].timeScale).toBe(10);
+    });
+    it('every preset name in the engine is one the editor offers', () => {
+      // The editor offers the shared motion library (a superset): all six engine presets, each with a duration.
+      const names = SS.anim.presets().map((p) => p.name);
+      for (const n of ['fade-in', 'pop', 'pulse', 'shake', 'slide-up', 'spin-in']) expect(names.includes(n)).toBe(true);
+      for (const n of names) expect(SS.anim.presetDuration(n) > 0).toBe(true);
+    });
+  });
+
+  describe('files', () => {
+    it('a version 1 file with a legacy transition and builds opens with both converted', () => {
+      const v1 = { title: 'Old', size: { w: 960, h: 540, preset: '16:9' }, theme: 'slop', master: {}, media: {}, slides: [
+        { id: 's1', layout: 'blank', objects: [{ id: 'o1', type: 'shape', shape: 'rect', name: 'Box', x: 10, y: 10, w: 100, h: 100, rot: 0, opacity: 1 }],
+          transition: { type: 'push', dir: 'left', dur: 0.7 }, builds: [{ id: 'b1', obj: 'o1', effect: 'fly', trigger: 'click', delay: 0.2, dur: 0.5 }] },
+        { id: 's2', layout: 'blank', objects: [], transition: { type: 'magic', dur: 1 } },
+        { id: 's3', layout: 'blank', objects: [] },
+      ] };
+      const d = SS.native.parse(JSON.stringify(v1));
+      expect(d.version).toBe(2);
+      expect(d.slides[0].transition).toEqual({ name: 'push-left', duration: 0.7 });
+      expect(d.slides[1].transition).toEqual({ name: 'fade', duration: 1 });
+      expect(d.slides[2].transition).toEqual({ name: 'none', duration: 0.6 });
+      expect(d.slides[0].builds).toBe(undefined);
+      expect(d.slides[0].objects[0].anims.length).toBe(1);
+      expect(d.slides[0].objects[0].anims[0].preset).toBe('slide-up');
+      expect(d.slides[0].objects[0].anims[0].trigger).toBe('click');
+      expect(d.slides[0].objects[0].anims[0].at).toBeCloseTo(0.2);
+      expect(d.slides[0].objects[0].anims[0].timeScale).toBeCloseTo(1);
+    });
+    it('an old file with no transition or animation fields still opens', () => {
+      const d = SS.native.parse(JSON.stringify({ size: { w: 960, h: 540 }, slides: [{ objects: [{ id: 'o', type: 'text', x: 1, y: 1, w: 50, h: 20, text: { paras: [{ runs: [{ t: 'Hi' }] }] } }] }] }));
+      expect(d.version).toBe(2);
+      expect(d.slides.length).toBe(1);
+      expect(d.slides[0].transition).toEqual({ name: 'none', duration: 0.6 });
+      expect(d.slides[0].objects[0].anims).toEqual([]);
+      expect(d.slides[0].hidden).toBe(false);
+    });
+    it('a version 2 file keeps its transition and animations through save and open', () => {
+      const { d, s } = slideWith({ box: [Object.assign(SS.anim.make('slide-up', 'click'), { id: 'a1', at: 0.5, timeScale: 1.5 })] });
+      s.transition = { name: 'cube', duration: 2.2 };
+      const back = SS.native.parse(JSON.stringify(d));
+      expect(back.version).toBe(2);
+      expect(back.slides[0].transition).toEqual({ name: 'cube', duration: 2.2 });
+      expect(back.slides[0].objects[0].anims).toEqual([{ id: 'a1', preset: 'slide-up', trigger: 'click', at: 0.5, timeScale: 1.5 }]);
+    });
+    it('the templates use the new shape and their animations plan', () => {
+      SS.templates.list.forEach((t) => {
+        const d = t.build();
+        expect(d.version).toBe(2);
+        d.slides.forEach((s) => {
+          expect(s.builds).toBe(undefined);
+          expect(['none'].concat(TRANSITIONS).indexOf(s.transition.name) >= 0).toBe(true);
+          s.objects.forEach((o) => { if (o.anims) o.anims.forEach((a) => expect(MO.presets.get(a.preset).duration > 0).toBe(true)); });
+        });
+      });
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+/* Shared components, Dutch: de spreadsheetlezer (fouten, de onderdelen van een bestand die niet worden geïmporteerd) en de kolomkoppen van de tabel. Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'ui.sheets.xls_old': 'Oude .xls-bestanden worden niet ondersteund. Open het bestand in Excel of LibreOffice en sla het op als .xlsx, .ods of .csv.',
+  'ui.sheets.ods_not_zip': 'Dit .ods-bestand is geen geldige spreadsheet (het is geen zip-pakket).',
+  'ui.sheets.xlsx_not_zip': 'Dit .xlsx-bestand is geen geldige werkmap (het is geen zip-pakket).',
+  'ui.sheets.ods_no_content': 'Geen OpenDocument-spreadsheet (geen content.xml)',
+  'ui.sheets.ods_not_sheet': 'Dit OpenDocument-bestand is geen spreadsheet',
+  'ui.sheets.no_sheets': 'Deze werkmap heeft geen werkbladen',
+  'ui.sheets.xlsx_no_workbook': 'Geen Excel-werkmap (geen xl/workbook.xml)',
+  'ui.sheets.xlsx_missing': 'Ontbrekend in de werkmap: {part}',
+  'ui.sheets.part_pictures': 'afbeeldingen',
+  'ui.sheets.part_charts': 'grafieken',
+  'ui.sheets.part_chart_sheets': 'grafiekbladen',
+  'ui.sheets.part_pivots': 'draaitabellen (hun waarden blijven bewaard)',
+  'ui.sheets.part_comments': 'opmerkingen',
+  'ui.sheets.part_macros': 'macro’s',
+  'ui.sheets.part_cond': 'voorwaardelijke opmaak',
+  'ui.sheets.part_validation': 'gegevensvalidatie',
+  'ui.sheets.part_filters': 'filters',
+  'ui.sheets.sort_col': 'Kolom {col} sorteren',
+  'ui.sheets.filter_col': 'Kolom {col} filteren',
+  'ui.sheets.col_filtered': 'Kolom {col} is gefilterd',
+});

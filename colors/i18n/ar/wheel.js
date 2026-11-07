@@ -1,0 +1,25 @@
+/* Slop Colors, Arabic: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'colors.wheel.label': 'عجلة الألوان',
+  'colors.wheel.rule': 'التناسق',
+  'colors.wheel.model': 'العجلة',
+  'colors.wheel.bright': 'السطوع',
+  'colors.wheel.light': 'الإضاءة',
+  'colors.wheel.bright_text': 'السطوع {pct}٪',
+  'colors.wheel.light_text': 'الإضاءة {pct}٪',
+  'colors.wheel.keys': 'اسحب مقبضًا أو استخدم مفاتيح الأسهم عليه: اليسار واليمين يديران درجة اللون، والأعلى والأسفل يغيران التشبع، وShift ينقل عشر خطوات، وPage Up وPage Down يغيران السطوع.',
+  'colors.wheel.base': 'اللون الأساسي',
+  'colors.wheel.handle': 'اللون {n}',
+  'colors.wheel.value': 'درجة اللون {hue}°، التشبع {sat}٪، {hex}',
+  'colors.wheel.value_oklch': 'درجة اللون {hue}°، الصفاء {sat}٪، {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (للفنانين)',
+  'colors.wheel.oklch': 'OKLCH (إدراكي)',
+  'colors.harmony.brightness': 'درجات',
+  'colors.harmony.custom': 'مخصص',
+  'colors.cmd.g_wheel': 'عجلة الألوان',
+  'colors.cmd.wheel_rule': 'العجلة: اضبط التناسق على {rule}',
+  'colors.cmd.wheel_model': 'العجلة: استخدم عجلة {wheel}',
+  'colors.cmd.wheel_focus': 'العجلة: انتقل إلى عجلة الألوان',
+});

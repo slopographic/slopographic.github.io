@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+  <script src="../../shared/profile/profile.js" data-src="shared/profile/profile.js"></script>
+  <script src="../../shared/theme/theme.js" data-app="aitools" data-src="shared/theme/theme.js"></script>
+  <link rel="expect" href="#slop-built" blocking="render">
+  <script src="../../shared/i18n/i18n.js" data-src="shared/i18n/i18n.js"></script>
+  <script src="../i18n/index.js" data-src="aitools/i18n/index.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Auto tags · Slop AI Tools</title>
+  <meta name="description" content="Suggest tags for a photo with an on-device classifier. Accept or edit them; they are saved to the photo's Slop Drive record.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../aitools.css">
+  <link rel="stylesheet" href="../../shared/frame/frame.css">
+  <link rel="stylesheet" href="../frame.css">
+</head>
+<body>
+  <header class="ai-top">
+    <a class="brand" href="../../" title="Slopographic home" aria-label="Slopographic home" data-i18n-attr="title:aitools.hub.home;aria-label:aitools.hub.home"><svg viewBox="0 0 32 32" class="brand-mark" aria-hidden="true"><path d="M16 2C16 2 6 13.5 6 20a10 10 0 0 0 20 0C26 13.5 16 2 16 2z"/></svg></a>
+    <a class="ai-crumb" href="../" data-i18n="aitools.page.crumb">AI Tools</a><span class="ai-sep" aria-hidden="true">/</span><h1 data-i18n="aitools.tool.tags_name">Auto tags</h1>
+  </header>
+  <div class="ai-tool">
+    <div id="gate" class="ai-stack" aria-live="polite"></div>
+    <section id="ui" class="ai-stack" hidden>
+      <div id="drop" class="ai-drop"><span data-i18n="aitools.tags.drop">Drop a photo here, or </span><button type="button" id="chooseFile" class="ai-choose" data-i18n="aitools.page.choose_file">choose a file</button><br><span class="ai-meta"><span data-i18n="aitools.tags.or">Or </span><button id="pickDrive" type="button" data-i18n="aitools.tags.pick_drive">pick a photo from Slop Drive</button></span></div>
+      <div class="ai-grid2">
+        <img id="pic" class="ai-img" alt="" hidden>
+        <div class="ai-stack">
+          <p id="msg" class="ai-meta" role="status"></p>
+          <div><strong data-i18n="aitools.tags.suggested">Suggested</strong><div id="sugg" class="ai-act"></div></div>
+          <div class="ai-field"><label for="tagText" data-i18n="aitools.tags.label">Tags (comma separated, edit freely)</label><input id="tagText" type="text" placeholder="sunset, beach, people" data-i18n-attr="placeholder:aitools.tags.ph"></div>
+          <div class="ai-act"><button id="run" class="ai-pri" type="button" disabled data-side="main" data-i18n="aitools.tags.run">Suggest tags</button><button id="save" type="button" disabled data-side="save" data-i18n="aitools.tags.save">Save tags to Slop Drive</button></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="../model-registry.js"></script>
+  <script src="../../shared/firstrun/notice.js"></script>
+<script src="../models.js"></script>
+  <script src="../support.js"></script>
+  <script src="../get-more.js"></script>
+  <script src="../common.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="../../shared/tags/tags.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../intake.js"></script>
+  <script src="tags.js"></script>
+  <script src="../../shared/ui/sheet.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/ui/resize-panel.js"></script>
+  <script src="../../shared/frame/frame.js"></script>
+  <script src="../../shared/frame/panel.js"></script>
+  <script src="../frame.js"></script>
+  <script src="../../shell/shell.js"></script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

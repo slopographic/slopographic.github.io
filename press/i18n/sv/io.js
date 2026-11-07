@@ -1,0 +1,27 @@
+/* Slop Press, Swedish: opening, placing, saving, Slop Drive and the offline copy (io/).
+ * Rules: shared/i18n/APPS-HOWTO.md, shared/i18n/glossary-sv.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'press.io.saved_drive': 'Sparade {name} till Slop Drive',
+  'press.io.send_pdf_to': 'Skicka PDF till {app}',
+  'press.io.send_png_to': 'Skicka sidan som PNG till {app}',
+  'press.io.open_drive_title': 'Öppna från Slop Drive',
+  'press.io.place_drive_title': 'Montera från Slop Drive',
+  'press.io.intake_noun': 'en bild, text, PDF, ett teckensnitt eller en .slpress-fil',
+  'press.io.placed_text': 'Monterade text: lade till {n} sidor',
+  'press.io.placed_text#one': 'Monterade text: lade till {n} sida',
+  'press.io.rendering_pdf': 'Renderar PDF-sidor…',
+  'press.io.placed_pdf': 'Monterade {n} PDF-sidor',
+  'press.io.placed_pdf#one': 'Monterade {n} PDF-sida',
+  'press.io.pdf_failed': 'Det gick inte att läsa PDF:en: {error}',
+  'press.io.font_loaded': 'Läste in teckensnittet {name}',
+  'press.io.cannot_place': 'Det går inte att placera {name}',
+  'press.io.saved': 'Sparade {name}',
+  'press.io.save_as_title': 'Spara som',
+  'press.io.file_name': 'Filnamn',
+  'press.io.opened': 'Öppnade {name}',
+  'press.io.cannot_open': 'Slop Press kan inte öppna {name}',
+  'press.io.page_alt': 'Sida {page}',
+  'press.io.building_offline': 'Skapar offlinekopia…',
+  'press.io.offline_done': 'Laddade ned {name} – öppna den från disken, den fungerar offline',
+  'press.io.offline_failed': 'Det gick inte att skapa offlinekopian: {error}',
+});

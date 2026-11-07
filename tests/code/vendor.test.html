@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: vendored CodeMirror</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  describe('Slop Code: vendored CodeMirror 6', () => {
+    it('the import map in code/index.html matches vendor/codemirror/import-map.json', async () => {
+      const html = await (await fetch('../../code/index.html')).text();
+      const inline = JSON.parse(html.split('<script type="importmap">')[1].split('<\/script>')[0]);
+      const manifest = JSON.parse(await (await fetch('../../vendor/codemirror/import-map.json')).text());
+      expect(inline).toEqual(manifest);
+      expect(Object.keys(inline.imports)).toHaveLength(27);
+    });
+
+    it('every vendored file exists, and the app import map loads the packages they need', async () => {
+      const html = await (await fetch('../../code/index.html')).text();
+      const map = document.createElement('script');
+      map.type = 'importmap';
+      // The app's map is relative to code/; this page is one folder deeper, so rebase the paths.
+      map.textContent = html.split('<script type="importmap">')[1].split('<\/script>')[0].replaceAll('"../vendor/', '"../../vendor/');
+      document.head.append(map); // before any module is loaded, so the map applies
+      const names = Object.keys(JSON.parse(map.textContent).imports);
+      for (const name of names) {
+        const r = await fetch(new URL(JSON.parse(map.textContent).imports[name], location.href).href);
+        expect(r.status).toBe(200);
+      }
+      const view = await import('@codemirror/view');
+      const lang = await import('@codemirror/lang-javascript');
+      const ac = await import('@codemirror/autocomplete');
+      expect(typeof view.EditorView).toBe('function');
+      expect(typeof lang.javascript).toBe('function');
+      expect(typeof ac.completeAnyWord).toBe('function');
+    });
+
+    it('the licence texts and the version table are recorded', async () => {
+      const lic = await (await fetch('../../vendor/codemirror/LICENSES.txt')).text();
+      expect(lic).toContain('Permission is hereby granted, free of charge');
+      expect(lic).toContain('Marijn Haverbeke');
+      const readme = await (await fetch('../../vendor/codemirror/README.md')).text();
+      expect(readme).toContain('6.43.14');
+      expect(readme).toContain('@codemirror/view');
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: vendored CodeMirror' });
+  </script>
+</body>
+</html>

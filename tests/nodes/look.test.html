@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slopnodes: the look (one header, one info line, the canvas fills the rest, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: nodes/index.html -->
+  <!-- Covers: nodes/css/nodes.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The page in a fresh iframe of this width, once it and the shell's header buttons are in. */
+  async function open(width, src = '../../nodes/index.html') {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = src;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-hdr .slop-hbtn') && D.querySelector('#sn-world .sn-node'); }, { timeout: 30000 });
+    await sleep(400);   // the header fit (shared/ui/hbtn.js) runs on the next frame
+    return f.contentDocument;
+  }
+  const box = (n) => n.getBoundingClientRect();
+  const shown = (n) => !!n && box(n).width > 0 && box(n).height > 0;
+  /** Every header on screen (the menu bar is a header too). */
+  const headers = (D) => [...D.querySelectorAll('header')].filter((n) => shown(n) && !n.parentElement.closest('header'));
+  /** The heights of the shared header buttons on screen. */
+  const hbtnHeights = (D) => [...D.querySelectorAll('header .slop-hbtn')].filter(shown).map((n) => Math.round(box(n).height));
+  /** The page's own buttons (selectors) are as tall as the shared ones. */
+  function sameHeight(D, sels) {
+    const hs = hbtnHeights(D);
+    expect(hs.length).toBeGreaterThan(2);
+    for (const h of hs) expect(h).toBe(hs[0]);
+    for (const sel of sels) {
+      const n = D.querySelector(sel);
+      if (!shown(n)) continue;
+      expect(sel + ' ' + Math.round(box(n).height)).toBe(sel + ' ' + hs[0]);
+    }
+  }
+  const noSideScroll = (D) => expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(D.defaultView.innerWidth);
+
+  describe('Slopnodes: the look', () => {
+    it('one header; the add buttons and Save are as tall as the shared buttons', async () => {
+      const D = await open(1440);
+      expect(headers(D).length).toBe(1);
+      sameHeight(D, ['#sn-add-value', '#sn-add-note', '#sn-save']);
+    }, { timeout: 40000 });
+
+    it('the project, status and count are one line under the header, and the canvas fills the rest of the window', async () => {
+      const D = await open(1440);
+      const info = D.querySelector('.sn-info'), stage = D.getElementById('sn-stage');
+      expect(box(info).height).toBeLessThan(40);
+      expect(box(stage).top - box(info).bottom).toBeLessThan(12);
+      expect(Math.abs(D.defaultView.innerHeight - box(stage).bottom)).toBeLessThan(16);
+    }, { timeout: 40000 });
+
+    it('at 1024px the header is one row: the add buttons give way to the Insert menu', async () => {
+      const D = await open(1024);
+      expect(shown(D.getElementById('sn-add-value'))).toBe(false);
+      expect(box(headers(D)[0]).height).toBeLessThan(50);
+    }, { timeout: 40000 });
+
+    it('at 390px the add buttons give way to the Insert menu and nothing scrolls sideways', async () => {
+      const D = await open(390);
+      noSideScroll(D);
+      expect(shown(D.getElementById('sn-add-value'))).toBe(false);
+      expect(shown(D.getElementById('sn-save'))).toBe(true);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slopnodes: the look' });
+  </script>
+</body>
+</html>

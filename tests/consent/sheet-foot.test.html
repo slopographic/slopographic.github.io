@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=true"><title>Consent card and buddy above a sheet footer</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; }</style></head>
+<body>
+  <!-- Covers: shared/consent/banner.css, shared/consent/banner.js, contacts/css/contacts.css, shared/frame/panel.js, shared/buddy/boot.js, shared/slopui.css, shared/drop/panel.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** Slop Clean (a tool with the shared footer) at this size, on a first visit: the consent card is up. */
+  async function open(w, h, app = 'clean', foot = true) {
+    try { localStorage.removeItem('slop-consent'); } catch (e) { /* ignore */ }
+    const f = document.createElement('iframe');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    f.src = '../../' + app + '/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.getElementById('slopc-banner') && (!foot || D.querySelector('.sf-p-foot')); }, { timeout: 30000 });
+    await sleep(500);   // banner.css arrives, the footer is measured
+    return f;
+  }
+  const box = (f, sel) => f.contentDocument.querySelector(sel).getBoundingClientRect();
+  /** The buddy's round button (bottom corner), when the page has it, stays clear of the footer's buttons. */
+  async function buddyClear(f) {
+    if (BRAND_FACTS.mascot === 'none') { expect(f.contentDocument.querySelector('.buddy-toggle')).toBe(null); return; }   // a build without a mascot has no button
+    const b = await waitFor(() => f.contentDocument.querySelector('.buddy-toggle'), { timeout: 15000 });
+    const clear = () => { const r = b.getBoundingClientRect(), a = box(f, '.sf-foot-acts'); return r.bottom <= a.top + 0.5 || r.top >= a.bottom - 0.5 || r.right <= a.left || r.left >= a.right; };
+    await waitFor(clear, { timeout: 5000 }).catch(() => {});   // the footer settles after the app's first paint
+    const r = b.getBoundingClientRect();
+    expect([clear(), Math.round(r.top), Math.round(r.bottom), JSON.stringify(box(f, '.sf-foot-acts'))]).toEqual([true, Math.round(r.top), Math.round(r.bottom), JSON.stringify(box(f, '.sf-foot-acts'))]);
+  }
+
+  describe('the consent card and the sheet footer', () => {
+    it('at 390 px the card sits above the closed sheet footer (the main button is not covered)', async () => {
+      const f = await open(390, 844);
+      const card = box(f, '#slopc-banner'), foot = box(f, '.sf-p-foot');
+      expect(foot.height).toBeGreaterThan(0);
+      expect(Math.round(foot.bottom)).toBe(844);
+      expect(card.bottom).toBeLessThanOrEqual(foot.top + 0.5);
+      const main = f.contentDocument.querySelector('.sf-p-foot .sui-primary');
+      if (main) { const r = main.getBoundingClientRect(); const hit = f.contentDocument.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); expect(f.contentDocument.querySelector('.sf-p-foot').contains(hit)).toBe(true); }   // (a disabled button hit-tests as its bar)
+      expect(f.contentDocument.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      f.remove();
+    }, { timeout: 60000 });
+    it('at 390 px in Slop PDF the card sits above the closed sheet footer, which sits above the tool rail', async () => {
+      const f = await open(390, 844, 'pdf');
+      const card = box(f, '#slopc-banner'), foot = box(f, '.sf-p-foot');
+      expect(foot.height).toBeGreaterThan(0);
+      expect(card.bottom).toBeLessThanOrEqual(foot.top + 0.5);
+      f.remove();
+    }, { timeout: 60000 });
+    it('at 1280 px the card keeps its place in the bottom corner', async () => {
+      const f = await open(1280, 800);
+      await waitFor(() => Math.round(800 - box(f, '#slopc-banner').bottom) === 16, { timeout: 3000 }).catch(() => {});   // it slides in
+      expect(Math.round(800 - box(f, '#slopc-banner').bottom)).toBe(16);
+      f.remove();
+    }, { timeout: 60000 });
+    it('at 390 px the toasts (SlopUI, SlopDrop in Slop Gallery) show above the closed sheet footer', async () => {
+      const f = await open(390, 844, 'gallery'), W = f.contentWindow;
+      const top = box(f, '.sf-p-foot').top;
+      W.SlopUI.toast('Saved');
+      const t = await waitFor(() => { const n = f.contentDocument.querySelector('.sui-toast'); return n && n.getBoundingClientRect().height && n; });
+      await sleep(300);   // it slides in
+      expect(t.getBoundingClientRect().bottom).toBeLessThanOrEqual(top + 0.5);
+      W.SlopDrop.panel.toast('Added 2 files');
+      expect(f.contentDocument.querySelector('.sd-toast').getBoundingClientRect().bottom).toBeLessThanOrEqual(top + 0.5);
+      f.remove();
+    }, { timeout: 60000 });
+    for (const [w, h] of [[1280, 800], [390, 844]]) {
+      it(`at ${w} px the card floats over a full-height app (SlopClean, Slop Contacts): the app keeps the window's height`, async () => {
+        for (const app of ['clean', 'contacts']) {
+          const f = await open(w, h, app, app === 'clean'), D = f.contentDocument, W = f.contentWindow;
+          if (app === 'contacts') await waitFor(() => W.SlopContacts && W.SlopContacts.ready, { timeout: 30000 });
+          expect(D.documentElement.classList.contains('slopc-on')).toBe(true);
+          expect(D.documentElement.classList.contains('slopc-pad')).toBe(false);
+          expect(W.getComputedStyle(D.body).paddingBottom).toBe('0px');
+          if (app === 'clean') expect(Math.round(box(f, '.sf-p-foot').bottom)).toBe(h);   // the main button stays at the window's foot
+          if (app === 'clean' && w < 900) expect(box(f, '#slopc-banner').bottom).toBeLessThanOrEqual(box(f, '.sf-p-foot').top + 0.5);
+          expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(w);
+          f.remove();
+        }
+      }, { timeout: 90000 });
+    }
+    it('on a page that scrolls (How it works) the card still leaves room at the end of the page', async () => {
+      try { localStorage.removeItem('slop-consent'); } catch (e) { /* ignore */ }
+      const f = document.createElement('iframe');
+      f.style.width = '1280px'; f.style.height = '800px';
+      f.src = '../../how-it-works/index.html';
+      document.body.append(f);
+      await waitFor(() => f.contentDocument && f.contentDocument.getElementById('slopc-banner'), { timeout: 30000 });
+      await sleep(500);
+      const D = f.contentDocument;
+      expect(D.documentElement.classList.contains('slopc-pad')).toBe(true);
+      expect(parseFloat(f.contentWindow.getComputedStyle(D.body).paddingBottom)).toBeGreaterThan(40);
+      f.remove();
+    }, { timeout: 60000 });
+    for (const [w, h] of [[390, 844], [1280, 800]]) {
+      it(`at ${w} px the buddy's button (SlopLabel) sits above the footer's buttons`, async () => {
+        const f = await open(w, h, 'label');
+        await buddyClear(f);
+        f.remove();
+      }, { timeout: 60000 });
+    }
+  });
+  SlopTest.run({ name: 'Consent card above a phone sheet footer' });
+  </script>
+</body>
+</html>

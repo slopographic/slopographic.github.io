@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: tools</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="util.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/ai/engines.js"></script>
+  <script src="../../shared/ai/tools.js"></script>
+  <script src="../../shared/ai/apptools.js"></script>
+  <script src="../../shared/ai/cmdtools.js"></script>
+  <script src="../../shared/ai/bridge.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const K = SlopAIKit, T = K.tools;
+  const echo = { name: 'echo', description: 'echo', params: { text: { type: 'string', required: true } }, run: (a) => 'echo:' + a.text };
+  const boom = { name: 'boom', description: 'throws', params: {}, run: () => { throw new Error('kaboom'); } };
+  const nuke = { name: 'nuke', description: 'destructive', params: {}, destructive: true, run: () => 'nuked' };
+  describe('parsing tool calls', () => {
+    it('reads <tool_call> tags and keeps the rest of the text', () => {
+      const r = T.parse('Sure!\n<tool_call>{"name": "echo", "arguments": {"text": "hi"}}</tool_call>', [echo]);
+      expect(r.calls).toEqual([{ name: 'echo', arguments: { text: 'hi' } }]);
+      expect(r.text).toBe('Sure!');
+    });
+    it('tolerates single quotes, trailing commas, a missing close tag and "parameters"', () => {
+      expect(T.parse("<tool_call>{'name': 'echo', 'arguments': {'text': 'a',},}", [echo]).calls[0].arguments.text).toBe('a');
+      expect(T.parse('<tool_call>{"name":"echo","parameters":{"text":"b"}}</tool_call>', [echo]).calls[0].arguments.text).toBe('b');
+      expect(T.parse('<tool_call>{"function":{"name":"echo","arguments":"{\\"text\\":\\"c\\"}"}}</tool_call>', [echo]).calls[0].arguments.text).toBe('c');
+    });
+    it('reads a fenced JSON block or a bare JSON reply', () => {
+      expect(T.parse('```json\n{"name": "echo", "arguments": {"text": "d"}}\n```', [echo]).calls.length).toBe(1);
+      expect(T.parse('{"name": "echo", "arguments": {"text": "e"}}', [echo]).calls[0].arguments.text).toBe('e');
+    });
+    it('ignores unknown tools and ordinary JSON', () => {
+      expect(T.parse('<tool_call>{"name":"rm_rf","arguments":{}}</tool_call>', [echo]).calls).toEqual([]);
+      expect(T.parse('{"a": 1}', [echo]).calls).toEqual([]);
+      expect(T.parse('```json\n{"name": "Bob"}\n```', [echo]).text).toContain('Bob');
+    });
+    it('prepare() puts tool help in one system message, merges roles, turns tool results into user text', () => {
+      const out = T.prepare([{ role: 'system', content: 'S' }, { role: 'user', content: 'a' }, { role: 'user', content: 'b' }, { role: 'assistant', content: 'x' }, { role: 'tool', name: 'echo', content: 'r' }], [echo]);
+      expect(out.length).toBe(4);
+      expect(out[0].role).toBe('system'); expect(out[0].content).toMatch(/^S[\s\S]*- echo\(text: string\)/);
+      expect(out[1].content).toBe('a\n\nb');
+      expect(out[3]).toEqual({ role: 'user', content: 'TOOL RESULT (echo): r' });
+    });
+  });
+  describe('dispatch', () => {
+    it('runs a tool, reports unknown tools, missing arguments and errors', async () => {
+      expect(await T.dispatch({ name: 'echo', arguments: { text: 'x' } }, [echo])).toEqual({ ok: true, result: 'echo:x' });
+      expect((await T.dispatch({ name: 'nope', arguments: {} }, [echo])).error).toMatch(/Unknown tool/);
+      expect((await T.dispatch({ name: 'echo', arguments: {} }, [echo])).error).toMatch(/Missing argument "text"/);
+      expect((await T.dispatch({ name: 'boom', arguments: {} }, [boom])).error).toBe('kaboom');
+    });
+    it('asks before a destructive tool and respects "no"', async () => {
+      let asked = 0;
+      expect((await T.dispatch({ name: 'nuke' }, [nuke], { confirm: async () => { asked++; return false; } })).error).toMatch(/said no/);
+      expect((await T.dispatch({ name: 'nuke' }, [nuke], { confirm: async () => { asked++; return true; } })).result).toBe('nuked');
+      expect((await T.dispatch({ name: 'nuke' }, [nuke], {})).ok).toBe(false); // no confirm available: refuse
+      expect(asked).toBe(2);
+    });
+  });
+  describe('the fake engine and the agent loop', () => {
+    it('streams deltas then a done chunk with stats; honours max_tokens and abort', async () => {
+      const e = new K.FakeEngine({ delay: 0 }); await e.load('m');
+      const parts = []; let done;
+      for await (const c of e.chat([{ role: 'user', content: 'hi' }])) { if (c.type === 'delta') parts.push(c.text); else done = c; }
+      expect(parts.length).toBeGreaterThan(5);
+      expect(done.text).toBe(parts.join(''));
+      expect(done.usage.tokens).toBe(parts.length); expect(done.usage.tps).toBeGreaterThan(0);
+      expect((await e.chat([{ role: 'user', content: 'hi' }], { stream: false, max_tokens: 3 })).usage.tokens).toBe(3);
+      const ctl = new AbortController(), e2 = new K.FakeEngine({ delay: 5 }); await e2.load('m');
+      let n = 0; for await (const c of e2.chat([{ role: 'user', content: 'hi' }], { signal: ctl.signal })) { if (c.type === 'delta' && ++n === 2) ctl.abort(); if (c.type === 'done') done = c; }
+      expect(done.aborted).toBe(true); expect(n).toBeLessThan(5);
+    });
+    it('runs a tool call and feeds the result back', async () => {
+      const e = new K.FakeEngine({ delay: 0, replies: ['On it. <tool_call>{"name":"echo","arguments":{"text":"yo"}}</tool_call>', 'The tool said yo.'] }); await e.load('m');
+      const seen = [];
+      const r = await T.run(e, [{ role: 'user', content: 'go' }], { tools: [echo], onTool: (x) => seen.push(x.phase) });
+      expect(seen).toEqual(['start', 'end']);
+      expect(r.text).toBe('The tool said yo.');
+      expect(r.messages.map((m) => m.role)).toEqual(['assistant', 'tool', 'assistant']);
+      expect(r.messages[1].content).toBe('echo:yo');
+      expect(e.calls[1].messages.pop().content).toBe('TOOL RESULT (echo): echo:yo');
+    });
+    it('stops after maxSteps', async () => {
+      const loop = '<tool_call>{"name":"echo","arguments":{"text":"again"}}</tool_call>';
+      const e = new K.FakeEngine({ delay: 0, replies: [loop, loop, loop] }); await e.load('m');
+      const r = await T.run(e, [{ role: 'user', content: 'go' }], { tools: [echo], maxSteps: 2 });
+      expect(r.messages.filter((m) => m.role === 'tool').length).toBe(2);
+      expect(r.text).toMatch(/Stopped after 2/);
+    });
+  });
+  describe('Control apps tools', () => {
+    const cmds = [{ id: 'demo.bold', title: 'Bold' }, { id: 'demo.clear', title: 'Clear canvas' }, { id: 'demo.hidden', title: 'Hidden', when: () => false }];
+    const ran = [];
+    const cmd = { list: () => cmds, run: (id) => ran.push(id) };
+    it('exposes SLOP_APPS: list_apps and open_app', async () => {
+      const opened = [];
+      const tools = K.appTools.build({ open: (u) => opened.push(u), hub: null });
+      // read_file is deliberate: it lets the model answer questions about a Drive text file, and apps.test.html tests it.
+      expect(tools.map((t) => t.name)).toEqual(['list_apps', 'open_app', 'save_to_drive', 'list_files', 'read_file']);
+      const apps = JSON.parse((await T.dispatch({ name: 'list_apps', arguments: {} }, tools)).result);
+      expect(apps.some((a) => a.id === 'photoslop')).toBe(true);
+      expect((await T.dispatch({ name: 'open_app', arguments: { id: 'photoslop' } }, tools)).ok).toBe(true);
+      expect(opened[0]).toMatch(/photoslop\/$/);
+      expect((await T.dispatch({ name: 'open_app', arguments: { id: 'zzz' } }, tools)).error).toMatch(/No app/);
+    });
+    it('adds the app’s SlopCmd commands; destructive ones need a yes', async () => {
+      let asked = 0;
+      const tools = K.appTools.build({ cmd, appId: 'paint', hub: null, confirm: async () => { asked++; return true; } });
+      const list = JSON.parse((await T.dispatch({ name: 'list_commands', arguments: {} }, tools)).result);
+      expect(list.map((c) => c.id)).toEqual(['demo.bold', 'demo.clear']);
+      await T.dispatch({ name: 'run_command', arguments: { id: 'demo.bold' } }, tools, { confirm: async () => { asked++; return true; } });
+      expect(asked).toBe(0);
+      const no = await T.dispatch({ name: 'run_command', arguments: { id: 'demo.clear' } }, tools, { confirm: async () => { asked++; return false; } });
+      expect(no.ok).toBe(false); expect(asked).toBe(1);
+      await T.dispatch({ name: 'run_command', arguments: { id: 'demo.clear' } }, tools, { confirm: async () => { asked++; return true; } });
+      expect(ran).toEqual(['demo.bold', 'demo.clear']);
+      expect(K.appTools.isDestructiveCommand({ id: 'drive.emptyTrash', title: 'Empty Trash…' })).toBe(true);
+      expect(K.appTools.isDestructiveCommand({ id: 'view.zoomIn', title: 'Zoom in' })).toBe(false);
+    });
+    it('save_to_drive writes through SlopHub.put', async () => {
+      const put = []; const hub = { put: async (b, o) => { put.push([await b.text(), o]); return 'id1'; } };
+      const tools = K.appTools.build({ hub });
+      const r = await T.dispatch({ name: 'save_to_drive', arguments: { name: 'a/b.md', content: '# hi' } }, tools);
+      expect(r.result).toMatch(/Saved "a-b.md"/);
+      expect(put[0][0]).toBe('# hi'); expect(put[0][1].from).toBe('ai');
+    });
+  });
+  describe('the bridge: one model, many tabs', () => {
+    it('a client discovers a host tab and streams through it', async () => {
+      const host = await AT.frame('bridge-frame.html?host=1', (w) => w.engine && w.engine.loaded);
+      const client = await AT.frame('bridge-frame.html');
+      const hosts = await client.SlopAIKit.bridge.discover(300);
+      expect(hosts.length).toBe(1); expect(hosts[0].model.id).toBe('fake-model');
+      const re = new client.SlopAIKit.RemoteEngine(hosts[0].id);
+      const done = await re.chat([{ role: 'user', content: 'hello bridge' }], { stream: false });
+      expect(done.text).toContain('hello bridge');
+      expect(done.usage.tokens).toBeGreaterThan(3);
+      host.SlopAIKit.bridge.host(null);
+      await waitFor(() => client.SlopAIKit.bridge.hosts().length === 0);
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: tools' });
+  </script>
+</body>
+</html>

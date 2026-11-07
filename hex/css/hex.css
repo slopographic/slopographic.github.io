@@ -1,0 +1,81 @@
+/* Slop Hex: tokens (light and dark), the header and bars, the info strip, and the byte grid.
+ * The grid is fixed-height rows in a monospace font. On a phone the header stacks and the grid scrolls sideways. */
+:root {
+  --hx-bg: #111113; --hx-panel: #1a1a1e; --hx-line: #2c2c33; --hx-fg: #e8e8ea; --hx-dim: #9a9aa6; --hx-faint: #66666f;
+  --hx-accent: #d4ff3a; --hx-sel: #24482c; --hx-cur: #3d7a2c; --hx-hover: #222229; --hx-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --hx-asc: #7fd1ff; --hx-off: #9a9aa6;
+}
+:root:not([data-theme="light"]) { color-scheme: dark; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --hx-bg: #f6f6f4; --hx-panel: #ffffff; --hx-line: #d9d9d4; --hx-fg: #17171a; --hx-dim: #55555e; --hx-faint: #8a8a93; --hx-accent: #3f6b00; --hx-sel: #cfe9b8; --hx-cur: #8fc25c; --hx-hover: #eeeee9; --hx-asc: #0b5c8a; --hx-off: #6a6a73; }
+}
+:root[data-theme="dark"] { --hx-bg: #111113; --hx-panel: #1a1a1e; --hx-line: #2c2c33; --hx-fg: #e8e8ea; --hx-dim: #9a9aa6; --hx-faint: #66666f; --hx-accent: #d4ff3a; --hx-sel: #24482c; --hx-cur: #3d7a2c; --hx-hover: #222229; --hx-asc: #7fd1ff; --hx-off: #9a9aa6; }
+:root[data-theme="light"] { --hx-bg: #f6f6f4; --hx-panel: #ffffff; --hx-line: #d9d9d4; --hx-fg: #17171a; --hx-dim: #55555e; --hx-faint: #8a8a93; --hx-accent: #3f6b00; --hx-sel: #cfe9b8; --hx-cur: #8fc25c; --hx-hover: #eeeee9; --hx-asc: #0b5c8a; --hx-off: #6a6a73; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--hx-bg); color: var(--hx-fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+.hx-app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.hx-app > .doctabs-host { flex: none; }
+/* SlopUI buttons and the menu bar's tools take the Hex colours (the shared --s-* tokens are only set inside dialogs), and
+ * every button and field in the header and the bar is as tall as the shared header buttons (shared/ui/hbtn.css). */
+.hx-app, .smb-bar { --s-bg2: var(--hx-panel); --s-input: var(--hx-bg); --s-line: var(--hx-line); --s-fg: var(--hx-fg); --s-hover: var(--hx-hover);
+  --s-accent: var(--sl-accent, var(--hx-accent)); --s-accent-ink: var(--sl-on-accent, var(--hx-bg)); --s-radius: 8px; }
+.smb-tools .sui-btn, .hx-bar .sui-btn, .hx-bar input, .hx-bar select { height: var(--slop-hbtn-h, 32px); box-sizing: border-box; }
+.hx-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hx-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 14px; border-bottom: 1px solid var(--hx-line); }
+.hx-go, .hx-find { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+.hx-bar input, .hx-bar select { font: inherit; color: var(--hx-fg); background: var(--hx-bg); border: 1px solid var(--hx-line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+#hx-goto { width: 170px; font-family: var(--hx-mono); }
+#hx-q { width: 220px; font-family: var(--hx-mono); }
+.hx-status { color: var(--hx-dim); font-size: 13px; flex-basis: 100%; }
+.hx-info { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0; padding: 8px 14px; border-bottom: 1px solid var(--hx-line); font-size: 13px; }
+.hx-info > div { display: flex; flex-direction: column; min-width: 0; }
+.hx-info > .hx-file { max-width: 280px; }
+.hx-info dt { color: var(--hx-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.hx-info dd { margin: 0; word-break: break-all; }
+.hx-mono { font-family: var(--hx-mono); font-size: 12px; }
+.hx-mini { font-size: 12px; padding: 2px 8px; margin-left: 6px; }
+.hx-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.hx-empty { margin: auto; width: 100%; max-width: 640px; box-sizing: border-box; padding: 24px; text-align: center; }
+.hx-empty-t { font-size: 18px; margin: 0 0 8px; }
+.hx-empty-s { color: var(--hx-dim); margin: 0 auto 16px; max-width: 440px; }
+.hx-empty-b { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.hx-empty .sd-preview { margin-bottom: 14px; }
+.hx-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; font: 13px/22px var(--hx-mono); outline: none; -webkit-overflow-scrolling: touch; }
+.hx-scroll:focus-visible { box-shadow: inset 0 0 0 2px var(--hx-accent); }
+.hx-spacer { position: absolute; left: 0; top: 0; width: 1px; }
+/* The rows are absolutely placed, so they add no width of their own: the width is set here, for the sideways scroll. */
+.hx-rows { position: absolute; left: 0; width: calc(81ch + 48px); overflow: hidden; user-select: none; touch-action: pan-x pan-y; }
+.hx-row { position: absolute; left: 0; height: 22px; white-space: pre; display: flex; align-items: center; }
+.hx-off { width: 12ch; padding: 0 14px 0 12px; color: var(--hx-off); cursor: pointer; }
+.hx-hex { display: inline-flex; }
+.hx-b { display: inline-block; width: 2.4ch; text-align: center; border-radius: 2px; cursor: default; }
+.hx-b.hx-g { margin-right: 1.2ch; }
+.hx-asc { display: inline-flex; margin-left: 1.5ch; padding-left: 10px; border-left: 1px solid var(--hx-line); color: var(--hx-asc); }
+.hx-a { display: inline-block; width: 1ch; text-align: center; border-radius: 2px; }
+.hx-pad { visibility: hidden; }
+.hx-sel { background: var(--hx-sel); }
+.hx-cur { background: var(--hx-cur); color: var(--hx-fg); box-shadow: inset 0 0 0 1px var(--hx-accent); }
+.hx-row:hover .hx-b:not(.hx-sel) { background: var(--hx-hover); }
+@media (max-width: 600px) {
+  .hx-bar { padding: 8px 10px; }
+  .hx-go, .hx-find { width: 100%; flex-wrap: nowrap; }
+  #hx-goto, #hx-q { flex: 1 1 0; width: auto; }
+  .hx-info { padding: 8px 10px; }
+  .hx-info > .hx-file, .hx-info > .hx-wide { flex: 1 1 100%; max-width: none; }
+  /* The header's Open, Save version and Download are in its File menu: on a phone the bar keeps to one row. */
+  .smb-tools > .sui-btn { display: none; }
+  .hx-off { width: 11ch; padding: 0 8px 0 8px; }
+}
+
+/* Drop strip under the header (shared/drop, compact) */
+.hx-dropstrip { margin: 6px 10px 0; padding: 6px 10px; border: 1px dashed var(--line, #3a3a46); border-radius: 8px; }
+/* The inspector on the right (js/panel.js, shared/frame/frame.css): the file's facts one per row, Save version and Download at its foot. */
+.hx-body { flex: 1 1 auto; min-height: 0; }
+.hx-side { --sl-surface: var(--hx-panel); --sl-background: var(--hx-bg); --sl-text: var(--hx-fg); --sl-border: var(--hx-line); --sl-accent: var(--hx-accent); }
+.hx-side .hx-info { flex-direction: column; gap: 10px; padding: 0; border: 0; }
+.hx-side .hx-info > .hx-file { max-width: none; }
+.hx-side .hx-name { white-space: normal; overflow-wrap: anywhere; }
+.hx-side .hx-info:not([hidden]) ~ .hx-none { display: none; }
+.hx-side .sf-foot-acts .sui-btn { min-height: 38px; }
+.hx-side .sf-h, .hx-side .sf-note { color: var(--hx-dim); }   /* the small headings in the dim ink (contrast) */

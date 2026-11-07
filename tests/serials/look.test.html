@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Serial counter: the look (header, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: serials/index.html, serials/js/frame.js, serials/css/serials.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The page in a fresh iframe of this width, once the gate has decided and the shell's buttons are in. */
+  async function open(width, height = 800) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../serials/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn') && (D.getElementById('gate').children.length || !D.getElementById('ui').hidden); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+
+  describe('Slop Serial counter: the look', () => {
+    it('one header, with the 100% local badge in it', async () => {
+      const D = await open(1440);
+      expect([...D.querySelectorAll('header')].filter((n) => n.getBoundingClientRect().height).length).toBe(1);
+      expect(D.querySelector('.smb-bar .local-badge').title).toContain('Nothing is uploaded');
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+
+    it('at 1280px the pattern and the downloads are a panel on the right, with Read photos at its foot', async () => {
+      const D = await open(1280);
+      D.getElementById('ui').hidden = false;   // without the model the tool waits behind the prompt
+      await new Promise((r) => setTimeout(r, 100));
+      const side = D.getElementById('srSide');
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('srView').getBoundingClientRect().right - 1);
+      expect(Math.round(side.getBoundingClientRect().right)).toBe(1280);
+      for (const id of ['pattern', 'export-serials', 'export-photos', 'clear']) expect(side.contains(D.getElementById(id))).toBe(true);
+      expect(D.getElementById('read').closest('.sf-p-foot').parentNode).toBe(side);
+      expect(D.getElementById('read').getBoundingClientRect().bottom).toBeLessThanOrEqual(800);
+    }, { timeout: 40000 });
+
+    it('at 390px Read photos stays at the bottom of the screen; Options opens the sheet', async () => {
+      const D = await open(390, 844);
+      D.getElementById('ui').hidden = false;
+      await new Promise((r) => setTimeout(r, 100));
+      const r = D.getElementById('read').getBoundingClientRect();
+      expect(r.top).toBeGreaterThan(700);
+      expect(r.bottom).toBeLessThanOrEqual(844);
+      D.querySelector('#srSide .sf-foot-more').click();
+      await waitFor(() => D.getElementById('srSide').classList.contains('ssh-on'));
+      await new Promise((res) => setTimeout(res, 300));
+      expect(D.getElementById('pattern').getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Serial counter: the look' });
+  </script>
+</body>
+</html>

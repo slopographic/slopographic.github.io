@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Paste in Swedish</title>
+  <!-- Covers: paste/i18n/index.js, paste/index.html, paste/js/dom.js, paste/js/main.js, paste/js/view.js, paste/js/actions.js, paste/js/commands.js, paste/js/store.js, paste/js/state.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Paste', path: '../../paste/index.html', ns: 'paste',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#pb-expiry option'),
+    checks: [
+      ['#pb-new', 'Nytt klipp', 'New paste'],
+      ['#pb-q', 'Sök i rubriker', 'Search titles', 'placeholder'],
+      ['#pb-copy', 'Kopiera', 'Copy'],
+      ['#pb-expiry option[value="never"]', 'Aldrig', 'Never'],
+      ['#pb-title', 'Rubrik (valfri)', 'Title (optional)', 'placeholder'],
+    ],
+  });
+  SlopTest.run({ name: 'Paste in Swedish' });
+  </script>
+</body>
+</html>

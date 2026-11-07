@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Press own fonts</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Opens Slop Press in a fresh iframe (a new page: nothing from an earlier open is registered) and waits for the app. */
+  async function open() {
+    const want = new URL('../../press/index.html', location.href).pathname;
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../press/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && f.contentWindow.PR && f.contentWindow.PR.state && f.contentWindow.PR.state.doc, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const panel = (W) => W.document.querySelector('.sf-ov');
+  const rowOf = (W, name) => panel(W) && panel(W).querySelector(`.sf-row[data-family="${name}"]`);
+  const hasOption = (W, name) => [...W.document.querySelectorAll('select option')].some((o) => o.value === name);
+  /** The PDF's text, read as latin1 (font names and stream markers are ASCII). */
+  const asText = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return s; };
+
+  describe('Slop Press: your own font', () => {
+    it('a TTF dropped on a missing family is listed in the font menu, used for the text, embedded in the PDF, and kept with the document', async () => {
+      const W = await open();
+      const PR = W.PR, S = PR.state;
+      const file = await (await fetch('../pdf/fixtures/Barlow-Regular.ttf')).arrayBuffer();
+      PR.ui.openFonts(['Gill Sans']);
+      await waitFor(() => rowOf(W, 'Gill Sans'), { timeout: 10000 });
+      const picked = new W.File([file], 'Barlow-Regular.ttf', { type: 'font/ttf' });
+      W.SlopUI.pickFiles = async () => [picked]; // the row's Drop your own font… is the intake's picker (part fonts.file)
+      [...rowOf(W, 'Gill Sans').querySelectorAll('button')].find((b) => /Drop your own font/.test(b.textContent)).click();
+      await waitFor(() => rowOf(W, 'Gill Sans') && rowOf(W, 'Gill Sans').textContent.includes('Installed from your file'), { timeout: 15000 });
+      expect(PR.fonts.list().includes('Gill Sans')).toBe(true);
+      // a text frame set in the font, so the PDF has to embed it
+      const doc = S.doc, fr = PR.model.item('text', 60, 60, 300, 300);
+      PR.items.add(doc, doc.pages[0].items, fr, { text: 'Set in a font the app does not ship.', ps: '[Basic Paragraph]' });
+      const st = doc.stories[fr.story];
+      PR.story.formatChars(st, 0, st.text.length, { font: 'Gill Sans' });
+      PR.engine.clear(); PR.touch();
+      // the family menu shows in text mode: select the frame and use the text tool
+      S.tool = 'text'; PR.select([fr.id]); PR.ui.refreshControlBar(true);
+      await waitFor(() => hasOption(W, 'Gill Sans'), { timeout: 5000 });
+      expect(hasOption(W, 'Gill Sans')).toBe(true);
+      expect(S.doc.fonts.length).toBe(1);
+      expect(PR.fonts.substituted('Gill Sans')).toBe(false);
+      const bytes = await PR.fonts.bytes(S.doc, 'Gill Sans', 'Regular');
+      expect(bytes.byteLength).toBe(file.byteLength);
+      // the PDF embeds the file (a subset of it, under its PostScript name), not a standard font
+      const pdf = asText(await PR.pdf.export({}));
+      if (!(/\/FontFile2/.test(pdf) && /\+Barlow-Regular/.test(pdf))) throw new Error('PDF: ' + pdf.length + ' ' + (pdf.match(/\/BaseFont[^\n]{0,60}/g) || []).join(' | ') + ' ' + (pdf.match(/\/FontFile\d?/g) || []).join(','));
+      // kept with the document: a fresh page that opens the saved copy registers the font again
+      const saved = JSON.stringify({ fonts: S.doc.fonts, assets: S.doc.assets });
+      S.dirty = false; // the page is left on purpose: no unsaved-changes prompt
+      const W2 = await open();
+      const copy = JSON.parse(saved);
+      W2.PR.state.doc.fonts = copy.fonts; W2.PR.state.doc.assets = copy.assets;
+      await W2.PR.fonts.registerDoc(W2.PR.state.doc);
+      expect(!!W2.PR.fonts.user['Gill Sans']).toBe(true);
+    });
+
+    it('a WOFF file is refused with a message that says WOFF is not supported in Slop Press', async () => {
+      const W = await open();
+      const PR = W.PR, S = PR.state;
+      const before = (S.doc.fonts || []).length;
+      PR.ui.openFonts(['Gill Serif']);
+      await waitFor(() => rowOf(W, 'Gill Serif'), { timeout: 10000 });
+      const picked = new W.File([new Uint8Array([119, 79, 70, 70])], 'Gill.woff', { type: 'font/woff' });
+      W.SlopUI.pickFiles = async () => [picked]; // the row's Drop your own font… is the intake's picker (part fonts.file)
+      [...rowOf(W, 'Gill Serif').querySelectorAll('button')].find((b) => /Drop your own font/.test(b.textContent)).click();
+      await waitFor(() => rowOf(W, 'Gill Serif').textContent.includes('WOFF fonts cannot be used in Slop Press'), { timeout: 10000 });
+      expect((S.doc.fonts || []).length).toBe(0);
+      expect(hasOption(W, 'Gill Serif')).toBe(false);
+    });
+  });
+  run({ name: 'Slop Press · own fonts' });
+  </script>
+</body>
+</html>

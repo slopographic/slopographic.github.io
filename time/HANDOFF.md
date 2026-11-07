@@ -1,0 +1,68 @@
+# Slop Time (time/)
+
+World clock, "my time in…", a meeting planner, a time zone converter with the difference between two zones, a
+stopwatch and a countdown, and a manual clock offset. Browser only, no build, no network calls. Registered in
+`shared/apps.js` as `time` (tool, business group, status building).
+
+## Calendar
+- Meeting planner: each planned window has "Add to Calendar". It saves a `meeting` event in the home zone through the shared
+  store (`SlopEvents.fromForm` and `save`), and the page loads the shared data and calendar scripts for that.
+- Test: `tests/time/meet-calendar.test.html` (a Monday window with London becomes one meeting event in the store).
+
+## Files (all ≤300 lines)
+- `js/zones.js`: the zone list (`Intl.supportedValuesOf('timeZone')`, no downloads), local wall-clock parts, DST-aware
+  offsets, `zonedToUtc` (a time in a spring-forward gap moves forward; an ambiguous time takes the earlier instant),
+  search (every word must match; word starts rank first).
+- `js/work.js`: working patterns `{ zone, days, start, end }`, `isWorkingAt`, and `commonWindows` / `dayWindows`,
+  the overlap used by "My time in…" and the meeting planner (sampled every 15 minutes by default).
+- `js/convert.js`: parse typed times and dates strictly, convert a time to every zone with a day shift, and the
+  difference between two zones at an instant.
+- `js/sync.js`: the manual offset arithmetic and its wording. `js/timers.js`: stopwatch and countdown state, with the clock
+  passed in, so tests use fixed times.
+- `js/keep.js`: the versioned envelope. `js/state.js`: cities, my pattern, the manual offset. `js/ui.js`: display helpers.
+- `js/world.js`, `js/my.js`, `js/meet.js`, `js/convert-ui.js`, `js/clocks.js`, `js/sync-ui.js`: the panels. `js/app.js`: tabs,
+  one 250 ms tick, boot. `js/commands.js`: SlopCmd.
+
+## Behaviour
+- **World clock:** one card per city: local time with seconds, the day, the offset from GMT, "Working day" or
+  "Not a working day" for that city's own calendar day, and "In working hours". Search the zone list to add a city;
+  Remove takes it off. The default list is London, New York and Tokyo until the person changes it.
+- **My time:** my time zone, working hours (start and end in decimal hours) and days. Choose a city to see the time
+  there and two windows for the chosen day: my working hours in their time, and the hours when both of us are working
+  (the other person is assumed to keep the same days and hours).
+- **Meetings:** pick a day (in my zone) and a slot step. The planner lists every window when all zones, including mine,
+  are inside working hours, with each zone's local time. The day is the 24 hours from local midnight in my zone.
+  The zone list is for this visit only; "Use my cities" resets it.
+- **Converter:** a time in one zone, shown in every city of the list with the day shift (-1, 0 or +1) and the GMT
+  offset. Use the current time fills the fields. Below it, the difference between two zones, right now.
+- **Timers:** a stopwatch with laps, and a countdown that accepts `5` (minutes), `4:30` or `1:05:00`. It notifies once with a toast and "(Done)" in the title. Both reset on reload.
+- **Sync (manual, NOT a network sync):** type a time from a source you trust, with its date and zone. The app stores
+  `offset = reference − device clock` and shows the world clock moved by that offset. It never fetches the time and
+  does not follow the clock after the moment it was set.
+
+## Storage (per viewer, versioned envelope `{ v:1, data }`)
+- `slop.time.cities`: `{ v:1, data: [{ zone }] }`, the city list. The default is written only after the first change.
+- `slop.time.prefs`: `{ v:1, data: { zone, days, start, end } }`, my working pattern.
+- `slop.time.offset`: `{ v:1, data: { offsetMs, setAt, reference } }`, the manual offset (or `null`).
+
+## Commands (SlopCmd)
+Go to World clock, My time, Meetings, Convert, Timers, Sync (Mod+Alt+1 to 6). Add a city (Mod+Alt+A). Stopwatch start or
+stop (Mod+Alt+G), lap, reset. Countdown start or pause, reset. Converter: use the current time.
+
+## Tests
+- `node tests/run.mjs time`:
+  - `tests/node/time-zones.test.mjs`: offsets across the March and November changes, the gap and the overlap in
+    New York, zone search, working-day overlaps (London, Paris, New York, Tokyo), the converter with day shifts, the
+    difference text, strict parsing, the manual offset wording, the stopwatch, the countdown and duration input. Loaded
+    through `tests/node/time-env.mjs`.
+  - `tests/time/converter.test.html`: browser test of the converter in an iframe: rows at fixed dates, the day shift,
+    the spring-forward gap, invalid input, the difference line, 390 px without sideways scroll, and no requests to other hosts.
+
+## Not done / follow-ups
+- The planner's meetings reach Slop Calendar only one way: a planned window is added as an event (see Calendar above).
+- `service-worker.js` is not updated. Its PRECACHE list is generated by `node tools/pwa-precache.mjs`, and it must be
+  regenerated before the page works offline.
+- The stopwatch and timer are in memory; there is no background notification when the page is closed.
+
+## Assistant commands
+`js/ai-commands.js` (loaded by `SlopCmd.prepare()` from `commands.js`): `time.ai.add_city`, `remove_city` (destructive), `convert_time` (time, date, from, to[]), `create_meeting` (title, date, start, end, zone: a meeting in Slop Calendar through `SlopEvents`), `set_countdown`, `export_clocks` (the cities as CSV). The page now loads `shared/hub.js` for Slop Drive. Test: `tests/time/ai-commands.test.html`.

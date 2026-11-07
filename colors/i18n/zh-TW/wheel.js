@@ -1,0 +1,25 @@
+/* Slop Colors, Traditional Chinese: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'colors.wheel.label': '色相環',
+  'colors.wheel.rule': '和諧色',
+  'colors.wheel.model': '色環類型',
+  'colors.wheel.bright': '亮度',
+  'colors.wheel.light': '明度',
+  'colors.wheel.bright_text': '亮度 {pct}%',
+  'colors.wheel.light_text': '明度 {pct}%',
+  'colors.wheel.keys': '拖曳控點，或在控點上使用方向鍵：左右鍵旋轉色相，上下鍵調整飽和度，Shift 一次移動十格，Page Up 與 Page Down 調整亮度。',
+  'colors.wheel.base': '基準色',
+  'colors.wheel.handle': '色彩 {n}',
+  'colors.wheel.value': '色相 {hue}°，飽和度 {sat}%，{hex}',
+  'colors.wheel.value_oklch': '色相 {hue}°，彩度 {sat}%，{hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB（畫家用）',
+  'colors.wheel.oklch': 'OKLCH（感知式）',
+  'colors.harmony.brightness': '明暗層次',
+  'colors.harmony.custom': '自訂',
+  'colors.cmd.g_wheel': '色相環',
+  'colors.cmd.wheel_rule': '色相環：將和諧色設為{rule}',
+  'colors.cmd.wheel_model': '色相環：使用{wheel}色環',
+  'colors.cmd.wheel_focus': '色相環：前往色相環',
+});

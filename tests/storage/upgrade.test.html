@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Storage · SlopData v1 to v2 upgrade</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script>
+  // The OLD shape: a version 1 'slop-data' database written by the previous release, with records in it.
+  // It has every collection except exchangeRates (added in v2), plus a store this code does not know about.
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData;
+  const st = S.store;
+  const DB = 'slop-data';
+
+  function makeV1() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(DB, 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        for (const name of S.schema.COLLECTIONS) {
+          if (name === 'exchangeRates') continue;
+          const def = S.schema.def(name);
+          const os = d.createObjectStore(name, { keyPath: def.key });
+          for (const ix of def.indexes || []) os.createIndex(ix.name, ix.key, { unique: !!ix.unique, multiEntry: !!ix.multi });
+        }
+        d.createObjectStore('legacyNotes', { keyPath: 'id' });
+      };
+      r.onsuccess = () => {
+        const d = r.result;
+        const tx = d.transaction(['customers', 'settings', 'legacyNotes'], 'readwrite');
+        tx.objectStore('customers').put({ id: 'c1', name: 'Ada', categories: ['vip'], stage: 'lead', createdAt: 1, updatedAt: 1, version: 1 });
+        // v1 called the base currency 'currency'.
+        tx.objectStore('settings').put({ id: 'main', companyName: 'Acme', currency: 'EUR', paymentTermsDays: 14 });
+        tx.objectStore('legacyNotes').put({ id: 'n1', text: 'keep me' });
+        tx.oncomplete = () => { d.close(); res(); };
+        tx.onerror = () => rej(tx.error);
+      };
+      r.onerror = () => rej(r.error);
+    });
+  }
+  const versionNow = () => new Promise((res, rej) => {
+    const r = indexedDB.open(DB);
+    r.onsuccess = () => { const d = r.result; const v = d.version; const names = [...d.objectStoreNames]; d.close(); res({ v, names }); };
+    r.onerror = () => rej(r.error);
+  });
+  const rawCount = (store) => new Promise((res, rej) => {
+    const r = indexedDB.open(DB);
+    r.onsuccess = () => { const d = r.result; const q = d.transaction(store).objectStore(store).getAll(); q.onsuccess = () => { d.close(); res(q.result); }; q.onerror = () => rej(q.error); };
+    r.onerror = () => rej(r.error);
+  });
+
+  describe('SlopData v1 to v2 upgrade', () => {
+    beforeEach(async () => {
+      const e = await st.erase();
+      if (!e.ok) throw new Error(e.message);
+      await makeV1();
+    });
+
+    it('the v1 fixture is really version 1 and has no exchangeRates store', async () => {
+      const v = await versionNow();
+      expect(v.v).toBe(1);
+      expect(v.names.includes('exchangeRates')).toBe(false);
+    });
+
+    it('opens at the current version and keeps every record that was there', async () => {
+      const r = await st.ready();
+      expect(r.ok).toBe(true);
+      const c = await st.get('customers', 'c1');
+      expect(c.ok).toBe(true);
+      expect(c.value.name).toBe('Ada');
+      expect(c.value.categories).toEqual(['vip']);
+      const v = await versionNow();
+      expect(v.v).toBe(SlopData.store.DB_VERSION);   // 2 added exchangeRates, 3 the CRM groups and tags, 4 events, tasks and reminders, 5 expenses
+      for (const name of SlopData.schemaDefs.COLLECTIONS) expect(v.names.includes(name)).toBe(true, 'store ' + name + ' after the upgrade');
+    });
+
+    it('moves the v1 currency field to defaultCurrency and keeps the other settings', async () => {
+      await st.ready();
+      const s = await st.get('settings', 'main');
+      expect(s.ok).toBe(true);
+      expect(s.value.defaultCurrency).toBe('EUR');
+      expect('currency' in s.value).toBe(false);
+      expect(s.value.companyName).toBe('Acme');
+      expect(s.value.paymentTermsDays).toBe(14);
+    });
+
+    it('never deletes a store it does not know about', async () => {
+      await st.ready();
+      const notes = await rawCount('legacyNotes');
+      expect(notes.length).toBe(1);
+      expect(notes[0].text).toBe('keep me');
+    });
+
+    it('the new exchangeRates store works straight after the upgrade', async () => {
+      await st.ready();
+      const rates = await st.list('exchangeRates');
+      expect(rates.ok).toBe(true);
+      expect(rates.value.length).toBe(0);
+    });
+  });
+
+  run({ name: 'Storage · SlopData v1 to v2 upgrade' });
+  </script>
+</body>
+</html>

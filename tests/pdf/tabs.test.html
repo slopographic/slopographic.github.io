@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF tabs</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; the document tabs are driven through window.PT. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="tabs.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF tabs' });</script>
+</body>
+</html>

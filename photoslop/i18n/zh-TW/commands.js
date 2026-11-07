@@ -1,0 +1,23 @@
+/* PhotoSlop, Traditional Chinese: the command palette commands (colours, brush size and hardness, nudging, documents, views). Same keys as photoslop/i18n/en/commands.js. Terms: shared/i18n/glossary-zh-TW.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'photoslop.cmd.opacity_toast': '不透明度 {pct}%',
+  'photoslop.cmd.cycle_tools': '切換 {tools}',
+  'photoslop.cmd.swap_colors': '互換前景色與背景色',
+  'photoslop.cmd.default_colors': '預設顏色（黑／白）',
+  'photoslop.cmd.brush_bigger': '筆刷加大',
+  'photoslop.cmd.brush_smaller': '筆刷縮小',
+  'photoslop.cmd.brush_harder': '筆刷硬度提高',
+  'photoslop.cmd.brush_softer': '筆刷硬度降低',
+  'photoslop.cmd.tool_opacity': '工具不透明度 {pct}%',
+  'photoslop.cmd.nudge_left': '向左微移 {n} px',
+  'photoslop.cmd.nudge_right': '向右微移 {n} px',
+  'photoslop.cmd.nudge_up': '向上微移 {n} px',
+  'photoslop.cmd.nudge_down': '向下微移 {n} px',
+  'photoslop.cmd.next_doc': '下一個文件',
+  'photoslop.cmd.prev_doc': '上一個文件',
+  'photoslop.cmd.go_to_doc': '前往文件 {i}',
+  'photoslop.cmd.restore_aspect': '還原原始長寬比',
+  'photoslop.cmd.guides_panel': '參考線面板（參考線版面）',
+  'photoslop.cmd.search_key': '搜尋命令（{key}）',
+  'photoslop.cmd.nav_preset': '導覽預設集…',
+});

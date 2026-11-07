@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: data and text</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import { parseCsv, csvToJson, jsonToCsv, rowsToCsv } from '../../convert/js/core/csv.js';
+import { rowsToXlsx } from '../../convert/js/core/xlsx.js';
+import { readZip, readText } from '../../convert/js/io/zip.js';
+import { markdownToHtml } from '../../convert/js/core/markdown.js';
+import { htmlToText } from '../../convert/js/core/html-text.js';
+import { bytesToBase64, base64ToBytes, urlEncode, urlDecode, setLineEndings } from '../../convert/js/core/text.js';
+const { describe, it, expect } = SlopTest;
+
+describe('CSV and JSON', () => {
+  const csv = 'name,note,qty\n"Ada, Countess","said ""hi""\nthen left",007\nBob,,12\n';
+  it('parses quoted fields, escaped quotes and line breaks', () => {
+    const rows = parseCsv(csv);
+    expect(rows.length).toBe(3);
+    expect(rows[1]).toEqual(['Ada, Countess', 'said "hi"\nthen left', '007']);
+    expect(rows[2]).toEqual(['Bob', '', '12']);
+  });
+  it('CSV to JSON keeps text values and round-trips back to CSV', () => {
+    const { json, count } = csvToJson(csv);
+    expect(count).toBe(2);
+    const data = JSON.parse(json);
+    expect(data[0].note).toBe('said "hi"\nthen left');
+    expect(data[0].qty).toBe('007');
+    const back = jsonToCsv(json);
+    expect(parseCsv(back)).toEqual(parseCsv(csv));
+  });
+  it('round-trips a simple CSV exactly', () => {
+    const simple = 'a,b\n1,two\n3,"x,y"\n';
+    expect(jsonToCsv(csvToJson(simple).json)).toBe(simple);
+  });
+  it('turns plain numbers into JSON numbers only when they round-trip', () => {
+    const data = JSON.parse(csvToJson('id,code,big\n42,007,12345678901234567890\n', { numbers: true }).json);
+    expect(data[0].id).toBe(42);
+    expect(data[0].code).toBe('007');
+    expect(data[0].big).toBe('12345678901234567890');
+  });
+  it('builds columns from every object key in the JSON', () => {
+    expect(jsonToCsv('[{"a":1},{"b":"x,y"}]')).toBe('a,b\n1,\n,"x,y"\n');
+  });
+  it('detects the separator from the first line', () => {
+    expect(parseCsv('a;b\n1;2\n')).toEqual([['a', 'b'], ['1', '2']]);
+    expect(parseCsv('a\tb\n1\t2\n')).toEqual([['a', 'b'], ['1', '2']]);
+  });
+  it('rejects invalid JSON with a plain message', () => {
+    expect(() => jsonToCsv('{nope')).toThrow(/not valid JSON/);
+  });
+  it('quotes cells that contain the separator', () => {
+    expect(rowsToCsv([['a;b', 'c']], { delimiter: ';' })).toBe('"a;b";c\n');
+  });
+});
+
+describe('XLSX', () => {
+  it('writes a workbook with the rows, numbers as numbers', async () => {
+    const blob = await rowsToXlsx([['Name', 'Qty'], ['Ada & Co', '42'], ['007', '1.50']]);
+    const files = await readZip(blob);
+    expect(files.has('[Content_Types].xml')).toBeTruthy();
+    expect(files.has('xl/workbook.xml')).toBeTruthy();
+    const sheet = readText(files, 'xl/worksheets/sheet1.xml');
+    expect(sheet).toContain('<t xml:space="preserve">Ada &amp; Co</t>');
+    expect(sheet).toContain('<c r="B2"><v>42</v></c>');
+    expect(sheet).toContain('<c r="A3" t="inlineStr">');
+    expect(sheet).toContain('<c r="B3" t="inlineStr">');
+  });
+});
+
+describe('Base64', () => {
+  it('round-trips every byte value', () => {
+    const bytes = Uint8Array.from({ length: 256 }, (_, i) => i);
+    expect(base64ToBytes(bytesToBase64(bytes))).toEqual(bytes);
+  });
+  it('round-trips wrapped output and data: URLs', () => {
+    const bytes = Uint8Array.from({ length: 300 }, (_, i) => (i * 37) & 255);
+    const wrapped = bytesToBase64(bytes, { wrap: 76 });
+    expect(wrapped.split('\n')[0].length).toBe(76);
+    expect(base64ToBytes(wrapped)).toEqual(bytes);
+    expect(base64ToBytes('data:text/plain;base64,aGk=')).toEqual(new Uint8Array([104, 105]));
+  });
+  it('rejects text that is not Base64', () => {
+    expect(() => base64ToBytes('abc$')).toThrow(/not Base64/);
+    expect(() => base64ToBytes('a')).toThrow(/length/);
+  });
+});
+
+describe('text tools', () => {
+  it('round-trips URL encoding', () => {
+    const s = 'a b/c?d=é&x=1';
+    expect(urlDecode(urlEncode(s))).toBe(s);
+    expect(urlEncode('https://x.io/a b', { full: true })).toBe('https://x.io/a%20b');
+  });
+  it('reports a bad percent sequence', () => {
+    expect(() => urlDecode('100%')).toThrow(/bad percent/);
+  });
+  it('rewrites line endings', () => {
+    expect(setLineEndings('a\r\nb\rc\nd', 'crlf')).toBe('a\r\nb\r\nc\r\nd');
+    expect(setLineEndings('a\r\nb', 'lf')).toBe('a\nb');
+  });
+});
+
+describe('Markdown and HTML', () => {
+  it('converts common Markdown and escapes raw HTML', () => {
+    const html = markdownToHtml('# Title\n\nSome **bold** and *em* with `a<b`.\n\n- one\n- two\n\n<script>x<\/script>\n');
+    expect(html).toContain('<h1>Title</h1>');
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).toContain('<em>em</em>');
+    expect(html).toContain('<code>a&lt;b</code>');
+    expect(html).toContain('<li>two</li>');
+    expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+  it('drops javascript: links', () => {
+    expect(markdownToHtml('[x](javascript:alert(1)) [y](https://a.b/c)')).toContain('href="#"');
+    expect(markdownToHtml('[y](https://a.b/c)')).toContain('href="https://a.b/c"');
+  });
+  it('writes a full page when asked', () => {
+    expect(markdownToHtml('hi', { standalone: true, title: 'T' })).toContain('<!doctype html>');
+  });
+  it('turns HTML into readable text', () => {
+    const t = htmlToText('<html><head><title>x</title><style>p{}</style></head><body><h1>Hello</h1><p>One <b>two</b></p><ul><li>a</li><li>b</li></ul><script>bad()<\/script></body></html>');
+    expect(t).toContain('Hello');
+    expect(t).toContain('One two');
+    expect(t).toContain('- a');
+    expect(t).not.toContain('bad()');
+    expect(t).not.toContain('p{}');
+  });
+});
+
+SlopTest.run({ name: 'File convert: data and text' });
+</script>
+</body>
+</html>

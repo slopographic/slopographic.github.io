@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="support.exportCard=true">
+  <title>Support card</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+  <script>
+    // Ads and analytics never load in tests: the loader is stubbed before consent-mode.js runs.
+    window.__loaded = [];
+    window.SLOP_CONSENT_LOADER = function (src) { window.__loaded.push(src); };
+  </script>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/consent/config.js"></script>
+  <script src="../../shared/consent/state.js"></script>
+  <script src="../../shared/consent/consent-mode.js"></script>
+  <script src="../../shared/support/state.js"></script>
+  <script src="../../shared/support/card.js"></script>
+  <script src="../../shared/support/support.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, sleep, waitFor, run } = SlopTest;
+  const KEY = 'slop-support', CKEY = 'slop-consent';
+  const cards = () => document.querySelectorAll('.slopsup-card');
+  const btn = (text, root = document) => Array.from(root.querySelectorAll('button')).find((b) => b.textContent.trim() === text);
+  const slider = () => document.querySelector('.slopsup-card input[type="range"]');
+  const consentAds = () => { const r = localStorage.getItem(CKEY); return r ? JSON.parse(r).categories.ads : null; };
+  const reset = () => {
+    localStorage.removeItem(KEY); localStorage.removeItem(CKEY);
+    document.querySelectorAll('.slopsup-card, [data-test-host]').forEach((n) => n.remove());
+  };
+  const brandJson = () => fetch('../../brand/brand.json').then((r) => r.json());
+
+  describe('support card: first export', () => {
+    beforeEach(reset);
+    it('the corner card shows after the first export, and only once', async () => {
+      expect(await SlopSupport.afterExport('photoslop')).toBe(true);
+      await waitFor(() => cards().length === 1);
+      expect(document.querySelector('.slopsup-card').classList.contains('slopsup-corner')).toBe(true);
+      expect(await SlopSupport.afterExport('slopvector')).toBe(false);
+      expect(cards().length).toBe(1);
+      expect(JSON.parse(localStorage.getItem(KEY)).shown).toBe(true);
+    });
+    it('the card is not a modal: no overlay, and it is placed in the corner', async () => {
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => cards().length === 1);
+      const r = document.querySelector('.slopsup-card').getBoundingClientRect();
+      expect(r.right).toBeLessThanOrEqual(innerWidth);
+      expect(document.querySelector('[class*="overlay"], [class*="backdrop"]')).toBe(null);
+    });
+    it('the card has the Tip jar link (new tab, Patreon URL from brand.json), No thanks, ×, Sloppo, and the ads slider off', async () => {
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => cards().length === 1);
+      const j = await brandJson();
+      const donate = Array.from(document.querySelectorAll('.slopsup-card a')).find((a) => a.textContent === 'Tip jar');
+      expect(donate.getAttribute('href')).toBe(j.links.patreon);
+      expect(donate.getAttribute('target')).toBe('_blank');
+      expect(donate.getAttribute('rel')).toMatch(/noopener/);
+      expect(btn('No thanks').className).toBe(donate.className);
+      expect(document.querySelector('.slopsup-x').getAttribute('aria-label')).toBe('Close for now');
+      expect(document.querySelector('.slopsup-sloppo canvas')).toBeTruthy();
+      expect(slider().value).toBe('0');
+      expect(document.querySelector('.slopsup-card').textContent).toContain('Analytics and ads are off by default.');
+    });
+  });
+
+  describe('support card: No thanks and close', () => {
+    beforeEach(reset);
+    it('No thanks removes the card, stores the choice, and no app shows it again', async () => {
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => cards().length === 1);
+      btn('No thanks').click();
+      expect(cards().length).toBe(0);
+      expect(JSON.parse(localStorage.getItem(KEY)).dismissed).toBe(true);
+      expect(await SlopSupport.afterExport('slopcut')).toBe(false);
+      const h = document.createElement('div'); h.setAttribute('data-test-host', ''); document.body.append(h);
+      const r = SlopSupport.trackRender('slopcut', h, { delayMs: 20 });
+      await sleep(80);
+      expect(h.querySelector('.slopsup-card')).toBe(null);
+      r.done();
+    });
+    it('the × closes the card for now and stores nothing about "No thanks"', async () => {
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => cards().length === 1);
+      document.querySelector('.slopsup-x').click();
+      expect(cards().length).toBe(0);
+      expect(JSON.parse(localStorage.getItem(KEY)).dismissed).toBe(false);
+    });
+  });
+
+  describe('support card: ads slider', () => {
+    beforeEach(reset);
+    it('the slider starts Off, and turning it On writes ads: true to the consent record', async () => {
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => slider());
+      expect(consentAds()).toBe(null);
+      slider().value = '1';
+      slider().dispatchEvent(new Event('input', { bubbles: true }));
+      await waitFor(() => consentAds() === true);
+      expect(consentAds()).toBe(true);
+      await waitFor(() => document.querySelector('.slopsup-ad'));
+      expect(document.querySelector('.slopsup-ad').getAttribute('aria-label')).toBe('Advertisement');
+      expect(slider()).toBe(null);
+    });
+    it('with ads accepted, Turn off ads writes ads: false and the slider returns', async () => {
+      localStorage.setItem(CKEY, JSON.stringify({ version: SLOP_CONSENT_CONFIG.policyVersion, timestamp: 1, categories: { necessary: true, analytics: false, ads: true, rates: false } }));
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => document.querySelector('.slopsup-ad'));
+      btn('Turn off ads').click();
+      await waitFor(() => slider());
+      expect(consentAds()).toBe(false);
+      expect(slider().value).toBe('0');
+    });
+  });
+
+  describe('support card: long video render', () => {
+    beforeEach(reset);
+    it('a render still running after the delay shows the card inside the progress host', async () => {
+      const h = document.createElement('div'); h.setAttribute('data-test-host', ''); document.body.append(h);
+      const r = SlopSupport.trackRender('slopcut', h, { delayMs: 30 });
+      await waitFor(() => h.querySelector('.slopsup-inline'));
+      expect(r.shown()).toBe(true);
+      r.done();
+      expect(h.querySelector('.slopsup-card')).toBe(null);
+    });
+    it('closing the card does not end the render: done() still works and nothing breaks', async () => {
+      const h = document.createElement('div'); h.setAttribute('data-test-host', ''); document.body.append(h);
+      const r = SlopSupport.trackRender('slopcut', h, { delayMs: 20 });
+      await waitFor(() => h.querySelector('.slopsup-inline'));
+      h.querySelector('.slopsup-x').click();
+      expect(h.querySelector('.slopsup-card')).toBe(null);
+      expect(r.shown()).toBe(false);
+      expect(() => r.done()).not.toThrow();
+    });
+    it('a short render (finished before the delay) shows nothing', async () => {
+      const h = document.createElement('div'); h.setAttribute('data-test-host', ''); document.body.append(h);
+      const r = SlopSupport.trackRender('slopcut', h, { delayMs: 5000 });
+      r.done();
+      await sleep(30);
+      expect(h.querySelector('.slopsup-card')).toBe(null);
+    });
+    it('a long render after the first export still shows the card (the long-video rule)', async () => {
+      await SlopSupport.afterExport('photoslop');
+      await waitFor(() => cards().length === 1);
+      document.querySelector('.slopsup-x').click();
+      const h = document.createElement('div'); h.setAttribute('data-test-host', ''); document.body.append(h);
+      const r = SlopSupport.trackRender('slopcut', h, { delayMs: 20 });
+      await waitFor(() => h.querySelector('.slopsup-inline'));
+      r.done();
+    });
+    it('after No thanks, a long render shows nothing', async () => {
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, shown: true, dismissed: true }));
+      const h = document.createElement('div'); h.setAttribute('data-test-host', ''); document.body.append(h);
+      const r = SlopSupport.trackRender('slopcut', h, { delayMs: 10 });
+      await sleep(60);
+      expect(h.querySelector('.slopsup-card')).toBe(null);
+      r.done();
+    });
+  });
+
+  run({ name: 'Support card' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF saved view</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  describe('Slop PDF saved view', () => {
+    it('brings back the open page, tool and zoom after leaving for Slop Drive and coming back', async () => {
+      await PT.boot('', 'app');
+      await sleep(800); // let the boot-time session restore finish, so it cannot replace the page made below
+      await PT.U.idb.del('session');
+      PT.E.closeAll();
+      await sleep(300);
+      const { E, A, SP } = PT;
+      E.commit('Blank', (st) => E.ops.insert(st, 0, [E.blankPage(200, 100)]));
+      const pid = E.state.pages[0].id;
+      A.setTool('edit');
+      A.openPage(pid);
+      SP.editor.zoomMode = 'num'; SP.editor.zoom = 1.5; SP.editor.layout();
+      PT.win.document.body.click(); // a user gesture: the view is saved on input
+      await sleep(1600); // the session and view autosaves are debounced
+      const fr = document.getElementById('app');
+      fr.src = '../drive/frame.html';
+      await sleep(1500);
+      await PT.boot('', 'app');
+      await waitFor(() => PT.E.state.pages.length > 0 && PT.A.mode === 'page', { timeout: 20000 });
+      expect(PT.A.tool).toBe('edit');
+      expect(PT.SP.editor.pid).toBe(pid);
+      expect(PT.SP.editor.zoomMode).toBe('num');
+      expect(PT.SP.editor.zoom).toBeCloseTo(1.5, 1e-6);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop PDF · saved view' });
+  </script>
+</body>
+</html>

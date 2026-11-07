@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Slides touch</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  /* Slop Slides with a finger: the slide is a touch surface, a tap selects a text box, a double tap opens its text, a
+     drag moves it, a handle grabs from a finger's reach (a press 14 px off the corner still resizes), and a long press
+     opens the context menu.
+     Covers: slides/js/ui/pointer.js, slides/js/ui/overlay.js */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let w, o;
+  const cv = () => w.SS.stage.cv;
+  /** A TouchKit target at slide point (x, y), plus screen offsets. */
+  const at = (x, y, dx = 0, dy = 0) => { const c = w.SS.stage.toClient(x, y), r = cv().getBoundingClientRect(); return { el: cv(), x: c.x - r.left + dx, y: c.y - r.top + dy }; };
+  const box = () => w.SS.app.slide().objects.find((x) => x.id === o.id);
+
+  describe('Slop Slides on touch', () => {
+    it('opens with a text box on a slide that is a touch surface', async () => {
+      w = await ST.open('../../slides/', { width: innerWidth, height: innerHeight });
+      await waitFor(() => w.SlopTouch && w.SlopTouch.ready, { timeout: 15000 });
+      expect(cv().getAttribute('data-touch-surface')).toBe('');
+      expect(w.getComputedStyle(cv()).touchAction).toBe('none');
+      w.document.getElementById('insText').click();
+      const ta = w.document.getElementById('editor');
+      ta.value = 'Touch me';
+      ta.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+      o = w.SS.app.slide().objects.find((x) => x.type === 'text' && w.SS.objects.plain(x.text) === 'Touch me');
+      expect(!!o).toBe(true);
+      w.SS.app.select([]);
+      await sleep(500);
+    });
+    it('a tap selects the text box', async () => {
+      const c = ST.centre(box());
+      await TouchKit.tap(at(c.x, c.y));
+      await waitFor(() => w.SS.app.sel.length === 1 && w.SS.app.sel[0] === o.id, { timeout: 3000 });
+      await sleep(500);
+    });
+    it('a double tap opens its text for editing', async () => {
+      const c = ST.centre(box());
+      await TouchKit.doubleTap(at(c.x, c.y));
+      await waitFor(() => w.SS.textEdit.editing === o.id, { timeout: 3000 });
+      expect(w.document.getElementById('editor').hidden).toBe(false);
+      w.document.getElementById('editor').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await sleep(500);
+    });
+    it('a drag moves it', async () => {
+      const b = box(), c = ST.centre(b), x0 = b.x;
+      await TouchKit.drag(at(c.x, c.y), 80, 0, 10);
+      await waitFor(() => box().x > x0 + 20, { timeout: 3000 });
+      await sleep(500);
+    });
+    it('a corner handle grabs from a finger\'s reach and resizes', async () => {
+      w.SS.app.select([o.id]);
+      const b = box(), w0 = b.w;
+      // 14 px outside the corner: beyond a mouse's 8 px, within a finger's 22 (a pen's 12 is not enough either)
+      await TouchKit.drag(at(b.x + b.w, b.y + b.h, 10, 10), 60, 0, 10);
+      await waitFor(() => box().w > w0 + 20, { timeout: 3000 });
+      await sleep(500);
+    });
+    it('a long press opens the context menu, and the lift picks nothing', async () => {
+      const c = ST.centre(box()), before = w.SS.app.slide().objects.length;
+      await TouchKit.longPress(at(c.x, c.y));
+      await waitFor(() => w.document.querySelector('.sui-menu'), { timeout: 3000 });
+      await sleep(250);
+      expect(!!w.document.querySelector('.sui-menu')).toBe(true);
+      expect(w.SS.app.slide().objects.length).toBe(before);
+      w.SlopUI.closeMenu();
+    });
+  });
+  SlopTest.run({ name: 'Slop Slides touch' });
+  </script>
+</body>
+</html>

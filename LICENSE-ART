@@ -1,0 +1,19 @@
+Sloppo character art
+Copyright (c) 2026 Slopographic. All rights reserved.
+
+The following files draw, model or animate the Sloppo character. They are NOT
+covered by the MIT License in LICENSE. You may view them as part of this
+repository and run them unmodified on slopographic.com. Any other use (copying,
+modifying, redistributing, or using the Sloppo character in another project,
+product or fork) requires written permission from Slopographic.
+
+  shared/sloppo/          the 2D Sloppo painter (body, face, hats, props, auras)
+  shared/buddy/look.js    the goo Sloppo SVG look
+  shared/buddy/hats.js    Sloppo hats
+  shared/buddy/three3d.js, shared/buddy/view3d.js   the 3D Sloppo
+  The Sloppo face SVG in shared/buddy/boot.js and the goo splat SVG in
+  shared/buddy/fx.js
+  The Sloppo SVG markup in favicon.svg and og-share.png (the share card, built from the app badges)
+
+Everything else in shared/buddy/ (bodies.js physics, perches, input, chaos,
+the assistant engine) is code and is covered by the MIT License.

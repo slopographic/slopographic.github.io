@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs export: DOCX zip, Word import, text and Markdown</title></head>
+<body>
+<script src="../harness.js"></script>
+<script type="module">
+import { exportDocx, importDocx } from '../../docs/js/io/docx.js';
+import { newDoc, para, paraText } from '../../docs/js/model/doc.js';
+import { readZip, readText, writeZip } from '../../shared/office/zip.js';
+import { parseXml, NS, kid, kids, attr } from '../../shared/office/xml.js';
+import { bulletList } from '../../docs/js/model/styles.js';
+const { describe, it, expect } = SlopTest;
+
+/** A document with a heading, bold and italic runs, a bulleted item, centred text and a table. */
+function sample() {
+  const d = newDoc();
+  const h = para('Quarterly plan', 'H1');
+  const body = para('');
+  body.runs = [{ text: 'Plain ' }, { text: 'bold', b: true }, { text: ' and ' }, { text: 'slanted', i: true, color: '#c00000' }, { text: '\tafter a tab' }];
+  const item = para('First point', 'Normal', { list: { id: 'bul', lvl: 0 } });
+  const centred = para('Centred line', 'Normal', { align: 'center' });
+  const t = { type: 'table', id: 'tt1', cols: [234, 234], border: { w: 0.5, color: '#000000' }, align: 'left',
+    rows: [{ header: true, cells: [{ blocks: [para('A')] }, { blocks: [para('B')] }] }, { header: false, cells: [{ blocks: [para('1')] }, { blocks: [para('2')] }] }] };
+  d.blocks = [h, body, item, centred, t, para('End.')];
+  d.lists.bul = bulletList();
+  d.meta.title = 'Quarterly plan';
+  return d;
+}
+
+describe('DOCX export', () => {
+  it('writes a zip with the parts Word needs, including word/document.xml', async () => {
+    const blob = await exportDocx(sample());
+    expect(blob.type).toBe('application/zip');
+    const files = await readZip(blob);
+    expect(files.has('word/document.xml')).toBeTruthy();
+    expect(files.has('[Content_Types].xml')).toBeTruthy();
+    expect(files.has('_rels/.rels')).toBeTruthy();
+    expect(files.has('word/numbering.xml')).toBeTruthy();
+    expect(files.has('word/styles.xml')).toBeTruthy();
+    expect(readText(files, 'word/document.xml').startsWith('<?xml')).toBeTruthy();
+  });
+  it('writes the text, the bold and italic marks, colour, tab and alignment into document.xml', async () => {
+    const xml = readText(await readZip(await exportDocx(sample())), 'word/document.xml');
+    const d = parseXml(xml);
+    expect(xml).toContain('<w:t xml:space="preserve">Quarterly plan</w:t>');
+    expect(xml).toContain('<w:b/>');
+    expect(xml).toContain('<w:i/>');
+    expect(xml).toContain('<w:color w:val="C00000"/>');
+    expect(xml).toContain('<w:tab/>');
+    expect(xml).toContain('<w:jc w:val="center"/>');
+    expect(xml).toContain('<w:numId w:val="1"/>');
+    expect(xml).toContain('<w:pStyle w:val="Heading1"/>');
+    const body = kid(d.documentElement, NS.w, 'body');
+    expect(kids(body, NS.w, 'p').length).toBe(5);
+    expect(kids(body, NS.w, 'tbl').length).toBe(1);
+  });
+  it('sets the page size and margins from the section (Letter, 1 inch = 1440 twips)', async () => {
+    const xml = readText(await readZip(await exportDocx(sample())), 'word/document.xml');
+    expect(xml).toContain('<w:pgSz w:w="12240" w:h="15840"/>');
+    expect(xml).toContain('w:top="1440"');
+    expect(xml).toContain('w:left="1440"');
+  });
+  it('writes a landscape page when the section is landscape', async () => {
+    const d = sample();
+    d.section = Object.assign({}, d.section, { orient: 'landscape' });
+    const xml = readText(await readZip(await exportDocx(d)), 'word/document.xml');
+    expect(xml).toContain('w:w="15840" w:h="12240" w:orient="landscape"');
+  });
+});
+
+describe('DOCX import', () => {
+  it('reads back what the editor exported: text, marks, lists, alignment and the table', async () => {
+    const blob = await exportDocx(sample());
+    const d = await importDocx(blob);
+    const texts = d.blocks.filter((b) => b.type === 'p').map(paraText);
+    expect(texts).toContain('Quarterly plan');
+    expect(texts).toContain('Plain bold and slanted\tafter a tab');
+    const bold = d.blocks.find((b) => b.type === 'p' && paraText(b).startsWith('Plain')).runs.find((r) => r.text === 'bold');
+    expect(bold.b).toBeTruthy();
+    const item = d.blocks.find((b) => b.type === 'p' && paraText(b) === 'First point');
+    expect(item.props.list.id).toBe('bul');
+    expect(d.blocks.find((b) => b.type === 'p' && paraText(b) === 'Centred line').props.align).toBe('center');
+    const table = d.blocks.find((b) => b.type === 'table');
+    expect(table.rows.length).toBe(2);
+    expect(table.cols.length).toBe(2);
+    expect(d.section.size.w).toBe(612);
+  });
+  it('reads a hand-written Word file: heading styles, tabs, line breaks, numbering and nested cells', async () => {
+    const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="${W}"><w:body>
+<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Section two</w:t></w:r></w:p>
+<w:p><w:r><w:t>Col</w:t><w:tab/><w:t>umn</w:t><w:br/><w:t>next line</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:rPr><w:sz w:val="28"/><w:u w:val="single"/></w:rPr><w:t>Step one</w:t></w:r></w:p>
+<w:tbl><w:tblGrid><w:gridCol w:w="2880"/><w:gridCol w:w="2880"/></w:tblGrid>
+<w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Spanned</w:t></w:r></w:p></w:tc></w:tr>
+</w:tbl>
+<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567"/></w:sectPr>
+</w:body></w:document>`;
+    const numbering = `<?xml version="1.0"?><w:numbering xmlns:w="${W}">
+<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum>
+<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>
+<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>`;
+    const blob = await writeZip([{ path: 'word/document.xml', data: doc }, { path: 'word/numbering.xml', data: numbering }]);
+    const d = await importDocx(blob);
+    expect(d.blocks[0].style).toBe('H2');
+    expect(paraText(d.blocks[0])).toBe('Section two');
+    expect(paraText(d.blocks[1])).toBe('Col\tumn\nnext line');
+    expect(d.blocks[2].props.list.id).toBe('num');
+    expect(d.blocks[2].runs[0].size).toBe(14);
+    expect(d.blocks[2].runs[0].u).toBeTruthy();
+    const t = d.blocks[3];
+    expect(t.type).toBe('table');
+    expect(t.rows[0].cells[0].span).toBe(2);
+    expect(t.cols.length).toBe(2);
+    expect(d.section.size.w).toBe(595.3);
+    expect(d.section.size.h).toBe(841.9);
+    expect(d.section.margin.top).toBe(56.7);
+  });
+  it('refuses a zip that is not a Word document', async () => {
+    const blob = await writeZip([{ path: 'other.txt', data: 'hi' }]);
+    await expect(importDocx(blob)).rejects(/Not a Word document/);
+  });
+});
+
+describe('round trips and text exports', () => {
+  it('exports DOCX that imports back with the same paragraph count', async () => {
+    const d = sample();
+    const back = await importDocx(await exportDocx(d));
+    expect(back.blocks.filter((b) => b.type === 'p').length).toBe(d.blocks.filter((b) => b.type === 'p').length);
+  });
+  it('keeps the document title in the core properties', async () => {
+    const files = await readZip(await exportDocx(sample()));
+    expect(readText(files, 'docProps/core.xml')).toContain('<dc:title>Quarterly plan</dc:title>');
+  });
+});
+SlopTest.run({ name: 'Slop Docs export' });
+</script>
+</body>
+</html>

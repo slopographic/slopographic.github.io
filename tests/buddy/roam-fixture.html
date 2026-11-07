@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roaming mascot fixture</title>
+  <!-- A page for tests/buddy/roam.test.html: a header, content in a column with gutters, a toolbar of controls and an
+       area marked off for the mascot ([data-mascot-avoid]). Query: ?size=<desktop>,<phone>&roam=float|hop&reduce=1 -->
+  <style>
+    body { margin: 0; background: #f3f4f6; color: #111827; font: 15px/1.5 system-ui; min-height: 500vh;   /* room for long scrolls */ }
+    body > header { position: sticky; top: 0; height: 56px; background: #1f2937; color: #fff; display: flex; align-items: center; padding: 0 16px; z-index: 5; }
+    main { max-width: 720px; margin: 40px auto; display: grid; gap: 28px; }
+    section { background: #fff; border-radius: 12px; padding: 20px 24px; }
+    .tools { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tools button { padding: 8px 14px; }
+    #nogo { position: fixed; right: 0; top: 56px; width: 25vw; height: calc(100vh - 56px); background: repeating-linear-gradient(45deg, #fde68a, #fde68a 10px, #fef3c7 10px, #fef3c7 20px); }
+  </style>
+</head>
+<body>
+  <header><strong>Fixture</strong></header>
+  <main>
+    <section><h1>A page with content</h1><p>The mascot rests beside the edges of this column, in the open, and never on the text or the controls.</p></section>
+    <section><h2>Controls</h2><div class="tools"><button type="button">Open</button><button type="button">Save</button><button type="button">Export</button><input aria-label="Name" value="typing here"></div></section>
+    <section><h2>More text</h2><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p></section>
+  </main>
+  <div id="nogo" data-mascot-avoid></div>
+  <script>
+    window.__cls = 0;
+    try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true }); } catch (e) { /* no layout-shift entries here */ }
+  </script>
+  <script type="module">
+    import * as S from '../../shared/mascot/slot.js';
+    const q = new URLSearchParams(location.search), size = q.get('size');
+    try { localStorage.removeItem('slop.mascot.pos'); } catch (e) { /* storage blocked */ }
+    const cfg = { overlay: '../../brand/profiles/overlays/acme/', z: 10 };
+    if (size) { const [desktop, phone] = size.split(',').map(Number); cfg.size = { desktop, phone }; }
+    cfg.roam = q.get('roam') || '';
+    if (q.get('reduce')) cfg.reduce = true;
+    await S.start(cfg);
+    S.show(true);
+    window.slotReady = true;
+  </script>
+</body>
+</html>

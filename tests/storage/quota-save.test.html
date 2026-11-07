@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Storage · a quota error on a save</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } textarea { width: 300px; height: 60px; }</style>
+</head>
+<body>
+  <textarea id="editor" aria-label="Editor">My unsaved note, typed but not yet saved</textarea>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/storage/classify.js"></script>
+  <script src="../../shared/storage/storage.js"></script>
+  <script src="../../shared/storage/clear.js"></script>
+  <script src="../../shared/storage/ui.js"></script>
+  <script>
+  // A save that the browser refuses for quota. The IndexedDB put is forced to throw the same error Chrome throws,
+  // so the real SlopData path runs: the Result is 'quota', the storage dialog opens, and the editor keeps its text.
+  const { describe, it, expect, run, waitFor } = SlopTest;
+  const S = window.SlopData;
+  const editor = document.getElementById('editor');
+  const QUOTA = () => new DOMException("Failed to execute 'put' on 'IDBObjectStore': the current transaction exceeded its quota limitations.", 'QuotaExceededError');
+  const dialogs = () => [...document.querySelectorAll('.sui-dlg')];
+  const dialogText = () => dialogs().map((d) => d.textContent).join(' ');
+  const closeAll = async () => { document.querySelectorAll('.sui-x').forEach((b) => b.click()); await waitFor(() => dialogs().length === 0); };
+  const realPut = IDBObjectStore.prototype.put;
+  const forceQuota = (on) => {
+    IDBObjectStore.prototype.put = on ? function () { throw QUOTA(); } : realPut;
+  };
+
+  describe('a quota error on a save', () => {
+    it('shows the full-storage dialog and keeps the editor text', async () => {
+      await S.store.ready();
+      const before = editor.value;
+      forceQuota(true);
+      let r;
+      try {
+        r = await S.store.put('customers', { name: 'Quota test', email: 'q@example.test' });
+      } finally { forceQuota(false); }
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('quota');
+      await waitFor(() => dialogs().length > 0);
+      expect(dialogText()).toContain('storage is full');
+      expect(dialogText()).toContain('Free some space');
+      expect(dialogText()).toContain('Clear thumbnails and previews');
+      expect(dialogText()).toContain('Connect a folder');
+      expect(editor.value).toBe(before);
+      await closeAll();
+    });
+
+    it('a second failing save while the dialog is open does not stack a second dialog', async () => {
+      forceQuota(true);
+      try {
+        await S.store.put('customers', { name: 'One' });
+        await S.store.put('customers', { name: 'Two' });
+      } finally { forceQuota(false); }
+      await waitFor(() => dialogs().length > 0);
+      expect(dialogs().length).toBe(1);
+      await closeAll();
+    });
+
+    it('Try again runs the save again and closes the dialog once it succeeds', async () => {
+      let calls = 0;
+      const err = QUOTA();
+      expect(window.SlopStorage.handle(err, { app: 'Test app', what: 'this note', retry: async () => { calls++; if (calls < 2) throw QUOTA(); } })).toBe(true);
+      await waitFor(() => dialogs().length > 0);
+      const tryAgain = [...document.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Try again');
+      expect(!!tryAgain).toBe(true);
+      tryAgain.click();
+      await waitFor(() => calls === 1);
+      await waitFor(() => dialogs().length > 0 && dialogText().includes('Still full'));
+      expect(dialogText()).toContain('Still full');
+      [...document.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Try again').click();
+      await waitFor(() => calls === 2);
+      await waitFor(() => dialogs().length === 0);
+      await closeAll();
+    });
+
+    it('an error that is not a quota error opens no dialog and is left to the caller', async () => {
+      const handled = window.SlopStorage.handle(new Error('Key already exists'), { app: 'Test' });
+      expect(handled).toBe(false);
+      expect(dialogs().length).toBe(0);
+    });
+
+    it('a real save that succeeds still works with the storage scripts loaded', async () => {
+      const r = await S.store.put('customers', { name: 'Plain save', email: 'plain@example.test' });
+      expect(r.ok).toBe(true);
+    });
+  });
+
+  describe('the estimate', () => {
+    it('reports usage, the per-part list and the localStorage part', async () => {
+      localStorage.setItem('quota-test', 'x'.repeat(100));
+      const e = await window.SlopStorage.estimate();
+      expect(Array.isArray(e.parts)).toBe(true);
+      expect(e.parts.some((p) => p.id === 'localstorage')).toBe(true);
+      expect(e.parts.some((p) => p.id === 'indexedDB')).toBe(true);
+      expect(e.percent >= 0 && e.percent <= 100).toBe(true);
+      localStorage.removeItem('quota-test');
+    });
+  });
+
+  run({ name: 'Storage · a quota error on a save' });
+  </script>
+</body>
+</html>

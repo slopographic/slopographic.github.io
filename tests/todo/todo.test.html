@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>To-do · a task with a due time shows in Calendar, and completing it in To-do updates Calendar</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const cal = document.createElement('iframe');
+  cal.style.cssText = 'width:1100px;height:520px;border:0;position:fixed;left:0;top:0;background:#111';
+  cal.src = '../../calendar/index.html#week';
+  document.body.append(cal);
+  const todo = document.createElement('iframe');
+  todo.style.cssText = 'width:1100px;height:520px;border:0;position:fixed;left:0;top:520px;background:#111';
+  todo.src = '../../todo/index.html';
+  document.body.append(todo);
+  const cw = () => cal.contentWindow, cd = () => cal.contentDocument;
+  const tw = () => todo.contentWindow, td = () => todo.contentDocument;
+  const calBooted = () => cw() && cw().SlopCal && cw().SlopCal.state && cd().getElementById('cBoot') && cd().getElementById('cBoot').hidden;
+  const todoBooted = () => tw() && tw().SlopTodo && td().getElementById('tBoot') && td().getElementById('tBoot').hidden;
+  const chip = (id) => cd().querySelector(`[data-kind="task"][data-id="${id}"]`);
+  let taskId = null;
+
+  describe('a task with a due time on the calendar', () => {
+    it('shows as a block in the week view once it is created in To-do', async () => {
+      await waitFor(calBooted, { timeout: 20000 });
+      await waitFor(todoBooted, { timeout: 20000 });
+      const S = cw().SlopData;
+      const today = cw().SlopTime.todayIn(cw().SlopCal.state.zone);
+      const r = await S.store.put('tasks', { title: 'Renew passport', due: today, dueTime: '15:00', tz: cw().SlopTime.deviceZone(), list: 'Inbox', done: false });
+      expect(r.ok).toBe(true);
+      taskId = r.value.id;
+      await waitFor(() => chip(taskId), { timeout: 8000 });
+      expect(chip(taskId).getAttribute('data-kind')).toBe('task');
+      expect(chip(taskId).querySelector('input[type="checkbox"]')).toBeTruthy();
+    });
+
+    it('is completed in To-do, and the calendar block goes', async () => {
+      await waitFor(() => td().querySelector(`.t-row[data-id="${taskId}"] .t-check`), { timeout: 8000 });
+      td().querySelector(`.t-row[data-id="${taskId}"] .t-check`).click();
+      await waitFor(async () => (await tw().SlopData.store.get('tasks', taskId)).value.done === true, { timeout: 8000 });
+      await waitFor(() => !chip(taskId), { timeout: 8000 });
+      expect(chip(taskId)).toBe(null);
+    });
+
+    it('is reopened in To-do, and the calendar block comes back', async () => {
+      td().getElementById('tDone').click();   // a done task shows in Today only with Show done on
+      await waitFor(() => td().querySelector(`.t-row[data-id="${taskId}"] .t-check`), { timeout: 8000 });
+      td().querySelector(`.t-row[data-id="${taskId}"] .t-check`).click();
+      await waitFor(async () => (await tw().SlopData.store.get('tasks', taskId)).value.done === false, { timeout: 8000 });
+      await waitFor(() => chip(taskId), { timeout: 8000 });
+      expect(chip(taskId).querySelector('input').checked).toBe(false);
+    });
+  });
+
+  run({ name: 'To-do · task on the calendar' });
+  </script>
+</body>
+</html>

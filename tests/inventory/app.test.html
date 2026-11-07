@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Inventory · the app at 390 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../inventory/index.html';
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const ready = () => frame.contentWindow && frame.contentWindow.SlopInv && doc() && doc().getElementById('boot').hidden && doc().getElementById('pSummary').textContent !== '' && !doc().getElementById('view-products').hidden;
+  const errors = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ean13 = (body12) => body12 + win().SlopData.barcode.checkDigit(body12);
+  let CODE = '', OTHER = ''; // set once the frame has loaded its shared data scripts
+  const typeCode = async (code) => {
+    const input = $('scanInput');
+    input.focus();
+    for (const ch of code) {
+      input.value += ch;
+      input.dispatchEvent(new (win().KeyboardEvent)('keydown', { key: ch, bubbles: true }));
+      await sleep(3);
+    }
+    input.dispatchEvent(new (win().KeyboardEvent)('keydown', { key: 'Enter', bubbles: true }));
+  };
+  // the product form is the products view's right panel (a bottom sheet at this width), Create product at its foot
+  const formInputs = () => [...doc().querySelectorAll('#pFields input')];
+  const formOpen = () => !$('view-products').hidden && $('pForm').classList.contains('ssh-on');
+  // Covers: inventory/js/ui/product-form.js, inventory/js/ui/scan-view.js, inventory/js/ui/app.js
+  const resultText = () => $('scanResult').textContent;
+
+  describe('the app in a 390 px wide window', () => {
+    it('opens on an empty inventory, with no horizontal scroll', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      CODE = ean13('400638133393');
+      OTHER = ean13('500000000001');
+      win().addEventListener('error', (e) => errors.push(e.message));
+      expect($('view-products').hidden).toBe(false);
+      expect($('pEmpty').hidden).toBe(false);
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+
+    it('a product added in the form appears in the list by name and SKU, with no price in the row', async () => {
+      $('pAdd').click();
+      await waitFor(formOpen);
+      expect($('pSave').closest('.sf-p-foot').parentNode).toBe($('pForm'));
+      expect(Math.round($('pSave').closest('.sf-p-foot').getBoundingClientRect().bottom)).toBe(820);
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const [sku, ean, name, price, tax] = formInputs();
+      sku.value = 'W-EAN-1'; ean.value = CODE; name.value = 'Washer'; price.value = '12.50'; tax.value = '20';
+      $('pSave').click();
+      await waitFor(() => $('pRows').querySelector('[data-id]'));
+      const row = $('pRows').querySelector('[data-id]');
+      expect(row.querySelector('.c-name').textContent).toContain('Washer');
+      expect(row.querySelector('.c-name').textContent).toContain('W-EAN-1');
+      expect(row.querySelectorAll('[role="cell"]')).toHaveLength(1);
+      expect($('pRows').textContent).not.toContain('$12.50');
+      expect($('pRows').textContent).not.toContain(CODE);
+      expect($('pSummary').textContent).toContain('stock value');
+    });
+
+    it('a scanner burst on the Scan tab receives one unit, and the result stays visible', async () => {
+      $('tab-scan').click();
+      await waitFor(() => !$('view-scan').hidden);
+      await typeCode(CODE);
+      await waitFor(() => resultText().includes('Received'));
+      expect(resultText()).toContain('On hand 0 → 1');
+      expect($('scanLog').querySelectorAll('li').length).toBe(1);
+    });
+
+    it('an unknown valid EAN offers to create a product, and the saved product gets the scan applied', async () => {
+      await typeCode(OTHER);
+      await waitFor(() => doc().querySelector('.res-actions .btn.primary'));
+      expect(resultText()).toContain('Not found');
+      doc().querySelector('.res-actions .btn.primary').click();
+      await waitFor(() => formOpen() && formInputs()[1].value === OTHER);
+      const [, , name, price] = formInputs();
+      name.value = 'Found item'; price.value = '3.00';
+      $('pSave').click();
+      await waitFor(() => !$('view-scan').hidden);   // saved: back on Scan
+      await waitFor(() => resultText().includes('Found item') && resultText().includes('Received'), { timeout: 20000 });
+      const found = await win().SlopData.stock.lookupBarcode(OTHER);
+      expect(found.value.ean).toBe(OTHER);
+      expect((await win().SlopData.stock.onHand(found.value.id)).value).toBe(1);
+    });
+
+    it('a sale below zero is refused in plain words', async () => {
+      $('scanAction').value = 'sell';
+      $('scanAction').dispatchEvent(new (win().Event)('change'));
+      $('scanQty').value = '5';
+      await typeCode(CODE);
+      await waitFor(() => resultText().includes('Refused'));
+      expect(resultText()).toContain('below zero');
+      expect(resultText()).toContain('only 1 on hand');
+      $('scanAction').value = 'receive';
+      $('scanQty').value = '1';
+    });
+
+    it('Undo reverses the newest receipt through a counter-movement, and leaves the others alone', async () => {
+      $('scanUndo').click();
+      await waitFor(() => $('scanLog').querySelector('.s-undone'), { timeout: 10000 });
+      const found = (await win().SlopData.stock.lookupBarcode(OTHER)).value;
+      expect((await win().SlopData.stock.onHand(found.id)).value).toBe(0);
+      const washer = (await win().SlopData.stock.lookupBarcode(CODE)).value;
+      expect((await win().SlopData.stock.onHand(washer.id)).value).toBe(1);
+    });
+
+    it('camera mode says plainly when BarcodeDetector is missing, and keyboard mode brings back the field', async () => {
+      win().BarcodeDetector = undefined;
+      $('modeCamera').click();
+      await waitFor(() => $('camMsg').textContent.includes('BarcodeDetector'));
+      expect($('cameraBox').hidden).toBe(false);
+      expect($('modeCamera').getAttribute('aria-pressed')).toBe('true');
+      $('modeKeyboard').click();
+      expect($('cameraBox').hidden).toBe(true);
+      expect($('scanInput').isConnected).toBe(true);
+    });
+
+    it('the stock tab shows the levels and the movement history of a product', async () => {
+      $('tab-stock').click();
+      await waitFor(() => !$('view-stock').hidden);
+      await waitFor(() => $('sHistory').querySelectorAll('li').length >= 2);
+      expect($('sLevels').textContent).toContain('main');
+    });
+
+    it('a count started on the Count tab shows the difference, and posting writes it', async () => {
+      $('tab-count').click();
+      await waitFor(() => !$('view-count').hidden);
+      $('cBegin').click();
+      await waitFor(() => !$('cOpen').hidden);
+      const prod = (await win().SlopData.store.list('products', { index: 'sku', value: 'W-EAN-1' })).value[0];
+      $('cPick').value = prod.id;
+      $('cQty').value = '0';
+      $('cSet').click();
+      await waitFor(() => $('cLines').textContent.includes('W-EAN-1'));
+      $('cReview').click();
+      await waitFor(() => !$('cReviewBox').hidden);
+      expect($('cDiffs').textContent).toContain('book 1');
+      $('cPost').click();
+      await waitFor(() => $('cMsg').textContent.includes('Posted'));
+      expect($('cOpen').hidden).toBe(true);
+    });
+
+    it('the reports show a stock value and the app raised no errors', async () => {
+      $('tab-reports').click();
+      await waitFor(() => !$('view-reports').hidden);
+      await waitFor(() => $('kValue').textContent !== '—');
+      expect($('kProducts').textContent).toBe('2');
+      expect(errors).toEqual([]);
+    });
+    it('follows the site theme (shared/biz/app.css): text reads on its background in every theme', async () => {
+      // Covers: inventory/css/inventory.css, shared/biz/app.css
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        win().SlopTheme.apply(theme);
+        const inp = win().getComputedStyle($('pSearch')), body = win().getComputedStyle(doc().body);
+        expect(SlopTest.contrast(inp.webkitTextFillColor || inp.color, inp.backgroundColor) >= 4.5).toBe(true, `${theme}: input`);
+        expect(SlopTest.contrast(body.color, body.backgroundColor) >= 4.5).toBe(true, `${theme}: page`);
+      }
+    });
+    it('stock on a placed purchase order shows on the product row and in the low-stock list', async () => {
+      // Covers: inventory/js/ui/reports.js, inventory/js/ui/products.js
+      const S = win().SlopData;
+      const p = (await S.store.list('products')).value[0];
+      await S.store.put('products', { ...p, reorderLevel: 1000 });
+      const sup = (await S.store.put('customers', { name: 'Parts Co', stage: 'customer', supplier: true })).value;
+      const po = (await S.store.put('purchases', { customerId: sup.id, date: '2026-10-20', lines: [{ productId: p.id, description: p.name, qty: 12, unitPrice: 100, taxRate: 0 }] })).value;
+      await S.store.put('purchases', { ...po, status: 'ordered' });
+      await waitFor(() => $('lowList').textContent.includes('12 on order'), { timeout: 8000 });
+      expect([...$('lowList').querySelectorAll('a.btn')].some((x) => x.getAttribute('href') === `../purchases/#reorder/${p.id}`)).toBe(true);
+      $('tab-products').click();
+      await waitFor(() => [...doc().querySelectorAll('#pRows .chip.ordered')].some((c) => c.textContent === '12 on order'), { timeout: 8000 });
+    });
+    it('the Price list tab shows every product with its price with tax as a printable sheet; search and CSV', async () => {
+      // Covers: inventory/js/ui/prices.js, inventory/js/core/pricelist.js, inventory/index.html, shared/biz/sheet.js, shared/biz/sheet.css
+      $('tab-prices').click();
+      await waitFor(() => !$('view-prices').hidden && doc().querySelector('#plSheet .doc-sheet'));
+      const n = (await win().SlopData.store.list('products')).value.length;
+      await waitFor(() => doc().querySelectorAll('#plSheet tbody tr').length === n);
+      expect(doc().querySelector('#plSheet .sheet-title h2').textContent).toBe('Price list');
+      let got = null;
+      win().SlopUI.download = (blob, name) => { got = { blob, name }; };
+      $('plCsv').click();
+      await waitFor(() => !!got);
+      expect((await got.blob.text()).split('\r\n')[0]).toBe('SKU,Name,Unit,Price,Tax %,Price with tax');
+      const search = $('plSearch');
+      search.value = 'no-such-product-xyz'; search.dispatchEvent(new (win().Event)('input'));
+      await waitFor(() => doc().querySelector('#plSheet').textContent.includes('No product matches'));
+      expect($('plCount').textContent).toBe('0 products');
+      search.value = ''; search.dispatchEvent(new (win().Event)('input'));
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+  });
+
+  run({ name: 'Inventory · the app at 390 px' });
+  </script>
+</body>
+</html>

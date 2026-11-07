@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop 3D in Swedish</title>
+  <!-- Covers: 3d/i18n/index.js, 3d/index.html, 3d/js/app/state.js, 3d/js/app/main.js, 3d/js/app/commands.js, 3d/js/app/editcommands.js,
+       3d/js/app/menus.js, 3d/js/app/outliner.js, 3d/js/app/inspector.js, 3d/js/app/layout.js, 3d/js/app/edit.js,
+       3d/js/app/editmodal.js, 3d/js/app/files.js, 3d/js/app/configio.js, 3d/js/app/modelio.js, 3d/js/render/stage.js,
+       3d/js/core/meshops.js, 3d/js/core/model.js, 3d/js/core/ops.js, 3d/js/app/ai-commands.js, 3d/js/app/ai-io.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop 3D in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../3d/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.body && f.contentDocument.body.dataset.ready === '1' && f.contentWindow.Slop3D && f.contentWindow.SlopShell && f.contentWindow.SlopShell.currentApp, { timeout: 45000, step: 100 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(3d|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const txt = (doc, sel) => doc.querySelector(sel).textContent.trim();
+  // the commands are registered once the 3D view runs (no WebGL: the page stays a file tool and has none to check)
+  const title = (w, id, fallback) => (w.Slop3D.app ? (w.SlopCmd.get(id) || {}).title : fallback);
+  const menuLabels = (w) => w.Slop3D.menus.viewportItems().filter((x) => x !== '-').map((x) => x.label);
+
+  describe('Slop 3D in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows a Swedish top bar, panels, status bar, menus and palette, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(txt(doc, '[data-cmd="3d.file.new"]')).toBe('Ny');
+      expect(txt(doc, '#btnWire')).toBe('Trådmodell');
+      expect(txt(doc, '#btnGrid')).toBe('Rutnät');
+      expect(txt(doc, '#btnSave')).toBe('Spara');
+      expect(txt(doc, '#btnProps')).toBe('Egenskaper');
+      expect(doc.querySelector('#snap').options[0].text).toBe('Av');
+      expect(txt(doc, '.insp-empty')).toContain('Markera ett objekt');
+      expect(txt(doc, '#status')).toContain('Inget markerat');
+      expect(title(w, '3d.file.new', 'Ny scen')).toBe('Ny scen');
+      expect(title(w, '3d.add.cube', 'Lägg till kub')).toBe('Lägg till kub');
+      expect(menuLabels(w)).toContain('Lägg till');
+      expect(menuLabels(w)).toContain('Rama in allt');
+      w.Slop3D.actions.add('cube');
+      await waitFor(() => doc.querySelector('.insp-sec h3'), { timeout: 10000 });
+      const heads = [...doc.querySelectorAll('.insp-sec h3')].map((h) => h.textContent);
+      expect(heads).toContain('Transformering');
+      expect(heads).toContain('Material');
+      expect(txt(doc, '#status')).toContain('(Kub)');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow, I = w.SlopI18n;
+      I.set('en');
+      await waitFor(() => txt(doc, '#btnSave') === 'Save' && title(w, '3d.file.new', 'New scene') === 'New scene', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(txt(doc, '#btnWire')).toBe('Wireframe');
+      expect(txt(doc, '#status')).toContain('Nothing selected');
+      expect(txt(doc, '.insp-empty')).toContain('Select an object');
+      expect(doc.querySelector('#snap').options[0].text).toBe('Off');
+      expect(menuLabels(w)).toContain('Frame all');
+      I.set('sv');
+      await waitFor(() => txt(doc, '#btnSave') === 'Spara' && title(w, '3d.file.new', 'Ny scen') === 'Ny scen', { timeout: 20000 });
+      expect(txt(doc, '#status')).toContain('Inget markerat');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      const bar = doc.querySelector('.topbar');
+      expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+      expect(txt(doc, '#btnScene')).toBe('Scen');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop 3D in Swedish' });
+  </script>
+</body>
+</html>

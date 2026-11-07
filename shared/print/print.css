@@ -1,0 +1,10 @@
+/* SlopPrint dialog: the first-page preview, the options grid and the help line. Dialog chrome comes from SlopUI.
+ * Colours come from the --sl-* theme tokens, with fallbacks for pages that do not set them. */
+.sp-dlg { width: min(720px, 100%); }
+.sp-body { display: flex; flex-direction: column; gap: 12px; }
+.sp-wrap { position: relative; overflow: hidden; height: 360px; border-radius: 6px; background: var(--sl-background, #d8d8d8); border: 1px solid var(--sl-border, #8a8a8a); }
+.sp-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; border: 0; background: #fff; }
+.sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; }
+.sp-help { margin: 0; font-size: 12px; line-height: 1.45; color: var(--sl-text, inherit); opacity: .8; }
+.sp-help.sp-err { color: var(--sl-danger, #c0392b); opacity: 1; }
+.sp-print { position: fixed; right: 0; bottom: 0; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; }

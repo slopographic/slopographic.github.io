@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop HTML to PDF: convert, header, QR, print</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: html2pdf/js/source.js, html2pdf/js/print-path.js, html2pdf/index.html, shared/sanitize/sanitize.js
+  const { describe, it, beforeEach, expect, waitFor } = SlopTest;
+  const FIXTURE = '<!doctype html><html><head><title>Fixture</title><style>h1{color:#222}</style></head><body>' +
+    '<h1>Fixture heading</h1><p>Paragraph text.</p><img src="pic.png" alt="local"><img src="https://example.invalid/remote.png" alt="remote"></body></html>';
+  let frame = null, W = null;
+
+  /** Loads a fresh copy of the app in a frame, with a short stub-free start. */
+  async function reopen() {
+    if (frame) frame.remove();
+    frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;left:0;top:0;width:1280px;height:800px;border:0;opacity:0;pointer-events:none';
+    const loaded = new Promise((r) => frame.addEventListener('load', r, { once: true }));
+    frame.src = '../../html2pdf/index.html';
+    document.body.append(frame);
+    await loaded;
+    W = frame.contentWindow;
+    await waitFor(() => W.document.getElementById('h2p-print'));
+  }
+  const $ = (id) => W.document.getElementById(id);
+  const preview = () => $('h2p-paper-frame').contentDocument;
+  const hdr = () => preview() && preview().querySelector('.h2p-hdr');
+
+  /** Opens a file the way Open does (the intake's picker). */
+  function openFile(name, text, type = 'text/html') {
+    const f = new W.File([text], name, { type });
+    W.SlopUI.pickFiles = async () => [f];
+    $('h2p-open').click();
+  }
+  function choose(id, value) { const el = $(id); el.value = value; el.dispatchEvent(new W.Event('change')); }
+
+  describe('Slop HTML to PDF page', () => {
+    beforeEach(reopen);
+
+    it('opens an HTML file and converts it into the preview', async () => {
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      expect(preview().querySelector('.h2p-content h1').textContent).toBe('Fixture heading');
+      expect($('h2p-print').disabled).toBe(false);
+    });
+
+    it('the header carries the file name, the date and a non-empty QR code', async () => {
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      const d = preview();
+      expect(d.querySelector('.h2p-name').textContent).toBe('fixture.html');
+      expect(d.querySelector('.h2p-meta').textContent).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      const svg = d.querySelector('.h2p-qr svg');
+      expect(svg).toBeTruthy();
+      expect(svg.children.length).toBeGreaterThan(0);
+      expect(svg.outerHTML.length).toBeGreaterThan(200);
+    });
+
+    it('the header toggle removes the header from the preview, and back', async () => {
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      $('h2p-header').checked = false;
+      $('h2p-header').dispatchEvent(new W.Event('change'));
+      await waitFor(() => !preview().querySelector('.h2p-hdr'));
+      $('h2p-header').checked = true;
+      $('h2p-header').dispatchEvent(new W.Event('change'));
+      await waitFor(() => hdr());
+    });
+
+    it('the print path is called with the chosen paper, orientation and the header markup', async () => {
+      const calls = [];
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      W.SlopPrint = { open(o) { calls.push(o); return {}; }, register() {} };
+      choose('h2p-paper', 'Letter');
+      choose('h2p-orient', 'landscape');
+      $('h2p-print').click();
+      expect(calls.length).toBe(1);
+      expect(calls[0].paper).toBe('Letter');
+      expect(calls[0].orientation).toBe('landscape');
+      expect(calls[0].title).toBe('fixture.html');
+      expect(calls[0].html).toContain('h2p-hdr');
+      expect(calls[0].html).toContain('fixture.html');
+      expect(calls[0].html).toContain('@page{margin:15mm !important}');
+      expect(calls[0].html.toLowerCase()).not.toContain('<script');
+    });
+
+    it('with SlopPrint missing, the built-in path prints the same markup in a hidden frame', async () => {
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      delete W.SlopPrint;
+      choose('h2p-margin', 'none');
+      $('h2p-print').click();
+      const f = await waitFor(() => W.document.querySelector('iframe[aria-hidden="true"]'));
+      expect(f.srcdoc).toContain('@page{size:A4 portrait}');
+      expect(f.srcdoc).toContain('@page{margin:0mm !important}');
+      expect(f.srcdoc).toContain('h2p-hdr');
+    });
+
+    it('a hostile HTML file runs no script, in the preview or the print frame, and its text still shows', async () => {
+      W.__h2pXss = undefined;
+      openFile('bad.html', '<p id="kept">Still here</p><img src=x onerror="parent.__h2pXss=1">' +
+        '<noscript><p title="</noscript><img src=x onerror=parent.__h2pXss=2>"></p></noscript>' +
+        '<svg><a><animate attributeName="href" values="javascript:parent.__h2pXss=3"/><text y="20">x</text></a></svg>' +
+        '<a href="java&#x09;script:parent.__h2pXss=4">link</a><iframe srcdoc="<script>parent.parent.__h2pXss=5<\/script>"></iframe>' +
+        '<div style="background:url(https://example.invalid/x.png)">styled</div>');
+      await waitFor(() => hdr());
+      expect(preview().getElementById('kept').textContent).toBe('Still here');
+      expect(preview().querySelectorAll('[onerror], animate, iframe, a[href]').length).toBe(0);
+      expect(preview().body.innerHTML).not.toContain('example.invalid');
+      delete W.SlopPrint;
+      $('h2p-print').click();
+      const f = await waitFor(() => W.document.querySelector('iframe[aria-hidden="true"]'));
+      expect(f.getAttribute('sandbox')).not.toContain('allow-scripts');
+      expect(f.srcdoc).not.toContain('onerror');
+      await new Promise((r) => setTimeout(r, 300));
+      expect(W.__h2pXss).toBe(undefined);
+    });
+
+    it('the preview is isolated: sandboxed, no scripts, and a CSP that allows no network', async () => {
+      openFile('page.html', '<p>Hi</p><script>window.ran = 1<\/script>');
+      await waitFor(() => hdr());
+      const sandbox = $('h2p-paper-frame').getAttribute('sandbox') || '';
+      expect(sandbox).not.toContain('allow-scripts');
+      expect($('h2p-paper-frame').srcdoc).toContain("default-src 'none'");
+      expect(preview().querySelector('script')).toBeFalsy();
+    });
+
+    it('remote images do not load, and an attached local image loads by file name', async () => {
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      const canvas = W.document.createElement('canvas');
+      canvas.width = 8; canvas.height = 8;
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+      const pic = new W.File([blob], 'pic.png', { type: 'image/png' });
+      W.SlopUI.pickFiles = async () => [pic];
+      $('h2p-images').click(); // Attach local images… (the intake's part html2pdf.images)
+      const local = await waitFor(() => { const i = preview().querySelector('img[alt="local"]'); return i && i.src.startsWith('blob:') && i.naturalWidth > 0 ? i : null; });
+      expect(local.naturalWidth).toBe(8);
+      const remote = preview().querySelector('img[alt="remote"]');
+      expect(remote.getAttribute('src')).toBe(null); // removed by the cleaner: never fetched, in the preview or the print
+      expect(remote.naturalWidth).toBe(0);
+    });
+
+    it('the print markup sets the page margin from the option, and the header repeats with its own gap', async () => {
+      openFile('fixture.html', FIXTURE);
+      await waitFor(() => hdr());
+      choose('h2p-margin', 'narrow');
+      const html = W.H2P.sheet.printHtml({ paper: 'A4', orientation: 'portrait', margin: 'narrow', scale: 'fit', background: true, header: true, fileName: 'a.html', date: '2026-01-01', url: '', qrSvg: '' }, { styles: '', body: '<p>x</p>' });
+      expect(html).toContain('@page{margin:6mm !important}');
+      expect(html).toContain('h2p-bg-on');
+      expect(html).toContain('<thead>');
+    });
+  });
+
+  SlopTest.run({ name: 'Slop HTML to PDF page' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Compare: two PDFs and two pictures</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 1280px; height: 860px; }</style></head>
+<body>
+  <!-- Covers: diff/js/io/files.js, diff/js/io/pdf.js, diff/js/io/report-pdf.js, diff/js/core/pdftext.js, diff/js/core/image.js, diff/js/ui/picture.js, diff/js/ui/view.js, diff/js/ui/export.js -->
+  <script src="../../vendor/pdf-lib/pdf-lib.min.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  async function open() {
+    const f = document.createElement('iframe');
+    f.src = '../../diff/index.html';
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopCompare && f.contentWindow.SlopCompare.ready, { timeout: 30000 });
+    return { W: f.contentWindow, D: f.contentDocument };
+  }
+  /** A two-page PDF: lines of text on page 1, and on page 2 a box (when box) and a line. */
+  async function pdf(lines, box) {
+    const doc = await PDFLib.PDFDocument.create(), font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const p1 = doc.addPage([400, 300]);
+    lines.forEach((l, i) => p1.drawText(l, { x: 30, y: 260 - i * 22, size: 14, font }));
+    const p2 = doc.addPage([400, 300]);
+    p2.drawText('Second page', { x: 30, y: 260, size: 14, font });
+    if (box) p2.drawRectangle({ x: 200, y: 80, width: 80, height: 60, color: PDFLib.rgb(0.1, 0.3, 0.9) });
+    return doc.save();
+  }
+  /** A 200 × 120 picture: white, a blue bar, and (when dot) a red square at 150, 20. */
+  function picture(W, dot) {
+    const c = document.createElement('canvas'); c.width = 200; c.height = 120;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, 200, 120);
+    g.fillStyle = '#2050e0'; g.fillRect(20, 60, 100, 30);
+    if (dot) { g.fillStyle = '#e02020'; g.fillRect(150, 20, 20, 20); }
+    return new Promise((res) => c.toBlob((b) => res(new W.File([b], dot ? 'after.png' : 'before.png', { type: 'image/png' })), 'image/png'));
+  }
+
+  describe('Slop Compare: PDFs', () => {
+    it('the text of each page compared line by line, the changed word marked, with the page named', async () => {
+      const { W, D } = await open();
+      const a = await pdf(['Invoice 2041', 'Total due: 120 EUR', 'Pay within 30 days'], false);
+      const b = await pdf(['Invoice 2041', 'Total due: 150 EUR', 'Pay within 30 days'], true);
+      await W.SlopIntake.take([new W.File([a], 'v1.pdf', { type: 'application/pdf' }), new W.File([b], 'v2.pdf', { type: 'application/pdf' })], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result || W.SlopCompare.S.error, { timeout: 20000 });
+      expect(W.SlopCompare.S.error).toBe('');
+      expect(W.SlopCompare.S.result.kind).toBe('pdf');
+      expect(D.getElementById('df-sum').textContent).toMatch(/^1 change/);
+      expect([...D.querySelectorAll('#df-out del')].map((n) => n.textContent)).toEqual(['120']);
+      expect([...D.querySelectorAll('#df-out ins')].map((n) => n.textContent)).toEqual(['150']);
+      expect(D.querySelector('#df-out .df-page').textContent).toBe('Page 1');
+      expect(D.querySelector('#df-a-file').hidden).toBe(false);
+      const pdfOut = await W.SlopCompare.export.blobOf('pdf');
+      expect(new TextDecoder().decode(new Uint8Array(await pdfOut.blob.slice(0, 5).arrayBuffer()))).toBe('%PDF-');
+      expect(pdfOut.name).toBe('compare-v1-vs-v2.pdf');
+    }, { timeout: 60000 });
+
+    it('the pages as pictures: only the page with the new box is changed, boxed where it is', async () => {
+      const { W, D } = await open();
+      const a = await pdf(['Same text'], false), b = await pdf(['Same text'], true);
+      D.querySelector('#df-opt-pdfView [data-value="visual"]').click();
+      await W.SlopIntake.take([new W.File([a], 'a.pdf', { type: 'application/pdf' }), new W.File([b], 'b.pdf', { type: 'application/pdf' })], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result && W.SlopCompare.S.result.view === 'visual', { timeout: 30000 });
+      const vis = W.SlopCompare.S.result.pdf.visual;
+      expect(vis.map((p) => p.count > 0)).toEqual([false, true]);
+      expect(D.getElementById('df-sum').textContent).toBe('1 page of 2 looks different.');
+      W.SlopCompare.go(1);
+      expect(D.querySelector('#df-out .df-page-pick').value).toBe('1');
+      const box = vis[1].boxes[0], w = vis[1].canvas.diff.width;   // 900 px wide for a 400 pt page: the box is at 200..280 pt
+      expect(box.x / w).toBeGreaterThan(0.45);
+      expect((box.x + box.w) / w).toBeLessThan(0.75);
+      expect(D.querySelectorAll('#df-out .df-box').length).toBeGreaterThan(0);
+      W.localStorage.removeItem('slop-diff:opts');
+    }, { timeout: 60000 });
+  });
+
+  describe('Slop Compare: pictures', () => {
+    it('side by side with the changed area boxed; the slider moves by key; the difference view paints it red', async () => {
+      const { W, D } = await open();
+      await W.SlopIntake.take([await picture(W, false), await picture(W, true)], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result, { timeout: 15000 });
+      const r = W.SlopCompare.S.result;
+      expect(r.kind).toBe('image');
+      expect(r.image.boxes.length).toBe(1);
+      const b = r.image.boxes[0];
+      expect(b.x <= 150 && b.x + b.w >= 170 && b.y <= 20 && b.y + b.h >= 40).toBe(true);
+      expect(D.getElementById('df-sum').textContent).toMatch(/^1 changed area, 1\.7% of the pixels\.$/);
+      expect(D.querySelectorAll('#df-out .df-fig').length).toBe(2);
+      W.SlopCompare.go(1);
+      expect(D.querySelectorAll('#df-out .df-box-cur').length).toBe(2);
+      D.querySelector('#df-opt-imageView [data-value="slider"]').click();
+      await waitFor(() => D.querySelector('#df-out .df-handle'));
+      const h = D.querySelector('#df-out .df-handle');
+      expect(h.getAttribute('aria-valuenow')).toBe('50');
+      h.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
+      expect(h.getAttribute('aria-valuenow')).toBe('60');
+      expect(D.querySelector('#df-out .df-slide-frame').hasAttribute('data-touch-surface')).toBe(true);
+      D.querySelector('#df-opt-imageView [data-value="diff"]').click();
+      await waitFor(() => D.querySelectorAll('#df-out .df-fig').length === 1);
+      const c = D.querySelector('#df-out canvas');
+      expect(SlopTest.pixel(c, 160, 30).slice(0, 3)).toEqual([230, 30, 60]);
+      expect(SlopTest.pixel(c, 60, 75)[0]).toBeGreaterThan(150);   // the unchanged blue bar, faded
+      const html = await (await W.SlopCompare.export.blobOf('html')).blob.text();
+      expect((html.match(/<img src="data:image\/png;base64,/g) || []).length).toBe(3);
+      W.localStorage.removeItem('slop-diff:opts');
+    }, { timeout: 60000 });
+
+    it('a picture and a PDF cannot be compared, and the page says so', async () => {
+      const { W, D } = await open();
+      await W.SlopIntake.take([await picture(W, false), new W.File([await pdf(['x'], false)], 'x.pdf', { type: 'application/pdf' })], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.error, { timeout: 15000 });
+      expect(D.getElementById('df-err').textContent).toBe('A picture and a PDF cannot be compared. Compare two texts, two PDFs or two pictures.');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

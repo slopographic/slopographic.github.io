@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop HTML to PDF: the look (header, buttons, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: html2pdf/index.html, html2pdf/css/app.css, html2pdf/js/layout.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menu bar and the shell's buttons are in. */
+  async function open(width, height = 800) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../html2pdf/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const h = (n) => n.getBoundingClientRect().height;
+  const css = (D, n) => D.defaultView.getComputedStyle(n);
+
+  describe('Slop HTML to PDF: the look', () => {
+    it('one header at the very top, with the 100% local badge and no loose note under it', async () => {
+      const D = await open(1440);
+      const bar = D.querySelector('header.smb-bar');
+      expect([...D.querySelectorAll('header')].filter((n) => h(n)).length).toBe(1);
+      expect(bar.getBoundingClientRect().top).toBe(0);
+      expect(bar.querySelector('.local-badge')).toBeTruthy();
+      expect(D.querySelector('.h2p-app > .h2p-note')).toBe(null);
+    }, { timeout: 40000 });
+
+    it("the header tools match the header buttons, and the page's buttons are drawn as buttons", async () => {
+      const D = await open(1440);
+      const hb = h([...D.querySelectorAll('.smb-bar .slop-hbtn')].find((n) => n.getBoundingClientRect().width));
+      expect(h(D.getElementById('h2p-open'))).toBe(hb);
+      expect(css(D, D.getElementById('h2p-use-paste')).borderTopStyle).toBe('solid');
+      expect(css(D, D.getElementById('h2p-open-empty')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    }, { timeout: 40000 });
+
+    it('at 390px the header is one row, the empty preview comes first, and nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(h(D.querySelector('.smb-bar'))).toBeLessThan(50);
+      expect(D.getElementById('h2p-stage').getBoundingClientRect().top).toBeLessThan(D.querySelector('.h2p-side').getBoundingClientRect().top);
+    }, { timeout: 40000 });
+
+    it('at 1280px the options are a panel on the right, with Print at its foot and only Open in the header', async () => {
+      const D = await open(1280), side = D.getElementById('h2p-side'), p = side.getBoundingClientRect();
+      expect(p.left).toBeGreaterThanOrEqual(D.getElementById('h2p-stage').getBoundingClientRect().right - 1);
+      expect(Math.round(p.right)).toBe(1280);
+      expect([...side.querySelectorAll('.sf-h')].map((n) => n.textContent)).toEqual(['Source', 'Paper', 'Page header']);
+      const print = D.getElementById('h2p-print');
+      expect(print.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(D.querySelector('.smb-bar').contains(print)).toBe(false);
+      expect(print.getBoundingClientRect().bottom).toBeLessThanOrEqual(800);
+      expect(D.querySelector('.smb-tools .sf-toggle').textContent).toBe('Options');
+    }, { timeout: 40000 });
+
+    it('at 390px Print sits at the bottom of the screen in the closed sheet; Options opens the rest', async () => {
+      const D = await open(390, 844), print = D.getElementById('h2p-print');
+      expect(print.getBoundingClientRect().top).toBeGreaterThan(700);
+      expect(print.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      expect(h(D.getElementById('h2p-paper'))).toBe(0);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => D.getElementById('h2p-side').classList.contains('ssh-on'));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(h(D.getElementById('h2p-paper'))).toBeGreaterThan(0);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop HTML to PDF: the look' });
+  </script>
+</body>
+</html>

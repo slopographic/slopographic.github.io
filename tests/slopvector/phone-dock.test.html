@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector on a phone: the panels drawer</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style></head>
+<body>
+  <!-- Covers: slopvector/js/ui/dock.js, slopvector/js/ui/init.js, slopvector/js/tools/keys.js, slopvector/css/responsive.css, slopvector/css/panels.css, slopvector/index.html -->
+  <iframe id="f" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, D, S;
+  const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  describe('390 × 844: the dock is a SlopSheet drawer from the right', () => {
+    it('the Panels button opens the drawer at the right edge under the bars; the same button closes it', async () => {
+      W = document.getElementById('f').contentWindow;
+      await waitFor(() => { const a = W.document && W.document.getElementById('app'); return a && a.classList.contains('ready') && W.SV.ui.dockSheet; }, { timeout: 30000 });
+      D = W.document; S = W.SV.ui.dockSheet;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const btn = D.getElementById('panelsToggle'), dock = D.getElementById('dock');
+      expect([S.isPhone(), S.isOpen()]).toEqual([true, false]);
+      btn.click();
+      expect([S.isOpen(), btn.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+      const r = dock.getBoundingClientRect();
+      expect([Math.round(r.right), r.top > 40]).toEqual([390, true]);
+      btn.click();
+      expect(S.isOpen()).toBe(false);
+    });
+    it('the × closes it and gives focus back; Escape closes it and keeps the selection; Window ▸ a panel opens it', () => {
+      const btn = D.getElementById('panelsToggle');
+      btn.focus(); btn.click();
+      const x = D.querySelector('#dock > .ssh-x');
+      expect(x.getAttribute('aria-label')).toBe('Close panels');
+      x.click();
+      expect([S.isOpen(), D.activeElement]).toEqual([false, btn]);
+      W.SV.runAction('select.all');
+      const sel = W.SV.state.sel.length;
+      expect(sel > 0).toBe(true);
+      btn.click(); esc();
+      expect([S.isOpen(), W.SV.state.sel.length]).toEqual([false, sel]);
+      W.SV.ui.showPanel('layers');
+      expect(S.isOpen()).toBe(true);
+      W.SV.ui.togglePanels();
+      expect(S.isOpen()).toBe(false);
+    });
+  });
+  SlopTest.run({ name: 'SlopVector: phone panels drawer' });
+  </script>
+</body>
+</html>

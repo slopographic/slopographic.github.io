@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slop PDF macros tests</title>
+  <style>body { margin: 0; font: 14px system-ui, sans-serif; background: #111; color: #eee; }</style>
+  <link rel="stylesheet" href="../../../shared/slopui.css">
+  <script src="../../../shared/slopui.js"></script>
+  <script src="../../../vendor/pdf-lib/pdf-lib.min.js"></script>
+  <script src="../../../pdf/js/macro/pattern.js"></script>
+  <script src="../../../pdf/js/macro/model.js"></script>
+  <script src="../../../pdf/js/macro/frame.js"></script>
+  <script src="../../../pdf/js/macro/text.js"></script>
+  <script src="../../../pdf/js/macro/ops-edit.js"></script>
+  <script src="../../../pdf/js/macro/ops-draw.js"></script>
+  <script src="../../../pdf/js/macro/runner.js"></script>
+  <script src="../../../pdf/js/macro/ui-css.js"></script>
+  <script src="../../../pdf/js/macro/ui-steps.js"></script>
+  <script src="../../../pdf/js/macro/ui.js"></script>
+  <script src="../../harness.js"></script>
+</head>
+<body>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, sleep, run } = SlopTest;
+  const M = window.SlopPdfMacro;
+  const KEY = 'slop.pdf.macros.v1';
+
+  /** A two-page PDF with one line of text on each page. */
+  async function makePdf() {
+    const doc = await PDFLib.PDFDocument.create();
+    const f = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+    ['Invoice 42', 'Second page'].forEach((t) => doc.addPage([300, 200]).drawText(t, { x: 20, y: 150, size: 12, font: f }));
+    return new Uint8Array(await doc.save());
+  }
+  const dlg = () => document.querySelector('.spm-dlg');
+  const button = (text, root = document) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+  const closeAll = () => document.querySelectorAll('.sui-back').forEach((b) => b.remove());
+  /** Text of every page, from pdf.js (through the macro's own loader). */
+  async function pagesText(bytes) {
+    const d = await M.text.open(bytes), out = [];
+    for (let i = 1; i <= d.numPages; i++) out.push(M.text.index(await (await d.getPage(i)).getTextContent()).text);
+    await d.destroy();
+    return out;
+  }
+
+  describe('Macro labels', () => {
+    it('a page-number position shows by its label, not its id (bottom-center reads "Bottom centre")', () => {
+      expect(M.posLabel('bottom-center')).toBe('Bottom centre');
+      expect(M.posLabel('top-left')).toBe('Top left');
+      expect(M.posLabel('elsewhere')).toBe('elsewhere');
+      expect(M.stepLabel({ type: 'addPageNumbers', position: 'bottom-right' })).toBe('Page numbers, Bottom right');
+    });
+  });
+
+  describe('Macro dialog', () => {
+    beforeEach(() => { localStorage.removeItem(KEY); closeAll(); });
+    afterEach(() => { closeAll(); });
+
+    it('opens with an empty new macro, a name, a pattern and a step picker', async () => {
+      M.open({});
+      await waitFor(() => dlg());
+      expect(dlg().querySelector('input[aria-label="Macro name"]')).toBeTruthy();
+      expect(dlg().querySelector('input[aria-label="File name pattern"]')).toBeTruthy();
+      expect(dlg().querySelectorAll('.spm-step').length).toBe(0);
+      expect(dlg().querySelector('.spm-steps, [aria-label="Steps"]').textContent).toMatch(/No steps yet/);
+    });
+
+    it('adds a step, edits its text, and saves the macro in the versioned envelope', async () => {
+      M.open({});
+      await waitFor(() => dlg());
+      dlg().querySelector('input[aria-label="Macro name"]').value = 'Footer for invoices';
+      dlg().querySelector('input[aria-label="Macro name"]').dispatchEvent(new Event('input'));
+      const pick = dlg().querySelector('.spm-sec h4 select');
+      pick.value = 'addHeaderFooter'; pick.dispatchEvent(new Event('change'));
+      button('Add step', dlg()).click();
+      expect(dlg().querySelectorAll('.spm-step').length).toBe(1);
+      const text = [...dlg().querySelectorAll('.spm-step input[type=text]')].find((i) => i.value.includes('{page}'));
+      text.value = 'Page {page} of {pages}'; text.dispatchEvent(new Event('input'));
+      button('Save', dlg()).click();
+      await sleep(200);
+      const env = JSON.parse(localStorage.getItem(KEY));
+      expect(env.v).toBe(1);
+      expect(env.data[0].name).toBe('Footer for invoices');
+      expect(env.data[0].steps[0].type).toBe('addHeaderFooter');
+      expect(env.data[0].steps[0].text).toBe('Page {page} of {pages}');
+    });
+
+    it('refuses to save a macro that has no steps, and says why', async () => {
+      M.open({});
+      await waitFor(() => dlg());
+      button('Save', dlg()).click();
+      await sleep(200);
+      expect(dlg()).toBeTruthy();
+      expect(dlg().querySelector('.spm-problems').textContent).toMatch(/no steps yet/);
+      expect(localStorage.getItem(KEY)).toBe(null);
+    });
+
+    it('a test run on the open PDF shows the log and offers the result to download', async () => {
+      const bytes = await makePdf();
+      M.open({ current: async () => ({ name: 'invoice.pdf', bytes }) });
+      await waitFor(() => dlg());
+      const pick = dlg().querySelector('.spm-sec h4 select');
+      pick.value = 'addPageNumbers'; pick.dispatchEvent(new Event('change'));
+      button('Add step', dlg()).click();
+      button('Test on the open PDF', dlg()).click();
+      await waitFor(() => dlg().querySelector('.spm-testlog .spm-log'));
+      expect(dlg().querySelector('.spm-testlog').textContent).toMatch(/Numbered 2 pages/);
+      expect(button('Download test result', dlg()).hidden).toBeFalsy();
+      expect(localStorage.getItem(KEY)).toBe(null);
+    });
+
+    it('a rule set to run by itself runs on a matching drop and hands back the new PDF', async () => {
+      const bytes = await makePdf();
+      M.save([{ id: 'r1', name: 'Stamp', pattern: 'invoice-*.pdf', auto: 'silent', steps: [M.newStep('addHeaderFooter')].map((s) => Object.assign(s, { position: 'header', text: 'Filed {filename}' })) }]);
+      let got = null;
+      const res = await M.runFor(new File([bytes], 'invoice-9.pdf', { type: 'application/pdf' }), { onResult: (r) => { got = r; } });
+      expect(res.ran).toBe(true);
+      expect(res.ok).toBe(true);
+      expect(got.name).toBe('invoice-9-stamp.pdf');
+      expect((await pagesText(got.bytes))[0]).toContain('Filed invoice-9.pdf');
+      expect(got.log[0].ok).toBe(true);
+    });
+
+    it('a rule set to ask first asks, and runs the macro the person picks', async () => {
+      const bytes = await makePdf();
+      M.save([{ id: 'r2', name: 'Asked', pattern: '/^scan-\\d+\\.pdf$/', auto: 'ask', steps: [Object.assign(M.newStep('rotate'), { angle: 180 })] }]);
+      let got = null;
+      const p = M.runFor(new File([bytes], 'scan-12.pdf'), { onResult: (r) => { got = r; } });
+      await waitFor(() => button('Run “Asked”'));
+      expect(document.querySelector('.sui-dlg').textContent).toMatch(/ask first/);
+      button('Run “Asked”').click();
+      const res = await p;
+      expect(res.ran).toBe(true);
+      expect(got.name).toBe('scan-12-asked.pdf');
+    });
+
+    it('a file no rule matches runs nothing and asks nothing', async () => {
+      const bytes = await makePdf();
+      M.save([{ id: 'r3', name: 'Only invoices', pattern: 'invoice-*.pdf', auto: 'silent', steps: [M.newStep('rotate')] }]);
+      const res = await M.runFor(new File([bytes], 'notes.pdf'));
+      expect(res.ran).toBe(false);
+      expect(res.reason).toBe('no-rule');
+      expect(document.querySelector('.sui-dlg')).toBe(null);
+    });
+  });
+
+  run({ name: 'Slop PDF · macros' });
+  </script>
+</body>
+</html>

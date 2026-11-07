@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Reel Remix drop tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1280px; height: 900px; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe; the tests drop files onto its stage and bin. -->
+  <iframe id="app" src="../../remix/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="remix-drop.spec.js"></script>
+  <script>SlopTest.run({ name: 'Reel Remix drop feedback' });</script>
+</body>
+</html>

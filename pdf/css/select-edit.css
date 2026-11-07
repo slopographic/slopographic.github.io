@@ -1,0 +1,40 @@
+/* Slop PDF — the select tool's transform handles (editor/para-xform.js, annot-xform.js, multi-sel.js, cross-page.js) and the
+   selection's position fields (tools/sel-panel.js). */
+
+/* a paragraph frame: corners scale it, the round handle above turns it; they stay while its text is typed */
+.para-c { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; box-sizing: border-box; background: #fff; border: 1.5px solid #0a0a0a;
+  border-radius: 2px; touch-action: none; }
+.para-c[data-h="nw"] { left: -3px; top: -3px; cursor: nwse-resize; }
+.para-c[data-h="ne"] { left: calc(100% + 3px); top: -3px; cursor: nesw-resize; }
+.para-c[data-h="se"] { left: calc(100% + 3px); top: calc(100% + 3px); cursor: nwse-resize; }
+.para-c[data-h="sw"] { left: -3px; top: calc(100% + 3px); cursor: nesw-resize; }
+.para-r, .sel-rot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; box-sizing: border-box; border-radius: 50%;
+  background: var(--panel, #1d1d21); border: 2px solid var(--accent, #d4ff3a); cursor: grab; touch-action: none; pointer-events: auto; }
+.para-r { left: 50%; top: -26px; }
+.para-r::before { content: ''; position: absolute; left: 50%; top: 100%; height: 12px; border-left: 1.5px solid #0a0a0a; }
+.sel-rot { z-index: 2; }
+.para-frame .para-tag { left: auto; right: -1.5px; } /* the tag keeps clear of the turn handle */
+.para-frame.is-editing { box-shadow: 0 0 0 5px rgba(212, 255, 58, .45); }
+.para-frame.is-editing .para-h, .para-frame.is-editing .para-c, .para-frame.is-editing .para-r { display: block; pointer-events: auto; }
+.para-frame.is-locked .para-h, .para-frame.is-locked .para-c, .para-frame.is-locked .para-r { display: none; }
+@media (pointer: coarse) {
+  .para-c { width: 20px; height: 20px; margin: -10px 0 0 -10px; }
+  .para-r, .sel-rot { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+  .para-r { top: -36px; }
+  .para-c::after, .para-r::after, .sel-rot::after, .para-h::after { content: ''; position: absolute; left: 50%; top: 50%; width: var(--slop-hit, 44px); height: var(--slop-hit, 44px); transform: translate(-50%, -50%); }
+}
+
+/* an annotation turned freely: its box and handles turn with it; the others of a group: an outline each */
+.sel-box.is-turned { transform-origin: 50% 50%; }
+.sel-box.is-member { outline: 1.5px dashed #0a0a0a; box-shadow: 0 0 0 3px rgba(212, 255, 58, .45); }
+.sel-marquee { position: absolute; border: 1px dashed #0a0a0a; background: rgba(212, 255, 58, .18); pointer-events: none; }
+
+/* a drag over another page: the page that takes the drop */
+.pv-page.is-drop-target { outline: 3px solid var(--accent, #d4ff3a); outline-offset: 2px; }
+
+/* the panel: position, size and rotation side by side */
+.xf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.xf-grid .pp-row .inp.num { width: 100%; min-width: 0; }
+.xf-font { display: block; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.xf-font .xf-note { display: block; font-weight: 400; color: var(--dim); }
+@media (max-width: 420px) { .xf-grid { grid-template-columns: 1fr; } }

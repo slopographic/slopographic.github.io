@@ -1,0 +1,23 @@
+/* PhotoSlop, Simplified Chinese: palette titles of the canvas, tool and window commands (app/commands.js). Rules: shared/i18n/APPS-HOWTO.md. Terms: shared/i18n/glossary-zh-CN.md. No plural forms (the #one keys are left out). */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'photoslop.cmd.opacity_toast': '不透明度 {pct}%',
+  'photoslop.cmd.cycle_tools': '循环切换 {tools}',
+  'photoslop.cmd.swap_colors': '交换前景色和背景色',
+  'photoslop.cmd.default_colors': '默认颜色（黑 / 白）',
+  'photoslop.cmd.brush_bigger': '增大画笔大小',
+  'photoslop.cmd.brush_smaller': '减小画笔大小',
+  'photoslop.cmd.brush_harder': '提高画笔硬度',
+  'photoslop.cmd.brush_softer': '降低画笔硬度',
+  'photoslop.cmd.tool_opacity': '工具不透明度 {pct}%',
+  'photoslop.cmd.nudge_left': '向左微移 {n} px',
+  'photoslop.cmd.nudge_right': '向右微移 {n} px',
+  'photoslop.cmd.nudge_up': '向上微移 {n} px',
+  'photoslop.cmd.nudge_down': '向下微移 {n} px',
+  'photoslop.cmd.next_doc': '下一个文档',
+  'photoslop.cmd.prev_doc': '上一个文档',
+  'photoslop.cmd.go_to_doc': '转到文档 {i}',
+  'photoslop.cmd.restore_aspect': '恢复原始宽高比',
+  'photoslop.cmd.guides_panel': '参考线面板（参考线布局）',
+  'photoslop.cmd.search_key': '搜索命令（{key}）',
+  'photoslop.cmd.nav_preset': '导航预设…',
+});

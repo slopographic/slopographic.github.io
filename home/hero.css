@@ -1,0 +1,137 @@
+/* The homepage hero: the headline, sub-line, buttons and meta line beside the app globe (home/globe/globe.js draws into
+ * .gx-layer over the reserved .gx-box; its styles are home/globe/globe.css); then the capability strip (written by
+ * tools/seo/marquee.mjs) and the numbered section headings further down. Tokens: --ink (page), --ink-2 (surface),
+ * --bone (text), --bone-dim, --line, --slop (accent), which every theme sets (shared/theme/theme.js). Every size is fixed
+ * before any script or font arrives (the globe's box keeps its square), so nothing moves when they do.
+ * Layout: the copy on the left and the globe on the right on wide screens; on phones the globe sits above the copy. */
+
+.hx {
+  --hx-gutter: max(24px, calc((100vw - 1200px) / 2));
+  position: relative;
+  isolation: isolate;
+  margin-inline: calc(50% - 50vw);       /* out of the page column: the globe's halo runs edge to edge */
+  margin-top: calc(-1 * (var(--top, 64px) + 24px));   /* .home's top padding: the hero starts right under the header */
+  padding: clamp(28px, 5vw, 56px) var(--hx-gutter) clamp(40px, 5vw, 64px);
+  overflow: clip;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  column-gap: clamp(24px, 4vw, 64px);
+  background: radial-gradient(ellipse 42% 60% at 74% 50%, color-mix(in srgb, var(--ink-2) 90%, transparent), transparent 75%);
+}
+/* The box is first in the HTML (index.html) and each keeps its own cell, so whichever is parsed first is already where it
+ * ends up: a frame painted while the page still arrives moves nothing (tests/node/cls.test.mjs streams it that way). */
+.gx-box { grid-area: 1 / 2; position: relative; z-index: 0; width: 100%; max-width: 620px; aspect-ratio: 1; justify-self: center; pointer-events: none; }
+
+.hx-copy { grid-area: 1 / 1; position: relative; z-index: 2; max-width: 600px; display: grid; justify-items: start; }
+.hx-kicker {
+  margin: 0 0 22px;
+  display: flex;
+  flex-wrap: wrap;
+  font: 600 12px/1.4 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+.hx-kicker > * + *::before { content: "/"; content: "/" / ""; margin: 0 .9em; color: var(--slop); }
+.hx-title {
+  margin: 0;
+  font-family: var(--cond);
+  font-weight: 850;
+  font-stretch: 100%;
+  font-size: clamp(38px, 5.4vw, 76px);
+  line-height: .98;
+  letter-spacing: -.035em;
+  text-wrap: balance;
+}
+.hx-title em { display: inline-block; font-family: var(--serif); font-weight: 400; font-style: italic; font-size: 1.08em; letter-spacing: -.015em; color: var(--slop); }
+.hx-sub {
+  margin: 24px 0 0;
+  max-width: 54ch;
+  color: var(--bone-dim);
+  font-size: clamp(16px, 1.3vw, 18px);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.hx-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+.hx-btn { border-radius: 0; min-height: 50px; padding: 0 24px; gap: 12px; justify-content: center; font-size: 12.5px; letter-spacing: .12em; }
+.hx-btn:not(.primary) { border-color: var(--bone); background: var(--ink); }
+.hx-btn:not(.primary):hover { background: var(--bone); color: var(--ink); }
+.hx-btn.primary:hover { background: var(--bone); border-color: var(--bone); color: var(--ink); }
+.hx-arrow { font-family: var(--sans); font-size: 15px; letter-spacing: 0; transition: translate .2s; }
+.hx-btn:hover .hx-arrow { translate: 4px 0; }
+.hx-meta {
+  margin: 26px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  font: 12px/1.6 var(--mono);
+  letter-spacing: .04em;
+  color: var(--bone-dim);
+}
+.hx-meta > * + *::before, .hx-terms > * + *::before { content: "·"; content: "·" / ""; margin: 0 .8em; }
+.hx-terms { display: inline-flex; flex-wrap: wrap; }
+.hx-meta a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: 3px; }
+.hx-meta a:hover { color: var(--bone); }
+/* The yearly savings line (shared/savings/data.mjs): one line of text in the HTML from the first frame, so nothing moves; the
+ * asterisk goes to its list (#savings, home/savings.js). */
+.hx-save { margin: 24px 0 0; font: 600 clamp(15px, 1.2vw, 17px)/1.45 var(--sans); color: var(--bone); text-wrap: balance; }
+.hx-save-star { margin-inline-start: .15em; padding: 0 .2em; color: var(--slop); text-decoration: none; font-weight: 700; }
+.hx-save-star:hover, .hx-save-star:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Sloppo's ledge: along the bottom of the hero under the globe, away from the copy and the consent strip (bottom left).
+ * Absolutely placed, so nothing moves if it goes. */
+.hx .stage-ledge { position: absolute; right: 3%; bottom: 0; z-index: 2; width: 24%; height: 2px; background: linear-gradient(90deg, transparent, var(--line), transparent); }
+
+/* Phones and narrow windows: the globe above, the copy centred under it. */
+@media (max-width: 899px) {
+  .hx { grid-template-columns: minmax(0, 1fr); padding-top: 8px; background: radial-gradient(ellipse 70% 32% at 50% 22%, color-mix(in srgb, var(--ink-2) 90%, transparent), transparent 75%); }
+  .gx-box, .hx-copy { grid-area: auto; }   /* the HTML's order: the box, then the copy */
+  .gx-box { max-width: 440px; aspect-ratio: 1 / .74; }
+  .hx-copy { justify-self: center; justify-items: center; text-align: center; }
+  .hx-kicker, .hx-cta, .hx-meta, .hx-terms { justify-content: center; }
+  .hx-kicker { margin-bottom: 14px; }
+  .hx-kicker > :first-child { display: none; }   /* the name is in the header; the line stays one line */
+  .hx-kicker > * + *::before { content: none; }
+}
+
+/* ---------- the capability strip ---------- */
+.hx-marquee {
+  position: relative;
+  z-index: 2;
+  margin-inline: calc(50% - 50vw);
+  overflow: hidden;
+  border-block: 1px solid var(--line);
+  background: var(--ink);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.mq-track { display: flex; width: max-content; animation: hx-mq 260s linear infinite; }
+.mq-list { display: flex; flex: none; margin: 0; padding: 0; list-style: none; }
+.mq-list li { padding: 14px 0; font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; color: var(--bone-dim); }
+.mq-list a { color: inherit; text-decoration: none; }
+.mq-list a:hover { color: var(--bone); text-decoration: underline; text-underline-offset: 4px; }
+.mq-list a:focus-visible { color: var(--bone); outline: 2px solid var(--slop); outline-offset: 4px; }
+.mq-list li::after { content: "•"; content: "•" / ""; margin: 0 1.5em; color: var(--slop); }
+.hx-marquee:hover .mq-track, .hx-marquee:focus-within .mq-track { animation-play-state: paused; }
+@keyframes hx-mq { to { transform: translateX(-50%); } }
+@keyframes hx-mq-rtl { to { transform: translateX(50%); } }
+:root[dir="rtl"] .mq-track { animation-name: hx-mq-rtl; }
+.finder-top { padding-top: clamp(20px, 3vw, 36px); }
+
+/* ---------- numbered section headings below the finder: "01 / Choose a workspace" ---------- */
+.sec-num::before { content: attr(data-num) " / "; content: attr(data-num) " / " / ""; color: var(--slop); }
+.shelf-head h2.sec-num::before { display: block; margin-bottom: 10px; font: 600 12px/1 var(--mono); letter-spacing: .14em; }
+
+@media (max-width: 700px) {
+  .hx-sub { margin-top: 16px; }
+  .hx-cta { margin-top: 24px; width: 100%; }
+  .hx-btn { flex: 1 1 150px; padding: 0 12px; gap: 8px; letter-spacing: .07em; white-space: nowrap; }
+  .hx-meta > .hx-terms { flex-basis: 100%; }
+  .hx-meta > .hx-terms::before { content: none; }
+  .mq-list li { padding: 12px 0; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mq-track { animation: none; }
+  .hx-arrow { transition: none; }
+}

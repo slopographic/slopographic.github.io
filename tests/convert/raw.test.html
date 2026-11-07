@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: camera RAW to JPG, PNG and WebP (detection, preview, the LibRaw engine)</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../raw/build.js"></script>
+  <script type="module">
+  // Covers: convert/js/core/raw.js, convert/js/core/raw-pages.js, convert/js/core/detect.js, convert/js/core/catalog.js, convert/js/core/pages.js, convert/js/preview/model.js, convert/js/ui/markup.js, convert/js/ui/mount.js
+  // A NEF-like file with a real 300 × 200 JPEG preview, and the CC0 DNG from raw.pixls.us (tests/raw/fixtures) through the
+  // real engine from the pinned cdn commit. The page has no SlopUI of its own, as a converter page: the engine loads it.
+  import { detectKind, KIND_LABEL } from '../../convert/js/core/detect.js';
+  import { CONVERSIONS } from '../../convert/js/core/catalog.js';
+  import { PAGES } from '../../convert/js/core/pages.js';
+  import { buildPreview } from '../../convert/js/preview/model.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  const dialog = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const press = (label) => [...dialog().querySelectorAll('button')].find((b) => b.textContent === label).click();
+  const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+  const head = async (f) => new Uint8Array(await f.slice(0, 512).arrayBuffer());
+  async function nef() {
+    const c = document.createElement('canvas'); c.width = 300; c.height = 200;
+    const g = c.getContext('2d'); g.fillStyle = '#c33'; g.fillRect(0, 0, 300, 200);
+    const jpg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95))).arrayBuffer());
+    return new File([RawBuild.tiff({ ifd0: [[0x10f, 2, 'NIKON CORPORATION'], [0x201, 4, { blob: 'p' }], [0x202, 4, { len: 'p' }]], blobs: { p: jpg } })], 'DSC_3.NEF');
+  }
+  const dng = async () => new File([await (await fetch('../raw/fixtures/canon-5d3-crop.dng')).arrayBuffer()], 'IMG_7.dng');
+
+  describe('camera RAW in File convert', () => {
+    it('detection: RAW kinds by content and extension, before TIFF and MP4', async () => {
+      expect(detectKind('IMG_7.dng', '', await head(await dng()))).toBe('dng');
+      expect(detectKind('DSC_3.NEF', '', await head(await nef()))).toBe('nef');
+      expect(detectKind('x', '', await head(new File([RawBuild.cr3([RawBuild.jpeg(64, 64)])], 'x')))).toBe('cr3');
+      expect(detectKind('x', '', await head(new File([RawBuild.tiff({ kind: 'cr2' })], 'x')))).toBe('cr2');
+      expect(detectKind('a.raf', '', null)).toBe('raf');
+      expect(detectKind('scan.tif', '', new Uint8Array([0x49, 0x49, 42, 0, 8, 0, 0, 0, 0, 0, 0, 0]))).toBe('tif');
+      expect(KIND_LABEL.nef).toBe('Nikon NEF RAW photo');
+    });
+    it('the catalog has RAW to JPG, PNG and WebP; the six pair pages use them', async () => {
+      for (const id of ['raw-to-jpg', 'raw-to-png', 'raw-to-webp']) expect(conv(id).from).toContain('cr3');
+      const slugs = PAGES.filter((p) => p.conv === 'raw-to-jpg').map((p) => p.slug).sort();
+      expect(slugs).toEqual(['arw-to-jpg', 'cr2-to-jpg', 'cr3-to-jpg', 'dng-to-jpg', 'nef-to-jpg', 'raf-to-jpg']);
+      const html = await (await fetch('../../convert/nef-to-jpg/')).text();
+      expect(html).toContain('data-preset="raw-to-jpg" data-from="nef" data-accept=".nef"');
+    });
+    it('the live preview shows the embedded JPEG and downloads nothing', async () => {
+      const f = await nef();
+      const pv = await buildPreview(conv('raw-to-jpg'), [{ name: f.name, file: f, kind: 'nef', size: f.size }], { quality: 92 });
+      expect(pv.before.kind).toBe('image');
+      expect(pv.after.kind).toBe('image');
+      expect(pv.outputs).toBe(null);           // Download runs the full conversion
+      expect(pv.note).toContain('embedded JPEG');
+      expect(dialog()).toBe(null);
+    });
+    it('declining the engine converts the embedded preview and says so', async () => {
+      try { localStorage.removeItem('slop-firstrun:raw-engine'); } catch (e) { /* none */ }
+      await (await window.SlopRaw.engine()).forget();
+      const f = await nef();
+      const r = conv('raw-to-png').run([{ name: f.name, file: f, kind: 'nef' }], {});
+      await waitFor(dialog, { timeout: 15000 });
+      expect(window.SlopUI).toBeTruthy();
+      press('Cancel');
+      const out = await r;
+      expect(out[0].name).toBe('DSC_3.png');
+      expect(out.info).toContain('embedded preview');
+      const bmp = await createImageBitmap(out[0].blob);
+      expect(bmp.width).toBe(300);
+    });
+    it('a real DNG to JPG through the engine, resized to 960 px wide', async () => {
+      const f = await dng();
+      const r = conv('raw-to-jpg').run([{ name: f.name, file: f, kind: 'dng' }], { wb: 'auto', exposure: '0.5', highlights: 'blend', width: 960, quality: 90 });
+      await waitFor(dialog, { timeout: 15000 }); press('Continue');
+      const out = await r;
+      expect(out[0].name).toBe('IMG_7.jpg');
+      expect(out[0].blob.type).toBe('image/jpeg');
+      expect(out.info).toBe(undefined);
+      const bmp = await createImageBitmap(out[0].blob);
+      expect(bmp.width).toBe(960);
+      expect(bmp.height).toBe(409);
+    }, { timeout: 90000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

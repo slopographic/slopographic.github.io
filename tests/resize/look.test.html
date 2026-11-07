@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: the look (header, one drop zone, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: resize/index.html, resize/css/resize.css, resize/js/app/main.js, assets/shots/resize.jpg -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's buttons and the drop zone are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../resize/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-switch') && D.querySelector('header a.brand .brand-app') && D.querySelector('#rs-drop .sd-msg'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  /** The header's visible buttons and links. */
+  const controls = (D) => [...D.querySelectorAll('header a, header button')].filter((n) => n.getBoundingClientRect().width > 0);
+  /** True when no two controls on the same row overlap, and all are inside the window. */
+  function laidOut(D, width) {
+    const rs = controls(D).map((n) => n.getBoundingClientRect()).sort((a, b) => a.top - b.top || a.left - b.left);
+    return rs.every((r, i) => r.left >= 0 && r.right <= width + 0.5 && (!i || rs[i - 1].bottom <= r.top + 4 || r.left >= rs[i - 1].right - 0.5));
+  }
+
+  describe('Slop Resize: the look', () => {
+    it('the empty page shows what it makes and how, and Try it with 4 sample photos queues them', async () => {
+      const D = await open(1280), W = D.defaultView;
+      expect(D.querySelectorAll('#rs-drop .sd-steps li').length).toBe(3);
+      SlopTest.shot(D.querySelector('#rs-drop .sd-pic img'), '../assets/shots/resize.jpg');
+      D.querySelector('#rs-drop .sd-sample').click();
+      await waitFor(() => W.SlopResize.queue.items().length === 4, { timeout: 20000 });
+      expect(W.SlopResize.queue.items()[0].name).toBe('Sample sunset.jpg');
+    }, { timeout: 40000 });
+    it('the header leads with the home link (the app icon), then the name', async () => {
+      const D = await open(1440);
+      const brand = D.querySelector('header.rs-top a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.nextElementSibling.textContent).toBe('Slop Resize');
+      expect(D.querySelector('.sps-dock')).toBe(null); // the corner Home and All apps pills are not needed
+    }, { timeout: 40000 });
+
+    it('one drop zone: the shared zone inside the empty card, and no second card', async () => {
+      const D = await open(1440);
+      expect(D.querySelectorAll('.sd-zone').length).toBe(1);
+      expect(D.querySelector('#rs-empty #rs-drop .sd-msg').textContent).toBe('Drop pictures or videos here');
+      expect(D.querySelector('.rs-drop-card h2')).toBe(null);
+      expect(D.getElementById('rs-open-empty')).toBe(null);
+    }, { timeout: 40000 });
+
+    it('at 1440px every header control sits on one row, as tall as the shell buttons', async () => {
+      const D = await open(1440);
+      expect(laidOut(D, 1440)).toBe(true);
+      const top = D.querySelector('header.rs-top');
+      expect(top.getBoundingClientRect().height).toBeLessThan(60);
+      const h = (s) => D.querySelector(s).getBoundingClientRect().height;
+      expect(h('#rs-open')).toBe(h('header .sh-switch'));
+    }, { timeout: 40000 });
+
+    // Whether 1280 px needs the icons depends on the machine's system-ui font (CI's Linux font is narrower than a desktop's),
+    // so the test asks for the outcome: the title whole on one row, with the labels given up only when they did not fit.
+    it('at 1280px the whole title shows on one row: the shared buttons give their labels up for icons', async () => {
+      const D = await open(1280), top = D.querySelector('header.rs-top'), h1 = top.querySelector('h1');
+      const whole = () => h1.getBoundingClientRect().right <= h1.parentElement.getBoundingClientRect().right + 1 && h1.scrollWidth <= h1.clientWidth + 1;
+      await waitFor(() => whole() && top.getBoundingClientRect().height < 60, { timeout: 5000 });
+      const tight = top.classList.contains('slop-htight');
+      expect(D.defaultView.SlopHbtn.check(top)).toBe(tight); // the fit is settled: measuring again keeps the same state
+      const labels = [...top.querySelectorAll('.slop-hbtn .slop-hbtn-txt')].filter((n) => n.getBoundingClientRect().width > 0);
+      expect(tight ? labels.length === 0 : labels.length > 0).toBe(true);
+      expect(laidOut(D, 1280)).toBe(true);
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways and no header controls overlap', async () => {
+      const D = await open(390);
+      expect(laidOut(D, 390)).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Resize: the look' });
+  </script>
+</body>
+</html>

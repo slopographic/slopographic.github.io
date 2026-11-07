@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: remove metadata from a picture</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../drive/util.js"></script>
+  <script src="../../clean/js/core/bytes.js"></script>
+  <script src="../../clean/js/core/tags.js"></script>
+  <script src="../../clean/js/core/xmp.js"></script>
+  <script src="../../clean/js/core/tiff.js"></script>
+  <script src="../../clean/js/core/jpeg.js"></script>
+  <script src="../../clean/js/core/png.js"></script>
+  <script src="../../clean/js/core/webp.js"></script>
+  <script src="../../clean/js/core/index.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, orig, origBytes, before, asked = [], opened = [];
+  const menuRows = (level = 0) => [...W.document.querySelectorAll(`.sui-menu[data-level="${level}"] .sui-row`)];
+  const labels = (level = 0) => menuRows(level).map((r) => r.querySelector('.sui-lbl').textContent);
+  const rowNamed = (label, level = 0) => menuRows(level).find((r) => r.querySelector('.sui-lbl').textContent === label);
+  const itemEl = (id) => W.document.querySelector(`#pane [data-key="f:${id}"]`);
+  const rightClick = (el, x = 200, y = 200) => el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, detail: 1 }));
+  const closeMenus = () => W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+  const hasGps = async (blob) => {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    return window.SlopClean.inspect(bytes).findings.some((f) => f.label === 'GPS position');
+  };
+  function photoBlob() {
+    const F = window.CleanFixtures;
+    return new Blob([F.buildJpeg({ app1: [F.seg(0xe1, F.exifOf(F.buildTiff({ entries: F.SAMPLE_ENTRIES })))] })], { type: 'image/jpeg' });
+  }
+
+  describe('Slop Drive: remove metadata from a picture', () => {
+    it('boots Slop Drive and puts a JPEG with GPS and camera fields in it', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      origBytes = new Uint8Array(await photoBlob().arrayBuffer());
+      orig = await H.put(new Blob([origBytes], { type: 'image/jpeg' }), { name: 'trip.jpg', from: 'upload' });
+      await DR.refresh(); DR.render();
+      await waitFor(() => itemEl(orig), { timeout: 10000 });
+      expect(DR.isCleanable(await H.get(orig))).toBe(true);
+    });
+
+    it('the right-click menu offers "Remove metadata…" (Open in Slop Clean) and "Remove metadata now"', async () => {
+      rightClick(itemEl(orig));
+      expect(labels()).toContain('Remove metadata now');
+      const open = rowNamed('Open with');
+      expect(!!open).toBe(true);
+      expect(labels(1)).toEqual([]);
+      closeMenus();
+      rightClick(itemEl(orig));
+      const rows = labels();
+      expect(rows.indexOf('Remove metadata now')).toBeGreaterThan(-1);
+      closeMenus();
+    });
+
+    it('"Remove metadata…" opens Slop Clean on the file with ?drive=<id>', async () => {
+      opened = []; W.open = (u) => { opened.push(String(u)); return {}; };
+      await DR.openInClean(await H.get(orig));
+      expect(opened[0]).toContain('/clean/?drive=' + orig);
+    });
+
+    it('"Remove metadata now" asks first, listing what goes, and writes one new "(clean)" record', async () => {
+      before = (await H.list({ trashed: 'any' })).length;
+      asked = [];
+      W.SlopUI.confirm = async (title, msg) => { asked.push({ title, msg }); return true; };
+      await DR.removeMetadataNow([await H.get(orig)]);
+      expect(asked.length).toBe(1);
+      const listed = asked[0].msg.textContent;
+      expect(listed).toContain('GPS position');
+      expect(listed).toContain('Camera model');
+      expect(listed).toContain('trip.jpg');
+      const all = await H.list({ trashed: 'any' });
+      expect(all.length).toBe(before + 1);
+      const made = all.find((r) => r.name === 'trip (clean).jpg');
+      expect(!!made).toBe(true);
+      expect(made.from).toBe('clean');
+      expect(await hasGps(made.blob)).toBe(false);
+    });
+
+    it('the original is never changed', async () => {
+      const r = await H.get(orig);
+      expect(r.name).toBe('trip.jpg');
+      expect(r.size).toBe(origBytes.length);
+      expect(await hasGps(r.blob)).toBe(true);
+    });
+
+    it('cancelling the confirmation writes nothing', async () => {
+      const n = (await H.list({ trashed: 'any' })).length;
+      W.SlopUI.confirm = async () => false;
+      await DR.removeMetadataNow([await H.get(orig)]);
+      expect((await H.list({ trashed: 'any' })).length).toBe(n);
+    });
+
+    it('the details panel has a "Remove metadata…" button for a picture', async () => {
+      DR.select(['f:' + orig]); DR.toggleInfo(true); DR.renderInfo(true);
+      const labels = [...W.document.querySelectorAll('#info .acts button')].map((b) => b.textContent);
+      expect(labels).toContain('Remove metadata…');
+      DR.toggleInfo(false);
+    });
+
+    it('Open in keeps Slop Photo (PhotoSLOP) as the default for a JPEG, with Slop Clean listed as a tool', async () => {
+      const r = await H.get(orig);
+      expect(DR.orderedAppsFor(r)[0].id).toBe('photoslop');
+      expect(DR.appsFor(r).map((a) => a.id)).toContain('clean');
+    });
+
+    it('a folder or a non-picture is not offered the action', async () => {
+      const txt = await H.put(new Blob(['hello'], { type: 'text/plain' }), { name: 'notes.txt', from: 'upload' });
+      expect(DR.isCleanable(await H.get(txt))).toBe(false);
+      expect(DR.cleanRows([await H.get(txt)]).length).toBe(0);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: remove metadata' });
+  </script>
+</body>
+</html>

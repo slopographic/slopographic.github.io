@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: routes of several conversions (SIE → CSV → JSON): the menu, the route on the card, options per step, the run</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); localStorage.setItem('slop-consent', JSON.stringify({ v: 1, ads: false, analytics: false, t: Date.now() })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/ui/chain-row.js, convert/js/ui/chain-opts.js, convert/js/ui/tool-chain.js, convert/js/ui/targets.js, convert/js/ui/run.js
+  // Covers: convert/js/ui/list-view.js, convert/js/ui/file-row.js, convert/js/ui/bulk.js, convert/js/ui/file-opts.js, convert/js/ui/tool.js, convert/js/ui/markup.js
+  // Covers: convert/js/core/chain.js, convert/js/core/chain-run.js, convert/js/core/chain-pages.js, convert/js/core/pages.js, convert/js/preview/chain.js
+  // Covers: convert/js/preview/controller.js, convert/js/preview/model.js, convert/css/tool.css, shared/seo/convert-copy.mjs
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D, T;
+  const $ = (s) => D.querySelector(s);
+  const $$ = (s) => [...D.querySelectorAll(s)];
+  const card = () => $('li.cv-file');
+  const menu = () => $('.smb-menu');
+  const rows = () => [...menu().querySelectorAll('.smb-row:not([hidden])')];
+  const pick = (value) => menu().querySelector(`.smb-row[data-value="${CSS.escape(value)}"]`).click();
+  const key = (el, k) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  const tiles = (root) => [...root.querySelectorAll('.cv-route .sflow-tile b')].map((b) => b.textContent);
+  const target = () => T.targetOf(T.items[0]);
+  async function open(src, width = 1280, theme = '') {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = src; document.body.append(F);
+    await waitFor(() => F.contentWindow && F.contentWindow.document.querySelector('[data-convert-root]') && F.contentWindow.document.querySelector('[data-convert-root]').convertTool, { timeout: 30000 });
+    W = F.contentWindow; D = W.document; T = $('[data-convert-root]').convertTool;
+    if (theme) D.documentElement.setAttribute('data-theme', theme);
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+  }
+  const sie = async (name = 'ankan-sie4.se') => new W.File([await (await fetch(`../finance/fixtures/${name}`, { cache: 'no-store' })).arrayBuffer()], name);
+
+  describe('the Convert to menu offers formats a route reaches', () => {
+    it('an SIE file: CSV and XLSX directly, then "More formats" with JSON · via CSV, found by search too', async () => {
+      await open('../../convert/index.html');
+      await T.addFiles([await sie()]);
+      expect(target()).toBe('sie-to-xlsx');
+      card().querySelector('.cv-to').click();
+      const heads = [...menu().querySelectorAll('.smb-h')].map((h) => h.textContent);
+      expect(heads).toContain('More formats');
+      const json = menu().querySelector('.smb-row[data-value="sie-to-csv>csv-to-json"]');
+      expect(json.querySelector('.smb-lbl').textContent).toBe('JSON · via CSV');
+      const box = menu().querySelector('.smb-search');
+      box.value = 'yaml'; box.dispatchEvent(new W.Event('input'));
+      expect(rows().map((r) => r.dataset.value)).toEqual(['sie-to-csv>csv-to-json>json-to-yaml']);
+      box.value = 'json'; box.dispatchEvent(new W.Event('input'));
+      pick('sie-to-csv>csv-to-json');
+      expect(target()).toBe('sie-to-csv>csv-to-json');
+      expect(card().querySelector('.cv-to-label').textContent).toBe('JSON · via CSV');
+      expect(tiles(card())).toEqual(['SIE', 'CSV', 'JSON']);
+      expect(card().querySelector('.cv-route').getAttribute('aria-label')).toBe('Route: SIE to CSV to JSON');
+    }, { timeout: 40000 });
+  });
+
+  describe('a card with a route', () => {
+    it('Options: one group per step under its heading, with that step\'s own options', async () => {
+      const d = card().querySelector('details.cv-route-opts');
+      d.open = true;
+      expect([...d.querySelectorAll('.cv-step-h')].map((h) => h.textContent)).toEqual(['Step 1 · SIE → CSV', 'Step 2 · CSV → JSON']);
+      const id = T.items[0].id;
+      expect(!!$(`#cv-o-${id}-s1-delimiter`) && !!$(`#cv-o-${id}-s2-numbers`)).toBe(true);
+      const num = $(`#cv-o-${id}-s2-numbers`);
+      num.checked = true; num.dispatchEvent(new W.Event('change', { bubbles: true }));
+      expect(T.items[0].opts['csv-to-json'].numbers).toBe(true);
+      expect(d.querySelector('.cv-file-opts-sum').textContent).toContain('on');
+    });
+    it('Convert runs both steps, the status line names the step, and the JSON holds the transaction lines with numbers', async () => {
+      const said = [], set = T.setStatus.bind(T);
+      T.setStatus = (t) => { said.push(t); set(t); };
+      await T.run();
+      T.setStatus = set;
+      expect(said).toContain('Step 1 of 2: SIE → CSV…');
+      expect(said).toContain('Step 2 of 2: CSV → JSON…');
+      expect(T.outputs.map((o) => o.name)).toEqual(['ankan-sie4.json']);
+      const data = JSON.parse(await T.outputs[0].blob.text());
+      expect(Array.isArray(data) && data.length > 3).toBe(true);
+      expect(Object.values(data[0]).some((v) => typeof v === 'number')).toBe(true);
+      expect($('#cv-status').textContent).toContain('1 file ready');
+    }, { timeout: 30000 });
+    it('"Also keep the in-between files" adds the CSV to the results, marked as in between', async () => {
+      const id = T.items[0].id, box = $(`#cv-o-${id}-keep`);
+      box.checked = true; box.dispatchEvent(new W.Event('change', { bubbles: true }));
+      await T.run();
+      expect(T.outputs.map((o) => o.name)).toEqual(['ankan-sie4.json', 'ankan-sie4.csv']);
+      expect((await T.outputs[1].blob.text()).replace(/^﻿/, '').split('\r\n')[0]).toContain('Account');
+      expect($$('#cv-out .cv-file-meta')[1].textContent).toContain('in between');
+    }, { timeout: 30000 });
+    it('the middle tile switches the format in between; the preview shows the final JSON', async () => {
+      const mid = card().querySelector('.cv-route-mid');
+      expect(mid.getAttribute('aria-haspopup')).toBe('menu');
+      mid.click();
+      expect(rows().map((r) => r.dataset.value)).toEqual(['sie-to-csv>csv-to-json', 'sie-to-xlsx>xlsx-to-json']);
+      pick('sie-to-xlsx>xlsx-to-json');
+      expect(target()).toBe('sie-to-xlsx>xlsx-to-json');
+      expect(tiles(card())).toEqual(['SIE', 'XLSX', 'JSON']);
+      card().querySelector('.cv-route-mid').click();
+      pick('sie-to-csv>csv-to-json');
+      await waitFor(() => /Preview of the last of 2 steps/.test($('[data-convert-preview]').textContent), { timeout: 15000 });
+      expect($('[data-convert-preview]').textContent).toContain('"');
+    }, { timeout: 30000 });
+    it('+ Then… adds a step from what the route makes, and × removes it again', async () => {
+      card().querySelector('.cv-route-then').click();
+      expect(menu().getAttribute('aria-label')).toBe('Then convert the JSON to');
+      pick('sie-to-csv>csv-to-json>json-to-yaml');
+      expect(target()).toBe('sie-to-csv>csv-to-json>json-to-yaml');
+      expect(tiles(card())).toEqual(['SIE', 'CSV', 'JSON', 'YAML']);
+      card().querySelector('details.cv-route-opts').open = true;
+      expect(card().querySelectorAll('.cv-step-opts').length).toBe(3);
+      card().querySelector('.cv-route-x').click();
+      expect(target()).toBe('sie-to-csv>csv-to-json');
+      card().querySelector('.cv-route-x').click();
+      expect(target()).toBe('sie-to-csv');
+      expect(!!card().querySelector('.cv-route')).toBe(false);
+      expect(!!card().querySelector('.cv-file-to .cv-route-then')).toBe(true);   // a one-step target has + Then… beside it
+    });
+    it('the keyboard: Then… and the middle tile open with ArrowDown and pick with Enter', async () => {
+      const then = card().querySelector('.cv-route-then');
+      then.focus(); key(then, 'ArrowDown');
+      const box = menu().querySelector('.smb-search') || D.activeElement;
+      if (box.classList.contains('smb-search')) { box.value = 'json'; box.dispatchEvent(new W.Event('input')); key(box, 'Enter'); }
+      else { key(D.activeElement, 'Enter'); }
+      expect(target()).toBe('sie-to-csv>csv-to-json');
+      const mid = card().querySelector('.cv-route-mid');
+      mid.focus(); key(mid, 'ArrowDown');
+      expect(D.activeElement.getAttribute('aria-checked')).toBe('true');
+      key(D.activeElement, 'ArrowDown'); key(D.activeElement, 'Enter');
+      expect(target()).toBe('sie-to-xlsx>xlsx-to-json');
+      expect(D.activeElement.classList.contains('cv-route-mid')).toBe(true);
+    });
+  });
+
+  describe('several files and links', () => {
+    it('the bulk bar sets one route on every selected file, and its middle tile switches all of them', async () => {
+      T.clear();
+      await T.addFiles([await sie('ankan-sie4.se'), await sie('fakt-4i.si')]);
+      $('.cv-bulk-allbox').click();
+      $('.cv-bulk-to').click();
+      pick('sie-to-csv>csv-to-json>json-to-yaml');
+      expect(T.items.map((i) => T.targetOf(i))).toEqual(['sie-to-csv>csv-to-json>json-to-yaml', 'sie-to-csv>csv-to-json>json-to-yaml']);
+      expect(tiles($('#cv-bulk'))).toEqual(['SIE', 'CSV', 'JSON', 'YAML']);
+      $('#cv-bulk .cv-route-mid').click();
+      pick('sie-to-xlsx>xlsx-to-json>json-to-yaml');
+      expect(T.items.map((i) => T.targetOf(i))).toEqual(['sie-to-xlsx>xlsx-to-json>json-to-yaml', 'sie-to-xlsx>xlsx-to-json>json-to-yaml']);
+      expect(T.routes()).toContain('sie-to-csv>csv-to-json');
+      expect(T.targets().every((id) => !id.includes('>'))).toBe(true);
+    }, { timeout: 30000 });
+    it('?to=json gives an SIE file its route', async () => {
+      await open('../../convert/index.html?to=json');
+      await T.addFiles([await sie()]);
+      expect(target()).toBe('sie-to-csv>csv-to-json');
+    }, { timeout: 40000 });
+    it('the SIE to JSON page runs its route, has no Then…, and its middle tile still switches', async () => {
+      await open('../../convert/sie-to-json/');
+      await T.addFiles([await sie()]);
+      expect(target()).toBe('sie-to-csv>csv-to-json');
+      expect([!!card().querySelector('.cv-route-then'), !!card().querySelector('.cv-route-x')]).toEqual([false, false]);
+      card().querySelector('.cv-route-mid').click();
+      pick('sie-to-xlsx>xlsx-to-json');
+      expect(target()).toBe('sie-to-xlsx>xlsx-to-json');
+      await T.run();
+      expect(T.outputs.map((o) => o.name)).toEqual(['ankan-sie4.json']);
+    }, { timeout: 40000 });
+  });
+
+  describe('a phone: 390 px, light', () => {
+    it('a three-step route wraps inside its card with no sideways scroll, and its menus fit', async () => {
+      await open('../../convert/index.html', 390, 'light');
+      await T.addFiles([await sie('a ledger file with a long name.se')]);
+      T.setTarget('sie-to-csv>csv-to-json>json-to-yaml');
+      card().querySelector('details.cv-route-opts').open = true;
+      await sleep(50);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      const c = card().getBoundingClientRect(), r = card().querySelector('.cv-route').getBoundingClientRect();
+      expect(r.right <= c.right && r.left >= c.left).toBe(true);
+      card().querySelector('.cv-route-mid').click();
+      const m = menu().getBoundingClientRect();
+      expect(m.left >= 0 && m.right <= 390).toBe(true);
+      W.SlopMenuButton.close();
+      expect(!!card().querySelector('.cv-route-then')).toBe(false);   // nothing new comes from YAML without going back to JSON
+      card().querySelector('.cv-route-x').click();
+      card().querySelector('.cv-route-then').click();
+      expect(menu().getBoundingClientRect().right <= 390).toBe(true);
+      W.SlopMenuButton.close();
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'File convert: routes' });
+  </script>
+</body>
+</html>

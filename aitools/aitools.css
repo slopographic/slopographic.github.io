@@ -1,0 +1,42 @@
+@import url("dialog.css");
+/* Slop AI Tools: shared styles for the hub and the tool pages. Colours are tokens on :root, with dark mode. */
+/* The colours come from the shared theme (--sl-* on data-slop-theme, set by shared/theme/theme.js), so AI Tools
+ * follows the same theme switcher as every other app. The fallbacks are the light theme for a page without the script. */
+:root { --bg: var(--sl-background, #f6f6f4); --fg: var(--sl-text, #1b1b1f); --muted: color-mix(in srgb, var(--sl-text, #1b1b1f) 65%, transparent); --card: var(--sl-surface, #ffffff); --line: var(--sl-border, #d9d9de); --accent: var(--sl-accent, #1b1b1f); --accent-fg: var(--sl-on-accent, #ffffff); --ok: #1e7a3c; --warn: #8a5a00; --bad: #a11d1d; --focus: var(--sl-accent, #2563eb); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
+/* The header of the hub and the tool pages: the brand (home), the name, then Tour and the shell's Theme, Apps and bell,
+ * which wear the look of .ai-btn through the --slop-hbtn-* tokens (shared/ui/hbtn.css). */
+.ai-top { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+  --slop-hbtn-h: 34px; --slop-hbtn-bg: var(--card); --slop-hbtn-line: var(--line); --slop-hbtn-fs: 14px; }
+.ai-top .brand { display: grid; place-items: center; width: 30px; height: 30px; flex: none; color: var(--fg); }
+.ai-top .brand-mark { width: 20px; height: 20px; fill: currentColor; }
+.ai-top h1 { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-crumb { color: var(--muted); text-decoration: none; white-space: nowrap; } .ai-crumb:hover { color: var(--fg); }
+.ai-sep { color: var(--muted); }
+h2 { font-size: 18px; margin: 28px 0 10px; } h3 { font-size: 16px; margin: 0; }
+a { color: var(--focus); } :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ai-meta { color: var(--muted); font-size: 13px; margin: 2px 0; overflow-wrap: anywhere; }
+.ai-intro { color: var(--muted); margin: 0 0 8px; }
+.ai-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ai-card, .ai-model, .ai-panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.ai-card p { margin: 6px 0; }
+.ai-row, .ai-act { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.ai-model { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; }
+.ai-models-list { display: grid; gap: 0; grid-template-columns: minmax(0, 1fr); }
+.ai-model > div { min-width: 0; }
+button, .ai-btn { font: inherit; display: inline-block; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; text-decoration: none; }
+button:disabled { opacity: .5; cursor: default; }
+button.ai-pri, a.ai-pri { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.ai-card .ai-btn { margin-top: 8px; }
+select, input[type="range"] { font: inherit; max-width: 100%; }
+select, input[type="number"] { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
+.ai-tool { max-width: 880px; margin: 0 auto; padding: 16px 16px 48px; }
+.ai-drop { border: 2px dashed var(--line); border-radius: 12px; padding: 24px 16px; text-align: center; color: var(--muted); }
+.ai-grid2 { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) { .ai-grid2 { grid-template-columns: 1fr; } }
+.ai-out { width: 100%; min-height: 160px; font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.ai-img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
+.ai-stack { display: grid; gap: 12px; }
+.ai-choose { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }

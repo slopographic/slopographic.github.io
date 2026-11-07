@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business document apps in Swedish</title>
+  <meta name="slop-test-limit" content="900">
+  <!-- Covers: shared/biz/i18n/index.js, shared/biz/i18n/en/biz.js, shared/biz/i18n/sv/biz.js, shared/biz/i18n/en/docs.js, shared/biz/i18n/sv/docs.js, tests/i18n/sv-apps/run.js -->
+  <!-- Covers (the shared document editor, through the order, quote, invoice and purchase pages): shared/docs/customer-dialog.js shared/docs/doc-app.js shared/docs/doc-editor.js shared/docs/doc-layout.js shared/docs/doc-page.js shared/docs/doc-view.js shared/docs/lines.js shared/docs/model.js shared/docs/page.js shared/docs/paper-edit.js shared/docs/paper.js shared/docs/pdf-layouts.js shared/docs/pdf-render.js shared/docs/product-dialog.js shared/docs/samples-dialog.js shared/docs/samples-run.js shared/docs/samples.js -->
+  <!-- What each app shows in Swedish: tests/i18n/sv-apps/<app>.js (each names the scripts it covers). -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="sv-apps/orders.js"></script>
+  <script src="sv-apps/invoices.js"></script>
+  <script src="sv-apps/quotes.js"></script>
+  <script src="sv-apps/purchases.js"></script>
+  <script src="sv-apps/timesheets.js"></script>
+  <script src="sv-apps/expenses.js"></script>
+  <script src="sv-apps/inventory.js"></script>
+  <script src="sv-apps/crm.js"></script>
+  <script src="sv-apps/ledger.js"></script>
+  <script src="sv-apps/run.js"></script>
+</body>
+</html>

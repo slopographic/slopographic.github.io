@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopDocTabs with blocked storage (frame for doctabs.test.html)</title>
+</head>
+<body>
+  <div id="strip" style="width:640px"></div>
+  <script>
+    // Every storage accessor throws, as in a private window with site data blocked. Set before the modules load.
+    for (const name of ['localStorage', 'sessionStorage', 'indexedDB']) {
+      Object.defineProperty(window, name, { configurable: true, get() { throw new DOMException('storage blocked', 'SecurityError'); } });
+    }
+  </script>
+  <script src="../../shared/doctabs/tabs.js"></script>
+  <script src="../../shared/doctabs/drive.js"></script>
+  <script src="../../shared/doctabs/session.js"></script>
+  <script>
+    (async function () {
+      const out = { error: '', restored: null, tabs: 0, strip: 0, notices: 0, flushed: null, done: false };
+      try {
+        const adapter = {
+          newDoc: () => ({ title: 'Untitled', text: '', edited: false }),
+          serialize: (doc) => ({ title: doc.title, text: doc.text, edited: doc.edited }),
+          restore: (s) => ({ title: s.title, text: s.text, edited: s.edited }),
+          title: (doc) => doc.title,
+          dirty: (doc) => doc.edited,
+          activate() {},
+          deactivate() {},
+          drive: { ext: '.txt', mime: 'text/plain' },
+        };
+        const host = document.getElementById('strip');
+        const api = SlopDocTabs.mount(host, adapter, { appId: 'blocked', toast() {}, confirm: () => Promise.resolve(true) });
+        const notes = [];
+        const sess = SlopDocTabs.session('blocked', api, { notice: (m) => notes.push(m) });
+        out.restored = await sess.restore(); // nothing can be read: one blank tab
+        api.openDoc({ title: 'One', text: 'a', edited: true });
+        api.openDoc({ title: 'Two', text: 'b', edited: false });
+        out.flushed = await sess.flush();    // must resolve (false: nothing was written), never throw
+        out.tabs = api.tabs().length;
+        out.strip = host.querySelectorAll('.sl-doctab').length;
+        out.notices = notes.length;
+      } catch (e) {
+        out.error = (e && e.message) || String(e);
+      }
+      out.done = true;
+      window.__DOCTABS_FRAME = out;
+    })();
+  </script>
+</body>
+</html>

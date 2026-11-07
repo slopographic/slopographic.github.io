@@ -1,0 +1,20 @@
+/* PhotoSlop, English (the source of truth for the keys): the guided tour (shared/tour/tours/photoslop.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'photoslop.tour.title': 'PhotoSlop tour',
+  'photoslop.tour.new_title': 'Start a file',
+  'photoslop.tour.new_text': 'New sets the size, preset and background of a document (in More ▾ on a narrow window); Open loads a PSD, ORA or image. Each file gets a tab.',
+  'photoslop.tour.menus_title': 'Menu bar',
+  'photoslop.tour.menus_text': 'File, Edit, Image, Layer, Select and Filter live here. Each menu lists its commands.',
+  'photoslop.tour.tools_title': 'Tools',
+  'photoslop.tour.tools_text': 'Brushes, selection, type and crop sit in the toolbox. Pick one, then set it up in the options bar.',
+  'photoslop.tour.options_title': 'Tool options',
+  'photoslop.tour.options_text': 'The options bar changes with the active tool: size, opacity, blend mode and more.',
+  'photoslop.tour.canvas_title': 'The canvas',
+  'photoslop.tour.canvas_text': 'Paint, select and transform on the canvas. The status bar shows zoom and size.',
+  'photoslop.tour.panels_title': 'Layers and panels',
+  'photoslop.tour.panels_text': 'Layers, history and properties live in this column. On a phone, the Layers button shows them.',
+  'photoslop.tour.export_title': 'Export',
+  'photoslop.tour.export_text': 'Export PNG, JPEG, WebP or PSD. The file is made on your device; nothing is uploaded.',
+  'photoslop.tour.theme_title': 'Theme',
+  'photoslop.tour.theme_text': 'Switch between Pro, Light and Paint ’98.',
+});

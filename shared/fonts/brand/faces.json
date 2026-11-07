@@ -1,0 +1,283 @@
+{
+ "family": "Slopographic",
+ "version": "1.000",
+ "licence": "OFL-1.1",
+ "copyright": "Copyright 2026 Slopographic",
+ "licenceFile": "OFL.txt",
+ "fontlog": "FONTLOG.txt",
+ "download": "slopographic-fonts.zip",
+ "roles": {
+  "sans": {
+   "family": "Slopographic Sans",
+   "category": "sans",
+   "fallback": "Inter Tight Fallback",
+   "upstream": "Inter Tight",
+   "styles": [
+    "normal",
+    "italic"
+   ]
+  },
+  "serif": {
+   "family": "Slopographic Serif",
+   "category": "serif",
+   "fallback": "Instrument Serif Fallback",
+   "upstream": "Instrument Serif",
+   "styles": [
+    "normal",
+    "italic"
+   ]
+  },
+  "mono": {
+   "family": "Slopographic Mono",
+   "category": "mono",
+   "fallback": "JetBrains Mono Fallback",
+   "upstream": "JetBrains Mono",
+   "styles": [
+    "normal",
+    "italic"
+   ]
+  },
+  "cond": {
+   "family": "Slopographic Condensed",
+   "category": "sans",
+   "fallback": "Archivo Fallback",
+   "upstream": "Archivo",
+   "styles": [
+    "normal",
+    "italic"
+   ]
+  }
+ },
+ "features": [
+  {
+   "tag": "ss01",
+   "name": "Double-storey a",
+   "roles": [
+    "sans"
+   ]
+  },
+  {
+   "tag": "ss02",
+   "name": "Round-top 3",
+   "roles": [
+    "sans"
+   ]
+  },
+  {
+   "tag": "ss03",
+   "name": "Round dots",
+   "roles": [
+    "sans"
+   ]
+  },
+  {
+   "tag": "ss04",
+   "name": "Open digits",
+   "roles": [
+    "sans"
+   ]
+  },
+  {
+   "tag": "dlig",
+   "name": "Drip ligature",
+   "texts": [
+    "slop",
+    "Slop"
+   ],
+   "roles": [
+    "sans",
+    "serif",
+    "mono",
+    "cond"
+   ]
+  },
+  {
+   "tag": "ss01",
+   "name": "Round dots",
+   "roles": [
+    "mono",
+    "cond"
+   ]
+  }
+ ],
+ "pua": [
+  {
+   "code": "E000",
+   "name": "Slopographic mark",
+   "kind": "mark",
+   "roles": [
+    "sans",
+    "serif",
+    "mono",
+    "cond"
+   ]
+  }
+ ],
+ "faces": [
+  {
+   "family": "Slopographic Sans",
+   "role": "sans",
+   "style": "normal",
+   "weight": "300 900",
+   "file": "sans-normal-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 41616
+  },
+  {
+   "family": "Slopographic Sans",
+   "role": "sans",
+   "style": "normal",
+   "weight": "300 900",
+   "file": "sans-normal-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 82472
+  },
+  {
+   "family": "Slopographic Sans",
+   "role": "sans",
+   "style": "italic",
+   "weight": "300 900",
+   "file": "sans-italic-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 44400
+  },
+  {
+   "family": "Slopographic Sans",
+   "role": "sans",
+   "style": "italic",
+   "weight": "300 900",
+   "file": "sans-italic-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 87032
+  },
+  {
+   "family": "Slopographic Serif",
+   "role": "serif",
+   "style": "normal",
+   "weight": "400",
+   "file": "serif-normal-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 20704
+  },
+  {
+   "family": "Slopographic Serif",
+   "role": "serif",
+   "style": "normal",
+   "weight": "400",
+   "file": "serif-normal-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 11100
+  },
+  {
+   "family": "Slopographic Serif",
+   "role": "serif",
+   "style": "italic",
+   "weight": "400",
+   "file": "serif-italic-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 21816
+  },
+  {
+   "family": "Slopographic Serif",
+   "role": "serif",
+   "style": "italic",
+   "weight": "400",
+   "file": "serif-italic-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 11772
+  },
+  {
+   "family": "Slopographic Mono",
+   "role": "mono",
+   "style": "normal",
+   "weight": "400 800",
+   "file": "mono-normal-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 15700
+  },
+  {
+   "family": "Slopographic Mono",
+   "role": "mono",
+   "style": "normal",
+   "weight": "400 800",
+   "file": "mono-normal-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 10616
+  },
+  {
+   "family": "Slopographic Mono",
+   "role": "mono",
+   "style": "italic",
+   "weight": "400 800",
+   "file": "mono-italic-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 17040
+  },
+  {
+   "family": "Slopographic Mono",
+   "role": "mono",
+   "style": "italic",
+   "weight": "400 800",
+   "file": "mono-italic-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 11460
+  },
+  {
+   "family": "Slopographic Condensed",
+   "role": "cond",
+   "style": "normal",
+   "weight": "300 900",
+   "file": "cond-normal-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 62008,
+   "stretch": "62% 100%"
+  },
+  {
+   "family": "Slopographic Condensed",
+   "role": "cond",
+   "style": "normal",
+   "weight": "300 900",
+   "file": "cond-normal-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 55544,
+   "stretch": "62% 100%"
+  },
+  {
+   "family": "Slopographic Condensed",
+   "role": "cond",
+   "style": "italic",
+   "weight": "300 900",
+   "file": "cond-italic-latin.woff2",
+   "subset": "latin",
+   "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD, U+E000",
+   "bytes": 70020,
+   "stretch": "62% 100%"
+  },
+  {
+   "family": "Slopographic Condensed",
+   "role": "cond",
+   "style": "italic",
+   "weight": "300 900",
+   "file": "cond-italic-latin-ext.woff2",
+   "subset": "latin-ext",
+   "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+   "bytes": 59744,
+   "stretch": "62% 100%"
+  }
+ ],
+ "fallbacks": []
+}

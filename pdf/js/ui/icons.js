@@ -1,0 +1,78 @@
+/* Slop PDF — 24px stroke icon set used across the UI. */
+(function () {
+  'use strict';
+  var SP = window.SP, U = SP.util;
+
+  /* ---------- icons (24px stroke icons) ---------- */
+  var P = {
+    open: '<path d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-7L10 5H5a2 2 0 0 0-2 2.5z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+    more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    organize: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.2"/>',
+    edit: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/>',
+    sign: '<path d="M3 17c3-1 4.5-9 7-9s.5 9 3 9 2.5-4 4-4 1.5 3 4 3"/><path d="M3 21h18"/>',
+    numbers: '<path d="M4 6h3v12M4 18h6"/><path d="M14 8a3 3 0 1 1 5 2.2L14 16h6"/>',
+    watermark: '<path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/>',
+    forms: '<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M7 9h4M7 14h4"/><rect x="13" y="7.5" width="4.5" height="3" rx=".6"/><rect x="13" y="12.5" width="4.5" height="3" rx=".6"/>',
+    compress: '<path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"/>',
+    ocr: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 9h8M8 12h6M8 15h4"/>',
+    convert: '<rect x="3" y="3" width="11" height="14" rx="1.5"/><path d="M14 9h5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-2"/><path d="m11 14 2.5-3 3 4 1.5-1.5"/>',
+    split: '<path d="M6 4v5M18 4v5M6 15v5M18 15v5"/><path d="M3 12h3M9 12h2M13 12h2M18 12h3"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+    rotl: '<path d="M4 4v5h5"/><path d="M4.6 15a8 8 0 1 0 1.9-8.3L4 9"/>',
+    rotr: '<path d="M20 4v5h-5"/><path d="M19.4 15a8 8 0 1 1-1.9-8.3L20 9"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    extract: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3 3 3-3"/>',
+    blank: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/>',
+    insert: '<path d="M4 4h7v16H4zM20 12h-6M17 9l-3 3 3 3"/>',
+    reverse: '<path d="M7 4v16M7 4 4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/>',
+    sort: '<path d="M4 6h9M4 12h7M4 18h5M17 4v16M14 17l3 3 3-3"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+    zoomin: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/>',
+    zoomout: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M8 11h6"/>',
+    fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    prev: '<path d="m15 18-6-6 6-6"/>',
+    up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    next: '<path d="m9 18 6-6-6-6"/>',
+    close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    select: '<path d="M5 3l14 8-6 1.8L10 19z"/>',
+    block: '<rect x="4" y="4" width="16" height="16" rx="1.5" stroke-dasharray="3 2.5"/><path d="M8 9h8M8 12.5h5M8 16h6.5"/>',
+    text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+    pen: '<path d="M3 21c2-5 4-6 6-8l7-7a2.1 2.1 0 0 1 3 3l-7 7c-2 2-3 4-8 6"/>',
+    marker: '<path d="m9 15 9.5-9.5a2.1 2.1 0 0 0-3-3L6 12l-1 4z"/><path d="M4 21h9" stroke-width="3" opacity=".55"/>',
+    rect: '<rect x="4" y="5" width="16" height="14" rx="1.5"/>',
+    ellipse: '<ellipse cx="12" cy="12" rx="9" ry="7"/>',
+    line: '<path d="M5 19 19 5"/>',
+    arrow: '<path d="M5 19 19 5M10 5h9v9"/>',
+    whiteout: '<rect x="3" y="6" width="18" height="12" rx="1.5" fill="currentColor" fill-opacity=".18"/><path d="M7 12h10"/>',
+    redact: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M7 9h10" stroke-width="3.2"/><path d="M7 15h6" stroke-width="3.2"/>',
+    texthl: '<path d="M4 19h16" stroke-width="3" opacity=".55"/><path d="M7 5h10M12 5v9M9 9h6"/>',
+    hlbox: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 10h18M3 14h18" opacity=".5"/>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/>',
+    hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4a1.5 1.5 0 0 1 3 0v7M14 10.5V5.5a1.5 1.5 0 0 1 3 0V13M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-2c-3 0-4.5-1.5-6.5-4l-2.3-3a1.5 1.5 0 0 1 2.3-2L8 14"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+    textfile: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
+    sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z"/>',
+    keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+    note: '<path d="M4 4h16v12l-4 4H4z"/><path d="M16 16v4l4-4"/><path d="M8 9h8M8 12.5h5"/>',
+    step: '<circle cx="12" cy="12" r="8"/><path d="M10 9.5 12 8v8"/>',
+    callout: '<rect x="3" y="4" width="11" height="8" rx="1.2"/><path d="M14 12 20 20"/><circle cx="20" cy="20" r="1"/>',
+    comments: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
+    selectall: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 2.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'
+  };
+  U.icon = function (name, cls) {
+    return '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + (P[name] || P.file) + '</svg>';
+  };
+  U.iconEl = function (name, cls) { var t = document.createElement('span'); t.innerHTML = U.icon(name, cls); return t.firstChild; };
+})();

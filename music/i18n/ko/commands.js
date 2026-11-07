@@ -1,0 +1,28 @@
+/* Slop Music, Korean (the titles and groups of the commands in the Ctrl+K palette). Their descriptions and arguments
+ * are for the assistant and stay English. Same keys as music/i18n/en/commands.js. Terms: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'music.cmd.play': '재생',
+  'music.cmd.pause': '일시 정지',
+  'music.cmd.play_pause': '재생 또는 일시 정지',
+  'music.cmd.play_track': '트랙 재생…',
+  'music.cmd.play_playlist': '재생 목록 재생…',
+  'music.cmd.next': '다음 트랙',
+  'music.cmd.previous': '이전 트랙',
+  'music.cmd.seek': '재생 위치 이동',
+  'music.cmd.volume': '볼륨 설정',
+  'music.cmd.speed': '속도 설정',
+  'music.cmd.shuffle': '셔플',
+  'music.cmd.repeat': '반복',
+  'music.cmd.queue_track': '대기열에 트랙 추가…',
+  'music.cmd.find_tracks': '트랙 찾기…',
+  'music.cmd.tag_track': '트랙에 태그 달기…',
+  'music.cmd.create_playlist': '새 재생 목록…',
+  'music.cmd.rename_playlist': '재생 목록 이름 바꾸기…',
+  'music.cmd.add_to_playlist': '재생 목록에 트랙 추가…',
+  'music.cmd.remove_from_playlist': '재생 목록에서 트랙 제거…',
+  'music.cmd.delete_playlist': '재생 목록 삭제…',
+  'music.cmd.export_playlist': '재생 목록 내보내기…',
+  'music.cmd.group_player': '플레이어',
+  'music.cmd.group_library': '보관함',
+  'music.cmd.group_playlists': '재생 목록',
+});

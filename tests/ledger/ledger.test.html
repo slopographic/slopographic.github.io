@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ledger · the app at 390 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: ledger/js/core/util.js, ledger/js/ui/app.js, shared/biz/router.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../ledger/index.html';
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const S = () => win().SlopData;
+  const ready = () => win() && win().SlopLedger && doc() && doc().getElementById('boot').hidden && doc().querySelectorAll('.line-row').length === 2;
+  const errors = [];
+  const entries = async () => (await S().store.list('journal')).value;
+  const rowEls = () => [...$('jLines').querySelectorAll('.line-row')];
+  const setLine = (i, account, debit, credit) => {
+    const r = rowEls()[i];
+    r.querySelector('.l-acct').value = account;
+    r.querySelector('.l-dr').value = debit;
+    r.querySelector('.l-cr').value = credit;
+    r.querySelector('.l-dr').dispatchEvent(new (win().Event)('input'));
+  };
+  const trRow = (tbodyId, code) => [...doc().querySelectorAll(`#${tbodyId} tr`)].find((r) => r.children[0].textContent === code);
+  const entryCard = (memo) => [...doc().querySelectorAll('.entry')].find((c) => c.querySelector('.memo').textContent === memo);
+
+  describe('the ledger in a 390 px wide window', () => {
+    it('opens on the journal with two lines, the base currency, and no horizontal scroll', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      win().addEventListener('error', (e) => errors.push(e.message));
+      expect($('baseLabel').textContent).toContain('USD');
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+
+    it('an unbalanced entry is refused with a message and nothing is posted', async () => {
+      const before = (await entries()).length;
+      $('jMemo').value = 'Mismatch';
+      setLine(0, '1000', '100.00', '');
+      setLine(1, '4000', '', '90.00');
+      expect($('jTotals').textContent).toContain('Not balanced yet');
+      $('jPost').click();
+      await waitFor(() => $('jMsg').textContent.includes('do not balance'), { timeout: 8000 });
+      expect($('jMsg').textContent).toContain('Not posted');
+      expect((await entries()).length).toBe(before);
+    });
+
+    it('an entry with one line is refused', async () => {
+      $('jMemo').value = 'One line';
+      setLine(0, '1000', '5.00', '');
+      setLine(1, '', '', '');
+      $('jPost').click();
+      await waitFor(() => $('jMsg').textContent.includes('at least two lines'), { timeout: 8000 });
+    });
+
+    it('a balanced entry shows in the trial balance, and the trial balance agrees', async () => {
+      $('jMemo').value = 'Cash sale';
+      setLine(0, '1000', '100.00', '');
+      setLine(1, '4000', '', '100.00');
+      $('jPost').click();
+      await waitFor(async () => (await entries()).some((e) => e.memo === 'Cash sale'), { timeout: 8000 });
+      win().SlopLedger.app.show('trial');
+      await waitFor(() => trRow('tRows', '1000'), { timeout: 8000 });
+      expect(trRow('tRows', '1000').children[4].textContent).toContain('100.00');
+      expect($('tCheck').textContent).toContain('agrees');
+      const tb = await S().ledger.trialBalance();
+      expect(tb.ok).toBe(true);
+      expect(tb.value.debit).toBe(tb.value.credit);
+    });
+
+    it('a foreign-currency entry stores the base amount at the stored rate and shows both amounts', async () => {
+      const base = (await S().store.get('settings', 'main')).value.defaultCurrency;
+      const foreign = base === 'EUR' ? 'USD' : 'EUR';
+      const rate = await S().fx.addRate({ base: foreign, quote: base, date: '2026-10-01', rate: 1084200, source: 'manual' });
+      expect(rate.ok).toBe(true);
+      win().SlopLedger.app.show('journal');
+      $('jCur').value = foreign;
+      $('jMemo').value = 'Export invoice';
+      setLine(0, '1000', '500.00', '');
+      setLine(1, '4000', '', '500.00');
+      $('jPost').click();
+      await waitFor(async () => (await entries()).some((e) => e.memo === 'Export invoice'), { timeout: 8000 });
+      const e = (await entries()).find((x) => x.memo === 'Export invoice');
+      const expected = S().money.mulDiv(50000, 1084200, 1000000);
+      expect(e.currency).toBe(foreign);
+      expect(e.amount).toBe(50000);
+      expect(e.amountBase).toBe(expected);
+      expect(e.rateId).toBe(rate.value.id);
+      await waitFor(() => entryCard('Export invoice'), { timeout: 8000 });
+      const card = entryCard('Export invoice');
+      expect(card.textContent).toContain(win().SlopLedger.util.money(expected, base, 'en-US'));
+      expect(card.textContent).toContain(win().SlopLedger.util.money(50000, foreign, 'en-US'));
+      win().SlopLedger.app.show('trial');
+      await waitFor(() => $('tForeignRows').textContent.includes(foreign), { timeout: 8000 });
+      const tb = await S().ledger.trialBalance();
+      expect(tb.value.debit).toBe(tb.value.credit);
+    });
+
+    it('a posted entry is reversed from its menu, and the trial balance still agrees', async () => {
+      win().SlopLedger.app.show('journal');
+      await waitFor(() => entryCard('Cash sale'), { timeout: 8000 });
+      const before = (await entries()).length;
+      entryCard('Cash sale').querySelector('.e-actions .btn').click();
+      await waitFor(() => doc().querySelector('.sui-dlg'), { timeout: 8000 });
+      doc().querySelector('.sui-dlg .sui-primary').click();
+      await waitFor(async () => (await entries()).length === before + 1, { timeout: 8000 });
+      const rev = (await entries()).find((e) => e.reverses);
+      expect(rev.memo).toContain('Reversal of Cash sale');
+      const tb = await S().ledger.trialBalance();
+      const cash = tb.value.rows.find((r) => r.code === '1000').balance;
+      expect(cash).toBe(54210);
+      win().SlopLedger.app.show('trial');
+      await waitFor(() => trRow('tRows', '1000') && trRow('tRows', '1000').children[4].textContent === win().SlopLedger.util.money(cash, 'USD', 'en-US'), { timeout: 8000 });
+      expect($('tCheck').textContent).toContain('agrees');
+    });
+  });
+
+  describe('accounts and rates', () => {
+    it('an account can be added and then renamed, and an existing code is refused', async () => {
+      win().SlopLedger.app.show('accounts');
+      $('aCode').value = '6000'; $('aName').value = 'Rent'; $('aType').value = 'expense';
+      $('aAdd').click();
+      await waitFor(async () => (await S().store.get('accounts', '6000')).value, { timeout: 8000 });
+      expect((await S().store.get('accounts', '6000')).value.name).toBe('Rent');
+      $('aCode').value = '6000'; $('aName').value = 'Again';
+      $('aAdd').click();
+      await waitFor(() => $('aMsg').textContent.includes('already exists'), { timeout: 8000 });
+      const r = await win().SlopLedger.accounts.rename('6000', 'Office rent');
+      expect(r.ok).toBe(true);
+      expect((await S().store.get('accounts', '6000')).value.name).toBe('Office rent');
+    });
+
+    it('a rate typed by hand is stored as a scaled integer', async () => {
+      win().SlopLedger.app.show('rates');
+      $('rForeign').value = 'GBP'; $('rRate').value = '1.1520'; $('rDate').value = '2026-10-02';
+      $('rAdd').click();
+      await waitFor(async () => (await S().store.list('exchangeRates')).value.some((x) => x.base === 'GBP'), { timeout: 8000 });
+      const row = (await S().store.list('exchangeRates')).value.find((x) => x.base === 'GBP');
+      expect(row.rate).toBe(1152000);
+      expect(row.source).toBe('manual');
+    });
+  });
+
+  describe('the local-only rule', () => {
+    it('CSV amounts are exact plain decimals in the currency digits (SlopData.money.plainMinor)', () => {
+      const U = win().SlopLedger.util;
+      expect(U.decimal(1234, 'USD')).toBe('12.34');
+      expect(U.decimal(-5, 'EUR')).toBe('-0.05');
+      expect(U.decimal(500, 'JPY')).toBe('500');
+    });
+    it('the tabs are SlopTabs on the business router: the arrow keys move to the next tab and its #hash', async () => {
+      win().SlopLedger.app.show('journal');
+      await waitFor(() => !$('view-journal').hidden);
+      const first = $('tab-journal');
+      expect(first.getAttribute('aria-selected')).toBe('true');
+      first.focus();
+      first.dispatchEvent(new (win().KeyboardEvent)('keydown', { key: 'ArrowRight', bubbles: true }));
+      await waitFor(() => win().location.hash === '#gl' && !$('view-gl').hidden);
+      expect(doc().activeElement.id).toBe('tab-gl');
+    });
+    it('follows the site theme (shared/biz/app.css): text reads on its background in every theme', async () => {
+      // Covers: ledger/css/ledger.css, shared/biz/app.css
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        win().SlopTheme.apply(theme);
+        const inp = win().getComputedStyle($('jMemo')), body = win().getComputedStyle(doc().body);
+        expect(SlopTest.contrast(inp.webkitTextFillColor || inp.color, inp.backgroundColor) >= 4.5).toBe(true, `${theme}: input`);
+        expect(SlopTest.contrast(body.color, body.backgroundColor) >= 4.5).toBe(true, `${theme}: page`);
+      }
+    });
+    it('no error reached the page', () => {
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  run({ name: 'Slop Ledger · 390 px' });
+  </script>
+</body>
+</html>

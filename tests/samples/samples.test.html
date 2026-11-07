@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopSamples and the drop zone's preview and sample button</title>
+</head>
+<body>
+  <div id="zone"></div>
+  <div id="zone2"></div>
+  <div id="area"><div id="strip"></div></div>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../../shared/drop/panel.js"></script>
+  <script src="../../shared/drop/drop.js"></script>
+  <script src="../../shared/ui/flow.js"></script>
+  <script src="../../shared/samples/samples.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/samples/samples.js, shared/drop/panel.js, shared/drop/drop.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  describe('SlopSamples', () => {
+    it('paints sample photos as JPEG files, one scene each, the same every time', async () => {
+      const a = await SlopSamples.photos(3, { width: 120, height: 80 });
+      expect(a.map((f) => f.name)).toEqual(['Sample sunset.jpg', 'Sample mountains.jpg', 'Sample forest.jpg']);
+      expect(a.every((f) => f.type === 'image/jpeg' && f.size > 500)).toBe(true);
+      const b = await SlopSamples.photos(1, { width: 120, height: 80 });
+      expect(new Uint8Array(await b[0].arrayBuffer()).length).toBe(new Uint8Array(await a[0].arrayBuffer()).length);
+      const many = await SlopSamples.photos(10, { width: 40, height: 30 });
+      expect(many[9].name).toBe('Sample mountains 2.jpg');
+    });
+    it('makes a file from text, and finds the samples folder from its own address', async () => {
+      const f = SlopSamples.file('list.csv', 'a,b\n1,2\n', 'text/csv');
+      expect([f.name, f.type, await f.text()]).toEqual(['list.csv', 'text/csv', 'a,b\n1,2\n']);
+      expect(SlopSamples.base.endsWith('/assets/samples/')).toBe(true);
+    });
+    it('a missing asset is an error that names it', async () => {
+      let msg = '';
+      try { await SlopSamples.asset('nope/missing.pdf'); } catch (e) { msg = e.message; }
+      expect(msg).toBe('The sample nope/missing.pdf could not be loaded');
+    });
+  });
+  describe('SlopDrop preview and sample', () => {
+    it('draws the picture and the steps above the prompt, and the sample files run through the same batch', async () => {
+      const got = [];
+      const d = SlopDrop.attach(document.getElementById('zone'), {
+        accept: { types: ['image/*'], noun: 'a picture' }, toast: false,
+        preview: { picture: { src: '../ocr/fixtures/swedish.png', alt: 'Result' }, steps: ['Drop', 'Sort', 'Save'] },
+        sample: { label: 'Try 2 sample photos', files: () => SlopSamples.photos(2, { width: 60, height: 40 }) },
+        process: async (f) => { got.push(f.name); return f.name; },
+      });
+      const z = document.getElementById('zone');
+      expect(z.querySelector('.sd-pic img').getAttribute('alt')).toBe('Result');
+      expect([...z.querySelectorAll('.sd-steps li')].map((li) => li.textContent)).toEqual(['Drop', 'Sort', 'Save']);
+      const priv = z.querySelector('.sd-private');   // every preview says the files stay on the device, and links How it works
+      expect(priv.textContent).toContain('nothing is uploaded, and your files stay private on this device');
+      expect(priv.querySelector('a').getAttribute('href')).toBe('/how-it-works/');
+      const btn = z.querySelector('.sd-sample');
+      expect(btn.textContent).toBe('Try 2 sample photos');
+      btn.click();
+      expect([btn.disabled, z.querySelector('.sd-status').textContent]).toEqual([true, 'Preparing the sample…']);
+      await waitFor(() => got.length === 2);
+      expect(btn.disabled).toBe(false);
+      expect(z.querySelector('.sd-status').textContent).not.toBe('Preparing the sample…');
+      expect(got).toEqual(['Sample sunset.jpg', 'Sample mountains.jpg']);
+      await d.sample();
+      expect(got.length).toBe(4);
+      expect([getComputedStyle(z.querySelector('.sd-preview')).display, getComputedStyle(btn).display]).toEqual(['none', 'none']);
+      d.destroy();
+    });
+    it('a flow picture uses SlopFlow; a compact strip and a zone without options draw no preview or sample', async () => {
+      const z = document.getElementById('zone2');
+      const d = SlopDrop.attach(z, { accept: { any: true }, process: async () => 1, preview: { picture: { flow: { from: 'pdf', to: 'docx' } } } });
+      expect(z.querySelector('.sd-pic .sflow').getAttribute('aria-label')).toBe('PDF to DOCX');
+      expect(z.querySelector('.sd-steps')).toBe(null);
+      d.destroy();
+      let n = 0;
+      const c = SlopDrop.attach(z, { accept: { any: true }, process: async () => 1, compact: true, preview: { steps: ['a'] }, sample: { files: () => { n++; return []; } } });
+      expect([z.querySelector('.sd-preview'), z.querySelector('.sd-sample')]).toEqual([null, null]);
+      await c.sample();
+      expect(n).toBe(1);   // the app's own button calls it
+      c.destroy();
+      const p = SlopDrop.attach(z, { accept: { any: true }, process: async () => 1 });
+      expect([z.querySelector('.sd-preview'), z.querySelector('.sd-sample')]).toEqual([null, null]);
+      p.destroy();
+    });
+  });
+  describe('SlopDrop quiet strip', () => {
+    it('a compact strip whose drops land on a bigger area hides at rest and shows the files being added', async () => {
+      const strip = document.getElementById('strip');
+      let release;
+      const d = SlopDrop.attach(strip, { accept: { any: true }, compact: true, toast: false, targets: [document.getElementById('area')],
+        process: () => new Promise((r) => { release = r; }) });
+      expect([strip.classList.contains('sd-quiet'), getComputedStyle(strip).display]).toEqual([true, 'none']);
+      d.run([new File(['x'], 'a.txt', { type: 'text/plain' })]);
+      await waitFor(() => release);
+      expect(getComputedStyle(strip).display).toBe('block');   // a row is being read
+      release('a.txt');
+      await waitFor(() => strip.querySelector('.sd-status').textContent !== '');
+      expect(getComputedStyle(strip).display).toBe('block');   // the result shows
+      d.destroy();
+      const own = SlopDrop.attach(strip, { accept: { any: true }, compact: true, window: false, targets: [document.getElementById('area')], process: async () => 1 });
+      own.destroy();
+      strip.classList.remove('sd-quiet');
+      const keep = SlopDrop.attach(strip, { accept: { any: true }, compact: true, quiet: false, targets: [document.getElementById('area')], process: async () => 1 });
+      expect(strip.classList.contains('sd-quiet')).toBe(false);
+      keep.destroy();
+    });
+  });
+  SlopTest.run({ name: 'SlopSamples' });
+  </script>
+</body>
+</html>

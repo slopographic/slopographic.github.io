@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopUrlState: the page URL</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../../shared/urlstate/urlstate.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const U = window.SlopUrlState;
+  const ORIGIN = location.href;
+  // Put the page back at its own URL (keeps the history entry's state null).
+  const reset = () => history.replaceState(null, '', ORIGIN);
+  const q = () => new URLSearchParams(location.search);
+
+  describe('SlopUrlState', () => {
+    it('is loaded with get, set, onChange, link and scope', () => {
+      expect(typeof U.get).toBe('function');
+      expect(typeof U.set).toBe('function');
+      expect(typeof U.onChange).toBe('function');
+      expect(typeof U.link).toBe('function');
+      expect(typeof U.scope).toBe('function');
+    });
+
+    it('sets and gets plain values, with the default when a key is missing', () => {
+      reset();
+      expect(U.set({ a: 'x', n: 3, ok: true })).toBe(true);
+      expect(U.get('a', '')).toBe('x');
+      expect(U.get('n', 0)).toBe(3);
+      expect(U.get('ok', false)).toBe(true);
+      expect(U.get('missing', 'dflt')).toBe('dflt');
+      reset();
+    });
+
+    it('replaces the entry by default and pushes one only when asked', () => {
+      reset();
+      const n = history.length;
+      U.set({ p: '1' });
+      expect(history.length).toBe(n);
+      U.set({ p: '2' }, { replace: false });
+      expect(history.length).toBe(n + 1);
+      expect(q().get('p')).toBe('2');
+      reset();
+    });
+
+    it('merges a patch and removes keys that are set to null', () => {
+      reset();
+      U.set({ a: '1', b: '2' });
+      U.set({ b: null, c: '3' });
+      expect(q().has('a')).toBe(true);
+      expect(q().has('b')).toBe(false);
+      expect(U.get('c', '')).toBe('3');
+      U.set({ a: undefined });
+      expect(q().has('a')).toBe(false);
+      reset();
+    });
+
+    it('keeps unknown parameters and the hash as they were', () => {
+      history.replaceState(null, '', location.pathname + '?other=1&weird=%20x+y&a=old&a=dup#frag');
+      U.set({ a: 'new' });
+      expect(location.search).toBe('?other=1&weird=%20x+y&a=new');
+      expect(location.hash).toBe('#frag');
+      reset();
+    });
+
+    it('keeps two scopes apart', () => {
+      reset();
+      const A = U.scope('aaa'), B = U.scope('bbb');
+      A.set({ cwd: 'f1' });
+      B.set({ cwd: 'g2' });
+      expect(A.get('cwd', null)).toBe('f1');
+      expect(B.get('cwd', null)).toBe('g2');
+      expect(location.search).toBe('?aaa.cwd=f1&bbb.cwd=g2');
+      reset();
+    });
+
+    it('round-trips objects, arrays, numbers and awkward text', () => {
+      reset();
+      const obj = { key: 'size', dir: -1, nested: [1, 'a&b=c', 'é ✓'] };
+      U.set({ sort: obj, text: 'a b&c=d?e#f%g', id: 'k9Zz-_.', num: 2.5, neg: -4 });
+      expect(U.get('sort', {})).toEqual(obj);
+      expect(U.get('sort', null)).toEqual(obj);
+      expect(U.get('text', '')).toBe('a b&c=d?e#f%g');
+      expect(U.get('text', null)).toBe('a b&c=d?e#f%g');
+      expect(U.get('id', '')).toBe('k9Zz-_.');
+      expect(U.get('num', 0)).toBe(2.5);
+      expect(U.get('neg', 0)).toBe(-4);
+      reset();
+    });
+
+    it('link() returns the full URL with the current state', () => {
+      reset();
+      U.set({ view: 'list' });
+      expect(U.link()).toBe(location.href);
+      expect(U.link()).toContain('view=list');
+      reset();
+    });
+
+    it('onChange fires on popstate, so back and forward restore the state', async () => {
+      reset();
+      U.set({ step: 'one' }, { replace: false });
+      U.set({ step: 'two' }, { replace: false });
+      expect(U.get('step', '')).toBe('two');
+      let fired = 0;
+      const off = U.onChange(() => { fired++; });
+      history.back();
+      await waitFor(() => U.get('step', '') === 'one', { timeout: 5000 });
+      expect(fired).toBeGreaterThan(0);
+      history.forward();
+      await waitFor(() => U.get('step', '') === 'two', { timeout: 5000 });
+      off();
+      reset();
+    });
+
+    it('never throws when the history API is blocked', () => {
+      reset();
+      const h = history;
+      h.replaceState = () => { throw new Error('blocked'); };
+      h.pushState = () => { throw new Error('blocked'); };
+      let threw = false, result = null;
+      try {
+        result = U.set({ x: '1' });
+        U.set({ y: '2' }, { replace: false });
+        U.get('x', '');
+        U.link();
+      } catch (e) {
+        threw = true;
+      } finally {
+        delete h.replaceState;
+        delete h.pushState;
+      }
+      expect(threw).toBe(false);
+      expect(result).toBe(false);
+      reset();
+    });
+  });
+
+  run({ name: 'SlopUrlState · the page URL' });
+  </script>
+</body>
+</html>

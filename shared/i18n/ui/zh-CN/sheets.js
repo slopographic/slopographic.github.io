@@ -1,0 +1,23 @@
+/* Shared components, Simplified Chinese: the spreadsheet reader (errors, the parts of a file that are not imported) and the sheet table's column headers. Same keys as ui/en/sheets.js. Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'ui.sheets.xls_old': '不支持旧版 .xls 文件。请用 Excel 或 LibreOffice 打开该文件，并另存为 .xlsx、.ods 或 .csv。',
+  'ui.sheets.ods_not_zip': '此 .ods 文件不是有效的电子表格（不是 zip 包）。',
+  'ui.sheets.xlsx_not_zip': '此 .xlsx 文件不是有效的工作簿（不是 zip 包）。',
+  'ui.sheets.ods_no_content': '不是 OpenDocument 电子表格（缺少 content.xml）',
+  'ui.sheets.ods_not_sheet': '此 OpenDocument 文件不是电子表格',
+  'ui.sheets.no_sheets': '此工作簿没有工作表',
+  'ui.sheets.xlsx_no_workbook': '不是 Excel 工作簿（缺少 xl/workbook.xml）',
+  'ui.sheets.xlsx_missing': '工作簿中缺少 {part}',
+  'ui.sheets.part_pictures': '图片',
+  'ui.sheets.part_charts': '图表',
+  'ui.sheets.part_chart_sheets': '图表工作表',
+  'ui.sheets.part_pivots': '数据透视表（保留其数值）',
+  'ui.sheets.part_comments': '评论',
+  'ui.sheets.part_macros': '宏',
+  'ui.sheets.part_cond': '条件格式',
+  'ui.sheets.part_validation': '数据验证',
+  'ui.sheets.part_filters': '筛选',
+  'ui.sheets.sort_col': '按 {col} 列排序',
+  'ui.sheets.filter_col': '筛选 {col} 列',
+  'ui.sheets.col_filtered': '{col} 列已筛选',
+});

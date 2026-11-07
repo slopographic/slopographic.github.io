@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Image to 3D: the header (1440 and 390 wide)</title></head>
+<body>
+  <!-- Covers: img3d/index.html, img3d/css/img3d.css, img3d/js/app/layout.js -->
+  <script>try { localStorage.setItem('slop-firstrun:img3d', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a frame of the given width, once brand.js has put the app's icon in the brand link. */
+  async function open(width, height = 800) {
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${width}px;height:${height}px;border:0;display:block`;
+    f.src = '../../img3d/?t=' + Date.now();
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.querySelector('header a.brand .brand-app') && f.contentDocument.querySelector('header .stour-btn'), { timeout: 15000 });
+    return f;
+  }
+  const box = (D, s) => D.querySelector(s).getBoundingClientRect();
+
+  describe('Slop Image to 3D header', () => {
+    it('has the brand home link with the app icon, then the app name', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      const brand = D.querySelector('header.topbar > a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(box(D, 'header a.brand .brand-tile').width).toBe(26);
+      expect(brand.nextElementSibling.textContent).toBe('Slop Image to 3D');
+      f.remove();
+    });
+    it('keeps one row at 1440px, Tour at the height of the toolbar buttons', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      expect(box(D, 'header.topbar').height).toBeLessThan(50);
+      expect(box(D, 'header .stour-btn').height).toBe(box(D, '#btnDrive').height);
+      f.remove();
+    });
+    it('fits 390px: brand, name and Tour on the first row, no sideways scroll', async () => {
+      const f = await open(390), D = f.contentDocument;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(Math.abs(box(D, 'header .stour-btn').top - box(D, 'header a.brand').top)).toBeLessThan(6);
+      // the actions wrap under the first row; a build's shorter Drive label may keep it there, between the name and Tour
+      const drive = box(D, '#btnDrive'), wraps = drive.top > box(D, 'header a.brand').bottom - 1;
+      const apart = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+      const name = D.createRange(); name.selectNodeContents(D.querySelector('header .appname'));
+      expect(wraps || [box(D, 'header a.brand'), box(D, 'header .stour-btn'), name.getBoundingClientRect()].every((b) => apart(drive, b))).toBe(true);
+      f.remove();
+    });
+    it('at 1280px the settings are a panel on the right, with the exports and Open in Slop 3D at its foot, not in the header', async () => {
+      const f = await open(1280), D = f.contentDocument, panel = D.getElementById('panel');
+      await waitFor(() => box(D, '#panel').left > 600 && box(D, '#stage').width > 200, { timeout: 15000 });
+      expect(box(D, '#panel').left).toBeGreaterThanOrEqual(box(D, '#stage').right - 1);
+      expect(Math.round(box(D, '#panel').right)).toBe(1280);
+      expect([...panel.querySelectorAll('.sf-h')].map((n) => n.textContent)).toEqual(['Picture', 'Depth', 'Subject', 'Output', 'Controls', 'Result']);
+      for (const id of ['btnObj', 'btnGlb', 'btnSend', 'btnMore', 'invert', 'scale']) expect(panel.contains(D.getElementById(id))).toBe(true);
+      expect(D.querySelector('header').contains(D.getElementById('btnSend'))).toBe(false);
+      expect(D.getElementById('btnSend').closest('.sf-p-foot')).toBeTruthy();
+      expect(box(D, '#btnSend').bottom).toBeLessThanOrEqual(800);
+      f.remove();
+    });
+    it('at 390px Open in Slop 3D is at the bottom of the screen; Settings opens the sheet with the rest', async () => {
+      const f = await open(390, 844), D = f.contentDocument;
+      expect(box(D, '#btnSend').top).toBeGreaterThan(700);
+      expect(box(D, '#btnSend').bottom).toBeLessThanOrEqual(844);
+      D.querySelector('.sf-foot-more').click();
+      await waitFor(() => D.getElementById('panel').classList.contains('ssh-on'));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(box(D, '#invert').height).toBeGreaterThan(0);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      f.remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Image to 3D: header' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Orders · the app on the shared pieces: list, tabs, commands, theme</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/biz/docbar.js, shared/biz/router.js, orders/js/ui/app.js
+  // Covers: orders/js/ui/app.js, orders/js/ui/list.js, orders/js/ui/commands.js, orders/js/core/util.js, shared/biz/app.css
+  // Covers: shared/biz/address-label.js, orders/js/ui/delivery.js, orders/js/core/delivery.js, orders/index.html, shared/biz/sheet.css
+  // Covers: shared/docs/doc-editor.js, shared/docs/doc-page.js, shared/docs/doc-app.js, shared/docs/doc-pdf.js, shared/docs/doc-view.js, shared/docs/paper-edit.js, orders/js/ui/editor.js, orders/js/ui/page.js, orders/js/core/pdf.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const rows = () => [...D.querySelectorAll('#oRows .sl-row')];
+  const key = (t, k) => t.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  async function boot(hash) {
+    const f = document.getElementById('app');
+    f.src = '../../orders/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopOrders && f.contentWindow.SlopOrders.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  const contrast = SlopTest.contrast;
+
+  describe('Slop Orders on the shared pieces', () => {
+    it('the list is SlopList: an order shows its number and customer, the total, a status chip; the count names orders', async () => {
+      await boot('#list');
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      const c = (await W.SlopData.store.put('customers', { name: 'Ada Mill', stage: 'customer' })).value;
+      const o = await W.SlopData.store.put('orders', { customerId: c.id, date: '2026-10-20', lines: [{ description: 'Bolt', qty: 2, unitPrice: 1050, taxRate: 2000 }] });
+      expect(o.ok).toBe(true);
+      await boot('#list');
+      await waitFor(() => rows().length === 1);
+      expect(rows()[0].querySelector('.sl-title').textContent).toContain('Ada Mill');
+      expect(rows()[0].querySelector('.sl-amount').textContent).toContain('25.20');
+      expect(rows()[0].querySelector('.sl-chip').textContent.length > 0).toBe(true);
+      expect($('oSummary').textContent).toBe('1 order');
+    });
+    it('Enter on a row opens the order under the record bar (back to Orders, the tabs unchanged); the status chip has its status class', async () => {
+      rows()[0].focus();
+      key(rows()[0], 'Enter');
+      await waitFor(() => W.location.hash.startsWith('#o/') && !$('view-edit').hidden);
+      const bar = W.document.querySelector('.biz-docbar');   // shared/biz/docbar.js
+      expect(bar.hidden).toBe(false);
+      expect(bar.querySelector('.biz-back').textContent.trim()).toBe('‹ Orders');
+      expect($('tab-edit').hidden).toBe(true);   // the tabs are the sections: Orders and Data
+      await waitFor(() => $('eStatus').className === 'chip draft');
+    });
+    it('the tabs are SlopTabs: the arrow keys move to the next tab and route through the #hash', async () => {
+      // with an order open the layout shows the list beside it (orders/js/ui/layout.js), so wait for the list view itself
+      W.SlopOrders.app.go('list');
+      await waitFor(() => W.SlopOrders.state.view === 'list' && W.document.querySelector('.biz-docbar').hidden);
+      $('tab-list').focus();
+      key($('tab-list'), 'ArrowRight');
+      await waitFor(() => W.location.hash === '#data' && !$('view-data').hidden);
+      expect(D.activeElement).toBe($('tab-data'));
+      expect($('tab-data').getAttribute('aria-selected')).toBe('true');
+    });
+    it('a row\'s menu offers the order\'s actions; a refused action reads in the order\'s words', async () => {
+      W.SlopOrders.app.go('list');
+      await waitFor(() => rows().length === 1 && !$('view-list').hidden);
+      const items = W.SlopOrders.listView.menuFor(W.SlopList ? (await W.SlopData.store.list('orders')).value[0] : null);
+      expect(items.map((i) => i.label)).toContain('Confirm order');
+      expect(W.SlopOrders.util.refusal({ ok: false, code: 'invalid_transition', message: 'x' })).toBe('That change is not allowed for this order: x');
+      expect(W.SlopOrders.util.refusal({ ok: false, code: 'conflict' })).toBe('Already done');
+    });
+    it('a confirmed order has a Delivery note: a printable sheet with the items and quantities, no prices, and a line to sign', async () => {
+      const S = W.SlopData, c = (await S.store.list('customers')).value[0];
+      await S.store.put('customers', { ...c, address: '1 High St\nLeeds' });
+      const p = (await S.store.put('products', { sku: 'PAP-A4', name: 'Copy paper', price: 650, taxRate: 0, unit: 'ream' })).value;
+      const o = (await S.store.put('orders', { customerId: c.id, date: '2026-10-21', notes: 'Leave at reception', lines: [{ productId: p.id, sku: 'PAP-A4', description: 'Copy paper', qty: 5, unitPrice: 650, taxRate: 0 }, { description: 'Delivery', qty: 1, unitPrice: 900, taxRate: 0 }] })).value;
+      await S.store.put('orders', { ...o, status: 'open' });
+      W.SlopOrders.app.go(`o/${o.id}`);
+      await waitFor(() => [...D.querySelectorAll('#eActions button')].some((b) => b.textContent === 'Delivery note'));
+      [...D.querySelectorAll('#eActions button')].find((b) => b.textContent === 'Delivery note').click();
+      await waitFor(() => W.location.hash === `#d/${o.id}` && D.querySelector('#dnSheet .doc-sheet'));
+      const sheet = D.querySelector('#dnSheet');
+      expect(sheet.querySelector('.sheet-title h2').textContent).toBe('Delivery note');
+      expect([...sheet.querySelectorAll('tbody tr')].map((r) => [...r.cells].slice(0, 4).map((x) => x.textContent))).toEqual([['PAP-A4', 'Copy paper', '5', 'ream'], ['', 'Delivery', '1', 'each']]);
+      expect(sheet.querySelector('tfoot').textContent).toContain('6');
+      expect(sheet.textContent).toContain('Leeds');
+      expect(sheet.textContent).toContain('Leave at reception');
+      expect(sheet.textContent.includes('$')).toBe(false);
+      expect(sheet.querySelectorAll('.sheet-sign > div').length).toBe(3);
+      expect(W.document.querySelector('.biz-docbar').hidden).toBe(false);
+      expect(W.document.querySelector('.biz-docbar .biz-doc-title:not([hidden])').textContent).toBe('Delivery note');
+      const sent = [];
+      W.SlopHub.sendTo = async (app, blob, name) => { sent.push({ app, name, doc: JSON.parse(await blob.text()) }); return 'x'; };
+      [...D.querySelectorAll('#view-delivery button')].find((b) => b.textContent === 'Address label').click();
+      await waitFor(() => sent.length === 1);
+      expect([sent[0].app, sent[0].name]).toEqual(['label', `Address label ${o.number}.sloplabel`]);
+      expect(sent[0].doc.objects.find((x) => x.id === 'address').content).toBe('1 High St\nLeeds');
+      W.SlopOrders.app.go('list');
+      await waitFor(() => W.document.querySelector('.biz-docbar').hidden);
+    });
+    it('text reads on its background in every site theme (contrast 4.5 or more)', async () => {
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        W.SlopTheme.apply(theme);
+        const row = W.getComputedStyle(rows()[0]), box = W.getComputedStyle($('oRows'));
+        expect(contrast(row.color, box.backgroundColor) >= 4.5).toBe(true, theme + ': rows ' + row.color + ' on ' + box.backgroundColor);
+        const inp = W.getComputedStyle($('oSearch'));
+        expect(contrast(inp.color, inp.backgroundColor) >= 4.5).toBe(true, theme + ': search ' + inp.color + ' on ' + inp.backgroundColor);
+      }
+    });
+  });
+
+  run({ name: 'Orders · app' });
+  </script>
+</body>
+</html>

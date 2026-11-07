@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>SlopCut · selecting clips and placing them</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; overflow: hidden; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Selecting clips on the timeline with a mouse and a finger (a tap selects one clip, Shift adds, Ctrl toggles, a box
+       from empty space, Select mode by long press), moving and trimming a selection together, undo; Scale up to 1000 %
+       and Fill/Fit frame. Runs in the touch runs too (an iPad in WebKit, an Android tablet in Chromium).
+       Covers: slopcut/js/timeline/input.js, slopcut/js/timeline/view.js, slopcut/js/timeline/heads.js, slopcut/js/core/pick.js,
+       slopcut/js/core/fit.js, slopcut/js/ui/insp-clip.js, slopcut/js/ui/insp-fields.js, slopcut/js/ui/commands.js,
+       slopcut/js/ui/icons.js, slopcut/js/ai/cmd-clips.js, slopcut/js/render/preview-input.js, slopcut/js/ui/insp-anim.js,
+       slopcut/js/io/config-map.js -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let W, SE, TL, A, cv, c1, c2, c3;
+  const sel = () => [...A.sel].sort();
+  const clip = (id) => ST.M.clip(SE.doc, id);
+  /** The centre of a clip, and a point at time t in the middle of a track's row (canvas px, a TouchKit target). */
+  const onClip = (id, dx = 0) => { const r = TL.clipRect(clip(id)); return { el: cv, x: r.x + r.w / 2 + dx, y: r.y + r.h / 2 }; };
+  const at = (t, track) => { const r = TL.rowOf(track); return { el: cv, x: TL.x(t), y: r.y - TL.scrollY + r.h / 2 }; };
+  /** A mouse press, drag and release on the timeline canvas (modifier keys in mods). */
+  async function mouse(from, dx = 0, dy = 0, mods = {}) {
+    const r = cv.getBoundingClientRect(), x = r.left + from.x, y = r.top + from.y;
+    const ev = (type, px, py) => cv.dispatchEvent(new W.PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: px, clientY: py, button: type === 'pointermove' ? -1 : 0, buttons: type === 'pointerup' ? 0 : 1 }, mods)));
+    ev('pointerdown', x, y);
+    for (let i = 1; i <= 6; i++) { await sleep(10); ev('pointermove', x + (dx * i) / 6, y + (dy * i) / 6); }
+    ev('pointerup', x + dx, y + dy);
+    await sleep(30);
+  }
+  const settle = async () => { TL.dirty(); await sleep(250); };
+  const V = () => ST.M.videoTracks(SE.doc);
+
+  describe('SlopCut · selecting clips', () => {
+    it('boots with three clips, every one selected (as an import leaves them)', async () => {
+      W = await ST.boot('app');
+      await waitFor(() => W.SlopTouch && W.SlopTouch.ready, { timeout: 20000 });
+      SE = ST.SE; TL = SE.timeline; A = SE.app; cv = A.els.tlCanvas;
+      await ST.reset();
+      SE.change('clips', (p) => { c1 = ST.matte(p, 0, 0, 3, '#ff0000'); c2 = ST.matte(p, 0, 4, 3, '#00ff00'); c3 = ST.matte(p, 1, 1, 2, '#0000ff'); });
+      TL.snap = false; TL.pps = 40; TL.scrollX = 0; TL.scrollY = 0; TL.clampScroll(); await settle();
+      A.select([c1, c2, c3]);
+      expect(sel().length).toBe(3);
+    }, { timeout: 60000 });
+
+    it('a tap on one clip of a selection selects that clip alone (also after a finger whose lift was lost)', async () => {
+      await sleep(400);
+      // a finger the browser never lifted (iOS sends the lift of a removed element nowhere): the next tap is still one finger
+      const r = cv.getBoundingClientRect();
+      cv.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 9002, pointerType: 'touch', isPrimary: true, clientX: r.left + 5, clientY: r.bottom - 5, button: 0, buttons: 1 }));
+      await sleep(50);
+      await TouchKit.tap(onClip(c2));
+      await sleep(100);
+      expect(sel()).toEqual([c2]);
+      A.select([c1, c2, c3]);
+      await mouse(onClip(c3));
+      expect(sel()).toEqual([c3]);
+    });
+
+    it('Shift-click adds a clip, Ctrl-click toggles one, a click on empty space clears', async () => {
+      await mouse(onClip(c1));
+      await mouse(onClip(c3), 0, 0, { shiftKey: true });
+      expect(sel()).toEqual([c1, c3].sort());
+      await mouse(onClip(c2), 0, 0, { ctrlKey: true });
+      expect(sel()).toEqual([c1, c2, c3].sort());
+      await mouse(onClip(c1), 0, 0, { ctrlKey: true });
+      expect(sel()).toEqual([c2, c3].sort());
+      await mouse(at(9, V()[0].id));
+      expect(sel()).toEqual([]);
+    });
+
+    it('a selection box from empty space selects every clip it touches, across tracks', async () => {
+      const from = at(7.6, V()[0].id), to = at(2.5, V()[1].id);
+      await mouse(from, to.x - from.x, to.y - from.y);
+      expect(sel()).toEqual([c1, c2, c3].sort());
+      const small = at(5, V()[0].id);
+      await mouse(from, small.x - from.x, 4);
+      expect(sel()).toEqual([c2]);
+      A.select([c3]);
+      await mouse(from, to.x - from.x, 4, { shiftKey: true }); // Shift adds to the selection; this box stays on V1
+      expect(sel()).toEqual([c1, c2, c3].sort());
+      await mouse(from, to.x - from.x, 4); // without Shift it replaces it
+      expect(sel()).toEqual([c1, c2].sort());
+    });
+
+    it('dragging a selection moves every clip by as much (their timing kept), as one undo step', async () => {
+      A.select([c2, c3]);
+      const n = SE.history.undoStack.length;
+      await mouse(onClip(c2), 40, 0); // one second right
+      await settle();
+      expect(clip(c2).start).toBeCloseTo(5, 0.05);
+      expect(clip(c3).start).toBeCloseTo(2, 0.05);
+      expect(clip(c1).start).toBeCloseTo(0, 0.01);
+      expect(SE.history.undoStack.length).toBe(n + 1);
+      SE.history.undo(); await settle();
+      expect(clip(c2).start).toBeCloseTo(4, 0.01);
+      expect(clip(c3).start).toBeCloseTo(1, 0.01);
+    });
+
+    it('trimming the end of one selected clip trims every selected clip\'s end; Delete removes them all; undo', async () => {
+      A.select([c1, c3]);
+      const r = TL.clipRect(clip(c1));
+      await mouse({ x: r.x + r.w - 3, y: r.y + r.h / 2 }, -40, 0);
+      await settle();
+      expect(ST.M.end(clip(c1))).toBeCloseTo(2, 0.05);
+      expect(ST.M.end(clip(c3))).toBeCloseTo(2, 0.05);
+      SE.history.undo(); await settle();
+      expect(ST.M.end(clip(c3))).toBeCloseTo(3, 0.01);
+      A.select([c1, c3]);
+      SE.cmd.run('edit.delete'); await settle();
+      expect(!!clip(c1) || !!clip(c3)).toBe(false);
+      expect(!!clip(c2)).toBe(true);
+      SE.history.undo(); await settle();
+      expect(!!clip(c1) && !!clip(c3)).toBe(true);
+    });
+
+    it('a finger: a long press turns on Select mode, taps add and remove clips, a drag from empty space draws a box; Escape clears', async () => {
+      A.select([]); TL.setMulti(false);
+      await sleep(400);
+      await TouchKit.longPress(onClip(c1));
+      await waitFor(() => TL.multi, { timeout: 3000 });
+      expect(sel()).toEqual([c1]);
+      expect(W.document.querySelector('.sui-menu')).toBe(null); // the menu waits for a long press in Select mode
+      await sleep(400);
+      await TouchKit.tap(onClip(c3)); await sleep(100);
+      expect(sel()).toEqual([c1, c3].sort());
+      await sleep(400);
+      await TouchKit.tap(onClip(c1)); await sleep(100);
+      expect(sel()).toEqual([c3]);
+      await sleep(400);
+      const from = at(7.6, V()[0].id), to = at(5, V()[0].id);
+      await TouchKit.drag(from, to.x - from.x, 6, 8);
+      await sleep(100);
+      expect(sel()).toEqual([c2, c3].sort());
+      expect(TL.scrollX).toBeCloseTo(0, 0.01); // a box, not a scroll
+      W.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+      await sleep(50);
+      expect(sel()).toEqual([]);
+      expect(TL.multi).toBe(false);
+      // the toolbar button turns it on too
+      W.document.querySelector('[data-cmd="tool.multi"]').click();
+      expect(TL.multi).toBe(true);
+      TL.setMulti(false);
+    });
+
+    it('select_clips and select_all for the assistant and macros', async () => {
+      const C = W.SlopCmd;
+      let r = await C.exec('cut.select', { clips: c1 + ',' + c2 });
+      expect(r.ok).toBe(true); expect(sel()).toEqual([c1, c2].sort());
+      r = await C.exec('cut.select', { clips: c1, mode: 'remove' });
+      expect(sel()).toEqual([c2]);
+      r = await C.exec('cut.selectAll', {});
+      expect(sel().length).toBe(3);
+    });
+  });
+
+  describe('SlopCut · scale and Fill frame', () => {
+    let id;
+    const source = (c) => { if (!c.media) return null; const k = W.document.createElement('canvas'); k.width = 90; k.height = 160; const g = k.getContext('2d'); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 90, 160); return k; };
+    const corners = () => { const k = ST.renderAt(SE.doc, 0.5, { source }); return [[1, 1], [k.width - 2, 1], [1, k.height - 2], [k.width - 2, k.height - 2]].map(([x, y]) => ST.px(k, x, y)); };
+    it('a portrait picture on a landscape frame: Fill frame covers the frame exactly, Fit frame brings the sides back', async () => {
+      await ST.reset();
+      SE.change('Setup', (p) => {
+        Object.assign(p, { w: 320, h: 180 });
+        p.media.push({ id: 'mtall', kind: 'image', name: 'tall.png', w: 90, h: 160, dur: 5 });
+        id = SE.edit.addMedia(p, ST.M.media(p, 'mtall') || p.media[p.media.length - 1], ST.M.videoTracks(p)[0].id, 0)[0];
+      });
+      A.select([id]); if (A.isPhone()) A.setPane('insp');
+      await sleep(200);
+      expect(corners().every((c) => c[0] < 30)).toBe(true); // scale 1: black bars at the sides
+      const btn = (t) => [...W.document.querySelectorAll('#insp button')].find((b) => b.textContent === t);
+      btn('Fill frame').click(); await sleep(100);
+      const c = clip(id);
+      expect(c.scale).toBeCloseTo((320 / 90) / Math.min(320 / 90, 180 / 160), 0.001);
+      expect(c.x).toBe(0); expect(c.y).toBe(0);
+      expect(corners().every((px) => px[0] > 200 && px[1] < 40)).toBe(true); // red to every corner
+      // exactly: as wide as the frame (no more): 90 source px × scale × fit = 320
+      expect(90 * c.scale * Math.min(320 / 90, 180 / 160)).toBeCloseTo(320, 0.01);
+      btn('Fit frame').click(); await sleep(100);
+      expect(clip(id).scale).toBe(1);
+      SE.history.undo(); await sleep(50);
+      expect(clip(id).scale).toBeGreaterThan(3);
+    });
+
+    it('Scale takes 1000 % from the number field and from the slider (logarithmic, up to 2000 %)', async () => {
+      const num = W.document.querySelector('#insp input[type="number"][aria-label="Scale (%)"]');
+      const range = W.document.querySelector('#insp input[type="range"][aria-label="Scale"]');
+      num.value = '1000'; num.dispatchEvent(new W.Event('change', { bubbles: true })); await sleep(80);
+      expect(clip(id).scale).toBeCloseTo(10, 0.001);
+      num.value = '5000'; num.dispatchEvent(new W.Event('change', { bubbles: true })); await sleep(80);
+      expect(clip(id).scale).toBeCloseTo(50, 0.001); // the field has no 400 % cap
+      range.value = String(SE.fit.toSlider(10)); range.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(80);
+      expect(clip(id).scale).toBeCloseTo(10, 0.2);
+      range.value = range.max; range.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(80);
+      expect(clip(id).scale).toBeCloseTo(20, 0.01);
+    });
+
+    it('fit_frame and set_transform (scale up to 1000) for the assistant and macros', async () => {
+      const C = W.SlopCmd;
+      let r = await C.exec('cut.transform', { clip: id, scale: 12 });
+      expect(r.ok).toBe(true); expect(clip(id).scale).toBe(12);
+      r = await C.exec('cut.fitFrame', { clips: id, mode: 'fill' });
+      expect(r.ok).toBe(true);
+      expect(clip(id).scale).toBeCloseTo((320 / 90) / (180 / 160), 0.001);
+      expect(ST.errors).toEqual([]);
+    });
+  });
+  run({ name: 'SlopCut · selecting clips and placing them' });
+  </script>
+</body>
+</html>

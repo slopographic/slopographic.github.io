@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SlopResizePanel test page</title>
+  <!-- A grid with a left list and a right panel that scrolls, for tests/shared/resize-panel.test.html -->
+  <style>
+    :root { --sl-accent: #4b6b00; }
+    html, body { margin: 0; height: 100%; font: 14px system-ui, sans-serif; }
+    #app { display: grid; height: 100%; grid-template-columns: var(--left-w, 200px) minmax(0, 1fr) var(--right-w, 300px); }
+    #left, #right { overflow-y: auto; border: 1px solid #ccc; }
+    #right p { height: 2000px; margin: 0; }
+    @media (max-width: 700px) { #app { grid-template-columns: 0 1fr 0; } }
+  </style>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/commands/commands.js"></script>
+  <script src="../../shared/ui/resize-panel.js"></script>
+</head>
+<body>
+  <div id="app"><aside id="left">List</aside><main id="view">View</main><aside id="right"><p>Tall content</p></aside></div>
+  <script>
+    SlopCmd.init({ app: 'rptest' });
+    const app = document.getElementById('app');
+    window.RIGHT = SlopResizePanel.attach(document.getElementById('right'), { app: 'rptest', id: 'right', edge: 'start', width: 300, min: 220, max: 500, phone: '(max-width: 700px)', cssVar: '--right-w', target: app, label: 'Right' });
+    window.LEFT = SlopResizePanel.attach(document.getElementById('left'), { app: 'rptest', id: 'left', edge: 'end', width: 200, min: 150, max: 400, phone: '(max-width: 700px)', cssVar: '--left-w', target: app, label: 'Left' });
+  </script>
+</body>
+</html>

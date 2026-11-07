@@ -1,0 +1,52 @@
+FONTLOG for the Slopographic font family
+
+Basic Font Information
+----------------------
+
+Slopographic is the type family of slopographic.com: a sans, a serif, a mono and a condensed face made from open-source (SIL OFL) fonts, with drop-shaped dots on i and j, a single-storey a and a flat-top 3 in the sans, a dripping "slop" ligature, and the Slopographic drop mark in the Private Use Area. The mascot is not in the fonts: Sloppo stays all-rights-reserved art.
+
+Version 1.000. Licensed under the SIL Open Font License 1.1 (OFL.txt).
+
+Styles and their sources
+------------------------
+
+- Slopographic Sans: modified from Inter Tight (Copyright 2022 The Inter Project Authors (https://github.com/rsms/inter-tight)).
+    Axes: wght 300-900.
+    Upstream alternates made the default: cv11, cv09.
+    The dots of i and j redrawn: drop.
+    ss01: Double-storey a.
+    ss02: Round-top 3.
+    ss03: Round dots.
+    ss04: Open digits.
+    dlig: Drip ligature (slop, Slop).
+    Private Use Area marks: mark.
+    Renamed (OFL 1.1); kerning, marks and the other kept features as upstream.
+- Slopographic Serif: modified from Instrument Serif (Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif)).
+    The dots of i and j redrawn: drop.
+    dlig: Drip ligature (slop, Slop).
+    Private Use Area marks: mark.
+    Renamed (OFL 1.1); kerning, marks and the other kept features as upstream.
+- Slopographic Mono: modified from JetBrains Mono (Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)).
+    Axes: wght 400-800.
+    The dots of i and j redrawn: drop.
+    ss01: Round dots.
+    dlig: Drip ligature (slop, Slop).
+    Private Use Area marks: mark.
+    Renamed (OFL 1.1); kerning, marks and the other kept features as upstream.
+- Slopographic Condensed: modified from Archivo (Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)).
+    Axes: wdth 62-100, wght 300-900.
+    The dots of i and j redrawn: drop.
+    ss01: Round dots.
+    dlig: Drip ligature (slop, Slop).
+    Private Use Area marks: mark.
+    Renamed (OFL 1.1); kerning, marks and the other kept features as upstream.
+
+Changelog
+---------
+
+- 1.000 (2026-10-25): the first release: Sans, Serif, Mono and Condensed.
+
+Acknowledgements
+----------------
+
+The upstream designers: JetBrains, Philipp Nurullin, Konstantin Bulenkov; Omnibus-Type; Rasmus Andersson; Rodrigo Fuenzalida, Jordan Egstad.

@@ -1,0 +1,13 @@
+/* Slop Drive — the preview height grip in the details panel (see ui/preview-size.js). */
+.pv-grip { height: 12px; margin: -4px 0 2px; cursor: ns-resize; touch-action: none; display: grid; place-items: center; border-radius: 6px; }
+.pv-grip::after { content: ''; width: 44px; height: 4px; border-radius: 2px; background: var(--line-2); transition: background .12s; }
+.pv-grip:hover::after, .pv-grip:focus-visible::after, body.resizing .pv-grip::after { background: var(--accent-line); }
+.pv-grip:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+html.pv-sized #info .pv:not(.pv-folder):not(.pv-audio):not(.pv-text):not(.pv-other):not(.pv-archive):not(.pv-design) {
+  height: var(--pv-h); min-height: 0; max-height: none; align-content: start;
+}
+html.pv-sized #info .pv img, html.pv-sized #info .pv video { max-height: var(--pv-h); max-width: 100%; width: auto; height: 100%; object-fit: contain; margin: 0 auto; }
+html.pv-sized #info .pv .th { height: 100%; min-height: 0; }
+html.pv-sized #info .pv .th img { max-height: var(--pv-h); }
+/* A finger (pointer: coarse): the grip takes a 44 px band (--slop-hit, shared/input/touch.css); the bar stays small. */
+@media (pointer: coarse) { .pv-grip { position: relative; } .pv-grip::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--slop-hit, 44px); transform: translateY(-50%); } }

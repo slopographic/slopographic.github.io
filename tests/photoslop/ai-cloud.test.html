@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop: an own-key AI model (fake Claude) edits the picture and runs a workflow operation</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script src="../ai/cloud-util.js"></script>
+  <script>
+  // Covers: shared/ai/cloud/engine.js, shared/ai/cloud/anthropic.js, shared/ai/optools.js, shared/ai/apptools.js,
+  //   shared/ai/cmdtools.js, shared/ai/panel-run.js, shared/ai/tools.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let app, win, W, F;
+  const steps = () => [...win.document.querySelectorAll('.sap-step')].map((s) => [...s.childNodes].filter((n) => !n.classList || !n.classList.contains('sap-step-r')).map((n) => n.textContent).join(''));   // the call, without its result line
+  const lastBody = () => F.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body;
+  const px = (x, y) => { const L = W.activeLayer(); return [...L.canvas.getContext('2d').getImageData(x - L.x, y - L.y, 1, 1).data]; };
+
+  describe('Claude with the person’s own key, through the same tools as the local models', () => {
+    it('opens from the AI button and uses a connected provider', async () => {
+      localStorage.setItem('slop-firstrun:ai-cloud:anthropic', '1');   // the notice itself: tests/ai/cloud.test.html
+      app = await freshApp(); win = app.win; W = app.W;
+      F = CU.install(win, 'anthropic');
+      await win.SlopHeader.openAI();
+      await win.SlopAIPanel.ready;
+      await win.SlopAIKit.picker.loadCloud();
+      const eng = new win.SlopAIKit.CloudEngine({ provider: 'anthropic', model: 'claude-sonnet-5-5', key: async () => 'sk-ant-api03-PHOTO-0123456789' });
+      await eng.load(); await win.SlopAIPanel.use(eng);
+      await waitFor(() => win.document.querySelector('.sap-status').textContent === 'Claude · Claude Sonnet 5.5');
+    }, { timeout: 40000 });
+
+    it('“blur the background”: select subject, invert, Gaussian blur radius 8, from native tool calls; Undo all', async () => {
+      W.newDocument(400, 300, '#ffffff', 'Test');
+      const L = W.activeLayer(), g = L.canvas.getContext('2d');
+      g.fillStyle = '#ff0000'; g.beginPath(); g.arc(200, 150, 60, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#000000'; for (let x = 0; x < 400; x += 8) if (Math.abs(x - 200) > 80) g.fillRect(x, 0, 4, 300);
+      W.commit('Paint');
+      win.SlopCutout.removeBackground = async (src) => {
+        const mask = new Uint8ClampedArray(src.width * src.height);
+        for (let y = 0; y < src.height; y++) for (let x = 0; x < src.width; x++) if (Math.hypot(x - 200, y - 150) <= 60) mask[y * src.width + x] = 255;
+        return { mask, width: src.width, height: src.height };
+      };
+      const before = W.Hist.idx, centre = px(200, 150), edge = px(30, 150);
+      F.replies.push(CU.anthropic.call([['select_subject', {}], ['invert_selection', {}], ['gaussian_blur', { radius: 8 }]]), CU.anthropic.text('Blurred the background.'));
+      await win.SlopAIPanel.send('blur the background');
+      expect(steps()).toEqual(['✓Select subject (done)', '✓Invert selection (done)', '✓Gaussian blur, radius 8 (done)']);
+      expect(W.Hist.idx - before).toBe(3);
+      expect(px(200, 150)).toEqual(centre); expect(px(30, 150)).not.toEqual(edge);
+      // the provider got each command as a native tool with its JSON Schema, and the three results in one turn
+      const first = F.requests.find((r) => /\/v1\/messages$/.test(r.url)).body;
+      const blur = first.tools.find((t) => t.name === 'gaussian_blur');
+      expect(blur.input_schema.properties.radius).toEqual({ type: 'number', minimum: 0.1, maximum: 250, description: blur.input_schema.properties.radius.description, default: 4 });
+      const results = lastBody().messages.pop().content;
+      expect(results.map((r) => r.type)).toEqual(['tool_result', 'tool_result', 'tool_result']);
+      const undo = win.document.querySelector('.sap-undo');
+      expect(undo.textContent).toContain('(3)'); undo.click();
+      expect(W.Hist.idx).toBe(before); expect(px(30, 150)).toEqual(edge);
+    }, { timeout: 40000 });
+
+    it('run_operation runs a Slop Workflows operation (Resize) on a picture in Slop Drive; the result is saved there', async () => {
+      const c = win.document.createElement('canvas'); c.width = 640; c.height = 480;
+      const g = c.getContext('2d'); g.fillStyle = '#00aaff'; g.fillRect(0, 0, 640, 480); g.fillStyle = '#ffffff'; g.fillRect(100, 100, 200, 200);
+      const name = 'generated-' + Date.now() + '.png';
+      await win.SlopHub.put(await new Promise((r) => c.toBlob(r, 'image/png')), { name, from: 'test' });
+      F.replies.push(CU.anthropic.call('list_operations', { query: 'resize' }),
+        CU.anthropic.call('run_operation', { operation: 'resize.image', files: [name], options: { mode: 'size', width: 160, height: 120, fit: 'stretch', format: 'png' } }),
+        CU.anthropic.text('Resized it to 160 × 120 and saved it to Slop Drive.'));
+      const start = F.requests.length;
+      await win.SlopAIPanel.send('make my generated picture 160 by 120');
+      const s = steps();
+      expect(s[s.length - 2]).toBe('✓Find operations: resize (done)');
+      expect(s[s.length - 1]).toMatch(/^✓Run resize\.image on generated-\d+\.png \(done\)$/);
+      const listed = JSON.parse(F.requests.slice(start)[1].body.messages.pop().content[0].content);
+      expect(listed.operations.map((o) => o.id)).toContain('resize.image');
+      const out = JSON.parse(lastBody().messages.pop().content[0].content);
+      expect(out.errors).toEqual([]); expect(out.files.length).toBe(1); expect(out.files[0].saved).toBe('Slop Drive');
+      const f = (await win.SlopHub.list()).find((x) => x.name === out.files[0].name && x.from === 'ai');
+      const bmp = await createImageBitmap(f.blob);
+      expect([bmp.width, bmp.height]).toEqual([160, 120]);
+    }, { timeout: 60000 });
+  });
+  describe('the five steps seen live: fill, new layer, fill, opacity, crop 1:1 (asks once), then Undo all', () => {
+    it('the question names Crop; the list reply renders as a list; Undo all hides its button for good', async () => {
+      W.newDocument(300, 200, '#ffffff', 'Five');
+      const before = W.Hist.idx;
+      F.replies.push(CU.anthropic.call([['fill', { color: '#ff0000' }], ['new_layer', { name: 'Blue' }], ['fill', { color: '#0000ff' }], ['set_layer', { opacity: 50 }], ['crop', { ratio: '1:1' }]]),
+        CU.anthropic.text('Done:\n- I filled the canvas red\n- I added a layer and filled it blue\n- I set it to 50% and cropped to 1:1'));
+      const sent = win.SlopAIPanel.send('fill red, new layer, fill blue, 50% opacity, crop 1:1');
+      const d = await waitFor(() => [...win.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop());
+      expect(d.textContent).toContain('Crop to a ratio, ratio 1:1'); expect(d.textContent).toContain('Kind of action: app changes. Step 5 of this request.');
+      [...d.querySelectorAll('button')].find((b) => b.textContent === 'Allow once').click();
+      await sent;
+      expect(W.D.w).toBe(200); expect(W.D.h).toBe(200);
+      const reply = [...win.document.querySelectorAll('.sap-msg.assistant')].pop();
+      expect(reply.querySelectorAll('li').length).toBe(3);   // a reply's own usage once made it render as a plain line
+      expect(win.document.querySelectorAll('.sap-list .sap-live').length).toBe(0);
+      // five steps fold into one line that opens; each step shows what the app answered
+      const fold = [...win.document.querySelectorAll('.sap-steps')].pop();
+      expect(fold.querySelector('summary').textContent).toBe('5 steps ✓'); expect(fold.open).toBe(false);
+      expect(fold.querySelectorAll('.sap-step').length).toBe(5);
+      expect(fold.querySelector('.sap-step-r').textContent).toBe('Filled the layer with #ff0000.');
+      expect([...win.document.querySelectorAll('.sap-usage')].every((u) => u.textContent.trim())).toBe(true);
+      const lastReply = [...win.document.querySelectorAll('.sap-list > *')].slice(-3).map((e) => e.className);
+      expect(lastReply).toEqual(['sap-steps', 'sap-msg assistant', 'sap-usage']);
+      const undo = win.document.querySelector('.sap-undo');
+      expect(undo.textContent).toContain('(5)');
+      undo.click();
+      await sleep(100);
+      expect(W.Hist.idx).toBe(before); expect(W.D.w).toBe(300);
+      expect(win.getComputedStyle(undo).display).toBe('none'); expect(undo.textContent).not.toContain('(5)');
+      win.dispatchEvent(new win.Event('resize')); await sleep(100);
+      expect(win.getComputedStyle(undo).display).toBe('none');
+    }, { timeout: 40000 });
+  });
+  describe('look_at_canvas: the model checks its own work', () => {
+    it('asks as "sending" even with app changes allowed, sends a small picture of the document, shows it as a thumbnail', async () => {
+      win.SlopAIPermissions.setMode('changes');
+      W.newDocument(1600, 1200, '#00aa00', 'Poster');
+      F.replies.push(CU.anthropic.call('look_at_canvas', {}), CU.anthropic.text('The poster is green, as asked.'));
+      const sent = win.SlopAIPanel.send('make sure the poster looks right');
+      const d = await waitFor(() => [...win.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop());
+      expect(d.textContent).toContain('Send a picture of your work to Anthropic?'); expect(d.textContent).toContain('Kind of action: sending files');
+      [...d.querySelectorAll('button')].find((b) => b.textContent === 'Allow once').click();
+      await sent;
+      const r = lastBody().messages.pop().content[0], img = r.content[1];
+      expect(img.type).toBe('image'); expect(img.source.media_type).toBe('image/jpeg');
+      const bmp = await createImageBitmap(await (await fetch('data:image/jpeg;base64,' + img.source.data)).blob());
+      expect([bmp.width, bmp.height]).toEqual([1024, 768]);
+      const thumb = [...win.document.querySelectorAll('.sap-thumb')].pop();
+      expect(!!thumb).toBe(true); expect(thumb.getAttribute('src')).toMatch(/^data:image\/jpeg;base64,/);
+      win.SlopAIPermissions.setMode('ask');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'PhotoSlop: an own-key AI model' });
+  </script>
+</body>
+</html>

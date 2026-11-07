@@ -1,0 +1,76 @@
+/* SlopLabel — theme tokens. Colours come from the shared Slop theme (--sl-* set by shared/theme/theme.js); the fallbacks are the
+ * Pro (dark) look. data-theme="classic" adds the Classic 98 shape (square corners, bevels, Tahoma); its colours are tokens too. */
+:root {
+  --font-ui: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --fs: 12px; --fs-s: 11px;
+  --menubar-h: 34px; --cb-h: 32px; --sb-h: 22px; --ruler: 18px;
+  --toolbox-w: 52px; --dock-w: 300px;
+  --radius: 5px; --radius-s: 3px;
+  --bevel-out: none; --bevel-in: none; --bevel-btn: none; --bevel-btn-down: none;
+  --bg-app: var(--sl-background, #1e1e1e); --bg-panel: var(--sl-surface, #2b2b2b); --bg-panel-2: var(--sl-background, #1e1e1e);
+  --bg-input: var(--sl-surface, #1c1c1c); --bg-hover: color-mix(in srgb, var(--sl-text, #dcdcdc) 10%, transparent);
+  --bg-active: color-mix(in srgb, var(--sl-text, #dcdcdc) 18%, transparent);
+  --border: var(--sl-border, #3c3c3c); --border-dark: var(--sl-background, #151515); --sep: var(--sl-border, #3a3a3a);
+  --text: var(--sl-text, #dcdcdc); --text-dim: color-mix(in srgb, var(--sl-text, #dcdcdc) 75%, transparent);
+  --text-faint: color-mix(in srgb, var(--sl-text, #dcdcdc) 62%, transparent);
+  --accent: var(--sl-accent, #d4ff3a); --accent-ink: var(--sl-on-accent, #0a0a0a); --accent-line: var(--sl-accent, #d4ff3a);
+  --accent-soft: color-mix(in srgb, var(--sl-accent, #d4ff3a) 14%, transparent);
+  --pasteboard: var(--sl-border, #3a3a3a); --ruler-bg: var(--sl-surface, #262626); --ruler-fg: var(--text-dim); --ruler-tick: var(--sl-border, #555);
+  --menu-bg: var(--sl-surface, #2f2f2f);
+  --shadow: 0 10px 34px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .35);
+  --btn-bg: color-mix(in srgb, var(--sl-text, #dcdcdc) 8%, var(--sl-surface, #3a3a3a));
+  --btn-hover: color-mix(in srgb, var(--sl-text, #dcdcdc) 14%, var(--sl-surface, #444));
+  --btn-border: var(--sl-border, #4a4a4a);
+  --sel-row: color-mix(in srgb, var(--sl-accent, #d4ff3a) 14%, transparent);
+  --label-shadow: rgba(0, 0, 0, .45);
+  --handle: #4f8bff; --guide: #ff2d9a; --danger: #e5484d; --warn: #f5a524;
+  color-scheme: dark;
+}
+:root[data-theme="classic"] {
+  --font-ui: Tahoma, 'MS Sans Serif', 'Microsoft Sans Serif', 'Segoe UI', Geneva, Verdana, sans-serif;
+  --mono: 'Lucida Console', 'Courier New', monospace;
+  --fs: 11px; --fs-s: 11px;
+  --radius: 0; --radius-s: 0;
+  --bevel-light: color-mix(in srgb, var(--sl-surface, #fff) 50%, var(--sl-background, #c0c0c0));
+  --bg-app: var(--sl-background, #c0c0c0); --bg-panel: var(--sl-background, #c0c0c0); --bg-panel-2: var(--sl-background, #c0c0c0);
+  --bg-input: var(--sl-surface, #fff); --bg-hover: var(--sl-accent, #000080); --bg-active: var(--sl-background, #c0c0c0);
+  --border: var(--sl-border, #808080); --border-dark: var(--sl-text, #000); --sep: var(--sl-border, #808080);
+  --text: var(--sl-text, #000); --text-dim: var(--sl-text, #000); --text-faint: color-mix(in srgb, var(--sl-text, #000) 72%, transparent);
+  --accent: var(--sl-accent, #000080); --accent-ink: var(--sl-on-accent, #fff); --accent-line: var(--sl-accent, #000080);
+  --accent-soft: color-mix(in srgb, var(--sl-accent, #000080) 12%, transparent);
+  --pasteboard: var(--sl-border, #808080); --ruler-bg: var(--sl-background, #c0c0c0); --ruler-fg: var(--sl-text, #000); --ruler-tick: var(--sl-border, #404040);
+  --menu-bg: var(--sl-background, #c0c0c0);
+  --shadow: 2px 2px 0 rgba(0, 0, 0, .55);
+  --btn-bg: var(--sl-background, #c0c0c0); --btn-hover: var(--sl-background, #c0c0c0); --btn-border: transparent;
+  --sel-row: var(--sl-accent, #000080);
+  --label-shadow: var(--sl-text, #000);
+  --handle: var(--sl-accent, #000080); --guide: #ff00ff;
+  --bevel-out: inset -1px -1px var(--sl-text, #0a0a0a), inset 1px 1px var(--bevel-light), inset -2px -2px var(--sl-border, #808080), inset 2px 2px var(--sl-surface, #fff);
+  --bevel-in: inset -1px -1px var(--sl-surface, #fff), inset 1px 1px var(--sl-border, #808080), inset -2px -2px var(--bevel-light), inset 2px 2px var(--sl-text, #0a0a0a);
+  --bevel-btn: inset -1px -1px var(--sl-text, #0a0a0a), inset 1px 1px var(--sl-surface, #fff), inset -2px -2px var(--sl-border, #808080), inset 2px 2px var(--bevel-light);
+  --bevel-btn-down: inset -1px -1px var(--sl-surface, #fff), inset 1px 1px var(--sl-text, #0a0a0a), inset -2px -2px var(--bevel-light), inset 2px 2px var(--sl-border, #808080);
+  color-scheme: light;
+}
+/* SlopUI dialogs, menus and toasts follow the app theme */
+:root {
+  --sui-bg: var(--bg-panel); --sui-bg2: var(--bg-panel-2); --sui-input: var(--bg-input); --sui-line: var(--border);
+  --sui-fg: var(--text); --sui-dim: var(--text-dim); --sui-faint: var(--text-faint); --sui-hover: var(--bg-hover);
+  --sui-sel: var(--sel-row); --sui-accent: var(--accent); --sui-accent-ink: var(--accent-ink); --sui-radius: var(--radius);
+  --sui-shadow: var(--shadow); --sui-font: var(--font-ui); --sui-mono: var(--mono);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  overflow: hidden; background: var(--bg-app); color: var(--text);
+  font: var(--fs)/1.35 var(--font-ui); -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .45; }
+[hidden] { display: none !important; }
+.mono { font-family: var(--mono); }
+.grow { flex: 1 1 auto; }
+:focus-visible { outline: 1px solid var(--accent-line); outline-offset: 1px; }

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Sheets: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: shared/commands/sources.js, sheetview/js/ai-commands.js, sheetview/js/export.js, sheetview/js/main.js, sheetview/js/state.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script type="module">
+  import { xlsxFixture } from './fixtures.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('sheetview.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slop Sheets: assistant commands', () => {
+    it('open_file from Slop Drive, select_sheet, sort and filter by header name', async () => {
+      f.src = '../../sheetview/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready') && f.contentWindow.SlopSheetView, { timeout: 15000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      expect(C.list().filter((c) => /^sheetview\.ai\./.test(c.id) && c.destructive).length).toBe(0);
+      const file = await xlsxFixture();
+      await W.SlopHub.put(new W.Blob([await file.arrayBuffer()], { type: file.type }), { name: 'sales.xlsx' });
+      let r = await run('open-file', { file: 'sales.xlsx' });
+      expect(r.value).toMatch(/2 sheet/);
+      await run('select-sheet', { sheet: 'Notes' });
+      expect(C.state().sheet).toBe('Notes');
+      await run('select-sheet', { sheet: '1' });
+      await run('sort-column', { column: 'Units', order: 'desc' });
+      const st = C.state();
+      const units = st.firstRows.slice(1).map((row) => row[1]);
+      expect(units).toEqual(units.slice().sort((a, b) => b - a));
+      r = await run('filter-rows', { column: 'B', op: '>', value: 10 });
+      expect(C.state().shown).toBe(3);
+      expect((await C.exec('sheetview.ai.sort-column', { column: 'Nope' })).ok).toBe(false);
+    }, { timeout: 30000 });
+
+    it('export_rows writes the visible rows as CSV to Slop Drive; the rollback clears the view', async () => {
+      const back = C.checkpoint();
+      const shown = C.state().shown;
+      const r = await run('export-rows', { format: 'csv', scope: 'visible' });
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1]);
+      const lines = (await rec.blob.text()).replace(/^﻿/, '').trim().split(/\r?\n/);
+      expect(lines[0]).toContain('Region');
+      expect(lines.length).toBe(shown + 1);
+      await run('clear-filters', {});
+      expect(C.state().shown).toBe(5);
+      back();
+      expect(C.state().shown).toBe(shown);
+    }, { timeout: 20000 });
+
+    it('new_workbook opens a tab from rows; add_rows and add_sheet fill it; export_rows saves every sheet', async () => {
+      let r = await run('new-workbook', { name: 'Prices', rows: [['Item', 'Price'], ['Tea', '3.50']] });
+      expect(r.value).toMatch(/2 row/);
+      let st = C.state();
+      expect(st.file).toBe('Prices.xlsx');
+      expect(st.headers).toEqual(['Item', 'Price']);
+      r = await run('add-rows', { rows: [['Coffee', '4'], ['Cake', '5.25', 'new']] });
+      st = C.state();
+      expect(st.rows).toBe(4);
+      expect(st.shown).toBe(3);
+      expect(st.firstRows[3]).toEqual(['Cake', 5.25, 'new']);
+      await run('sort-column', { column: 'Price', order: 'desc' });
+      expect(C.state().firstRows[1][0]).toBe('Cake');
+      await run('add-sheet', { name: 'Notes', rows: [['Open daily']] });
+      st = C.state();
+      expect(st.sheets).toEqual(['Sheet1', 'Notes']);
+      expect(st.sheet).toBe('Notes');
+      expect((await C.exec('sheetview.ai.add-sheet', { name: 'notes' })).ok).toBe(false);
+      r = await run('export-rows', { format: 'xlsx', scope: 'all' });
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1]);
+      expect(rec.name).toBe('Prices.xlsx');
+      expect(rec.blob.size > 500).toBe(true);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Slop Sheets: assistant commands' });
+  </script>
+</body>
+</html>
