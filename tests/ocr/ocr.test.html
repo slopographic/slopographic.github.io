@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop OCR · outputs, searchable PDF text layer, model gate</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1000px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="Slop OCR page"></iframe>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Part 1 runs with no model: the outputs with fixed text, and the searchable PDF checked by pdf.js.
+  // Part 2 loads ocr/index.html. With no model installed it checks the Get more prompt and that nothing downloads.
+  // If the model is installed in this browser, it also reads a generated picture of text end to end.
+  import { plainText, markdownText, docxFile, searchablePdf, jpegBytes, copyText } from '../../ocr/js/export.js';
+  import { paragraphsOf, linesToText, pairBoxes, groupLines } from '../../ocr/js/layout.js';
+  import { readZip, readText } from '../../shared/office/zip.js';
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const pdfjs = await import('../../vendor/pdfjs/pdf.min.js');
+  pdfjs.GlobalWorkerOptions.workerSrc = '../../vendor/pdfjs/pdf.worker.min.js';
+  const squash = (s) => s.replace(/\s+/g, '');
+
+  /** A picture of three text lines, drawn on a canvas (the same picture the page would OCR). */
+  function sample(lines = ['Slop OCR reads text', 'Invoice 2026-0042', 'total 1,250.00'], w = 900) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = 90 + lines.length * 70;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#000000'; g.font = '44px sans-serif'; g.textBaseline = 'top';
+    lines.forEach((t, i) => g.fillText(t, 40, 30 + i * 70));
+    return c;
+  }
+  const line = (text, y, h = 44) => ({ text, score: 1, box: { x: 40, y, w: 700, h } });
+
+  describe('outputs from fixed text', () => {
+    const pages = [
+      { text: 'Invoice 2026-0042\nTotal 1,250.00\n\nSecond paragraph & more', lines: [] },
+      { text: 'Page two, one line', lines: [] },
+    ];
+    it('plain text keeps the paragraphs and joins the pages with a blank line', () => {
+      expect(plainText(pages)).toBe('Invoice 2026-0042\nTotal 1,250.00\n\nSecond paragraph & more\n\nPage two, one line\n');
+    });
+    it('markdown escapes list, heading and emphasis marks, keeps line breaks, and rules between pages', () => {
+      const md = markdownText([{ text: '# Title\n- item\n1. step\nplain *x* and a_b\n\nnext' }, { text: 'Two' }]);
+      expect(md).toContain('\\# Title  \n\\- item  \n1\\. step  \nplain \\*x\\* and a\\_b\n\nnext');
+      expect(md).toContain('\n\n---\n\nTwo');
+    });
+    it('paragraphsOf splits on blank lines and trims each line', () => {
+      expect(paragraphsOf('  A  \n B \n\n\n C\n')).toEqual(['A\nB', 'C']);
+    });
+    it('OCR lines form one paragraph while the gap is small, and a new one after a larger gap', () => {
+      const lines = [line('Head', 0, 20), line('line two', 24, 20), line('Next', 80, 20)];
+      expect(groupLines(lines).map((g) => g.length)).toEqual([2, 1]);
+      expect(linesToText(lines)).toBe('Head\nline two\n\nNext');
+    });
+    it('pairBoxes gives each text line its box, and extra lines go under the last box', () => {
+      const lines = [line('a', 0, 10), line('b', 20, 10)];
+      const pairs = pairBoxes('a\nb\nc', lines);
+      expect(pairs[0].box.y).toBe(0);
+      expect(pairs[1].box.y).toBe(20);
+      expect(pairs[2].box.y).toBe(30);
+      expect(pairs[2].text).toBe('c');
+    });
+    it('the Word file has the text, a line break inside a paragraph, and a page break between pages', async () => {
+      const zip = await readZip(await docxFile([{ text: 'One\ntwo' }, { text: 'Three' }], { title: 'Scan' }));
+      const xml = readText(zip, 'word/document.xml');
+      expect(xml).toContain('One');
+      expect(xml).toContain('<w:br/>');
+      expect(xml).toContain('w:type="page"');
+      expect(xml).toContain('Three');
+      expect(readText(zip, 'docProps/core.xml')).toContain('<dc:title>Scan</dc:title>');
+    });
+    it('copy reports a boolean and never throws', async () => {
+      expect(typeof (await copyText('x'))).toBe('boolean');
+    });
+  });
+
+  describe('searchable PDF: picture page with an invisible text layer', () => {
+    it('pdf.js finds the OCR text, keeps the page size at 200 dpi, and drops characters the font cannot draw', async () => {
+      const c = sample(['Invoice 2026-0042', 'Total 1,250.00', 'Café 中文 ok'], 1000);
+      const lines = [line('Invoice 2026-0042', 40, 44), line('Total 1,250.00', 110, 44), line('Café 中文 ok', 180, 44)];
+      const text = 'Invoice 2026-0042\nTotal 1,250.00\nCafé 中文 ok';
+      const image = await jpegBytes(c);
+      const blob = await searchablePdf([{ text, lines, w: c.width, h: c.height, image }], { title: 'Test' });
+      expect(blob.type).toBe('application/pdf');
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+      const doc = await pdfjs.getDocument({ data: bytes, verbosity: 0 }).promise;
+      expect(doc.numPages).toBe(1);
+      const pg = await doc.getPage(1);
+      const vp = pg.getViewport({ scale: 1 });
+      expect(Math.round(vp.width)).toBe(Math.round(1000 * 72 / 200));
+      const tc = await pg.getTextContent();
+      const all = squash(tc.items.map((i) => i.str).join(''));
+      expect(all).toContain(squash('Invoice 2026-0042'));
+      expect(all).toContain(squash('Total 1,250.00'));
+      expect(all).toContain(squash('Café'));
+      expect(all).toContain(squash('ok'));
+      expect(all.includes('中文')).toBeFalsy();
+    });
+    it('a PDF of two pages keeps both, in order', async () => {
+      const mk = async (t) => { const c = sample([t], 600); return { text: t, lines: [line(t, 30)], w: c.width, h: c.height, image: await jpegBytes(c) }; };
+      const blob = await searchablePdf([await mk('First page'), await mk('Second page')], {});
+      const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), verbosity: 0 }).promise;
+      expect(doc.numPages).toBe(2);
+      const second = squash((await (await doc.getPage(2)).getTextContent()).items.map((i) => i.str).join(''));
+      expect(second).toContain(squash('Second page'));
+    });
+    // Covers: ocr/js/sources.js (pdf.js through shared/compat/pdfjs.js, with the stream fill Safari needs)
+    it('openFile reads a PDF\'s pages with pdf.js loaded through shared/compat/pdfjs.js', async () => {
+      const { openFile } = await import('../../ocr/js/sources.js');
+      const mk = async (t) => { const c = sample([t], 600); return { text: t, lines: [line(t, 30)], w: c.width, h: c.height, image: await jpegBytes(c) }; };
+      const blob = await searchablePdf([await mk('One'), await mk('Two')], {});
+      const pages = await openFile(new File([blob], 'two.pdf', { type: 'application/pdf' }));
+      expect(pages.length).toBe(2);
+      expect(typeof (window.SlopCompat && window.SlopCompat.readStream)).toBe('function');
+    });
+  });
+
+  // Part 2: the page. The frame loads the real page with the real aitools scripts.
+  const frame = document.getElementById('app');
+  const load = () => new Promise((resolve) => {
+    frame.onload = () => resolve();
+    frame.src = '../../ocr/index.html?t=' + Date.now();
+  }).then(() => waitFor(() => {
+    const d = frame.contentDocument;
+    return d && d.getElementById('gate') && (d.getElementById('gate').children.length > 0 || !d.getElementById('ui').hidden);
+  }, { timeout: 15000 }));
+  const doc = () => frame.contentDocument;
+  const win = () => frame.contentWindow;
+
+  describe('the page with no model installed', () => {
+    it('shows the Get more prompt for the OCR model, and the tool stays hidden', async () => {
+      await load();
+      const status = await win().SlopAIManager.status('ppocr-v4');
+      if (status !== 'needs-download') return; // a browser with the model: covered by the next suite
+      await waitFor(() => doc().querySelector('.ai-panel'), { timeout: 5000 });
+      expect(doc().querySelector('#ui').hidden).toBeTruthy();
+      expect(doc().querySelector('.ai-panel h2').textContent).toBe('This tool needs a model');
+      expect(doc().querySelector('.ai-panel p').textContent).toContain('PP-OCRv4');
+      expect([...doc().querySelectorAll('.ai-panel button')].map((b) => b.textContent)).toContain('Get more…');
+    });
+    it('Get more opens the licence first, and nothing is downloaded until Download is pressed', async () => {
+      await load();
+      if ((await win().SlopAIManager.status('ppocr-v4')) !== 'needs-download') return;
+      const btn = await waitFor(() => [...doc().querySelectorAll('.ai-panel button')].find((b) => b.textContent === 'Get more…'), { timeout: 5000 });
+      btn.click();
+      const dlg = await waitFor(() => doc().querySelector('.ai-dlg'), { timeout: 3000 });
+      expect(dlg.textContent).toContain('Apache License 2.0');
+      expect(dlg.textContent).toContain('Download');
+      await sleep(300);
+      expect(await win().SlopAIManager.status('ppocr-v4')).toBe('needs-download');
+      [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      expect(doc().querySelector('.ai-dlg')).toBe(null);
+      expect(await win().SlopAIManager.status('ppocr-v4')).toBe('needs-download');
+    });
+  });
+
+  describe('the page with the model installed (runs only where the model is in this browser)', () => {
+    it('reads a generated picture of text, and the text is editable before saving', async () => {
+      await load();
+      if ((await win().SlopAIManager.status('ppocr-v4')) !== 'installed') return;
+      const blob = await new Promise((r) => sample().toBlob(r, 'image/png'));
+      const file = new File([blob], 'sample.png', { type: 'image/png' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      const input = doc().querySelector('#drop input[type=file]'); // the zone's Choose files (the intake's picker)
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+      await waitFor(() => !doc().getElementById('read').disabled, { timeout: 5000 });
+      doc().getElementById('read').click();
+      await waitFor(() => doc().getElementById('dlTxt').disabled === false, { timeout: 240000, step: 250 });
+      const text = doc().getElementById('text').value.toLowerCase().replace(/\s+/g, ' ');
+      expect(text).toContain('invoice');
+      expect(text).toContain('2026');
+      doc().getElementById('text').value = 'Edited text';
+      doc().getElementById('text').dispatchEvent(new Event('input'));
+      expect(doc().getElementById('text').value).toBe('Edited text');
+      expect(doc().getElementById('dlDocx').disabled).toBe(false);
+    }, { timeout: 300000 });
+  });
+
+  run({ name: 'Slop OCR' });
+  </script>
+</body>
+</html>

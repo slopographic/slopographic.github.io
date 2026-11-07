@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>View modes: PDF top bar</title>
+<style>html, body { margin: 0; height: 100%; } #app { display: block; width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="PDF app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/ui/hbtn.js, shared/viewmode/viewmode.js
+  // The PDF app's top bar stays fully on screen, and its view-mode control stays in one place, in every view mode.
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  const frame = document.getElementById('app');
+  const MODES = ['full', 'focus', 'content'];
+  let W = null, D = null, V = null;
+
+  const settle = () => sleep(150);
+  const rect = (sel) => { const b = D.querySelector(sel).getBoundingClientRect(); return { top: Math.round(b.top), left: Math.round(b.left), right: Math.round(b.right), bottom: Math.round(b.bottom) }; };
+  const bar = () => rect('header.topbar');
+  const ctl = () => rect('.slopvm-btn');
+
+  async function load() {
+    await new Promise((resolve, reject) => { frame.onload = resolve; frame.onerror = reject; frame.src = '../../pdf/?tool=ocr'; });
+    W = frame.contentWindow; D = frame.contentDocument;
+    await waitFor(() => W.SlopViewMode && D.querySelector('.slopvm-btn'), { timeout: 30000 });
+    await sleep(300);
+    V = W.SlopViewMode;
+    V.set('full');
+    await settle();
+  }
+
+  describe('View modes: PDF top bar', () => {
+    it('the top bar is fully visible at the top of the page in full, focus and content', async () => {
+      await load();
+      for (const m of MODES) {
+        V.set(m); await settle();
+        expect(V.mode()).toBe(m);
+        expect(bar().top).toBeGreaterThanOrEqual(0);
+        expect(bar().top).toBe(0);
+      }
+      V.set('full'); await settle();
+    });
+
+    it('a scroll of the document does not move the top bar off the top', async () => {
+      V.set('full'); await settle();
+      D.documentElement.scrollTop = 40;
+      D.scrollingElement.scrollTop = 40;
+      await settle();
+      expect(D.scrollingElement.scrollTop).toBe(0);
+      expect(bar().top).toBeGreaterThanOrEqual(0);
+    });
+
+    it('the top bar is no wider than the window, so nothing is pushed past its right edge', async () => {
+      for (const m of MODES) {
+        V.set(m); await settle();
+        expect(bar().right).toBeLessThanOrEqual(W.innerWidth);
+      }
+      V.set('full'); await settle();
+    });
+
+    it('the view-mode control has the same x and y in full, focus and content', async () => {
+      const at = {};
+      for (const m of MODES) {
+        V.set(m); await settle();
+        const c = ctl();
+        at[m] = { x: c.left, y: c.top };
+        expect(c.top).toBeGreaterThanOrEqual(0);
+        expect(c.right).toBeLessThanOrEqual(W.innerWidth);
+      }
+      expect(at.focus).toEqual(at.full);
+      expect(at.content).toEqual(at.full);
+      V.set('full'); await settle();
+    });
+
+    it('the view-mode control stays put when the Show panels control appears', async () => {
+      V.set('full'); await settle();
+      const before = ctl();
+      V.set('focus'); await settle();
+      expect(rect('.slopvm-reveal').right).toBeLessThanOrEqual(ctl().left);
+      expect(ctl()).toEqual(before);
+      V.set('full'); await settle();
+    });
+
+    // A brand with another font (other glyph widths) once moved the control 2 px in Full: the bar's content ran into
+    // its end padding and pushed the control along. Wider and narrower text must leave it where it is.
+    it('the view-mode control keeps its x and y in every mode with a wider or a narrower font', async () => {
+      for (const ls of [-0.3, 0.4, 1]) {
+        const st = D.createElement('style');
+        st.textContent = `.topbar, .topbar * { letter-spacing: ${ls}px !important; }`;
+        D.head.append(st);
+        V.set('full'); W.dispatchEvent(new W.Event('resize')); await settle();
+        const at = {};
+        for (const m of MODES) { V.set(m); await settle(); const c = ctl(); at[m] = { x: c.left, y: c.top }; }
+        expect({ ls, ...at.focus }).toEqual({ ls, ...at.full });
+        expect({ ls, ...at.content }).toEqual({ ls, ...at.full });
+        st.remove();
+        V.set('full'); W.dispatchEvent(new W.Event('resize')); await settle();
+      }
+    });
+  });
+
+  run({ name: 'View modes: PDF top bar' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables context menus</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1200px; height: 720px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, doc, T;
+  const rows = () => [...doc.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const labels = () => rows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const pick = (label) => { const r = rows().find((x) => x.querySelector('.sui-lbl').textContent === label); if (!r) throw new Error('no menu row ' + label + ' in ' + labels().join(' | ')); r.click(); };
+  const rc = (r, c) => doc.querySelector(`#cells [data-rc="${r},${c}"]`);
+  const rightClick = (el) => { const b = el.getBoundingClientRect(); el.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 4, clientY: b.top + 4, detail: 1 })); };
+  const keyOn = (el, key, shiftKey = false) => { const ev = new win.KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+
+  describe('Slop Tables context menus', () => {
+    it('boots the app and fills a small sheet', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../tables/index.html';
+      await waitFor(() => fr.contentWindow && fr.contentWindow.SlopTables && fr.contentWindow.SlopTables.ready, { timeout: 30000 });
+      win = fr.contentWindow; doc = fr.contentDocument; T = win.SlopTables;
+      T.setCell('A1', 'alpha'); T.setCell('B1', '2'); T.setCell('A2', '3'); T.setCell('B2', '4');
+      T.select('A1');
+      await waitFor(() => T.el('A1'), { timeout: 5000 });
+      expect(!!T.el('B2')).toBe(true);
+    });
+
+    it('right-click on a cell selects it and offers Edit cell, clipboard, and format rows', async () => {
+      rightClick(rc(1, 1));
+      expect(T.S.sel.r).toBe(1);
+      expect(T.S.sel.c).toBe(1);
+      expect(labels()).toContain('Edit cell');
+      expect(labels()).toContain('Copy');
+      expect(labels()).toContain('Bold');
+      expect(labels()).toContain('Number format');
+      expect(labels()).toContain('Clear contents');
+      pick('Bold');
+      await waitFor(() => Number(win.getComputedStyle(T.el('B2')).fontWeight) >= 600, { timeout: 3000 });
+      expect(T.value('B2')).toBe(4);
+    });
+
+    it('Clear contents from the cell menu empties the cell', () => {
+      rightClick(rc(0, 0));
+      pick('Clear contents');
+      expect(T.value('A1')).toBe(null);
+    });
+
+    it('right-click on a multi-cell selection offers the selection menu without Edit cell', () => {
+      T.setCell('A1', 'alpha');
+      T.select('A1');
+      keyOn(doc.getElementById('grid'), 'ArrowDown', true); // Shift+Down extends the selection
+      rightClick(rc(0, 0));
+      expect(labels()).not.toContain('Edit cell');
+      expect(labels()).toContain('Copy');
+      doc.querySelector('.sui-menu').remove();
+    });
+
+    it('right-click on a row header offers Select row and Hide row, and Hide row hides it', () => {
+      const rh = doc.querySelector('.rh[data-r="1"]');
+      rightClick(rh);
+      expect(labels()).toContain('Select row');
+      expect(labels()).toContain('Hide row');
+      pick('Hide row');
+      expect(T.sheet.isRowHidden(1)).toBe(true);
+      rightClick(doc.querySelector('.rh[data-r="0"]'));
+      expect(labels()).toContain('Show all rows and columns');
+      pick('Show all rows and columns');
+      expect(T.sheet.isRowHidden(1)).toBe(false);
+    });
+
+    it('right-click on a column header offers Select column and Hide column', () => {
+      rightClick(doc.querySelector('.ch[data-c="1"]'));
+      expect(labels()).toContain('Select column');
+      expect(labels()).toContain('Hide column');
+      pick('Select column');
+      expect(T.S.sel.c).toBe(1);
+      expect(T.S.sel.ec).toBe(1);
+    });
+
+    it('right-click on a sheet tab offers rename, delete and add, and Add sheet adds one', () => {
+      const before = T.wb.sheets.length;
+      rightClick(doc.querySelector('.tab[data-i="0"]'));
+      expect(labels()).toContain('Rename…');
+      expect(labels()).toContain('Delete sheet');
+      pick('Add sheet');
+      expect(T.wb.sheets.length).toBe(before + 1);
+    });
+
+    it('the Menu key on the focused sheet tab opens the tab menu', () => {
+      const tab = doc.querySelector('.tab[data-i="0"]');
+      tab.focus();
+      const ev = keyOn(tab, 'ContextMenu');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Rename…');
+      doc.querySelector('.sui-menu').remove();
+    });
+
+    it('Shift+F10 on the grid opens the selection menu', () => {
+      const grid = doc.getElementById('grid');
+      T.select('B2');
+      grid.focus();
+      const ev = keyOn(grid, 'F10', true);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Edit cell');
+      doc.querySelector('.sui-menu').remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Tables context menus' });
+  </script>
+</body>
+</html>

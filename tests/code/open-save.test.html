@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: open and save</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/drive.js
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, view, doc, textOf, typeText, key, rec, tabNames, rawGet, sleep, waitFor } = CT;
+  let w, id;
+  const SRC = 'const answer = 42;\n';
+
+  describe('Slop Code: open from Drive and save back', () => {
+    it('opens a JavaScript file from Slop Drive (?drive=<id>) and shows its text', async () => {
+      id = await H().put(text(SRC, 'text/javascript'), { name: 'answer.js', from: 'test' });
+      w = await frame('../../code/?drive=' + id);
+      await waitFor(() => doc(w) && doc(w).id === id, { timeout: 8000 });
+      expect(textOf(w)).toBe(SRC);
+      expect(tabNames(w)).toEqual(['answer.js']);
+      expect(w.location.search).toBe(''); // the launch parameter is tidied away
+    });
+
+    it('typing and Ctrl+S writes the new text back to the same Drive record', async () => {
+      await typeText(w, 'console.log(answer);\n');
+      expect(doc(w).dirty).toBe(true);
+      key(w, 's', { ctrl: true });
+      const want = SRC + 'console.log(answer);\n';
+      await waitFor(async () => (await rec(id)).blob && (await (await rec(id)).blob.text()) === want, { timeout: 8000 });
+      const r = await rec(id);
+      expect(r.id).toBe(id);
+      expect(r.name).toBe('answer.js');
+      expect(doc(w).dirty).toBe(false);
+      const all = await H().list({ trashed: 'any' });
+      expect(all.filter((x) => x.name === 'answer.js')).toHaveLength(1);
+    });
+
+    it('drafts autosave per file in IndexedDB, and a reopened file gets the draft back', async () => {
+      await typeText(w, '// draft line\n');
+      const draftText = textOf(w);
+      await sleep(900);
+      const d = await rawGet('slop-code', 'drafts', id);
+      expect(d && d.text).toBe(draftText);
+      expect(doc(w).dirty).toBe(true);
+      const w2 = await frame('../../code/?drive=' + id);
+      await waitFor(() => doc(w2) && doc(w2).id === id, { timeout: 8000 });
+      expect(textOf(w2)).toBe(draftText);
+      expect(doc(w2).dirty).toBe(true);
+      key(w2, 's', { ctrl: true });
+      await waitFor(async () => (await rawGet('slop-code', 'drafts', id)) === null, { timeout: 8000 });
+      expect(await rawGet('slop-code', 'drafts', id)).toBe(null);
+      close(w2);
+    });
+
+    it('Save as writes a copy to a chosen folder and opens it in a new tab', async () => {
+      const folder = await H().createFolder('Scratch');
+      const prevPrompt = w.SlopUI.prompt, prevPick = w.SlopHub.pickFolder;
+      w.SlopUI.prompt = async () => 'copy.js';
+      w.SlopHub.pickFolder = async () => folder;
+      try { await w.SlopCode.saveAs(); } finally { w.SlopUI.prompt = prevPrompt; w.SlopHub.pickFolder = prevPick; }
+      await waitFor(() => tabNames(w).includes('copy.js'), { timeout: 8000 });
+      const copy = (await H().list({ folderId: folder }))[0];
+      expect(copy.name).toBe('copy.js');
+      expect(doc(w).id).toBe(copy.id);
+      expect(tabNames(w)).toContain('answer.js');
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: open and save' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+/* Reel Remix: auto remix banner, the floating Remix button and the settings dialog. New CSS reads --sl-* tokens only;
+   they are mapped here to the page's --rm-* colours (declared in remix.css), so light and dark mode follow the page. */
+:root { --sl-background: var(--rm-bg); --sl-surface: var(--rm-panel); --sl-text: var(--rm-text); --sl-text-muted: var(--rm-muted); --sl-border: var(--rm-line); --sl-accent: var(--rm-accent); --sl-on-accent: var(--rm-on-accent); }
+.rm-auto { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--sl-accent); border-radius: 6px; background: var(--sl-surface); color: var(--sl-text); font-size: 13px; }
+.rm-auto[hidden] { display: none; }
+.rm-auto #rm-auto-cancel { margin-left: auto; padding: 4px 10px; font-size: 12px; }
+
+/* Floating Remix button: bottom right, above the page content. The pulse is a ring behind the button. */
+.rm-fab { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: 64px; height: 64px; border: 0; border-radius: 50%; background: var(--sl-accent); color: var(--sl-on-accent); font: 600 13px/1 system-ui, -apple-system, Segoe UI, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, .25); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-touch-callout: none; }
+.rm-fab::after { content: ''; position: absolute; inset: -5px; border: 2px solid var(--sl-accent); border-radius: 50%; opacity: 0; pointer-events: none; }
+.rm-fab.pulse::after { animation: rm-fab-ring 1.8s ease-out infinite; }
+.rm-fab:focus-visible { outline: 3px solid var(--sl-text); outline-offset: 4px; }
+@keyframes rm-fab-ring { 0% { opacity: .85; transform: scale(.92); } 100% { opacity: 0; transform: scale(1.4); } }
+/* Reduced motion: no pulse, a steady ring instead. */
+@media (prefers-reduced-motion: reduce) {
+  .rm-fab.pulse::after { animation: none; opacity: 1; transform: none; }
+}
+/* Phone width: a smaller button in the corner, and room at the bottom of the page so the last content scrolls clear of it. */
+@media (max-width: 600px) {
+  .rm-fab { right: 12px; bottom: 12px; width: 56px; height: 56px; font-size: 12px; }
+  body { padding-bottom: 84px; }
+}
+
+/* Settings dialog */
+.rm-dialog { width: min(360px, calc(100% - 32px)); padding: 16px; border: 1px solid var(--sl-border); border-radius: 8px; background: var(--sl-surface); color: var(--sl-text); }
+.rm-dialog::backdrop { background: rgba(0, 0, 0, .4); }
+.rm-dialog h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--sl-text-muted); margin: 0 0 10px; }
+.rm-dialog .rm-size { color: var(--sl-text-muted); }
+/* With the options panel's footer (js/side.js) Remix is always in reach there, and it pulses instead of a floating button */
+body:has(.rm-side.sf-has-foot) .rm-fab { display: none; }
+.rm-btn.pulse { animation: rm-btn-ring 1.8s ease-out infinite; }
+@keyframes rm-btn-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sl-accent) 70%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
+@media (prefers-reduced-motion: reduce) { .rm-btn.pulse { animation: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--sl-accent) 45%, transparent); } }

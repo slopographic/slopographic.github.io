@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel generate and reset tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; width: 1280px; height: 760px; }</style>
+</head>
+<body>
+  <!-- Form Reset on a plain form (this page) and the Label app in an iframe: Generate and the panel Reset. -->
+  <iframe id="app" src="../../label/index.html"></iframe>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/ui/form-reset.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let WIN = null;
+  const run = (code) => WIN.eval(code);
+  /** Clicks the first button with this text inside the given document (or the top page). */
+  const clickBtn = (doc, text) => { const b = [...doc.querySelectorAll('button')].find((x) => x.textContent.trim() === text); if (!b) throw new Error('no button ' + text); b.click(); };
+  const confirmDlg = (doc) => { const all = doc.querySelectorAll('.sui-dlg'); return all[all.length - 1] || null; };
+  /** The newest dialog's button (the confirm this test opened), so a fading dialog from an earlier test is never clicked. */
+  const dlgBtn = (doc, sel) => { const d = confirmDlg(doc); return d ? d.querySelector(sel) : null; };
+  // Let an earlier test's dialog finish fading out before this test opens its own.
+  const settle = () => sleep(250);
+
+  describe('shared form Reset (shared/ui/form-reset.js)', () => {
+    const make = () => {
+      const f = document.createElement('form');
+      f.innerHTML = '<input id="name" value="Ada"><textarea id="note">first</textarea><select id="stage"><option>lead</option><option>customer</option></select><input id="vip" type="checkbox">'
+        + '<div role="group"><button type="button" aria-pressed="true" id="b1">A</button><button type="button" aria-pressed="false" id="b2">B</button></div>';
+      f.querySelectorAll('[role="group"] button').forEach((b) => b.addEventListener('click', () => {
+        f.querySelectorAll('[role="group"] button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      }));
+      document.body.append(f);
+      return f;
+    };
+    it('snapshot and isDirty track edits', () => {
+      const f = make();
+      SlopFormReset.snapshot(f);
+      expect(SlopFormReset.isDirty(f)).toBe(false);
+      f.querySelector('#name').value = 'Grace';
+      expect(SlopFormReset.isDirty(f)).toBe(true);
+      f.querySelector('#name').value = 'Ada';
+      expect(SlopFormReset.isDirty(f)).toBe(false);
+      f.remove();
+    });
+    it('reset asks first when there are edits, then restores every field', async () => {
+      await settle();
+      const f = make();
+      SlopFormReset.snapshot(f);
+      f.querySelector('#name').value = 'Grace';
+      f.querySelector('#note').value = 'changed';
+      f.querySelector('#stage').value = 'customer';
+      f.querySelector('#vip').checked = true;
+      let inputs = 0;
+      f.addEventListener('input', () => inputs++);
+      const done = SlopFormReset.reset(f);
+      await waitFor(() => dlgBtn(document, '.sui-primary'));
+      expect(f.querySelector('#name').value).toBe('Grace');
+      dlgBtn(document, '.sui-primary').click();
+      expect(await done).toBe(true);
+      expect(f.querySelector('#name').value).toBe('Ada');
+      expect(f.querySelector('#note').value).toBe('first');
+      expect(f.querySelector('#stage').value).toBe('lead');
+      expect(f.querySelector('#vip').checked).toBe(false);
+      expect(inputs).toBeGreaterThan(0);
+      expect(SlopFormReset.isDirty(f)).toBe(false);
+      f.remove();
+    });
+    it('Cancel in the confirm keeps the edits', async () => {
+      await settle();
+      const f = make();
+      SlopFormReset.snapshot(f);
+      f.querySelector('#name').value = 'Grace';
+      const done = SlopFormReset.reset(f);
+      await waitFor(() => dlgBtn(document, '.sui-btn:not(.sui-primary)'));
+      dlgBtn(document, '.sui-btn:not(.sui-primary)').click();
+      expect(await done).toBe(false);
+      expect(f.querySelector('#name').value).toBe('Grace');
+      f.remove();
+    });
+    it('a form without edits resets with no confirm', async () => {
+      await settle();
+      const f = make();
+      SlopFormReset.snapshot(f);
+      const before = document.querySelectorAll('.sui-dlg').length;
+      expect(await SlopFormReset.reset(f)).toBe(true);
+      expect(document.querySelectorAll('.sui-dlg').length).toBe(before);
+      f.remove();
+    });
+    it('restores a segmented control and the dialog button keeps the dialog open', async () => {
+      await settle();
+      const f = make();
+      SlopFormReset.snapshot(f);
+      f.querySelector('#b2').click();
+      expect(f.querySelector('#b2').getAttribute('aria-pressed')).toBe('true');
+      const btn = SlopFormReset.dialogButton(f);
+      expect(btn.label).toBe('Reset');
+      const pending = btn.act();
+      await waitFor(() => dlgBtn(document, '.sui-primary'));
+      dlgBtn(document, '.sui-primary').click();
+      expect(await pending).toBe(false);
+      expect(f.querySelector('#b1').getAttribute('aria-pressed')).toBe('true');
+      f.remove();
+    });
+  });
+
+  describe('SlopLabel: Generate and Reset', () => {
+    it('boots the designer', async () => {
+      WIN = document.getElementById('app').contentWindow;
+      await waitFor(() => WIN.document && WIN.document.body && WIN.document.body.classList.contains('ready'), { timeout: 30000 });
+      expect(typeof WIN.generateIntoBarcode).toBe('function');
+      expect(typeof WIN.SlopFormReset.reset).toBe('function');
+    }, { timeout: 40000 });
+
+    it('Generate fills the selected barcode with a valid EAN-13', async () => {
+      run("editDoc((d) => d.objects.push(makeObject('barcode', { id: 'tb-gen', x: 5, y: 5, w: 40, h: 15, content: 'OLD', symbology: 'code128' })), 'test')");
+      run("select(['tb-gen'])");
+      await waitFor(() => [...WIN.document.querySelectorAll('#dockBody button')].some((b) => b.textContent.trim() === 'Generate'));
+      run("GEN.symbology = 'ean13'; GEN.kind = 'digits'");
+      clickBtn(WIN.document, 'Generate');
+      const o = run("App.doc.objects.find((x) => x.id === 'tb-gen')");
+      expect(o.symbology).toBe('ean13');
+      expect(o.content).toMatch(/^\d{13}$/);
+      expect(WIN.SlopData.barcode.isValidEan(o.content)).toBe(true);
+    });
+
+    it('Generate many makes N labels with different values', () => {
+      run("GEN.symbology = 'code128'; GEN.kind = 'alnum'; GEN.length = 10; GEN.count = 25");
+      run("generateManyLabels()");
+      return waitFor(() => run('App.doc.data && App.doc.data.rows.length === 25'), { timeout: 3000 }).then(() => {
+        const rows = run('App.doc.data.rows.map((r) => r[0])');
+        expect(new Set(rows).size).toBe(25);
+        expect(rows.every((v) => /^[0-9A-Z]{10}$/.test(v))).toBe(true);
+        expect(run("App.doc.objects.find((x) => x.id === 'tb-gen').content")).toBe('{Barcode}');
+        expect(run('recordCount(App.doc)')).toBe(25);
+      });
+    });
+
+    it('the panel Reset restores the selection as it was when it opened', async () => {
+      run("editDoc((d) => d.objects.push(makeObject('barcode', { id: 'tb-rst', x: 5, y: 30, w: 40, h: 15, content: 'OLD-VALUE', symbology: 'code128' })), 'test')");
+      run("App.tab = 'props'; select(['tb-rst'])");
+      const doc = WIN.document;
+      // The dock still shows the previous selection until the next frame, so wait for the panel of this
+      // object: its content field holds the object's value.
+      const field = await waitFor(() => { const f = doc.querySelector('#pContent'); return f && f.value === 'OLD-VALUE' ? f : null; });
+      field.value = 'CHANGED';
+      field.dispatchEvent(new WIN.Event('input', { bubbles: true }));
+      expect(run("App.doc.objects.find((x) => x.id === 'tb-rst').content")).toBe('CHANGED');
+      const reset = await waitFor(() => [...doc.querySelectorAll('#dockBody button')].find((b) => b.textContent.trim() === 'Reset'));
+      reset.click();
+      await waitFor(() => dlgBtn(doc, '.sui-primary'), { timeout: 5000 });
+      dlgBtn(doc, '.sui-primary').click();
+      await waitFor(() => run("App.doc.objects.find((x) => x.id === 'tb-rst').content") === 'OLD-VALUE', { timeout: 5000 });
+      expect(run("App.doc.objects.find((x) => x.id === 'tb-rst').content")).toBe('OLD-VALUE');
+    });
+
+    it('the example CSV is generated in the browser with the Label columns', () => {
+      const text = WIN.eval("SlopExamples.csv('label')");
+      expect(text.split('\n')[0]).toBe('SKU,Name,Price,EAN,Qty');
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'SlopLabel generate and reset' });</script>
+</body>
+</html>

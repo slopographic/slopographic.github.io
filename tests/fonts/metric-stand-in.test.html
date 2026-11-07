@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts · Metric-compatible stand-ins: a pack family answers for the Office font it matches</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <select id="sel"></select>
+  <script src="mock.js"></script>
+  <script>
+  // The mock's test pack stands in for Calibri here (the shipped Carlito pack is the real case).
+  window.__ready = window.__ready.then(() => { window.__manifest.packs[0].files[0].metricFor = ['Calibri']; });
+  </script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, ms = 10000) {
+    const t0 = Date.now();
+    for (;;) { let v = null; try { v = await fn(); } catch (e) { v = null; } if (v) return v; if (Date.now() - t0 > ms) throw new Error('timed out waiting'); await sleep(50); }
+  }
+  const panel = () => document.querySelector('.sf-ov');
+  const rowOf = (name) => panel() && panel().querySelector(`.sf-row[data-family="${name}"]`);
+  const btnIn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+  const libDialog = () => document.querySelector('.slop-lib');
+
+  describe('Metric-compatible stand-ins', () => {
+    it('before the pack is installed, Calibri is missing and the pack that matches it is offered', async () => {
+      FontTest.closeAll();
+      await SlopFonts.ready();
+      await SlopLibraryStore.removePack('test-pack').catch(() => {});
+      const missing = await SlopFonts.check(['Calibri']);
+      expect(missing.length).toBe(1);
+      expect(missing[0].pack).toEqual({ id: 'test-pack', name: 'Test Pack Sans' });
+      expect(await SlopFontCatalog.standIn('Calibri')).toBe(null);
+    });
+    it('downloading from the Calibri row installs the pack and answers the row with the stand-in', async () => {
+      SlopFonts.openPanel({ fonts: ['Calibri'] });
+      await until(() => rowOf('Calibri'));
+      btnIn(rowOf('Calibri'), 'Download from the library').click();
+      await until(() => libDialog() && libDialog().textContent.includes('Download Test Pack Sans?'));
+      btnIn(libDialog(), 'Download ').click();
+      await until(() => rowOf('Calibri') && rowOf('Calibri').textContent.includes('set in Test Pack Sans'));
+      FontTest.closeAll();
+    });
+    it('after install, Calibri (any case) is installed, resolves to the stand-in, and is no longer missing', async () => {
+      expect(await SlopFontCatalog.hasFamily('Calibri')).toBe(true);
+      expect(await SlopFontCatalog.standIn('calibri')).toBe('Test Pack Sans');
+      expect(await SlopFontCatalog.standIn('Test Pack Sans')).toBe('Test Pack Sans');
+      expect((await SlopFonts.check(['Calibri'])).length).toBe(0);
+      const fam = (await SlopFontCatalog.families()).find((f) => f.name === 'Test Pack Sans');
+      expect(fam.metricFor).toEqual(['Calibri']);
+    });
+    it('load("Calibri") draws with the stand-in\'s faces', async () => {
+      expect(await SlopFonts.load('Calibri')).toBe(true);
+      expect([...document.fonts].some((f) => f.family.replace(/"/g, '') === 'Calibri' && f.status === 'loaded')).toBe(true);
+    });
+    it('the Fonts panel lists Calibri as set in the stand-in', async () => {
+      SlopFonts.openPanel({ fonts: ['Calibri'] });
+      await until(() => rowOf('Calibri') && rowOf('Calibri').textContent.includes('Set in Test Pack Sans'));
+      expect(btnIn(rowOf('Calibri'), 'Download from the library')).toBe(undefined);
+      FontTest.closeAll();
+    });
+    it('the picker labels the stand-in with the font it matches, and a Calibri value is not "not installed"', async () => {
+      const sel = document.getElementById('sel');
+      const h = SlopFonts.attach(sel, { value: 'Calibri', getMore: false });
+      await h.refresh();
+      const opt = [...sel.options].find((o) => o.value === 'Test Pack Sans');
+      expect(opt && opt.textContent).toBe('Test Pack Sans (Calibri)');
+      const cur = [...sel.options].find((o) => o.value === 'Calibri');
+      expect(cur && cur.textContent).toBe('Calibri (set in Test Pack Sans)');
+    });
+    it('a narrow sans falls back to the bundled condensed family, which a PDF can embed', async () => {
+      expect(SlopFontCatalog.closestFamily('Barlow Condensed')).toBe('Oswald');
+      expect(SlopFontCatalog.closestFamily('ABCDEF+BarlowCondensed-SemiBold')).toBe('Oswald');
+      expect(SlopFontCatalog.closestFamily('Arial Narrow')).toBe('Oswald');
+      expect(SlopFontCatalog.closestFamily('Barlow')).toBe('Source Sans 3');
+      expect(SlopFontCatalog.closestFamily('Roboto Condensed Serif')).toBe('Merriweather');
+      const face = await SlopFontCatalog.pickFace('Oswald', 400, false);
+      expect(!!(face && face.embed)).toBe(true);
+      const bytes = await SlopFontCatalog.bytesOf(face);
+      expect(String.fromCharCode(...bytes.subarray(0, 4)) === '\0\x01\0\0').toBe(true);
+    });
+    it('cleanup: removing the pack makes Calibri missing again', async () => {
+      await SlopLibraryStore.removePack('test-pack');
+      expect(await SlopFontCatalog.hasFamily('Calibri')).toBe(false);
+    });
+  });
+
+  SlopTest.run({ name: 'Fonts · metric-compatible stand-ins' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Watermark: the assistant's commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: watermark/js/ai-commands.js, watermark/js/commands.js, watermark/js/main.js, watermark/js/settings.js, watermark/index.html, shared/commands/sources.js, shared/watermark/spec-convert.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W = null, C = null;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  async function png(w, h, color) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, w, h);
+    return new Promise((r) => c.toBlob(r, 'image/png'));
+  }
+  const pixels = async (blob) => { const b = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = b.width; c.height = b.height; const g = c.getContext('2d'); g.drawImage(b, 0, 0); return g.getImageData(0, 0, b.width, b.height); };
+
+  describe('Slop Watermark: assistant commands', () => {
+    it('SlopCmd is on the page; prepare() loads the commands with the operation\'s options', async () => {
+      localStorage.removeItem('slopwatermark.setup');
+      f.src = '../../watermark/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready') && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('wm.apply'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      expect(C.get('wm.ai.new-batch').destructive).toBe(true);
+      const names = C.get('wm.ai.set-watermark').args.map((a) => a.name);
+      for (const n of ['mark', 'text', 'colour', 'opacity', 'position', 'tile']) expect(names).toContain(n);
+      expect(names).not.toContain('logo');
+      expect(C.get('wm.ai.set-watermark').args.every((a) => a.default === undefined)).toBe(true);
+    }, { timeout: 30000 });
+
+    it('add_pictures from Slop Drive, set_watermark, apply_watermark, save_results to Slop Drive', async () => {
+      await W.SlopHub.put(await png(400, 300, '#202020'), { name: 'dark.png', from: 'test' });
+      await W.SlopHub.put(await png(300, 300, '#204060'), { name: 'blue.png', from: 'test' });
+      let r = await run('wm.ai.add-pictures', { files: ['dark.png', 'blue.png'] });
+      expect(r.value).toMatch(/Added 2 pictures/);
+      r = await run('wm.ai.set-watermark', { text: 'HELLO', colour: '#ff0000', opacity: 100, size: 20, position: 'mc', shadow: false });
+      expect(r.value).toMatch(/“HELLO”, 100% opaque, at mc/);
+      const L = W.WMSettings.spec().layers.find((x) => x.kind === 'text');
+      expect([L.text, L.colour, L.opacity, L.size, L.position, L.shadow]).toEqual(['HELLO', '#ff0000', 1, 0.2, 'mc', false]);
+      r = await run('wm.ai.apply-watermark', {});
+      expect(r.value).toMatch(/Watermarked 2 pictures/);
+      r = await run('wm.ai.save-results', { to: 'drive' });
+      const id = /id ([^)\s;]+)\)?/.exec(r.value)[1], rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('dark-watermarked.png');
+      const img = await pixels(rec.blob), at = (x, y) => [...img.data.slice((y * img.width + x) * 4, (y * img.width + x) * 4 + 4)];
+      expect(at(5, 5)).toEqual([32, 32, 32, 255]);
+      let red = 0;
+      for (let x = 0; x < img.width; x++) { const p = at(x, 150); if (p[0] > 150 && p[1] < 90) red++; }
+      expect(red).toBeGreaterThan(5);
+      expect(C.state().pictures[0].output).toBe('dark-watermarked.png');
+      await run('wm.ai.new-batch', {});
+      expect(W.WMItems.count()).toBe(0);
+      expect((await C.exec('wm.ai.apply-watermark', {})).ok).toBe(false);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Watermark: assistant commands' });
+  </script>
+</body>
+</html>

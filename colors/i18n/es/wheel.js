@@ -1,0 +1,25 @@
+/* Slop Colors, Spanish: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'colors.wheel.label': 'Rueda de color',
+  'colors.wheel.rule': 'Armonía',
+  'colors.wheel.model': 'Rueda',
+  'colors.wheel.bright': 'Brillo',
+  'colors.wheel.light': 'Luminosidad',
+  'colors.wheel.bright_text': 'Brillo {pct} %',
+  'colors.wheel.light_text': 'Luminosidad {pct} %',
+  'colors.wheel.keys': 'Arrastra un tirador o usa en él las flechas: izquierda y derecha giran el tono, arriba y abajo cambian la saturación, Mayús mueve diez pasos, Re Pág y Av Pág cambian el brillo.',
+  'colors.wheel.base': 'Color base',
+  'colors.wheel.handle': 'Color {n}',
+  'colors.wheel.value': 'Tono {hue}°, saturación {sat} %, {hex}',
+  'colors.wheel.value_oklch': 'Tono {hue}°, croma {sat} %, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (de artista)',
+  'colors.wheel.oklch': 'OKLCH (perceptual)',
+  'colors.harmony.brightness': 'Sombras',
+  'colors.harmony.custom': 'Personalizada',
+  'colors.cmd.g_wheel': 'Rueda de color',
+  'colors.cmd.wheel_rule': 'Rueda: armonía {rule}',
+  'colors.cmd.wheel_model': 'Rueda: usar la rueda {wheel}',
+  'colors.cmd.wheel_focus': 'Rueda: ir a la rueda de color',
+});

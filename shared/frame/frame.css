@@ -1,0 +1,94 @@
+/* SlopFrame (shared/frame/frame.js, panel.js): the "List · View · Panel" layout and the side panel's content. Colours are
+ * the theme's --sl-* tokens. The panel's look follows Slop PDF's properties panel (a sticky title, small upper-case section
+ * headings, rows of label and value). An app may set --sf-list-w (the list column, 320px). */
+:root { --smb-bg: var(--sl-surface, Canvas); --smb-fg: var(--sl-text, CanvasText); --smb-line: var(--sl-border, GrayText); --smb-accent: var(--sl-accent, Highlight);
+  --smb-dim: color-mix(in srgb, var(--sl-text, CanvasText) 60%, transparent); }   /* menus opened from panel buttons (shared/ui/menubutton.js) */
+.sf-root { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; position: relative; }
+.sf-list { order: 1; flex: 0 0 var(--sf-list-w, 320px); min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+  border-inline-end: 1px solid var(--sl-border); background: var(--sl-background); }
+.sf-view { order: 2; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; }
+.sf-grip { order: 3; flex: 0 0 7px; margin-inline: -3px -4px; position: relative; z-index: 2; cursor: col-resize; touch-action: none; }
+.sf-grip::after { content: ""; position: absolute; inset-block: 0; inset-inline-start: 3px; width: 1px; background: transparent; transition: background .15s; }
+.sf-grip:hover::after, .sf-grip:focus-visible::after { width: 2px; background: var(--sl-accent); }
+.sf-lgrip { order: 1; margin-inline: -4px -3px; }   /* after the list (its DOM place), before the view */
+.sf-grip:focus-visible { outline: none; }
+.sf-grip::before { content: ""; position: absolute; inset-block: 0; inset-inline: calc((7px - var(--slop-hit, 0px)) / 2); } /* a finger's 44 px grab (shared/input) */
+.sf-dragging { cursor: col-resize; user-select: none; }
+.sf-dragging iframe { pointer-events: none; }
+.sf-panel { order: 4; flex: 0 0 var(--sf-panel-w, 300px); min-width: 0; min-height: 0; overflow-y: auto; box-sizing: border-box;
+  background: var(--sl-surface); color: var(--sl-text); border-inline-start: 1px solid var(--sl-border); }
+.sf-nolist .sf-list, .sf-nolist .sf-lgrip { display: none; }
+.sf-nopanel:not(.sf-phone) .sf-panel, .sf-nopanel .sf-grip:not(.sf-lgrip), .sf-phone .sf-grip { display: none; }
+
+/* Phones: the list is the page; an item opens over it. The panel is a bottom sheet (shared/ui/sheet.js). */
+.sf-phone .sf-list { flex: 1 1 auto; border-inline-end: 0; }
+.sf-phone:not(.sf-nolist):not(.sf-viewing) > .sf-view { display: none; }
+.sf-phone.sf-viewing > .sf-list { display: none; }
+.sf-phone .sf-panel { flex: none; border-inline-start: 0; }
+.sf-toggle-wide.sf-phone-hide { display: none; }
+
+/* The panel's content */
+.sf-p-title { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; min-height: 44px; box-sizing: border-box;
+  padding: 10px 16px; background: var(--sl-surface); border-bottom: 1px solid var(--sl-border); }
+.sf-p-h { margin: 0; min-width: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-phone .sf-p-title { padding-inline-end: 52px; border-radius: 18px 18px 0 0; }
+.sf-p-body { padding: 2px 0 20px; }
+.sf-sec { padding: 12px 16px; border-bottom: 1px solid var(--sl-border); }
+.sf-sec:last-child { border-bottom: 0; }
+.sf-h { margin: 0 0 9px; font: 700 10.5px/1.2 ui-monospace, Menlo, Consolas, monospace; text-transform: uppercase; letter-spacing: .08em;
+  color: color-mix(in srgb, var(--sl-text) 58%, transparent); }
+.sf-note { margin: 0 0 8px; font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--sl-text) 72%, transparent); }
+.sf-rows { display: grid; grid-template-columns: minmax(56px, auto) minmax(0, 1fr); gap: 5px 10px; margin: 0; font-size: 12.5px; }
+.sf-row { display: contents; }
+.sf-key { color: color-mix(in srgb, var(--sl-text) 62%, transparent); white-space: nowrap; }
+.sf-val { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.sf-acts { display: flex; flex-direction: column; gap: 6px; }
+.sf-acts .sf-btn { min-width: 0; padding-inline: 10px; }
+.sf-acts .sf-btn, .sf-item-acts .sf-btn { white-space: normal; height: auto; }
+.sf-btn[hidden] { display: none; }
+.sf-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; }
+.sf-btn-txt { min-width: 0; overflow-wrap: anywhere; line-height: 1.2; padding-block: 4px; }
+.sf-caret { font-size: 10px; opacity: .75; }
+.sf-items { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sf-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 7px 8px; border: 1px solid var(--sl-border); border-radius: 8px; background: var(--sl-background); }
+.sf-item-main { display: flex; flex: 1 1 140px; flex-direction: column; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; }
+button.sf-item-main { cursor: pointer; border-radius: 6px; }
+button.sf-item-main:hover .sf-item-name { text-decoration: underline; }
+button.sf-item-main:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+.sf-item-name { font-size: 13px; overflow-wrap: anywhere; }
+.sf-item-meta { font-size: 11.5px; color: color-mix(in srgb, var(--sl-text) 62%, transparent); overflow-wrap: anywhere; }
+.sf-item-acts { display: flex; gap: 4px; flex: 0 0 auto; }
+.sf-item-acts .sf-btn { min-height: 28px; height: 28px; padding: 0 8px; font-size: 12px; }
+
+/* A tool's settings (panel.js: { settings }) and its main button (panel.js: footer()). The panel is a column so the
+   footer sits at its bottom edge however short the settings are. */
+.sf-panel.sf-has-foot { display: flex; flex-direction: column; }
+.sf-panel.sf-has-foot > .sf-p-body { flex: 1 0 auto; }
+.sf-set { display: grid; gap: 10px; font-size: 13px; }
+.sf-field { display: grid; gap: 6px; min-width: 0; }
+.sf-lab { font-size: 12.5px; font-weight: 600; }
+.sf-field select, .sf-field input:not([type="range"]):not([type="checkbox"]):not([type="radio"]) { width: 100%; min-width: 0; height: 34px; padding: 0 10px;
+  box-sizing: border-box; background: var(--sl-background); color: var(--sl-text); border: 1px solid var(--sl-border); border-radius: 8px; font: inherit; }
+.sf-field input[type="range"] { width: 100%; accent-color: var(--sl-accent); margin: 2px 0 0; }
+.sf-seg { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; gap: 6px; }
+.sf-seg .sui-btn { min-width: 0; height: 34px; }
+.sf-seg [aria-pressed="true"] { border-color: var(--sl-accent); color: var(--sl-accent); background: color-mix(in srgb, var(--sl-accent) 12%, transparent); }
+.sf-set .sf-note { margin: 0; }
+.sf-p-foot { position: sticky; bottom: 0; z-index: 2; margin-top: auto; display: grid; gap: 6px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--sl-surface); border-top: 1px solid var(--sl-border); }
+.sf-foot-acts { display: flex; gap: 6px; }
+.sf-foot-acts .sf-btn { flex: 1 1 0; min-width: 0; min-height: 40px; font-weight: 700; }
+.sf-foot-stack { flex-wrap: wrap; }
+.sf-foot-stack .sf-btn { flex: 1 1 auto; white-space: normal; height: auto; }
+.sf-foot-stack .sui-primary { flex-basis: 100%; }
+.sf-foot-note { margin: 0; font-size: 11.5px; color: color-mix(in srgb, var(--sl-text) 62%, transparent); text-align: center; }
+.sf-foot-more { display: none; }
+/* Phones (a SlopSheet panel: SlopFrame's, or an editor's own): the closed sheet shows only its footer at the bottom of the
+   screen, and the page leaves room for it */
+.ssh-phone .sf-foot-acts .sf-foot-more { display: inline-flex; flex: 0 0 auto; font-weight: 600; }
+.ssh-phone .sf-has-foot.ssh-panel:not(.ssh-on):not(.ssh-start):not(.ssh-end) { visibility: visible; transform: none; transition: none; overflow: hidden; block-size: auto; min-block-size: 0;
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, .18); }
+.ssh-phone .sf-has-foot.ssh-panel:not(.ssh-on):not(.ssh-start):not(.ssh-end) > :not(.sf-p-foot) { display: none; }
+.ssh-phone .sf-has-foot .sf-p-foot { border-radius: 0; }
+.ssh-phone:has(.sf-has-foot.ssh-panel:not(.ssh-start):not(.ssh-end)) { padding-bottom: var(--sf-foot-h, 64px); }
+@media print { .sf-panel, .sf-grip, .sf-list { display: none !important; } }

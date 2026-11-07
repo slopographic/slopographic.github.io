@@ -1,0 +1,13 @@
+/* Slop Workflows: the page around the tool (the header and the full-height frame). The tool's own styles, all under
+ * .wf-tool, are tool.css and steps.css, so the same tool looks the same in the "Run a workflow…" dialog. */
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--sl-background); color: var(--sl-text); font: 14px/1.45 "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+.wf-noscript { padding: 16px; }
+.wf-app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.wf-app, .smb-bar { --s-bg2: var(--sl-surface); --s-input: var(--sl-background); --s-line: var(--sl-border); --s-fg: var(--sl-text);
+  --s-hover: color-mix(in srgb, var(--sl-text) 8%, var(--sl-surface)); --s-accent: var(--sl-accent); --s-accent-ink: var(--sl-on-accent); --s-radius: 8px; }
+.smb-tools .sui-btn { height: var(--slop-hbtn-h, 32px); }
+.wf-host { flex: 1 1 auto; min-height: 0; display: flex; }
+.wf-host > .wf-tool { flex: 1 1 auto; }
+@media (max-width: 900px) { body { overflow: auto; } }

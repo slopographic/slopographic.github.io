@@ -1,0 +1,103 @@
+{
+  "id": "sample",
+  "name": "Acme Tools",
+  "shortName": "Tools",
+  "brandWord": "Acme",
+  "tagline": "Business and office tools that run in your browser. Your files stay on your device.",
+  "origin": "https://tools.acme.example",
+  "cname": "tools.acme.example",
+  "defaultLang": "en",
+  "naming": "plain",
+  "tone": "plain",
+  "mascot": {
+    "overlay": "overlays/acme",
+    "name": "Acme Bot",
+    "files": [
+      "icon.js",
+      "mascot.js"
+    ],
+    "size": {
+      "desktop": 200,
+      "phone": 64
+    },
+    "roam": "float"
+  },
+  "font": {
+    "spec": "fonts/acme/acme.json",
+    "dir": "fonts/acme/dist"
+  },
+  "github": "acme-example",
+  "mailDomain": "acme.example",
+  "brandTerms": [
+    "Acme Tools"
+  ],
+  "colors": {
+    "ink": "#111827",
+    "paper": "#f9fafb",
+    "accent": "#4f46e5"
+  },
+  "palette": {
+    "hue": 243,
+    "from": [
+      65,
+      100
+    ]
+  },
+  "themes": {
+    "light": {
+      "background": "#f3f4f6",
+      "surface": "#ffffff",
+      "text": "#030712",
+      "accent": "#4338ca",
+      "border": "#6b7280"
+    },
+    "dark": {
+      "background": "#111827",
+      "surface": "#1f2937",
+      "text": "#f3f4f6",
+      "accent": "#a5b4fc",
+      "border": "#6b7280"
+    }
+  },
+  "logo": {
+    "text": "Acme Tools",
+    "mark": "A",
+    "color": "#4338ca"
+  },
+  "links": {},
+  "footer": "© 2026 Acme Example Ltd.",
+  "copy": {},
+  "apps": {
+    "hide": []
+  },
+  "media": false,
+  "ai": {},
+  "ocr": {},
+  "support": {
+    "exportCard": false,
+    "donate": false,
+    "ads": false
+  },
+  "analytics": false,
+  "seo": {
+    "homeTitle": "Acme Tools: business and office tools in your browser",
+    "homeDescription": "PDF editor, image editor, documents, spreadsheets, invoices and more. Runs in your browser; your files stay on your device. Free, no accounts.",
+    "titleSuffix": " | Acme"
+  },
+  "legal": {
+    "holder": "Acme Example Ltd",
+    "year": "2026",
+    "trademarks": [
+      "Acme",
+      "Acme Tools",
+      "Acme Bot"
+    ]
+  },
+  "publish": {
+    "repo": "acme-example/tools",
+    "branch": "main",
+    "secret": "SAMPLE_TOKEN",
+    "author": "Acme Example",
+    "email": "tools@acme.example"
+  }
+}

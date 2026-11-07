@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · the plain tone (a white-label build) and the playful one (this site)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="hero-boot.js"></script>
+  <script>
+  // Covers: style/tone.css, shared/theme/theme.js, home/sections.js, home/catalog.js, home/browse.js, shared/mascot/slot.js, shared/mascot/ui.js, shared/buddy/boot.js, index.html
+  /* The homepage in the tone its build has (<html data-tone>, set by shared/theme/theme.js from the brand profile).
+   * Plain (the sample white-label build, which CI serves to this page): sentence case in the sans face for the header tabs
+   * and the buttons, a plain headline, the trust row in place of the moving strip, neutral status labels (no orange pill,
+   * no "In development"), no Experiments shelf or filter, no brand-names switch, no video, and the mascot once (its own
+   * button; the toggle steps aside), clear of the header. Playful (this site): the look it always had. Unit side:
+   * tests/node/plain-tone.test.mjs. */
+  const { describe, it, expect, waitFor } = SlopTest;
+  const mono = (cs) => /mono/i.test(cs.fontFamily);
+  const shown = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  const rgb = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+  /** An orange (or any strongly coloured) text or fill: the spread between the channels is large. */
+  const coloured = (c) => { const [r, g, b, a = 1] = rgb(c); return a > 0.05 && Math.max(r, g, b) - Math.min(r, g, b) > 90 && r > g && g > b; };
+  async function open(width, theme) {
+    const win = await HeroTest.open({ width, height: 900, theme });
+    await waitFor(() => win.document.querySelector('#app-sections .shelf .app-card'), { timeout: 20000 });
+    return win;
+  }
+
+  for (const width of [1280, 390]) for (const theme of ['light', 'dark']) {
+    describe(`homepage at ${width} px, ${theme}`, () => {
+      it('follows its tone: plain is calm and businesslike, playful is unchanged', async () => {
+        const win = await open(width, theme), doc = win.document, cs = (el) => win.getComputedStyle(el);
+        const tone = doc.documentElement.dataset.tone;
+        expect(['plain', 'playful'].includes(tone)).toBe(true);
+        const tabs = [...doc.querySelectorAll('.nav .tab')], btns = [...doc.querySelectorAll('.hx-cta .btn')];
+        expect(tabs.length).toBe(3);
+        if (tone === 'plain') {
+          expect(!!doc.getElementById('slop-tone-css')).toBe(true);
+          for (const el of tabs.concat(btns)) {
+            expect(cs(el).textTransform).toBe('none');
+            expect(mono(cs(el))).toBe(false);
+            expect(parseFloat(cs(el).letterSpacing) || 0).toBeLessThan(0.5);
+          }
+          expect(shown(doc.querySelector('.hx-title em'))).toBe(false);          // no italic serif flourish
+          expect(shown(doc.querySelector('.hx-title .tone-plain'))).toBe(true);
+          expect(shown(doc.querySelector('.hx-marquee'))).toBe(false);
+          expect(shown(doc.querySelector('.hx-trust'))).toBe(true);
+          const badges = [...doc.querySelectorAll('.badge')];
+          for (const b of badges) {
+            expect(coloured(cs(b).color) || coloured(cs(b).backgroundColor) || coloured(cs(b).borderTopColor)).toBe(false);
+            expect(cs(b).textTransform).toBe('none');
+          }
+          expect(badges.some((b) => /development/i.test(b.textContent))).toBe(false);
+          expect(!!doc.getElementById('experiments')).toBe(false);
+          expect([...doc.querySelectorAll('#app-finder legend, #app-finder label')].some((n) => /^\s*Experiments/.test(n.textContent))).toBe(false);
+          expect(shown(doc.querySelector('.names-switch'))).toBe(false);
+          if (doc.documentElement.dataset.media === 'off') expect(shown(doc.querySelector('.hero-video'))).toBe(false);
+          expect(shown(doc.querySelector('.footer-mark'))).toBe(false);
+          // the mascot (a profile may have none): at most one presence; when shown, its own button, small, clear of the header
+          await waitFor(() => shown(doc.querySelector('.mascot-slot')), { timeout: 8000 }).catch(() => {});
+          const presences = [...doc.querySelectorAll('.mascot-slot, .buddy-toggle')].filter(shown);
+          expect(presences.length).toBeLessThan(2);
+          const m = doc.querySelector('.mascot-slot');
+          if (shown(m)) {
+            const r = m.getBoundingClientRect(), h = doc.querySelector('.nav').getBoundingClientRect();
+            expect(m.tagName).toBe('BUTTON');
+            expect(r.top).toBeGreaterThanOrEqual(h.bottom);
+            expect(r.right).toBeLessThanOrEqual(win.innerWidth);
+            // calm and small, unless the profile sizes it (mascot.size, px tall: the slot's OPTIONS)
+            const { OPTIONS } = await win.eval('import(new URL("shared/mascot/slot.js", document.baseURI).href)');
+            const asked = OPTIONS.size[width > 700 ? 'desktop' : 'phone'];
+            expect(r.width).toBeLessThan(asked ? Math.round(asked * 112 / 136) + 1 : width > 700 ? 80 : 60);
+          }
+        } else {
+          expect(!!doc.getElementById('slop-tone-css')).toBe(false);
+          for (const el of tabs.concat(btns)) { expect(cs(el).textTransform).toBe('uppercase'); expect(mono(cs(el))).toBe(true); }
+          expect(shown(doc.querySelector('.hx-title em'))).toBe(true);
+          expect(shown(doc.querySelector('.hx-title .tone-plain'))).toBe(false);
+          expect(shown(doc.querySelector('.hx-marquee'))).toBe(true);
+          expect(shown(doc.querySelector('.hx-trust'))).toBe(false);
+          expect(!!doc.getElementById('experiments')).toBe(true);
+          expect(shown(doc.querySelector('.names-switch'))).toBe(true);
+          expect([...doc.querySelectorAll('.badge.building')].every((b) => /development/i.test(b.textContent))).toBe(true);
+        }
+        expect(doc.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+      }, { timeout: 90000 });
+    });
+  }
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

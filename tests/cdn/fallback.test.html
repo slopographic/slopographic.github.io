@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopographic cdn: jsDelivr first, GitHub when it fails, progress still reported; one real model through jsDelivr</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/ocr-models.js"></script>
+  <script src="../../aitools/model-registry.js"></script>
+  <script src="../../aitools/download.js"></script>
+  <script src="../../aitools/models.js"></script>
+  <script src="../../shared/library/manifest.js"></script>
+  <script src="../../shared/library/store.js"></script>
+  <script src="../../shared/library/install.js"></script>
+  <script>
+  // Covers: shared/cdn/assets.js, aitools/download.js, aitools/models.js, aitools/model-registry.js, aitools/ocr-models.js
+  // Covers: shared/library/install.js, shared/library/manifest.js
+  const { describe, it, expect, run } = SlopTest;
+  const C = window.SlopCdn, R = window.SlopAIModels, M = window.SlopAIManager, I = window.SlopLibraryInstall;
+  const realFetch = window.fetch.bind(window);
+  /** A body in chunks, so the download reports progress as it reads. */
+  const stream = (bytes, n = 4) => new Response(new ReadableStream({ start(c) { const k = Math.ceil(bytes.length / n); for (let i = 0; i < bytes.length; i += k) c.enqueue(bytes.slice(i, i + k)); c.close(); } }), { status: 200 });
+
+  describe('the fallback', () => {
+    it('a model whose jsDelivr copy fails installs from GitHub, with progress over the whole file', async () => {
+      const path = 'models/test/fallback/a.onnx', [jsd, raw] = C.urls(path);
+      const bytes = new Uint8Array(4000).map((_, i) => (i * 13) & 255);
+      R.MODELS.push({ id: 'cdn-fallback-test', name: 'Fallback test', tool: 'ocr', licence: 'MIT', files: [{ name: 'a.onnx', size: bytes.length, sha256: await C.sha256Hex(bytes), url: C.url(path) }] });
+      const asked = [];
+      window.fetch = async (u, o) => {
+        asked.push(String(u));
+        if (String(u) === jsd) throw new TypeError('Failed to fetch');
+        if (String(u) === raw) return stream(bytes);
+        return realFetch(u, o);
+      };
+      const seen = [];
+      try { await M.install('cdn-fallback-test', (p) => seen.push(p.loaded)); } finally { window.fetch = realFetch; }
+      expect(asked).toEqual([jsd, raw]);
+      expect(seen.length).toBeGreaterThan(2);
+      expect(seen.at(-1)).toBe(4000);
+      expect(Math.max(...seen)).toBe(4000);
+      expect(await M.status('cdn-fallback-test')).toBe('installed');
+      await M.remove('cdn-fallback-test');
+    });
+
+    it('a font pack from packs.json: a jsDelivr 503 falls back to GitHub, wrong bytes from both store nothing', async () => {
+      const m = await I.loadManifest();
+      expect(m.errors).toEqual([]);
+      const p = m.packs.find((x) => x.id === 'barlow');
+      const f = p.files[0], [jsd, raw] = C.urls(f.cdn);
+      expect(f.url).toBe(jsd);
+      const asked = [];
+      window.fetch = async (u, o) => {
+        asked.push(String(u));
+        if (String(u) === jsd) return new Response('busy', { status: 503 });
+        if (String(u) === raw) return new Response(new Uint8Array(f.size), { status: 200 });
+        return realFetch(u, o);
+      };
+      try { await expect(I.install({ ...p, files: [f] })).rejects(/SHA-256 does not match the manifest/); } finally { window.fetch = realFetch; }
+      expect(asked).toEqual([jsd, raw]);
+      expect((await I.installed())[p.id]).toBe(undefined);
+    });
+  });
+
+  describe('the real host', () => {
+    it('the OCR text detector downloads from jsDelivr at the release tag and matches its SHA-256', async () => {
+      const det = window.SlopOcrModels.MODELS.find((x) => x.id !== 'ppocr-v4').files.find((x) => x.name === 'ch_PP-OCRv4_det_infer.onnx');
+      expect(det.url).toBe(`https://cdn.jsdelivr.net/gh/slopographic/cdn@${C.TAG}/models/ocr/ppocr-det-v4/ch_PP-OCRv4_det_infer.onnx`);
+      const asked = [], seen = [];
+      const buf = await window.SlopAIDownload.fetchFile(det, { fetch: (u, o) => { asked.push(u); return realFetch(u, o); }, sha256Hex: M.sha256Hex, allowedUrl: R.allowedUrl, onBytes: (n) => seen.push(n) });
+      expect(buf.byteLength).toBe(det.size);
+      expect(asked).toEqual([det.url]);
+      expect(seen.at(-1)).toBe(det.size);
+    }, { timeout: 60000 });
+  });
+
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Watermark: the look (header, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: watermark/index.html, watermark/css/watermark.css, watermark/js/main.js, assets/shots/watermark.jpg -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's buttons and the drop zone are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../watermark/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-switch') && D.querySelector('header a.brand .brand-app') && D.querySelector('#wm-bar .sab-btn'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  /** The header's visible buttons and links. */
+  const controls = (D) => [...D.querySelectorAll('header a, header button')].filter((n) => n.getBoundingClientRect().width > 0);
+  /** True when no two controls on the same row overlap, and all are inside the window. */
+  function laidOut(D, width) {
+    const rs = controls(D).map((n) => n.getBoundingClientRect()).sort((a, b) => a.top - b.top || a.left - b.left);
+    return rs.every((r, i) => r.left >= 0 && r.right <= width + 0.5 && (!i || rs[i - 1].bottom <= r.top + 4 || r.left >= rs[i - 1].right - 0.5));
+  }
+
+  describe('Slop Watermark: the look', () => {
+    it('the empty page shows what it makes and how; Try it with 4 sample photos lists them and the preview goes', async () => {
+      const D = await open(1280), W = D.defaultView;
+      expect(D.getElementById('wm-preview-box').hidden).toBe(true);   // no empty stage repeating the zone
+      expect(D.querySelectorAll('#wm-drop .sd-steps li').length).toBe(3);
+      SlopTest.shot(D.querySelector('#wm-drop .sd-pic img'), '../assets/shots/watermark.jpg');
+      D.querySelector('#wm-drop .sd-sample').click();
+      await waitFor(() => W.WMItems.count() === 4, { timeout: 20000 });
+      await waitFor(() => D.querySelector('#wm-drop .sd-preview').getBoundingClientRect().height === 0);
+      expect(D.getElementById('wm-preview-box').hidden).toBe(false);
+    }, { timeout: 40000 });
+    it('the header leads with the home link (the app icon), in place of the bar badge', async () => {
+      const D = await open(1440);
+      const brand = D.querySelector('#wm-bar .sab-brand > a.brand:first-child');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(D.querySelector('#wm-bar .sab-badge').hidden).toBe(true);
+      expect(D.querySelector('#wm-bar .sab-name').textContent).toBe('Slop Watermark');
+      expect(D.querySelector('.sps-dock')).toBe(null); // the corner Home and All apps pills are not needed
+    }, { timeout: 40000 });
+
+    it('one drop zone (the shared one under the preview); the empty preview does not repeat it', async () => {
+      const D = await open(1440);
+      expect(D.querySelectorAll('.sd-zone').length).toBe(1);
+      expect(D.querySelector('#wm-drop .sd-msg').textContent).toBe('Drop photos, videos or PDFs here');
+      expect(/drop/i.test(D.getElementById('wm-off').textContent)).toBe(false);
+    }, { timeout: 40000 });
+
+    it('at 1440px every header control sits on one row, as tall as the shell buttons', async () => {
+      const D = await open(1440);
+      expect(laidOut(D, 1440)).toBe(true);
+      const top = D.querySelector('#wm-bar header');
+      expect(top.getBoundingClientRect().height).toBeLessThan(72); // the bar's title and subtitle
+      const h = (s) => D.querySelector(s).getBoundingClientRect().height;
+      expect(h('#wm-bar .sab-btn[data-id="open"]')).toBe(h('header .sh-switch'));
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways and no header controls overlap', async () => {
+      const D = await open(390);
+      expect(laidOut(D, 390)).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Watermark: the look' });
+  </script>
+</body>
+</html>

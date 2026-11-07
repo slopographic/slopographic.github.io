@@ -1,0 +1,25 @@
+/* Slop Press, Russian: the Tools panel, the colour chips and popover, Create Guides. Same keys as press/i18n/en/toolbar.js.
+ * Terms: shared/i18n/glossary-ru.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'press.tool.undo_fill': 'Заливка',
+  'press.tool.undo_stroke': 'Обводка',
+  'press.tool.fill_tip': 'Заливка (щёлкните, чтобы выбрать)',
+  'press.tool.fill_label': 'Цвет заливки',
+  'press.tool.stroke_tip': 'Обводка (щёлкните, чтобы выбрать)',
+  'press.tool.stroke_label': 'Цвет обводки',
+  'press.tool.title_key': '{name} ({key})',
+  'press.kit.colour': 'Цвет',
+  'press.kit.custom_colour': 'Свой цвет…',
+  'press.kit.mode': 'Режим',
+  'press.kit.mode_cmyk': 'CMYK (процессная печать)',
+  'press.kit.ink.c': 'Голубой',
+  'press.kit.ink.m': 'Пурпурный',
+  'press.kit.ink.y': 'Жёлтый',
+  'press.kit.ink.k': 'Чёрный',
+  'press.guide.title': 'Создать направляющие',
+  'press.guide.margins': 'Поля',
+  'press.guide.page': 'Страница',
+  'press.guide.selection': 'Выделение',
+  'press.guide.undo_create': 'Создать направляющие',
+  'press.guide.undo_clear': 'Удалить направляющие',
+});

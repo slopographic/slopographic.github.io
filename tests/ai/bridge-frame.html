@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>bridge frame</title></head>
+<body class="ready">
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/ai/engines.js"></script>
+  <script src="../../shared/ai/tools.js"></script>
+  <script src="../../shared/ai/bridge.js"></script>
+  <script>
+    // ?host=1 loads a fake model here and shares it over the bridge
+    if (new URLSearchParams(location.search).get('host')) {
+      window.engine = new SlopAIKit.FakeEngine({ delay: 1, loadMs: 0 });
+      engine.load({ id: 'fake-model', name: 'Fake model' }).then(() => SlopAIKit.bridge.host(engine));
+    }
+  </script>
+</body>
+</html>

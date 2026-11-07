@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake in Slop AI: every way in is the same path</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="../ai/util.js"></script>
+<script>
+  // Covers: ai/js/ui/intake.js, ai/js/ui/chat.js, ai/js/ui/chatlist.js, ai/js/ui/drive.js, ai/js/ui/models.js, ai/js/ui/launcher.js, ai/js/app/main.js
+  // Slop AI on the one intake: the attach menu (this computer, Slop Drive), a drop on the messages, a paste and ?drive=<id>
+  // (launch) reach the same reader, which attaches text files to a chat; a picture is refused with the reason. Import a
+  // conversation is a part of its own, and so is the Apps list's "Open a file from this computer", which goes out through
+  // SlopOuttake.send.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const txt = (name) => new W.File(['notes ' + name], name, { type: 'text/plain' });
+  const atts = () => W.AI.chat.atts.map((a) => a.name);
+  async function through(src, start) { const k = seen.length; await start(); await waitFor(() => seen.length === k + 1, { timeout: 15000 }); expect(seen[k]).toBe(src); }
+  describe('Slop AI: one way in', () => {
+    it('attach from this computer and Slop Drive, a drop on the messages, a paste', async () => {
+      W = await AT.app(); D = W.document;
+      const s = W.SlopIntake.spec('ai'), reader = s.processAll;
+      s.processAll = (files, ctx) => { seen.push(ctx.source); return reader(files, ctx); };
+      W.SlopUI.pickFiles = async () => [txt('a.txt')];
+      await through('picker', () => W.AI.intake.attachFromComputer(W.AI.chat));
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'b.md', type: 'text/markdown', blob: txt('b.md') });
+      await through('drive', () => W.AI.intake.attachFromDrive(W.AI.chat));
+      await through('drop', () => W.AI.chat.scroller.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([txt('c.txt')]) })));
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([txt('d.txt')]) })));
+      await waitFor(() => atts().length === 4);
+      expect(atts()).toEqual(['a.txt', 'b.md', 'c.txt', 'd.txt']);
+    }, { timeout: 40000 });
+    it('?drive=<id> (launch); a picture is refused', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x2', name: 'e.txt', type: 'text/plain', blob: txt('e.txt') });
+      await through('launch', () => W.AI.intake.launch());
+      const r = await W.SlopIntake.take([new W.File([new Uint8Array(8)], 'p.png', { type: 'image/png' })], { to: 'ai', source: 'launch' });
+      expect(r.skipped[0].reason).toContain('text');
+    });
+    it('Import a conversation and the Apps list are parts of their own', async () => {
+      const conv = W.AI.db.blank('chat'); conv.title = 'Imported here'; conv.messages = [{ role: 'user', content: 'hi' }];
+      W.SlopUI.pickFiles = async () => [new W.File([W.AI.toJSON(conv)], 'c.json', { type: 'application/json' })];
+      const k = seen.length;
+      const r = await W.AI.intake.importConv();
+      expect(r.added.length).toBe(1);
+      let sent = null;
+      W.SlopOuttake.send = async (to, o) => { sent = [to, o.name]; };
+      W.SlopUI.pickFiles = async () => [txt('for-code.txt')];
+      await W.AI.intake.openInApp(W.SLOP_APPS.find((a) => a.id === 'code'));
+      expect(sent).toEqual(['code', 'for-code.txt']);
+      expect(seen.length).toBe(k);
+    });
+  });
+  run({ name: 'Shared intake: Slop AI' });
+</script>
+</body>
+</html>

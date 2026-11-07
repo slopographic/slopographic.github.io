@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: context menus (fake engine)</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, AI, D;
+  const $ = (s) => D.querySelector(s), $$ = (s) => [...D.querySelectorAll(s)];
+  const rows = () => [...D.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const labels = () => rows().map((r) => r.querySelector('.sui-lbl').textContent);
+  const pick = (label) => { const r = rows().find((x) => x.querySelector('.sui-lbl').textContent === label); if (!r) throw new Error('no menu row ' + label + ' in ' + labels().join(' | ')); r.click(); };
+  const rightClick = (el) => { const b = el.getBoundingClientRect(); el.dispatchEvent(new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 4, clientY: b.top + 4, detail: 1 })); };
+  const keyOn = (el, key) => { const ev = new W.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }); el.dispatchEvent(ev); return ev; };
+  const CARD = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+
+  describe('Slop AI context menus', () => {
+    it('boots the app with the fake engine and a laptop system check', async () => {
+      W = await AT.app(); AI = W.AI; D = W.document; AT.answer(W);
+      AI.sysMock = AT.SYS.laptop; await AI.runCheck();
+    });
+
+    it('right-click on a model card offers load and set as default, and Set as default stores it', async () => {
+      AI.setTab('models');
+      await waitFor(() => $(`.mcard[data-id="${CARD}"]`));
+      rightClick($(`.mcard[data-id="${CARD}"]`));
+      expect(labels()).toContain('Set as default');
+      pick('Set as default');
+      expect(AI.prefs.defaultModel).toBe(CARD);
+      rightClick($(`.mcard[data-id="${CARD}"]`));
+      expect(labels()).toContain('Clear default');
+      doc_close();
+    });
+
+    it('right-click on a chat reply offers Copy reply, and a code block offers Copy code and Open in builder', async () => {
+      await AI.E.load(CARD, { skipConsent: true });
+      await waitFor(() => AI.E.ready(), { timeout: 10000 });
+      AI.setTab('chat'); AI.newChat(); AI.fakeDelay = 0;
+      const ta = $('.chat-main .input'); ta.value = 'Tell me something';
+      ta.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await waitFor(() => !AI.chat.busy && $$('.chat-main .msg.bot').length === 1);
+      const bot = $('.chat-main .msg.bot');
+      rightClick(bot);
+      expect(labels()).toContain('Copy reply');
+      pick('Copy reply');
+      const reply = AI.chat.conv.messages[AI.chat.conv.messages.length - 1].content;
+      await waitFor(() => AI.lastCopied === reply, { timeout: 3000 });
+      rightClick(bot.querySelector('.md-code'));
+      expect(labels()).toContain('Copy code');
+      expect(labels()).toContain('Open in builder');
+      pick('Copy code');
+      await waitFor(() => AI.lastCopied === 'console.log("hello from the slop");', { timeout: 3000 });
+    });
+
+    it('the last reply offers Regenerate, which calls the chat regenerate action', async () => {
+      const bot = $('.chat-main .msg.bot');
+      let asked = false, real = AI.chat.regenerate;
+      AI.chat.regenerate = () => { asked = true; };
+      rightClick(bot);
+      expect(labels()).toContain('Regenerate');
+      pick('Regenerate');
+      AI.chat.regenerate = real;
+      expect(asked).toBe(true);
+    });
+
+    it('right-click on a conversation offers rename, export and delete, and the Menu key on it opens the same menu', async () => {
+      await waitFor(() => $('.conv[data-id]'), { timeout: 5000 });
+      const item = $('.conv[data-id]');
+      rightClick(item);
+      expect(labels()).toContain('Rename…');
+      expect(labels()).toContain('Export');
+      expect(labels()).toContain('Delete…');
+      D.querySelector('.sui-menu').remove();
+      item.focus();
+      const ev = keyOn(item, 'ContextMenu');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(labels()).toContain('Delete…');
+      D.querySelector('.sui-menu').remove();
+    });
+
+    it('Delete from the conversation menu removes the chat', async () => {
+      const before = (await AI.db.list('chat')).length;
+      rightClick($('.conv[data-id]'));
+      pick('Delete…');
+      await waitFor(async () => (await AI.db.list('chat')).length === before - 1, { timeout: 5000 }).catch(() => {});
+      expect((await AI.db.list('chat')).length).toBe(before - 1);
+    });
+  });
+  function doc_close() { const m = D.querySelector('.sui-menu'); if (m) m.remove(); }
+  SlopTest.run({ name: 'Slop AI context menus' });
+  </script>
+</body>
+</html>

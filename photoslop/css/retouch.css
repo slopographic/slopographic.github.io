@@ -1,0 +1,44 @@
+/* PhotoSlop Auto Retouch dialog (js/retouch/dialog.js, dialog-view.js), loaded with the retouch code on first use.
+ * Colours are SlopUI's --s-* tokens (shared/slopui.css), so every theme reads; the Before/After tags sit on the picture
+ * and keep fixed, opaque colours. Phones (≤ 640 px): a bottom sheet, the preview on top, the controls scroll. */
+.sui-dlg.rt-dlg { width: min(940px, 100%); }
+.rt-dlg .sui-body { overflow: auto; }
+.rt-body { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(250px, 1fr); gap: 14px; align-items: start; }
+.rt-view { display: grid; place-items: center; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ew-resize; border: 1px solid var(--s-line); border-radius: 4px; overflow: hidden; background: var(--s-input); }
+.rt-stage { position: relative; line-height: 0; max-width: 100%; }
+.rt-canvas { display: block; max-width: 100%; max-height: 62vh; width: auto; height: auto; }
+.rt-knob { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #ffffff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .45); }
+.rt-knob::after { content: ''; position: absolute; top: 50%; left: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; background: #ffffff; border: 2px solid #1d1d1d; box-sizing: border-box; }
+.rt-knob:focus-visible { outline: 2px solid var(--s-ring); outline-offset: 2px; }
+.rt-tag { position: absolute; top: 8px; padding: 2px 7px; border-radius: 3px; font: 600 11px/1.5 var(--s-font); background: #151515; color: #ffffff; pointer-events: none; }
+.rt-before { left: 8px; }
+.rt-after { right: 8px; }
+.rt-controls { display: grid; gap: 10px; min-width: 0; }
+.rt-sec { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--s-line); border-radius: 5px; background: var(--s-bg2); }
+.rt-sec > .rt-check { font-weight: 600; color: var(--s-fg); }
+.rt-group { display: grid; gap: 6px; }
+.rt-group.rt-off { opacity: .5; pointer-events: none; }
+.rt-checks { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.rt-row { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--s-fg); }
+.rt-range { display: grid; grid-template-columns: minmax(84px, auto) 1fr 44px; }
+.rt-range input[type=range] { width: 100%; min-width: 0; }
+.rt-l { color: var(--s-fg); }
+.rt-num { color: var(--s-dim); text-align: right; font-variant-numeric: tabular-nums; }
+.rt-sel { justify-content: space-between; }
+.rt-sel select { flex: 0 1 140px; min-width: 0; }
+.rt-check input { margin: 0; }
+.rt-hint, .rt-status { margin: 0; color: var(--s-dim); font-size: 11px; }
+.rt-status:empty { display: none; }
+.rt-more { flex-wrap: wrap; justify-content: space-between; }
+.rt-faces { justify-self: start; }
+.sui-dlg.rt-choice { width: min(440px, 100%); }
+.rt-choice p { margin: 0 0 8px; color: var(--s-fg); }
+@media (max-width: 640px) {
+  .sui-back:has(> .rt-dlg) { place-items: end stretch; padding: 0; }
+  .sui-dlg.rt-dlg { width: 100%; max-width: 100%; max-height: 94vh; border-radius: 14px 14px 0 0; }
+  .rt-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .rt-canvas { max-height: 34vh; }
+  .rt-range { grid-template-columns: minmax(76px, auto) 1fr 40px; }
+  .rt-row { min-height: 32px; }
+  .rt-check input { width: 20px; height: 20px; }
+}

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Recorder in Swedish</title>
+  <!-- Covers: recorder/index.html, recorder/i18n/index.js, recorder/js/main.js, recorder/js/settings.js, recorder/js/view.js, recorder/js/save.js, recorder/js/commands.js, recorder/js/capture.js, recorder/js/record.js, recorder/js/output.js, recorder/js/core/support.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Recorder', path: '../../recorder/index.html', ns: 'recorder',
+    ready: (doc) => doc.querySelector('#rc-panel .sf-h') && doc.querySelector('#rc-record'),
+    checks: [
+      ['#rc-record', 'Spela in', 'Record'],
+      ['#rc-panel-open', 'Inspelningsinställningar', 'Recorder settings'],
+      ['#rc-source-note', 'Du väljer', 'You choose'],
+      ['#rc-support-who', 'kan spela in', 'can record'],
+      ['#rc-support-rows th', 'Skärm, fönster eller flik', 'Screen, window or tab'],
+      ['#rc-view', 'Inspelning', 'Recording', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Recorder in Swedish' });
+  </script>
+</body>
+</html>

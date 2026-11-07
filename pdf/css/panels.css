@@ -1,0 +1,145 @@
+/* Slop PDF — properties panel, status bar and the signature dialog. */
+/* ---------------------------------------------------------------- properties */
+.props { grid-area: props; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; min-height: 0; }
+/* Download at the panel's foot (the suite's shared footer, shared/frame/panel.js): a column, so the foot stays at the bottom */
+.props.sf-has-foot { display: flex; flex-direction: column; }
+.props.sf-has-foot > :not(.sf-p-foot) { flex: none; }
+.pp-title { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; position: sticky; top: 0; background: var(--panel); z-index: 2; border-bottom: 1px solid var(--line); }
+.pp-title h2 { margin: 0; font: 800 16px var(--font-display); letter-spacing: -.01em; }
+.pp-title .ic { color: var(--accent-line); width: 20px; height: 20px; }
+.pp-close { margin-left: auto; display: none; }
+.pp-body { padding: 4px 0 24px; }
+.pp-sec { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.pp-sec:last-child { border-bottom: 0; }
+.pp-h { margin: 0 0 10px; font: 700 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.pp-row { display: grid; grid-template-columns: 86px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0 0 9px; color: var(--dim); font-size: 12px; }
+.pp-row > .pp-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pp-hint { color: var(--faint); font-size: 11px; }
+.pp-note { margin: 0 0 8px; color: var(--dim); font-size: 12px; line-height: 1.45; }
+.pp-note.warn { color: var(--warn); }
+.pp-note.err { color: var(--danger); }
+.inp { width: 100%; min-width: 0; height: 30px; padding: 0 9px; border-radius: var(--radius-s); border: 1px solid var(--line-2); background: var(--input); color: var(--fg); }
+textarea.inp { height: auto; padding: 6px 9px; resize: vertical; }
+.inp:focus { outline: none; border-color: var(--accent-line); }
+.inp.bad { border-color: var(--danger); }
+.inp.num { width: 90px; font-family: var(--mono); }
+select.inp { padding-right: 4px; }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn-grid .btn { justify-content: flex-start; padding: 0 9px; font-size: 12px; }
+.chk { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; color: var(--dim); font-size: 12px; cursor: pointer; line-height: 1.35; }
+.chk input { accent-color: var(--accent-line); margin: 1px 0 0; width: 15px; height: 15px; flex: none; }
+.sl-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sl { flex: 1; min-width: 0; accent-color: var(--accent-line); }
+.sl-out { min-width: 50px; text-align: right; font: 600 11px var(--mono); color: var(--fg); }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.sw { width: 22px; height: 22px; padding: 0; border-radius: 6px; border: 1px solid var(--line-2); background: var(--c); }
+.sw.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent-line); }
+.sw-none { background: linear-gradient(135deg, transparent 45%, var(--danger) 45%, var(--danger) 55%, transparent 55%), var(--input); }
+.sw-input { width: 28px; height: 24px; padding: 0; border: 1px solid var(--line-2); border-radius: 6px; background: none; }
+.tog { min-width: 34px; height: 30px; border-radius: var(--radius-s); border: 1px solid var(--line-2); background: var(--input); color: var(--fg); font-family: Georgia, serif; font-size: 14px; }
+.tog.bold { font-weight: 800; } .tog.italic { font-style: italic; }
+.tog.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.file-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.file-item { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto auto; align-items: center; gap: 7px; padding: 6px 4px 6px 8px; border-radius: 8px; background: var(--panel-2); font-size: 12px; }
+.file-item.unused { opacity: .55; }
+.fi-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.fi-meta { color: var(--faint); font: 500 10.5px var(--mono); white-space: nowrap; }
+.ib { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--dim); }
+.ib:hover { background: var(--hover); color: var(--fg); }
+.ib .ic { width: 15px; height: 15px; }
+.sel-info { font-size: 12px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 12px; }
+.keys dt { font: 600 11px var(--mono); color: var(--fg); white-space: nowrap; }
+.keys dd { margin: 0; color: var(--dim); }
+.keys-dlg { min-width: min(440px, 80vw); }
+.tool-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.tool-b { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--dim); font-size: 10.5px; line-height: 1.1; text-align: center; }
+.tool-b:hover { color: var(--fg); border-color: var(--line-2); }
+.tool-b.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.tool-b .ic { width: 19px; height: 19px; }
+.pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 30px 30px; gap: 0; width: 150px; height: 190px; padding: 8px; border-radius: 6px; background: var(--input); box-shadow: var(--sheet-shadow); align-content: space-between; }
+.pos-b { display: grid; place-items: center; padding: 0; border: 0; background: none; border-radius: 4px; }
+.pos-b i { width: 18px; height: 6px; border-radius: 2px; background: var(--line-2); }
+.pos-b:hover i { background: var(--dim); }
+.pos-b.on i { background: var(--fg); box-shadow: 0 0 0 3px var(--lime); }
+.form-file { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; min-width: 0; }
+.form-file b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.form-field { position: relative; }
+.form-field .pp-row { grid-template-columns: 96px minmax(0, 1fr); margin-right: 26px; }
+.form-field .chk { margin-right: 26px; }
+.ff-page { position: absolute; right: 0; top: 7px; font: 600 10px var(--mono); color: var(--faint); }
+.form-field.ro { opacity: .6; }
+.split-list { margin: 0; padding-left: 20px; font-size: 12px; color: var(--dim); line-height: 1.6; max-height: 260px; overflow: auto; }
+.split-list b { color: var(--fg); }
+.result:empty { display: none; }
+.result { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--panel-2); }
+.res-sizes { display: flex; align-items: center; gap: 10px; font: 700 16px var(--mono); }
+.res-sizes span { color: var(--faint); text-decoration: line-through; }
+.res-sizes b { color: var(--accent-line); }
+.sig-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sig-list .btn-row { grid-column: 1 / -1; }
+.sig-item { height: 64px; padding: 6px; border-radius: 8px; border: 1px solid var(--line-2); background: #fff; display: grid; place-items: center; }
+.sig-item:hover { box-shadow: 0 0 0 2px var(--accent-line); }
+.sig-item img { max-width: 100%; max-height: 100%; }
+
+/* ---------------------------------------------------------------- status */
+.statusbar { grid-area: status; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--faint); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; }
+#statusLeft { color: var(--dim); }
+.st-msg { overflow: hidden; text-overflow: ellipsis; color: var(--dim); }
+.st-msg.ok { color: var(--ok); } .st-msg.err { color: var(--danger); }
+.st-local { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-line); }
+.st-local .ic { width: 12px; height: 12px; }
+
+/* ---------------------------------------------------------------- signature dialog */
+.sp-sign-dlg .sui-body { padding-top: 10px; }
+.sg-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--line-2); }
+.sg-tab { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--dim); font-weight: 600; margin-bottom: -1px; }
+.sg-tab.on { color: var(--fg); border-bottom-color: var(--accent-line); }
+.sg-padwrap { position: relative; border-radius: 10px; background: #fff; border: 1px solid var(--line-2); overflow: hidden; }
+.sg-pad { display: block; width: 100%; height: 220px; touch-action: none; cursor: crosshair; position: relative; z-index: 1; }
+.sg-line { position: absolute; left: 28px; right: 28px; bottom: 52px; border-bottom: 1.5px solid var(--line-2); color: var(--line-2); font-size: 14px; }
+.sg-line span { position: absolute; left: -2px; bottom: 2px; }
+.sg-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.sg-hint { flex: 1; color: var(--faint); font-size: 12px; }
+.sg-colors { display: flex; gap: 6px; }
+.sg-color { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--panel); background: var(--c); box-shadow: 0 0 0 1px var(--line-2); }
+.sg-color.on { box-shadow: 0 0 0 2px var(--accent-line); }
+.sg-name { width: 100%; height: 38px !important; font-size: 15px !important; margin-bottom: 10px; }
+.sg-fonts { display: grid; gap: 8px; }
+.sg-font { height: 72px; border-radius: 10px; border: 1px solid var(--line-2); background: #fff; font-size: 38px; line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 14px; }
+.sg-font.on { box-shadow: 0 0 0 2px var(--accent-line); }
+.sg-saved { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.sg-card { position: relative; border-radius: 10px; border: 1px solid var(--line-2); background: #fff; }
+.sg-card.on { box-shadow: 0 0 0 2px var(--accent-line); }
+.sg-pick { display: grid; place-items: center; width: 100%; height: 84px; padding: 8px; border: 0; background: none; }
+.sg-pick img { max-width: 100%; max-height: 100%; }
+.sg-del { position: absolute; right: 4px; top: 4px; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: var(--hover); color: var(--fg); }
+.sg-del:hover { background: var(--danger); color: var(--accent-ink); }
+.sg-del .ic { width: 14px; height: 14px; }
+.sg-empty { color: var(--dim); padding: 24px 0; text-align: center; }
+.sg-save { margin-top: 12px; }
+.sp-textout { width: 100%; min-height: 300px; font: 12px/1.5 var(--mono) !important; white-space: pre-wrap; }
+.sp-err { color: var(--danger) !important; }
+
+
+/* ---------------------------------------------------------------- Fonts dialog (ui/fonts-dialog.js) */
+.pf-dlg { width: min(640px, 94vw); }
+.pf-note { color: var(--dim); font-size: 12px; margin: 0 0 10px; }
+.pf-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.pf-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.pf-row:last-child { border-bottom: 0; }
+.pf-main { min-width: 0; }
+.pf-name { font-size: 15px; color: var(--ink, inherit); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-detail { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
+.pf-status { font: 700 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line); justify-self: end; }
+.pf-embedded { color: var(--accent-line); }
+.pf-available { color: var(--dim); }
+.pf-missing { color: #d9534f; border-color: #d9534f; }
+.pf-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 480px) { .pf-row { grid-template-columns: 1fr; } .pf-status { justify-self: start; } }
+/* the Download PDF dialog's password section (ui/protect.js) and the notice on a file that had a password */
+.pp-protect h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.pp-protect-fields { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 4px; }
+.pw-notice { margin: 0 0 8px; padding: 8px; border-radius: 8px; background: var(--panel-2); border-left: 3px solid var(--warn); }
+.pw-notice .btn-row { margin-top: 6px; }

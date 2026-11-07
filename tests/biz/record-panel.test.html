@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Business apps: the record panel on the right, its main button at its foot (1280 and 390 px)</title>
+<style>body { margin: 0; background: #111; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="record-panel-apps.js"></script>
+  <script>
+  // Covers: shared/biz/panel.js, shared/docs/doc-layout.js, shared/docs/doc-editor.js, shared/docs/workspace.css, shared/biz/app.css, contacts/js/app/card.js, contacts/js/app/card-read.js, contacts/js/app/card-edit.js, contacts/css/contacts-card.css, expenses/js/ui/app.js, timesheets/js/ui/app.js, crm/js/ui/detail.js, crm/css/crm.css, projects/js/ui/task-panel.js, ledger/js/ui/app.js, inventory/js/ui/app.js
+  // The suite rule (shared/frame/HANDOFF.md): an open record's details are a panel on the RIGHT (SlopFrame), its main button in
+  // the panel's footer; on a phone the panel is a bottom sheet whose closed state still shows that footer. One run per app
+  // (tests/biz/record-panel-apps.js: how each app opens a record, fills it and what its main button does).
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const shown = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none';
+  async function open(app, width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = `../../${app.path}?t=${Date.now()}#${app.hash}`;
+    document.body.append(f);
+    await waitFor(() => { const W = f.contentWindow; return W && W.document.readyState === 'complete' && app.ready(W); }, { timeout: 30000 });
+    if (app.prep) await app.prep(f.contentWindow);
+    await sleep(300);
+    return f;
+  }
+  const footButtons = (D, panel) => [...panel.querySelectorAll('.sf-p-foot button')].filter(shown);
+
+  describe('the record panel of every business app', () => {
+    for (const app of window.RECORD_PANEL_APPS) {
+      it(`${app.name} at 1280: the panel is right of the record, resizable, its main button "${app.main}" at its foot works`, async () => {
+        const f = await open(app, 1280), W = f.contentWindow, D = W.document;
+        const panel = D.querySelector(app.panel), view = D.querySelector(app.view);
+        if (!app.bare) expect(panel.classList.contains('sf-panel')).toBe(true);
+        expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(view.getBoundingClientRect().right - 1);
+        expect(Math.round(panel.getBoundingClientRect().right)).toBeLessThanOrEqual(1280);
+        if (!app.bare) expect(shown(D.querySelector('.sf-grip'))).toBe(true);   // shared/ui/resize-panel.js on its edge
+        const btn = footButtons(D, panel).find((b) => b.textContent.trim() === app.main);
+        expect(!!btn).toBe(true);
+        const fr = btn.closest('.sf-p-foot').getBoundingClientRect();
+        expect(Math.round(fr.bottom)).toBeLessThanOrEqual(Math.round(panel.getBoundingClientRect().bottom));
+        expect(fr.bottom).toBeLessThanOrEqual(W.innerHeight + 1);
+        if (app.fill) await app.fill(W, btn);
+        btn.click();
+        await waitFor(() => app.done(W), { timeout: 15000 });
+        f.remove();
+      }, { timeout: 90000 });
+
+      it(`${app.name} at 390: the closed sheet's footer holds "${app.main}" at the bottom of the screen; Details opens the rest; no sideways scroll`, async () => {
+        const f = await open(app, 390), W = f.contentWindow, D = W.document;
+        const panel = D.querySelector(app.panel);
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+        if (app.sheet) {   // a record opened over the list (Contacts, CRM): a bottom sheet with the footer at its foot; × closes the record
+          await waitFor(() => panel.classList.contains('ssh-on'));
+          await sleep(300);
+          expect(footButtons(D, panel).map((b) => b.textContent.trim()).includes(app.main)).toBe(true);
+          const ft = panel.querySelector('.sf-p-foot').getBoundingClientRect();
+          expect(Math.round(ft.bottom)).toBe(W.innerHeight);
+          expect(panel.getBoundingClientRect().top).toBeLessThan(ft.top - 100);
+          expect(panel.getBoundingClientRect().top).toBeGreaterThan(20);   // over the list, not a page of its own
+          expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+          panel.querySelector('.ssh-x').click();
+          await waitFor(() => !panel.classList.contains('ssh-on'));
+          f.remove();
+          return;
+        }
+        if (panel.classList.contains('ssh-on')) {   // a record of its own view opens as the sheet: its × closes it to the footer
+          panel.querySelector('.ssh-x').click();
+          await waitFor(() => !panel.classList.contains('ssh-on'));
+          await sleep(300);
+        }
+        const names = footButtons(D, panel).map((b) => b.textContent.trim());
+        expect(names.includes(app.main)).toBe(true);
+        if (!app.bare) expect(names[0]).toBe(app.more || 'Details');
+        const foot = panel.querySelector('.sf-p-foot').getBoundingClientRect();
+        expect(Math.round(foot.bottom)).toBe(W.innerHeight);
+        expect(foot.top).toBeGreaterThan(W.innerHeight / 2);
+        if (app.bare) { f.remove(); return; }
+        footButtons(D, panel)[0].click();
+        await waitFor(() => panel.classList.contains('ssh-on'));
+        expect(panel.getBoundingClientRect().top).toBeLessThan(foot.top - 100);
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+        f.remove();
+      }, { timeout: 90000 });
+    }
+    it('a record with no main button (a paid invoice, a cancelled order): no footer on a wide screen, "Details" alone on a phone', async () => {
+      const app = window.RECORD_PANEL_APPS.find((a) => a.name === 'Slop Orders');
+      for (const w of [1280, 390]) {
+        const f = await open(app, w), W = f.contentWindow;
+        W.SlopOrders.recordPanel.footer([]);
+        const foot = W.document.querySelector('.ws-panel .sf-p-foot');
+        expect(shown(foot)).toBe(w < 900);
+        if (w < 900) { expect(foot.textContent.trim()).toBe('Details'); foot.querySelector('button').click(); await waitFor(() => W.document.querySelector('.ws-panel').classList.contains('ssh-on')); }
+        f.remove();
+      }
+    }, { timeout: 90000 });
+    it('Slop Inventory: Receive, Sell, Adjust and Transfer are the stock view\'s right panel, one at a time, with one main button at its foot; on a phone Stock actions opens them', async () => {
+      // Covers: inventory/js/ui/stock.js, inventory/js/ui/commands.js
+      const app = { path: 'inventory/index.html', hash: 'stock', ready: (W) => W.SlopInv && W.SlopInv.app && W.SlopInv.app.booted && W.document.querySelector('#view-stock .sf-p-foot') };
+      let f = await open(app, 1280), W = f.contentWindow, D = W.document;
+      const panel = D.querySelector('#view-stock .forms'), main = D.querySelector('#view-stock .biz-fv-main'), apply = D.getElementById('sApply');
+      expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(main.getBoundingClientRect().right - 1);
+      expect(shown(D.querySelector('#view-stock .sf-grip'))).toBe(true);
+      expect(apply.closest('.sf-p-foot').parentNode).toBe(panel);
+      expect([...panel.querySelectorAll('button.primary, .sui-primary')].filter(shown)).toEqual([apply]);   // one main button
+      expect([...panel.querySelectorAll('form')].filter(shown).map((x) => x.id)).toEqual(['fReceive']);
+      [...panel.querySelectorAll('#sKinds button')].find((b) => b.textContent === 'Sell').click();
+      expect([...panel.querySelectorAll('form')].filter(shown).map((x) => x.id)).toEqual(['fSell']);
+      expect(apply.textContent).toBe('Sell');
+      expect(apply.getAttribute('form')).toBe('fSell');
+      apply.click();   // no product yet: the answer shows in the panel
+      await waitFor(() => D.getElementById('sMsg').textContent.trim().length > 0 && panel.contains(D.getElementById('sMsg')));
+      W.SlopInv.commands.run('stock.transfer');   // the palette's command chooses the form in the same panel
+      await waitFor(() => apply.textContent === 'Transfer' && shown(D.getElementById('fTransfer')));
+      expect(D.querySelectorAll('.sui-dlg').length).toBe(0);
+      f.remove();
+      f = await open(app, 390); W = f.contentWindow; D = W.document;
+      const p2 = D.querySelector('#view-stock .forms'), foot = p2.querySelector('.sf-p-foot');
+      expect(Math.round(foot.getBoundingClientRect().bottom)).toBe(W.innerHeight);
+      expect([...foot.querySelectorAll('button')].filter(shown).map((b) => b.textContent.trim())).toEqual(['Stock actions', 'Receive']);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      foot.querySelector('button').click();
+      await waitFor(() => p2.classList.contains('ssh-on'));
+      expect(shown(D.getElementById('fReceive'))).toBe(true);
+      f.remove();
+    }, { timeout: 90000 });
+    it('Slop Inventory: the product form is the products view\'s right panel, Create product at its foot (1280); a sheet on a phone (390)', async () => {
+      // Covers: inventory/js/ui/product-form.js, inventory/js/ui/products.js, inventory/css/inventory.css
+      const app = { path: 'inventory/index.html', hash: 'products', ready: (W) => W.SlopInv && W.SlopInv.app && W.SlopInv.app.booted && W.document.querySelector('#pForm .sf-p-foot') && W.document.querySelector('#pFields input') };
+      let f = await open(app, 1280), W = f.contentWindow, D = W.document;
+      const form = D.getElementById('pForm'), main = D.querySelector('#view-products .biz-fv-main'), save = D.getElementById('pSave');
+      expect(form.getBoundingClientRect().left).toBeGreaterThanOrEqual(main.getBoundingClientRect().right - 1);
+      expect(save.closest('.sf-p-foot').parentNode).toBe(form);
+      expect(save.textContent).toBe('Create product');
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+      const [sku, , name, price] = D.querySelectorAll('#pFields input');
+      sku.value = 'RP-1'; name.value = 'Panel item'; price.value = '4.00';
+      save.click();
+      await waitFor(() => D.querySelector('#pRows [data-id]'), { timeout: 10000 });
+      expect(D.querySelectorAll('.sui-dlg').length).toBe(0);
+      D.querySelector('#pRows [data-id]').click();   // a row opens in the same panel
+      await waitFor(() => save.textContent === 'Save' && D.getElementById('pFormTitle').textContent === 'Edit Panel item');
+      expect(shown(D.getElementById('pCancel'))).toBe(true);
+      f.remove();
+      f = await open(app, 390); W = f.contentWindow; D = W.document;
+      const form2 = D.getElementById('pForm'), foot = form2.querySelector('.sf-p-foot');
+      expect(Math.round(foot.getBoundingClientRect().bottom)).toBe(W.innerHeight);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      D.getElementById('pAdd').click();
+      await waitFor(() => form2.classList.contains('ssh-on'));
+      f.remove();
+    }, { timeout: 90000 });
+  });
+  SlopTest.run({ name: 'Business apps: the record panel' });
+  </script>
+</body>
+</html>

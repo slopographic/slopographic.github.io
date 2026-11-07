@@ -1,0 +1,33 @@
+/* Slop AI, Korean: Build a mini-app (the builder chat, the preview and the templates). The templates' prompts and
+ * their HTML stay English (the prompt is what the model is asked). Same keys as ai/i18n/en/build.js. Terms: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'ai.build.new': '새 미니 앱',
+  'ai.build.hello': '미니 앱 만들기',
+  'ai.build.hello_lead': '앱, 게임 또는 페이지를 설명하세요. 모델이 HTML 파일 하나를 만들고, 그 파일은 여기서 샌드박스 안에서 실행됩니다. 또는 템플릿으로 시작하세요:',
+  'ai.build.placeholder': '만들고 싶은 앱을 설명하거나 바꿀 내용을 적으세요',
+  'ai.build.none_yet': '아직 미니 앱이 없습니다',
+  'ai.build.delete_q': '이 미니 앱을 삭제할까요?',
+  'ai.build.delete_body': '채팅과 코드가 함께 삭제됩니다.',
+  'ai.build.no_html': '그 답변에는 완전한 HTML 파일이 없습니다. 다시 요청하거나 “전체 파일을 보내 주세요”라고 말하세요.',
+  'ai.build.starter_reply': '시작 템플릿입니다. 바꿀 내용을 알려 주세요.',
+  'ai.build.from_chat': '채팅으로 만든 미니 앱',
+  'ai.build.tpl_tip': '{name} 템플릿으로 시작',
+  'ai.build.preview': '미리 보기',
+  'ai.build.code': '코드',
+  'ai.build.modes': '미리 보기 또는 코드',
+  'ai.build.back_chat': '← 채팅',
+  'ai.build.preview_title': '미니 앱 미리 보기(샌드박스)',
+  'ai.build.sandboxed': '🔒 샌드박스',
+  'ai.build.sandbox_tip': 'sandbox="allow-scripts", same-origin 없음, 네트워크 없음',
+  'ai.build.restart': '앱 다시 시작',
+  'ai.build.download_tip': '.html 다운로드',
+  'ai.build.nothing': '아직 미리 볼 항목이 없습니다',
+  'ai.build.nothing_lead': '모델이 완전한 HTML 파일을 보내면 앱이 여기에 나타납니다.',
+
+  'ai.tpl.game': '게임',
+  'ai.tpl.game_blurb': '떨어지는 Slop 잡기',
+  'ai.tpl.calculator': '계산기',
+  'ai.tpl.calculator_blurb': '깔끔한 계산기',
+  'ai.tpl.landing': '랜딩 페이지',
+  'ai.tpl.landing_blurb': '한 페이지짜리 사이트',
+});

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop face store: version 1 to 2 migration</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // The face store's own upgrade: a version 1 database (results without embeddings) is opened by the version 2 code. Its
+  // old rows are removed (those pictures are checked again once), the people store is created, and it round-trips.
+  const { describe, it, expect } = SlopTest;
+  const NAME = 'slop-faces-migrate-' + Math.random().toString(36).slice(2, 8);
+  window.SLOP_FACES_DB = NAME;
+  window.SlopFaces = { MODEL_ID: 'yunet-2023mar' };
+
+  function makeV1() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(NAME, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('results', { keyPath: 'key' });
+      r.onsuccess = () => {
+        const db = r.result, t = db.transaction('results', 'readwrite'), s = t.objectStore('results');
+        s.put({ key: 'gallery:old', scope: 'gallery', id: 'old', stamp: '1', model: 'yunet-2023mar', w: 10, h: 10, faces: [{ x: 1, y: 1, w: 2, h: 2, score: 0.9 }] });
+        s.put({ key: 'gallery:new', v: 2, scope: 'gallery', id: 'new', stamp: '2', model: 'yunet-2023mar', w: 10, h: 10, faces: [{ x: 1, y: 1, w: 2, h: 2, score: 0.9, emb: [1, 0] }], rec: 1 });
+        t.oncomplete = () => { db.close(); res(); };
+        t.onerror = () => rej(t.error);
+      };
+      r.onerror = () => rej(r.error);
+    });
+  }
+
+  describe('the face store: version 1 to 2', () => {
+    it('the old rows without the v2 shape are removed; the new one stays; the people store is created', async () => {
+      await makeV1();
+      await new Promise((res, rej) => { const s = document.createElement('script'); s.src = '../../shared/faces/cache.js'; s.onload = res; s.onerror = rej; document.head.append(s); });
+      const F = window.SlopFaces;
+      expect(F.cache.VERSION).toBe(2);
+      const rows = await F.cache.all('gallery');
+      expect([...rows.keys()]).toEqual(['new']);
+      expect(await F.cache.get('gallery', 'new', '2')).not.toBe(null);
+      expect(await F.cache.get('gallery', 'old', '1')).toBe(null);
+      await F.cache.people.put('gallery', { state: { groups: [{ id: 'p1', name: 'Ann' }], assign: {}, out: {}, manual: {}, seq: 1 } });
+      const back = await F.cache.people.get('gallery');
+      expect(back.state.groups[0].name).toBe('Ann');
+    });
+  });
+  SlopTest.run({ name: 'Face store · version 1 to 2 migration' });
+  </script>
+</body>
+</html>

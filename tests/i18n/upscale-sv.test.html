@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Upscale in Swedish</title>
+  <!-- Covers: upscale/i18n/index.js, upscale/js/app/words.js, upscale/js/app/main.js, upscale/js/app/layout.js, upscale/js/app/slider.js, upscale/js/app/output.js, upscale/js/app/io.js, upscale/js/app/commands.js, upscale/js/video/run.js, upscale/js/engine/pipeline.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Upscale', path: '../../upscale/index.html', ns: 'upscale',
+    ready: (doc) => doc.querySelector('#up-panel .sf-h') && doc.querySelector('#up-drop .sd-msg'),
+    checks: [
+      ['#up-open', 'Öppna…', 'Open…'],
+      ['#up-run', 'Skala upp', 'Upscale'],
+      ['#up-panel .sf-h', 'Storlek', 'Size'],
+      ['#up-get-more', 'Hämta mer', 'Get more'],
+      ['#up-drop .sd-msg', 'Släpp en bild', 'Drop a picture'],
+      ['#up-fine', 'Välj 2×', 'Choose 2×'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Upscale in Swedish' });
+  </script>
+</body>
+</html>

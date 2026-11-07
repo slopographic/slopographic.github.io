@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI presets from a task page's link: ?tab=sys</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: ai/js/ui/shell.js, ai/js/app/main.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  describe('Slop AI presets', () => {
+    it('opens the tab named in the address, for this visit only', async () => {
+      try { localStorage.setItem('slop-ai.prefs', JSON.stringify({ tab: 'chat' })); } catch (e) { /* private window */ }
+      f.src = '../../ai/index.html?engine=fake&tab=sys';
+      await waitFor(() => W().document && W().document.body && W().document.body.classList.contains('ready'), { timeout: 30000 });
+      expect(W().AI.tab).toBe('sys');
+      expect(W().document.getElementById('tab-sys').getAttribute('aria-selected')).toBe('true');
+      expect(JSON.parse(W().localStorage.getItem('slop-ai.prefs') || '{}').tab).toBe('chat');   // not remembered
+    }, { timeout: 40000 });
+    it('a click on a tab is remembered as before', async () => {
+      W().document.getElementById('tab-models').click();
+      expect(JSON.parse(W().localStorage.getItem('slop-ai.prefs') || '{}').tab).toBe('models');
+      W().AI.setTab('chat');
+    });
+    it('tabOf: known tabs only', async () => {
+      const T = W().AI.tabOf;
+      expect([T('?tab=models'), T('?tab=build'), T('?tab=sys&x=1')]).toEqual(['models', 'build', 'sys']);
+      expect([T('?tab=<b>'), T('?tab='), T('')]).toEqual([null, null, null]);
+    });
+  });
+  run({ name: 'Slop AI presets' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop OCR · Tesseract: the Swedish model downloaded and checked like any model, read with the vendored tesseract.js, and Auto on a site that hides PaddleOCR (downloads 2.4 MB)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } pre { white-space: pre-wrap; padding: 8px; }</style>
+</head>
+<body>
+  <pre id="log"></pre>
+  <script src="../harness.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../shared/ai/makers.js"></script>
+  <script src="../../shared/ocr/engines.js"></script>
+  <script src="../../aitools/ocr-tesseract.js"></script>
+  <script src="../../aitools/ocr-models.js"></script>
+  <script src="../../aitools/model-registry.js"></script>
+  <script src="../../aitools/download.js"></script>
+  <script src="../../aitools/models.js"></script>
+  <script type="module">
+  // Covers: shared/ocr/engines.js, shared/ocr/engine-tesseract.js, aitools/ocr-tesseract.js, aitools/ocr-models.js, shared/ocr/choose.js
+  // The real Tesseract engine: vendor/tesseract (tesseract.js 7.0.0, its worker and the WebAssembly core) reads the Swedish
+  // fixture (tests/ocr/fixtures/swedish.png, CC0) with the Swedish data from the cdn at the release tag, installed by the
+  // model manager (aitools/models.js) as the Language and model dialog does: checked against its SHA-256, kept in IndexedDB,
+  // handed to tesseract.js as bytes. Then the same site with PaddleOCR hidden (the profile's hideOrigins CN): Auto reads
+  // Swedish with Tesseract. Needs the network once: 2.4 MB (tests/net-urls.txt).
+  import { createOcrChoice } from '../../shared/ocr/choose.js';
+  const { describe, it, expect, run } = SlopTest;
+  const E = window.SlopOcrEngines, O = window.SlopOcrModels, M = window.SlopAIManager, K = window.SlopAIKit.makers;
+  const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+  const picture = async (name) => { const bitmap = await createImageBitmap(await (await fetch('fixtures/' + name)).blob()); return { bitmap, w: bitmap.width, h: bitmap.height }; };
+  const memory = (init = {}) => { const m = new Map(Object.entries(init)); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+  const squash = (lines) => lines.map((l) => l.text).join(' ').replace(/\s+/g, ' ').trim();
+
+  describe('Tesseract reads text on this device', () => {
+    it('installs the Swedish model from the cdn (checked) and reads å, ä and ö', async () => {
+      if ((await M.status('tesseract-swe')) !== 'installed') await M.install('tesseract-swe');
+      expect(await M.status('tesseract-swe')).toBe('installed');
+      const steps = [];
+      const lines = await E.run('tesseract-swe', await picture('swedish.png'), { onStatus: (s) => steps.push(s), onProgress: (p) => steps.push(p.stage) });
+      log('tesseract-swe on swedish.png: ' + lines.map((l) => `${l.text} (${l.score.toFixed(2)})`).join(' | '));
+      const t = squash(lines);
+      expect(t).toContain('Smörgåsbord');
+      expect(t).toContain('Öland');
+      expect(t).toContain('äpplen');
+      expect(t).toContain('Måndag');
+      expect(lines.length).toBe(3);
+      for (const l of lines) {
+        expect(l.score).toBeGreaterThan(0.5);
+        expect(l.box.w).toBeGreaterThan(50);
+        expect(l.box.h).toBeGreaterThan(5);
+      }
+      expect(lines[0].box.y).toBeLessThan(lines[1].box.y);
+      expect(steps.includes('detect')).toBe(true);
+    }, { timeout: 180000 });
+    it('reads again with the worker it has, and tesseract.js fetched nothing from its own CDN', async () => {
+      const t = squash(await E.run('tesseract-swe', await picture('swedish.png')));
+      expect(t).toContain('Älgen');
+      const outside = performance.getEntriesByType('resource').map((r) => r.name).filter((u) => /jsdelivr\.net\/npm|unpkg|tessdata/.test(u));
+      expect(outside).toEqual([]);
+    }, { timeout: 60000 });
+    it('the Text recognition engine select: Auto and both engines; Tesseract is kept and narrows the models to its own', async () => {
+      const storage = memory();
+      const c = createOcrChoice({ storage, manager: M, locale: 'sv' });
+      const box = c.engineSelect(), sel = box.querySelector('select');
+      expect([...sel.options].map((o) => o.value)).toEqual(['auto', 'paddle', 'tesseract']);
+      expect(sel.value).toBe('auto');
+      expect(box.hidden).toBe(false);
+      expect(c.catalog().rank('sv').map((r) => r.model.id)).toEqual(['ppocr-v6-small', 'tesseract-swe']);
+      let told = null;
+      const box2 = c.engineSelect((id) => { told = id; }), sel2 = box2.querySelector('select');
+      sel2.value = 'tesseract'; sel2.dispatchEvent(new Event('change'));
+      expect(told).toBe('tesseract');
+      expect(storage.getItem('slop.ocr.engine')).toBe('tesseract');
+      expect(c.catalog().QUICK).toBe('tesseract-eng');
+      expect(c.catalog().rank('sv').map((r) => r.model.id)).toEqual(['tesseract-swe']);
+      // no language chosen: the browser language's model when it is on this device (installed above)
+      expect((await c.pick()).model).toBe('tesseract-swe');
+      // a site that hides PaddleOCR: one engine, nothing to choose, and a saved PaddleOCR reads as Auto
+      K.configure({ hideOrigins: ['CN'] });
+      try {
+        const hidden = createOcrChoice({ storage: memory({ 'slop.ocr.engine': 'paddle' }), manager: M }).engineSelect();
+        expect(hidden.hidden).toBe(true);
+        expect(hidden.querySelector('select').value).toBe('auto');
+      } finally { K.configure(); }
+    }, { timeout: 30000 });
+    it('a site that hides Chinese makers: Auto reads Swedish with Tesseract, and PaddleOCR is refused', async () => {
+      K.configure({ hideOrigins: ['CN'] });
+      try {
+        expect(E.offered().map((e) => e.id)).toEqual(['tesseract']);
+        expect(E.autoFor('sv', O.forEngine(E.chosen()))).toBe('tesseract');
+        let refused = null;
+        await E.load('ppocr-v4').catch((e) => { refused = e; });
+        expect(refused && refused.message).toBe('ocrengine.hidden');
+      } finally { K.configure(); }
+      expect(E.allowed('paddle')).toBe(true);
+    }, { timeout: 30000 });
+  });
+  run();
+  </script>
+</body>
+</html>

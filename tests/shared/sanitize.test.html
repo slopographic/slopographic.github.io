@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopSanitize (HTML, SVG and addresses from files)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } #live { position: fixed; left: -9999px; top: 0; width: 400px; }</style>
+</head>
+<body>
+  <div id="live"></div>
+  <script src="../harness.js"></script>
+  <script src="../../vendor/dompurify/purify.min.js"></script>
+  <script src="../../shared/sanitize/sanitize.js"></script>
+  <script src="fixtures/hostile/payloads.js"></script>
+  <script type="module">
+  // Covers: shared/sanitize/sanitize.js, vendor/dompurify/purify.min.js, shared/convert/html-pdf.js
+  // Covers: code/js/markdown.js, convert/js/core/markdown.js, convert/js/core/html-md.js
+  // Every payload is sanitised and then put into this page's own DOM (not a sandbox), so if anything got through it would
+  // run here and set window.__xss. Payloads in the style of the OWASP XSS filter evasion cheat sheet and the known DOMPurify
+  // bypasses (namespace confusion, mutation through serialisation).
+  const { describe, it, expect, sleep, run } = SlopTest;
+  const S = window.SlopSanitize;
+  const live = document.getElementById('live');
+  const X = window.XSS.X, PAYLOADS = window.XSS.PAYLOADS;
+  const BAD_URL = /^\s*(javascript|vbscript|data:text|livescript)/i;
+  function inspect(root) {
+    const out = [];
+    for (const el of root.querySelectorAll('*')) {
+      for (const a of el.attributes) {
+        if (/^on/i.test(a.name)) out.push(`${el.localName}[${a.name}]`);
+        const v = a.value.replace(/[\u0000- ]/g, '');
+        if (/href|src|action|data|values|to|from|srcdoc/i.test(a.name) && BAD_URL.test(v)) out.push(`${el.localName}[${a.name}=${a.value}]`);
+      }
+      if (/^(script|iframe|object|embed|meta|base|animate|set|form|noscript|template)$/i.test(el.localName)) out.push(el.localName);
+    }
+    return out;
+  }
+
+  describe('SlopSanitize.html: known XSS payloads', () => {
+    it('the check works: the same markup put in unsanitised does run', async () => {
+      window.__xss = undefined;
+      live.innerHTML = PAYLOADS[0];
+      await sleep(200);
+      expect(window.__xss).toBe(1);
+      live.innerHTML = '';
+      window.__xss = undefined;
+    });
+    for (const urls of ['local', 'web']) {
+      it(`no payload keeps a handler, a script address or a dangerous element (urls: ${urls}), and none runs`, async () => {
+        window.__xss = undefined;
+        const found = [];
+        for (const p of PAYLOADS) {
+          const clean = S.html(p, { urls });
+          live.innerHTML = clean;
+          found.push(...inspect(live).map((f) => `${f}  from  ${p}`));
+          for (const el of live.querySelectorAll('a, button, [id^="s"]')) try { el.click && el.click(); } catch (e) { /* ignore */ }
+        }
+        await sleep(300);
+        expect(found).toEqual([]);
+        expect(window.__xss).toBe(undefined);
+        live.innerHTML = '';
+      });
+    }
+    it('a whole email document keeps its head styles and returns no script, in one pass', () => {
+      const doc = S.html(`<html><head><title>t</title><style>p{color:red}</style>\x3cscript>${X}\x3c/script></head><body onload="${X}"><p>Hi</p></body></html>`, { urls: 'web', whole: true });
+      expect(doc).toContain('<style>p{color:red}</style>');
+      expect(doc).toContain('<p>Hi</p>');
+      expect(/<script|onload/i.test(doc)).toBe(false);
+    });
+  });
+
+  describe('SlopSanitize.html: content still renders', () => {
+    it('text, formatting, tables, lists, safe links and embedded images are kept', () => {
+      const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      const clean = S.html(`<h1>Title</h1><p>Hello <b>bold</b> <i>it</i></p><table><tr><td>cell</td></tr></table><ul><li>one</li></ul>` +
+        `<a href="https://example.com/" target="_self">web</a><a href="mailto:a@b.c">mail</a><img alt="pic" src="${png}"><svg width="10" height="10"><rect width="5" height="5" fill="red"/></svg>`);
+      live.innerHTML = clean;
+      expect(live.querySelector('h1').textContent).toBe('Title');
+      expect(live.querySelector('td').textContent).toBe('cell');
+      expect(live.querySelector('a[href="https://example.com/"]').getAttribute('rel')).toBe('noopener noreferrer');
+      expect(live.querySelector('a[href="https://example.com/"]').getAttribute('target')).toBe('_blank');
+      expect(live.querySelector('a[href^="mailto:"]')).toBeTruthy();
+      expect(live.querySelector('img').getAttribute('src')).toBe(png);
+      expect(live.querySelector('svg rect').getAttribute('fill')).toBe('red');
+      live.innerHTML = '';
+    });
+    it('remote images and styles go with urls: local and stay with urls: web; links: false keeps the text only', () => {
+      const src = '<img alt="r" src="https://example.com/p.png"><p style="background:url(https://example.com/b.png)">x</p><a href="https://example.com/">t</a>';
+      const local = S.html(src, { urls: 'local' }), web = S.html(src, { urls: 'web' }), bare = S.html(src, { links: false });
+      expect(local).not.toContain('example.com/p.png');
+      expect(local).not.toContain('example.com/b.png');
+      expect(local).toContain('href="https://example.com/"');
+      expect(web).toContain('src="https://example.com/p.png"');
+      expect(bare).not.toContain('href=');
+      expect(bare).toContain('>t</a>');
+    });
+  });
+
+  describe('SlopSanitize.svg', () => {
+    it('keeps the drawing, drops script, handlers, foreign HTML and external references', async () => {
+      window.__xss = undefined;
+      const clean = S.svg(`<svg xmlns="http://www.w3.org/2000/svg" onload="${X}">\x3cscript>${X}\x3c/script><circle r="4" fill="blue"/>` +
+        `<foreignObject><img src=x onerror="${X}"></foreignObject><use href="https://evil.example/s.svg#a"/><use href="#c"/>` +
+        `<image href="javascript:${X}"/><a href="javascript:${X}"><text>t</text></a></svg>`);
+      live.innerHTML = clean;
+      await sleep(100);
+      expect(live.querySelector('circle').getAttribute('fill')).toBe('blue');
+      expect(inspect(live)).toEqual([]);
+      expect(live.querySelector('foreignObject')).toBe(null);
+      expect(clean).not.toContain('evil.example');
+      expect(live.querySelector('use')).toBe(null);   // DOMPurify leaves <use> out altogether
+      expect(window.__xss).toBe(undefined);
+      live.innerHTML = '';
+    });
+  });
+
+  describe('Markdown and HTML-to-Markdown use the same address check', () => {
+    const LINKS = '[a](javascript:alert(1)) [b](\u0001javascript:alert(1)) [c](JAVASCRIPT:alert(1)) [d](vbscript:x) [e](data:text/html,x) [ok](https://example.com/ok)';
+    it('Slop Code\'s preview and the converter keep only the safe link', async () => {
+      const { renderMarkdown } = await import('../../code/js/markdown.js');
+      const { markdownToHtml } = await import('../../convert/js/core/markdown.js');
+      const box = document.createElement('div');
+      const nodes = renderMarkdown(LINKS);
+      box.append(...(Array.isArray(nodes) ? nodes : [nodes]));
+      expect([...box.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'))).toEqual(['https://example.com/ok']);
+      const conv = document.createElement('div');
+      conv.innerHTML = markdownToHtml(LINKS);
+      expect([...conv.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')).filter((h) => h !== '#')).toEqual(['https://example.com/ok']);
+      expect(markdownToHtml('![x](data:image/png;base64,AAAA) ![y](javascript:alert(1))')).toContain('src="data:image/png;base64,AAAA"');
+      expect(markdownToHtml('![y](javascript:alert(1))')).toContain('src="#"');
+    });
+    it('HTML to Markdown drops script addresses and escapes a title', async () => {
+      const { htmlToMarkdown } = await import('../../convert/js/core/html-md.js');
+      const md = htmlToMarkdown('<p><a href="java&#x09;script:alert(1)">tab</a> <a href="vbscript:x">vb</a> <a href="data:text/html,x">data</a> <a href="https://example.com/" title="say \\&quot;hi">ok</a></p>');
+      expect(md).not.toMatch(/script:|data:/i);
+      expect(md).toContain('[ok](https://example.com/ "say \\\\\\"hi")');
+    });
+  });
+
+  describe('HTML to a picture PDF (shared/convert/html-pdf.js)', () => {
+    it('a hostile HTML file becomes a PDF and runs nothing on the way', async () => {
+      window.__xss = undefined;
+      const { htmlToPdf } = await import('../../shared/convert/html-pdf.js');
+      const file = new File([`<html><head><style>p{color:#036}</style></head><body><p>Picture page</p>${PAYLOADS.slice(0, 12).join('')}</body></html>`], 'bad.html', { type: 'text/html' });
+      const pdf = await htmlToPdf(file);
+      expect(pdf.type).toBe('application/pdf');
+      expect(new TextDecoder().decode(new Uint8Array(await pdf.slice(0, 5).arrayBuffer()))).toBe('%PDF-');
+      await sleep(200);
+      expect(window.__xss).toBe(undefined);
+    });
+  });
+
+  run({ name: 'SlopSanitize' });
+  </script>
+</body>
+</html>

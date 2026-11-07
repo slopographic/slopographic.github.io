@@ -1,0 +1,128 @@
+/* SlopUI: shared dialogs, toasts and menus. Each app maps its theme with --sui-* variables;
+ * defaults fall back to common app tokens (--panel, --fg, --accent…) and then to the page theme (--sl-*, shared/theme). */
+/* The one set of colour tokens for every shared component that sits in <body>, outside an app's own themed boxes: SlopUI's
+ * dialogs, menus, toasts, buttons and inputs, SlopMenuButton's list (shared/ui/menubutton.js), the command palette
+ * (shared/commands/commands.css), the AI panel (shared/ai/panel.css) and the tour (shared/tour/tour.css) read these --s-*.
+ * An app's --sui-* map wins, then its common tokens (--panel, --fg…), then the page theme (--sl-*), and only then the dark
+ * brand look. The muted text keeps 4.5:1 (dim) and 3:1 (faint, for disabled rows and hints) on the surfaces. */
+.sui-back, .sui-menu, .sui-toast, .sui-btn, .sui-input, .smb-menu, .scmd-back, .scmd-fab, .scmd-km-dlg, .sap, .sap-fab,
+.stour-panel, .stour-hole, .stour-tip {
+  --s-bg: var(--sui-bg, var(--panel, var(--sl-surface, #232323)));
+  --s-bg2: var(--sui-bg2, var(--panel-2, var(--sl-surface, #2c2c2c)));
+  --s-input: var(--sui-input, var(--input, var(--sl-background, #161616)));
+  --s-line: var(--sui-line, var(--line-2, var(--sl-border, #3d3d3d)));
+  --s-fg: var(--sui-fg, var(--fg, var(--sl-text, #e6e6e6)));
+  --s-dim: var(--sui-dim, var(--fg-dim, color-mix(in srgb, var(--sl-text, #e6e6e6) 72%, transparent)));
+  --s-faint: var(--sui-faint, var(--fg-faint, color-mix(in srgb, var(--sl-text, #e6e6e6) 62%, transparent)));
+  --s-hover: var(--sui-hover, var(--hover, color-mix(in srgb, var(--sl-text, #e6e6e6) 12%, var(--sl-surface, #2c2c2c))));
+  --s-sel: var(--sui-sel, var(--sel, color-mix(in srgb, var(--sl-accent, #1f4a7a) 28%, var(--sl-surface, #1c1c1c))));
+  --s-accent: var(--sui-accent, var(--accent, var(--sl-accent, #d4ff3a)));
+  --s-accent-ink: var(--sui-accent-ink, var(--accent-ink, var(--sl-on-accent, #10180a)));
+  /* Focus rings: the theme's accent, made to read on its surfaces (an app's own accent, lime say, can vanish on white). */
+  --s-ring: var(--sui-ring, var(--sl-accent, var(--s-accent)));
+  --s-danger: var(--sui-danger, color-mix(in srgb, #e5484d 60%, var(--s-fg)));
+  --s-radius: var(--sui-radius, var(--radius, 6px));
+  --s-shadow: var(--sui-shadow, var(--shadow, 0 18px 50px rgba(0, 0, 0, .55)));
+  --s-font: var(--sui-font, var(--ui, "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif));
+  --s-mono: var(--sui-mono, var(--mono, "JetBrains Mono", ui-monospace, monospace));
+}
+.sui-back, .sui-menu, .sui-toast, .sui-btn, .sui-input { font: 12px/1.4 var(--s-font); color: var(--s-fg); }
+.sui-back { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .38); animation: sui-in .14s ease-out; }
+.sui-back.sui-modeless { background: transparent; pointer-events: none; }
+.sui-back.sui-modeless .sui-dlg { pointer-events: auto; }
+.sui-back.sui-dock-right { place-items: start end; padding: 90px 300px 16px 16px; }
+.sui-back.sui-out { animation: sui-out .14s ease-in forwards; }
+@keyframes sui-in { from { opacity: 0; } }
+@keyframes sui-out { to { opacity: 0; } }
+.sui-dlg { width: min(580px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; background: var(--s-bg); border: 1px solid var(--s-line); border-radius: calc(var(--s-radius) + 3px); box-shadow: var(--s-shadow); animation: sui-pop .18s cubic-bezier(.2, 1.4, .4, 1); }
+.sui-dlg.sui-moved { position: fixed; margin: 0; }
+.sui-dlg.sui-wide { width: min(980px, 100%); }
+.sui-dlg.sui-full, .sui-dlg.tpl-full-dlg { width: min(1320px, calc(100vw - 32px)); height: calc(100vh - 32px); max-height: calc(100vh - 32px); }
+.sui-dlg.sui-full .sui-body, .sui-dlg.tpl-full-dlg .sui-body { flex: 1; min-height: 0; overflow: auto; padding: 18px; background: var(--s-panel, transparent); }
+.sui-dlg.sui-narrow { width: min(320px, 100%); }
+@keyframes sui-pop { from { transform: translateY(6px) scale(.98); opacity: 0; } }
+.sui-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--s-line); font-weight: 600; cursor: move; user-select: none; touch-action: none; }
+.sui-x { width: 26px; height: 26px; border: 0; background: none; border-radius: 4px; font-size: 18px; line-height: 1; color: var(--s-dim); cursor: pointer; }
+.sui-x:hover { background: var(--s-hover); color: var(--s-fg); }
+.sui-body { padding: 14px; overflow-y: auto; }
+.sui-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--s-line); }
+.sui-p { margin: 0 0 10px; color: var(--s-dim); }
+.sui-btn { height: 28px; padding: 0 14px; border-radius: var(--s-radius); border: 1px solid var(--s-line); background: var(--s-bg2); color: var(--s-fg); font: inherit; cursor: pointer; white-space: nowrap; }
+.sui-btn:hover { background: var(--s-hover); }
+.sui-btn:disabled { opacity: .6; cursor: progress; }
+.sui-btn.sui-primary { background: var(--s-accent); color: var(--s-accent-ink); border-color: transparent; font-weight: 600; }
+.sui-btn.sui-primary:hover { filter: brightness(1.08); }
+.sui-btn.sui-danger.sui-primary { background: #e5484d; color: #fff; }
+.sui-btn:focus-visible, .sui-x:focus-visible, .sui-row:focus-visible, .sui-input:focus-visible { outline: 2px solid var(--s-ring); outline-offset: 1px; }
+.sui-field { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 8px; color: var(--s-dim); margin-bottom: 10px; }
+.sui-label { white-space: nowrap; }
+.sui-unit { color: var(--s-dim); }
+.sui-input::placeholder { color: var(--s-faint); opacity: 1; }
+.sui-input { min-width: 0; height: 26px; padding: 3px 7px; background: var(--s-input); color: var(--s-fg); border: 1px solid var(--s-line); border-radius: var(--s-radius); font: inherit; }
+textarea.sui-input { height: auto; resize: vertical; }
+.sui-check { display: inline-flex; align-items: center; gap: 7px; color: var(--s-dim); }
+.sui-check input { accent-color: var(--s-accent); margin: 0; }
+.sui-toast { position: fixed; left: 50%; bottom: 40px; z-index: 99999; transform: translate(-50%, 20px); padding: 9px 14px; border-radius: 8px; background: #0a0a0a; color: #f1ede4; border: 1px solid #333; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px); box-shadow: 0 8px 30px rgba(0, 0, 0, .4); }
+@media (max-width: 900px) { .sui-toast { bottom: calc(40px + var(--slop-foot-h, 0px)); } }   /* above a phone sheet's footer (shared/frame/panel.js) */
+.sui-toast.sui-show { opacity: 1; transform: translate(-50%, 0); }
+/* The toast's action (Undo, Retry): the toast is dark in every theme, so its button is drawn for it, not left to the browser's
+   default face (light grey under the toast's light text, which read as an empty white box). */
+.sui-toast-act { font: inherit; font-weight: 600; color: #f1ede4; background: transparent; border: 1px solid rgba(241, 237, 228, .45); border-radius: 6px; padding: 2px 10px; margin-left: 6px; cursor: pointer; }
+.sui-toast-act:hover { background: rgba(241, 237, 228, .12); }
+.sui-toast-act:focus-visible { outline: 2px solid #f1ede4; outline-offset: 2px; }
+.sui-menu { position: fixed; min-width: 210px; max-height: calc(100vh - 20px); overflow-y: auto; padding: 4px; background: var(--s-bg2); border: 1px solid var(--s-line); border-radius: calc(var(--s-radius) + 1px); box-shadow: var(--s-shadow); }
+.sui-row { width: 100%; display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border: 0; background: none; color: var(--s-fg); border-radius: 4px; text-align: left; white-space: nowrap; font: inherit; cursor: pointer; }
+.sui-row:hover:not([disabled]), .sui-row:focus-visible { background: var(--s-sel); outline: none; }
+/* The keyboard's row also gets a ring in the accent: the selection colour alone is too faint to find (under 3:1). */
+.sui-row:focus-visible { outline: 2px solid var(--s-ring); outline-offset: -2px; }
+.sui-row:hover:not([disabled]) .sui-key, .sui-row:focus-visible .sui-key { color: inherit; }
+.sui-row[disabled] { color: var(--s-faint); cursor: default; opacity: 1; }
+.sui-key { color: var(--s-dim); font-size: 11px; padding-left: 18px; }
+.sui-sep { height: 1px; background: var(--s-line); margin: 4px 6px; }
+/* Windows 98 themes (PhotoSlop "paint", SlopVector "classic") */
+/* Their grey face is fixed whatever the page's own colours are (Paint Classic stays grey under the dark theme), so the
+ * tokens are too: black text, the navy accent, a pale blue selection that black text reads on. */
+[data-theme="paint"] :is(.sui-back, .sui-menu, .sui-toast, .sui-btn, .sui-input, .smb-menu, .scmd-back, .scmd-fab, .scmd-km-dlg, .sap, .sap-fab, .stour-panel, .stour-hole, .stour-tip),
+[data-theme="classic"] :is(.sui-back, .sui-menu, .sui-toast, .sui-btn, .sui-input, .smb-menu, .scmd-back, .scmd-fab, .scmd-km-dlg, .sap, .sap-fab, .stour-panel, .stour-hole, .stour-tip) {
+  --s-bg: #c0c0c0; --s-bg2: #c0c0c0; --s-input: #fff; --s-line: #808080; --s-fg: #000; --s-dim: #222; --s-faint: #595959;
+  --s-hover: #d4d0c8; --s-sel: #c7c7e3; --s-accent: #000080; --s-accent-ink: #fff; --s-ring: #000; --s-danger: #a00000;
+}
+[data-theme="paint"] .sui-dlg, [data-theme="classic"] .sui-dlg { background: #c0c0c0; color: #000; border: 0; border-radius: 0; padding: 3px; box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf, 2px 2px 0 rgba(0, 0, 0, .4); font: 11px "MS Sans Serif", Tahoma, sans-serif; }
+[data-theme="paint"] .sui-head, [data-theme="classic"] .sui-head { background: linear-gradient(90deg, #000080, #0a5ea8); color: #fff; padding: 3px 3px 3px 6px; border: 0; }
+[data-theme="paint"] .sui-x, [data-theme="classic"] .sui-x { width: 16px; height: 14px; background: #c0c0c0; color: #000; border-radius: 0; font-size: 12px; font-weight: 700; box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf; }
+[data-theme="paint"] .sui-foot, [data-theme="classic"] .sui-foot { border: 0; }
+[data-theme="paint"] .sui-btn, [data-theme="classic"] .sui-btn { background: #c0c0c0; color: #000; border: 0; border-radius: 0; box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf; font-weight: 400; }
+[data-theme="paint"] .sui-btn.sui-primary, [data-theme="classic"] .sui-btn.sui-primary { outline: 1px solid #000; outline-offset: -1px; }
+[data-theme="paint"] .sui-input, [data-theme="classic"] .sui-input { background: #fff; color: #000; border: 0; border-radius: 0; box-shadow: inset -1px -1px #fff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080; }
+[data-theme="paint"] .sui-menu, [data-theme="classic"] .sui-menu { background: #c0c0c0; border: 0; border-radius: 0; padding: 2px; box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf, 2px 2px 0 rgba(0, 0, 0, .4); }
+[data-theme="paint"] .sui-row, [data-theme="classic"] .sui-row { color: #000; border-radius: 0; }
+[data-theme="paint"] .sui-row:hover:not([disabled]), [data-theme="classic"] .sui-row:hover:not([disabled]),
+[data-theme="paint"] .sui-row:focus-visible, [data-theme="classic"] .sui-row:focus-visible { background: #000080; color: #fff; outline: 1px dotted #fff; outline-offset: -3px; }
+[data-theme="paint"] .sui-row:hover:not([disabled]) .sui-key, [data-theme="classic"] .sui-row:hover:not([disabled]) .sui-key,
+[data-theme="paint"] .sui-row:focus-visible .sui-key, [data-theme="classic"] .sui-row:focus-visible .sui-key { color: #fff; }
+[data-theme="paint"] .sui-row[disabled], [data-theme="classic"] .sui-row[disabled] { color: #595959; }
+[data-theme="paint"] .sui-p, [data-theme="classic"] .sui-p, [data-theme="paint"] .sui-field, [data-theme="classic"] .sui-field { color: #000; }
+@media (max-width: 900px) { .sui-back.sui-dock-right { place-items: end center; padding: 16px; } }
+@media (prefers-reduced-motion: reduce) { .sui-back, .sui-dlg { animation: none; } }
+/* submenus: beside the row (desktop) or in place as an indented list (phones, see slopui.js) */
+.sui-row.sui-open { background: var(--s-sel); }
+.sui-inline { padding-inline-start: 14px; }
+@media (max-width: 640px) {
+  .sui-menu { max-width: calc(100vw - 16px); min-width: min(240px, calc(100vw - 16px)); }
+  .sui-inline { padding-inline-start: 16px; }
+}
+/* A finger (shared/input/touch.css, --slop-hit: 44 px under a coarse pointer): menu rows and the dialog's close button
+   are 44 px tall, so a long-press menu is easy to hit and a tap never takes the row beside it. */
+@media (pointer: coarse) {
+  .sui-row { min-height: var(--slop-hit, 44px); }
+  .sui-x { min-width: var(--slop-hit, 44px); min-height: var(--slop-hit, 44px); }
+}
+/* Closing a dialog, a sheet or a palette: a real × button (aria-label "Close") on every screen, since a finger has no Esc
+   key. Esc still closes; its hint (a small "Esc" next to the ×, class slop-esc-hint) shows only where there is a mouse
+   and room for it. The one rule for SlopUI dialogs (.sui-x), sheets (shared/ui/sheet.js), the command palette and the
+   app switcher. */
+@media (hover: none), (pointer: coarse), (max-width: 640px) { .slop-esc-hint { display: none !important; } }
+/* pdf.js's text layer puts a measuring canvas (one per language) at the end of <body>; its own viewer CSS hides it. Shown,
+   each one is a line below a one-screen app, so the page scrolls: on an iPhone the header slid under the status bar and a
+   grey band showed under the bottom bar (tests/pdf/phone-layout.test.html). */
+.hiddenCanvasElement { position: absolute; top: 0; left: 0; width: 0; height: 0; display: none; }

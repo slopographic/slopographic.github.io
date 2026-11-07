@@ -1,0 +1,8 @@
+/* Slop Drive: the "Local folder" box in the sidebar (core/folder.js, ui/folder-ui.js). */
+.folder-box { display: grid; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line); font-size: var(--fs-s); }
+.folder-box p { margin: 0; color: var(--muted, inherit); }
+.folder-name { display: flex; gap: 4px; min-width: 0; color: var(--ink, inherit); }
+.folder-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.folder-box .btn { justify-self: start; }
+.folder-changes { margin: 8px 0 0; padding-left: 20px; }

@@ -1,0 +1,183 @@
+/* Slopographic content pages: the apps' about pages (<app>/about/), the landing, task and hub pages written by
+ * tools/seo (landing.mjs, tasks.mjs) and How it works. Hero, sections, the feature matrix, the privacy block, and the
+ * prose of .l-doc pages. The colours follow the chosen theme (the --sl-* tokens shared/theme/theme.js sets on every
+ * page), and the dim and line colours are mixed from them, so the pages read in light and dark themes alike. */
+:root {
+  --ink: var(--sl-background, #0a0a0a);
+  --bone: var(--sl-text, #f1ede4);
+  --ink-2: color-mix(in srgb, var(--bone) 5%, var(--ink));
+  --bone-dim: color-mix(in srgb, var(--bone) 72%, var(--ink));
+  --bone-faint: color-mix(in srgb, var(--bone) 64%, var(--ink));   /* 4.5:1 or more on light and dark pages */
+  --line: color-mix(in srgb, var(--bone) 15%, var(--ink));
+  --slop: var(--sl-accent, #d4ff3a);
+  --amber: color-mix(in srgb, #d98a10 55%, var(--bone));   /* readable on light and dark: mixed toward the text colour */
+  --sans: "Inter Tight", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: var(--bone); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--slop); outline-offset: 2px; }
+h1, h2, h3 { line-height: 1.12; letter-spacing: -0.01em; margin: 0; }
+p { margin: 0 0 12px; }
+
+.l-wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+/* top bar */
+.l-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.l-brand { font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.l-brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--slop); }
+.l-top nav { display: flex; gap: 16px; font-size: 14px; }
+.l-top nav a { color: var(--bone-dim); text-decoration: none; }
+.l-top nav a:hover { color: var(--bone); }
+/* the room the shell's header buttons take (Tutorial, Theme, Apps, the bell), kept in the HTML so the header does not move
+ * when shell/header.js puts them in; on phones their labels give way to icons */
+.sh-hdr-slot { flex: none; inline-size: 215px; block-size: 32px; }
+
+/* hero */
+.l-hero { padding: 56px 0 28px; }
+.l-eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-faint); margin: 0 0 10px; }
+.l-hero h1 { font-size: clamp(44px, 9vw, 76px); font-weight: 800; margin-bottom: 14px; }
+.l-badge { display: inline-block; margin-left: 10px; vertical-align: middle; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid var(--amber); color: var(--amber); padding: 2px 8px; border-radius: 999px; }
+.l-promise { font-size: clamp(18px, 3vw, 23px); color: var(--bone-dim); max-width: 34em; margin-bottom: 26px; }
+.l-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.l-btn { display: inline-block; padding: 12px 18px; border-radius: 6px; border: 1px solid var(--line); text-decoration: none; font-weight: 600; }
+.l-btn.primary { background: var(--slop); color: var(--ink); border-color: var(--slop); }
+.l-btn.primary:hover { filter: brightness(1.06); }
+.l-btn.ghost:hover { border-color: var(--bone-dim); }
+.l-back { font-size: 15px; color: var(--bone-dim); }
+
+/* screenshot */
+.l-shot { margin: 28px 0 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--ink-2); }
+.l-shot img { display: block; width: 100%; height: auto; }
+
+/* sections */
+.l-sec { padding: 44px 0; border-bottom: 1px solid var(--line); }
+.l-sec h2 { font-size: clamp(26px, 4.5vw, 36px); margin-bottom: 14px; }
+.l-sec p { color: var(--bone-dim); max-width: 44em; }
+.l-points { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 26px; }
+.l-points h3 { font-size: 18px; margin-bottom: 6px; }
+.l-points p { font-size: 15px; margin: 0; }
+
+/* feature matrix */
+.l-matrix-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 16px; }
+.l-matrix { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.l-matrix caption { caption-side: top; text-align: left; color: var(--bone-dim); padding: 0 0 12px; font-size: 14px; max-width: 46em; }
+.l-matrix th, .l-matrix td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.l-matrix thead th { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone-faint); font-weight: 500; border-bottom-color: var(--bone-faint); }
+.l-matrix tbody th { font-weight: 500; width: 40%; }
+.l-matrix td { color: var(--bone-dim); width: 30%; }
+.l-matrix td.us { color: var(--bone); background: rgba(212, 255, 58, 0.06); }
+.l-matrix .yes { color: var(--slop); font-weight: 600; }
+.l-matrix .later { color: var(--amber); font-weight: 600; }
+.l-matrix .no { color: var(--bone-faint); font-weight: 600; }
+.l-note { font-size: 13px; color: var(--bone-faint); margin-top: 12px; }
+
+/* privacy and limits */
+.l-priv { margin-top: 0; padding: 18px 20px; border: 1px solid var(--line); border-left: 3px solid var(--slop); border-radius: 6px; background: var(--ink-2); }
+.l-priv p { color: var(--bone); margin: 0; }
+.l-list { margin: 14px 0 0; padding-left: 20px; color: var(--bone-dim); }
+.l-list li { margin-bottom: 8px; }
+
+/* footer */
+.l-foot { padding: 32px 0 48px; font-size: 14px; color: var(--bone-dim); }
+.l-foot-links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 16px; }
+.l-foot a { color: var(--bone-dim); }
+.l-foot a:hover { color: var(--bone); }
+.l-fine { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bone-faint); }
+
+/* .l-doc: the prose of the written pages (landing, task, hub, How it works) */
+.l-doc { padding: 36px 0 24px; }
+.l-doc h1 { font-size: clamp(32px, 6vw, 52px); font-weight: 800; margin: 6px 0 14px; }
+.l-doc h2 { font-size: clamp(22px, 3.4vw, 28px); margin: 40px 0 12px; }
+.l-doc h3 { font-size: 18px; margin: 22px 0 6px; }
+.l-doc p, .l-doc li { color: var(--bone-dim); max-width: 46em; }
+.l-doc strong, .l-doc b { color: var(--bone); }
+.l-doc a { color: var(--bone); text-decoration-color: var(--slop); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.l-doc ul, .l-doc ol { padding-left: 22px; } .l-doc li { margin: 6px 0; }
+.l-doc .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--bone-faint); margin: 0; }
+.l-doc .eyebrow a { color: inherit; text-decoration: none; } .l-doc .eyebrow a:hover { color: var(--bone); }
+.l-doc .lead { font-size: clamp(18px, 2.6vw, 21px); color: var(--bone-dim); max-width: 36em; }
+.l-doc .note { font-size: 14px; color: var(--bone-faint); }
+.l-doc .btn { display: inline-block; padding: 12px 20px; border-radius: 6px; background: var(--slop); color: var(--ink); text-decoration: none; font-weight: 700; }
+.l-doc .btn:hover { filter: brightness(1.06); }
+.l-doc code { font-family: var(--mono); font-size: .88em; background: var(--ink-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+.l-doc .wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.l-doc table { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 10px 0 18px; }
+.l-doc caption { caption-side: top; text-align: left; color: var(--bone-faint); padding: 0 0 10px; font-size: 14px; }
+.l-doc th, .l-doc td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; color: var(--bone-dim); }
+.l-doc thead th { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone-faint); font-weight: 500; }
+.l-doc .media { display: grid; gap: 16px; margin: 26px 0; }
+.l-doc .shot, .l-doc .clip { margin: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--ink-2); display: block; width: 100%; height: auto; }
+.l-doc .shot img { display: block; width: 100%; height: auto; }
+.l-doc .demo { display: flex; gap: 16px; align-items: center; text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--ink-2); }
+.l-doc .demo img { width: 200px; max-width: 40%; height: auto; border-radius: 6px; flex: none; }
+.l-doc .demo b { color: var(--slop); }
+.l-doc .demo span { color: var(--bone-dim); }
+.l-doc .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 0; list-style: none; }
+.l-doc .cards li { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 0; overflow: hidden; background: var(--ink-2); }
+.l-doc .cards .thumb { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 6px; margin: 0 0 8px; background: var(--line); }
+
+/* the guide around each app (tools/seo/guide.mjs): the sidebar of the app's pages and this page's sections */
+.l-docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; align-items: start; }
+.l-side { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; font-size: 14px; padding-top: 6px; }
+.l-side-fold > summary { display: none; }
+.l-side ul { list-style: none; margin: 0 0 14px; padding: 0; }
+.l-side li { margin: 0; }
+.l-side a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--bone-dim); text-decoration: none; }
+.l-side a:hover { color: var(--bone); background: var(--ink-2); }
+.l-side a[aria-current="page"] { color: var(--bone); background: color-mix(in srgb, var(--slop) 14%, var(--ink)); font-weight: 600; }
+.l-side-app a { font-weight: 800; font-size: 16px; color: var(--bone); padding-left: 10px; }
+.l-side-h { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--bone-faint); margin: 14px 10px 6px; }
+.l-side .l-side-open { display: inline-block; margin: 4px 10px 6px; padding: 8px 14px; font-size: 14px; }
+.l-side .l-toc a { font-size: 13px; padding: 3px 10px; }
+.l-docs-main { min-width: 0; }
+@media (max-width: 899px) {
+  .l-docs { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .l-side { position: static; max-height: none; border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; margin: 18px 0 8px; }
+  .l-side-fold > summary { display: list-item; cursor: pointer; padding: 10px 6px; font-weight: 600; color: var(--bone); }
+}
+
+/* comparison tables (tools/seo/roundups.mjs compareTables): our tool highlighted, the marks in colour, and the first
+   column pinned while a wide table scrolls sideways */
+.l-doc table.cmp { font-size: 14px; min-width: 560px; }
+.l-doc table.cmp th[scope="row"] { color: var(--bone); font-weight: 600; position: sticky; left: 0; background: var(--ink); z-index: 1; }
+.l-doc table.cmp tr.us th, .l-doc table.cmp tr.us td, .l-doc table.cmp th.us { background: color-mix(in srgb, var(--slop) 9%, var(--ink)); color: var(--bone); }
+.l-doc table.cmp .m-yes { color: color-mix(in srgb, var(--slop) 70%, var(--bone)); font-weight: 600; }
+.l-doc table.cmp .m-no { color: var(--bone-faint); }
+.l-doc table.cmp .m-partial { color: var(--amber); font-weight: 600; }
+.l-doc table.cmp .m-unknown { color: var(--bone-faint); font-style: italic; }
+.l-doc table.matrix td { white-space: nowrap; }
+
+/* under 560px the header buttons are icons of shared/ui/hbtn.css's phone height: the slot takes it too, so nothing moves */
+@media (max-width: 560px) { .sh-hdr-slot { block-size: var(--slop-hbtn-h, 30px); } }
+/* phones: the matrix turns into one card per feature. Headers stay in the DOM for screen readers. */
+@media (max-width: 640px) {
+  .l-hero { padding-top: 36px; }
+  .l-top { flex-wrap: wrap; } .l-top nav { flex-wrap: wrap; gap: 6px 14px; }
+  .sh-hdr-slot { inline-size: 108px; }
+  .l-doc .demo { flex-direction: column; align-items: flex-start; } .l-doc .demo img { width: 100%; max-width: 100%; }
+  .l-cta .l-btn { flex: 1 1 auto; text-align: center; }
+  .l-matrix-wrap { overflow: visible; }
+  .l-matrix, .l-matrix tbody, .l-matrix tr, .l-matrix th, .l-matrix td { display: block; width: 100%; }
+  .l-matrix caption { display: block; }
+  .l-matrix thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .l-matrix tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  .l-matrix th, .l-matrix td { border: 0; padding: 3px 0; }
+  .l-matrix tbody th { width: 100%; margin-bottom: 4px; }
+  .l-matrix td { width: 100%; }
+  .l-matrix td::before { content: attr(data-label); display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone-faint); }
+}

@@ -1,0 +1,25 @@
+/* Slop Colors, Italian: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'colors.wheel.label': 'Ruota dei colori',
+  'colors.wheel.rule': 'Armonia',
+  'colors.wheel.model': 'Ruota',
+  'colors.wheel.bright': 'Luminosità',
+  'colors.wheel.light': 'Chiarezza',
+  'colors.wheel.bright_text': 'Luminosità {pct}%',
+  'colors.wheel.light_text': 'Chiarezza {pct}%',
+  'colors.wheel.keys': 'Trascina un cursore, oppure usa le frecce su di esso: sinistra e destra ruotano la tonalità, su e giù cambiano la saturazione, Maiusc si sposta di dieci passi, Pag su e Pag giù cambiano la luminosità.',
+  'colors.wheel.base': 'Colore di base',
+  'colors.wheel.handle': 'Colore {n}',
+  'colors.wheel.value': 'Tonalità {hue}°, saturazione {sat}%, {hex}',
+  'colors.wheel.value_oklch': 'Tonalità {hue}°, croma {sat}%, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (da artista)',
+  'colors.wheel.oklch': 'OKLCH (percettiva)',
+  'colors.harmony.brightness': 'Sfumature',
+  'colors.harmony.custom': 'Personalizzata',
+  'colors.cmd.g_wheel': 'Ruota dei colori',
+  'colors.cmd.wheel_rule': 'Ruota: imposta l’armonia {rule}',
+  'colors.cmd.wheel_model': 'Ruota: usa la ruota {wheel}',
+  'colors.cmd.wheel_focus': 'Ruota: vai alla ruota dei colori',
+});

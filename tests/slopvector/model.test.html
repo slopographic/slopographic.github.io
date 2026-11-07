@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · model tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const kids = () => SV.state.doc.layers[0].children;
+
+  describe('document model & history', () => {
+    it('commits, undoes and redoes with full snapshots', () => {
+      blank();
+      const L = SV.activeLayer();
+      L.children.push(SV.mk.rect(10, 10, 50, 50, 0, { fill: '#ff0000' })); SV.commit('a');
+      L.children.push(SV.mk.ellipse(100, 100, 20, 20, { fill: '#00ff00' })); SV.commit('b');
+      expect(kids().length).toBe(2);
+      SV.undo(); expect(kids().length).toBe(1);
+      SV.undo(); expect(kids().length).toBe(0);
+      SV.redo(); SV.redo(); expect(kids().map((o) => o.type)).toEqual(['rect', 'ellipse']);
+      expect(SV.isDirty()).toBe(true); SV.markSaved(); expect(SV.isDirty()).toBe(false);
+    });
+    it('does not record no-op commits', () => {
+      const h = SV.state.hIdx; SV.commit('nothing'); expect(SV.state.hIdx).toBe(h);
+    });
+    it('coalesces consecutive nudges into one undo step', () => {
+      const id = kids()[0].id; SV.select([id]);
+      const h0 = SV.state.hIdx;
+      SV.cmd.nudge(1, 0); SV.cmd.nudge(1, 0); SV.cmd.nudge(1, 0);
+      expect(SV.state.hIdx).toBe(h0 + 1); expect(SV.getObj(id).x).toBe(13);
+    });
+    it('groups, ungroups and arranges', () => {
+      const ids = kids().map((o) => o.id);
+      SV.select(ids); SV.cmd.group();
+      expect(kids()[0].type).toBe('group'); expect(kids()[0].children.length).toBe(2);
+      SV.cmd.ungroup(); expect(kids().length).toBe(2);
+      SV.select([ids[0]]); SV.cmd.arrange('front');
+      expect(kids()[1].id).toBe(ids[0]);
+    });
+    it('copies, pastes in front and duplicates with fresh ids', () => {
+      const id = kids()[0].id; SV.select([id]);
+      SV.cmd.copy(); SV.cmd.paste('front');
+      expect(kids().length).toBe(3); expect(kids()[1].id).not.toBe(id);
+      SV.cmd.duplicate(); expect(kids().length).toBe(4);
+      expect(new Set(kids().map((o) => o.id)).size).toBe(4);
+    });
+    it('makes and releases compound paths', () => {
+      blank();
+      SV.activeLayer().children.push(SV.mk.rect(0, 0, 100, 100, 0, { fill: '#000' }), SV.mk.rect(25, 25, 50, 50, 0, { fill: '#000' }));
+      SV.commit('two'); SV.select(kids().map((o) => o.id));
+      SV.cmd.makeCompound();
+      expect(kids().length).toBe(1); expect(kids()[0].subpaths.length).toBe(2); expect(kids()[0].style.rule).toBe('evenodd');
+      SV.cmd.releaseCompound(); expect(kids().length).toBe(2);
+    });
+    it('runs Pathfinder on live shapes, keeps the top style, and undoes', () => {
+      blank();
+      SV.activeLayer().children.push(SV.mk.rect(0, 0, 100, 100, 0, { fill: '#000' }), SV.mk.rect(50, 50, 100, 100, 0, { fill: '#f00' }));
+      SV.commit('two'); SV.select(kids().map((o) => o.id));
+      const np = SV.cmd.pathfinder('union');
+      expect(np.style.fill).toBe('#f00'); expect(Math.abs(area(np.subpaths))).toBeCloseTo(17500, 1e-3);
+      SV.undo(); expect(kids().length).toBe(2);
+      SV.select(kids().map((o) => o.id));
+      expect(Math.abs(area(SV.cmd.pathfinder('minus').subpaths))).toBeCloseTo(7500, 1e-3);
+    });
+    it('slopifies a shape into a named slime group', () => {
+      blank(); SV.activeLayer().children.push(SV.mk.rect(100, 100, 300, 200, 0, { fill: '#000', stroke: '#000', sw: 3 })); SV.commit('r');
+      SV.select([kids()[0].id]); SV.cmd.slopify();
+      const g = kids()[0];
+      expect(g.type).toBe('group'); expect(g.children[0].name).toBe('Slime'); expect(g.children[0].style.fill.type).toBe('linear');
+    });
+    it('aligns and distributes', () => {
+      blank();
+      [0, 50, 300].forEach((x, i) => SV.activeLayer().children.push(SV.mk.rect(x, i * 30, 20, 20, 0, {})));
+      SV.commit('three'); SV.select(kids().map((o) => o.id));
+      SV.cmd.align('top'); expect(kids().map((o) => o.y)).toEqual([0, 0, 0]);
+      SV.cmd.distribute('hcenter'); expect(kids().map((o) => o.x)).toEqual([0, 150, 300]);
+    });
+    it('locks, hides and refuses to draw on locked layers', () => {
+      SV.select(kids().map((o) => o.id)); SV.cmd.lockSel();
+      expect(kids().every((o) => o.locked)).toBe(true); expect(SV.state.sel.length).toBe(0);
+      SV.cmd.unlockAll(); expect(kids().every((o) => !o.locked)).toBe(true);
+      SV.activeLayer().locked = true; expect(SV.canDraw()).toBe(false); SV.activeLayer().locked = false;
+    });
+  });
+
+  describe('transforms', () => {
+    it('folds scale and translation into rect parameters', () => {
+      const r = SV.mk.rect(10, 20, 100, 50, 0, {});
+      SV.transformObj(r, G.scale(2, 3, 0, 0)); SV.transformObj(r, G.translate(5, 7));
+      expect([r.x, r.y, r.w, r.h]).toEqual([25, 67, 200, 150]); expect(r.m).toEqual([1, 0, 0, 1, 0, 0]);
+    });
+    it('keeps rotation in the matrix and reports exact rotated bounds', () => {
+      const r = SV.mk.rect(0, 0, 100, 100, 0, {});
+      SV.transformObj(r, G.rotate(Math.PI / 4, 50, 50));
+      expect(r.type).toBe('rect'); expect(SV.objRot(r)).toBeCloseTo(45, 1e-6);
+      expect(SV.objBBox(r).w).toBeCloseTo(100 * Math.SQRT2, 1e-6);
+    });
+    it('converts to a path only when a shape would be skewed', () => {
+      const r = SV.mk.rect(0, 0, 100, 100, 0, {});
+      SV.transformObj(r, G.rotate(0.5)); SV.transformObj(r, G.scale(2, 1));
+      expect(r.type).toBe('path'); expect(r.subpaths[0].pts.length).toBe(4);
+      const p = SV.mk.polygon(0, 0, 50, 6, {}); SV.transformObj(p, G.scale(1, 2)); expect(p.type).toBe('path');
+      const q = SV.mk.star(0, 0, 50, 20, 5, {}); SV.transformObj(q, G.scale(2, 2)); expect([q.type, q.r1, q.r2]).toEqual(['star', 100, 40]);
+      const t = SV.mk.text(0, 0, 'Hi', {}, { fill: '#000' }); SV.transformObj(t, G.scale(2, 2));
+      expect(t.type).toBe('text'); expect(t.m[0]).toBe(2);
+    });
+    it('reflects with a negative scale without breaking geometry', () => {
+      const e = SV.mk.ellipse(50, 50, 40, 20, {});
+      SV.transformObj(e, G.scale(-1, 1, 100, 0));
+      expect(e.type).toBe('ellipse'); const b = SV.objBBox(e);
+      expect(b.x).toBeCloseTo(110, 1e-9); expect(b.w).toBeCloseTo(80, 1e-9);
+    });
+    it('scales strokes only when the preference is on', () => {
+      const p = SV.mk.path(G.rectSubs(0, 0, 10, 10), { stroke: '#000', sw: 2 });
+      SV.transformObj(p, G.scale(3, 3)); expect(p.style.sw).toBe(2);
+      SV.state.prefs.scaleStrokes = true; SV.transformObj(p, G.scale(2, 2)); SV.state.prefs.scaleStrokes = false;
+      expect(p.style.sw).toBeCloseTo(4, 1e-9);
+    });
+    it('measures text with the font and alignment', () => {
+      const t = SV.mk.text(100, 100, 'Hello\nWorld', { family: 'Arial', size: 40, align: 'center' }, { fill: '#000' });
+      const lay = SV.textLayout(t);
+      expect(lay.lines.length).toBe(2); expect(lay.box.x).toBeCloseTo(100 - lay.W / 2, 1e-9);
+      expect(lay.box.h).toBeGreaterThan(80);
+    });
+  });
+
+  SlopTest.run({ name: 'SlopVector · model' });
+  </script>
+</body>
+</html>

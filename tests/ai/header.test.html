@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: the header (1440 and 390 wide)</title></head>
+<body>
+  <!-- Covers: ai/index.html, ai/css/base.css, ai/css/mobile.css, ai/js/ui/shell.js -->
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The header's visible controls, left to right. */
+  const controls = (D) => [...D.querySelectorAll('header.topbar a, header.topbar button')]
+    .filter((n) => n.getBoundingClientRect().width > 0 && !n.closest('.appname'));
+  /** True when no two controls overlap sideways and all are inside the window. */
+  function laidOut(D, width) {
+    const rs = controls(D).map((n) => n.getBoundingClientRect()).sort((a, b) => a.left - b.left);
+    return rs.every((r, i) => r.left >= 0 && r.right <= width + 0.5 && (!i || r.left >= rs[i - 1].right - 0.5));
+  }
+  async function open(width) {
+    const W = await AT.app('', { width, height: 800 });
+    await waitFor(() => W.document.querySelector('header .sh-switch'), { timeout: 15000 });
+    return W.document;
+  }
+
+  describe('Slop AI header', () => {
+    it('has the brand home link, the app name and one theme control', async () => {
+      const D = await open(1440);
+      const brand = D.querySelector('header.topbar a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.querySelector('.brand-app')).toBeTruthy();
+      expect(D.querySelector('header .appname b').textContent).toBe('Slop AI');
+      expect(D.getElementById('btnTheme')).toBe(null);
+      expect(D.querySelectorAll('header .sh-theme').length).toBe(1);
+    });
+    it('keeps every control on one row at 1440px, at the same height as the shell buttons', async () => {
+      const D = await open(1440);
+      expect(laidOut(D, 1440)).toBe(true);
+      const h = (s) => D.querySelector(s).getBoundingClientRect().height;
+      expect(h('#btnMore')).toBe(h('header .sh-switch'));
+      expect(D.querySelector('header.topbar').getBoundingClientRect().height).toBeLessThan(60);
+    });
+    it('fits 390px without overlapping controls or sideways scroll', async () => {
+      const D = await open(390);
+      expect(laidOut(D, 390)).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: header' });
+  </script>
+</body>
+</html>

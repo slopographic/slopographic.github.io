@@ -1,0 +1,22 @@
+/* Slop Calendar, English: the palette. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'calendar.cmd.g_cal': 'Calendar',
+  'calendar.cmd.g_goto': 'Go to',
+  'calendar.cmd.prev': 'Calendar: previous period',
+  'calendar.cmd.next': 'Calendar: next period',
+  'calendar.cmd.today': 'Calendar: go to today',
+  'calendar.cmd.year': 'Calendar: year view',
+  'calendar.cmd.month': 'Calendar: month view',
+  'calendar.cmd.split': 'Calendar: split view',
+  'calendar.cmd.undo': 'Calendar: undo last move',
+  'calendar.cmd.week': 'Calendar: week view',
+  'calendar.cmd.day': 'Calendar: day view',
+  'calendar.cmd.agenda': 'Calendar: agenda',
+  'calendar.cmd.new': 'Calendar: new event',
+  'calendar.cmd.tasks': 'Calendar: show or hide to-dos',
+  'calendar.cmd.import': 'Calendar: import .ics',
+  'calendar.cmd.export': 'Calendar: export .ics',
+  'calendar.cmd.todo': 'Go to Slop To-do',
+  'calendar.cmd.reminders': 'Go to Slop Reminders',
+  'calendar.cmd.crm': 'Go to Slop CRM',
+});

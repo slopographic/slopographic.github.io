@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake in Slop Code: every way in is the same path</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../code/util.js"></script>
+  <script>
+  // Covers: code/js/main.js, code/js/viewers.js, code/js/tree.js, shared/intake/outtake.js
+  // Slop Code on the one intake: Open from Slop Drive, ?drive=<id> (launch), a drop on the editor and a paste reach the
+  // same reader with the same events; a file from this device is put in Slop Drive and opened from there. A file that is
+  // not text offers Open in an app from SlopOuttake, which opens the record (no copy).
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H } = CT;
+  let w, seen = [], events = [];
+  const dtOf = (files) => { const dt = new w.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(source, start) {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual([source]);
+    expect(events.map((e) => e[0])).toEqual(['before', 'file', 'after']);
+    expect(events.every((e) => e[1] === 'code' && e[2] === source)).toBe(true);
+  }
+  const current = () => w.SlopCode.docs.current();
+
+  describe('Slop Code: one way in', () => {
+    it('Open from Slop Drive', async () => {
+      w = await frame('../../code/');
+      const s = w.SlopIntake.spec('code'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) w.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      const id = await H().put(text('const a = 1;\n', 'text/javascript'), { name: 'a.js', from: 'test' });
+      w.SlopHub.pickFromDrive = async () => w.SlopHub.get(id);
+      await through('drive', () => w.SlopCode.actions.open());
+      await waitFor(() => current() && current().id === id);
+    }, { timeout: 40000 });
+    it('?drive=<id> from another app (launch)', async () => {
+      const id = await H().put(text('b\n'), { name: 'b.txt', from: 'test' });
+      w.SlopHub.consumeLaunch = async () => w.SlopHub.get(id);
+      await through('launch', () => w.SlopIntake.launch({ to: 'code' }));
+      await waitFor(() => current() && current().id === id);
+    });
+    it('a file dropped on the editor goes into Slop Drive and opens', async () => {
+      const f = new w.File(['dropped\n'], 'dropped.txt', { type: 'text/plain' });
+      await through('drop', () => w.document.querySelector('.cd-main').dispatchEvent(new w.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([f]) })));
+      await waitFor(() => current() && current().name === 'dropped.txt');
+      const rec = await H().get(current().id);
+      expect(rec.name).toBe('dropped.txt');
+    });
+    it('a pasted file', async () => {
+      const f = new w.File(['pasted\n'], 'pasted.txt', { type: 'text/plain' });
+      await through('paste', () => w.document.body.dispatchEvent(new w.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([f]) })));
+      await waitFor(() => current() && current().name === 'pasted.txt');
+    });
+  });
+  describe('Slop Code: one way out', () => {
+    it('a file that is not text: Open in an app is the SlopOuttake builder, with no copy', async () => {
+      const id = await H().put(new Blob([new Uint8Array([0, 1, 2, 255])], { type: 'application/octet-stream' }), { name: 'x.bin', from: 'test' });
+      await w.SlopCode.openRecord(await H().get(id));
+      await waitFor(() => w.document.querySelector('#cd-bin-open'));
+      w.document.querySelector('#cd-bin-open').click();
+      const btn = await waitFor(() => [...w.document.querySelectorAll('.cd-bin-apps button')].find((b) => b.textContent === 'Slop Drive'));
+      let sent = null; w.SlopOuttake.send = async (to, o) => { sent = [to, o.id]; };
+      btn.click();
+      await waitFor(() => sent);
+      expect(sent).toEqual(['drive', id]);
+    });
+  });
+  SlopTest.run({ name: 'Shared intake: Slop Code' });
+  </script>
+</body>
+</html>

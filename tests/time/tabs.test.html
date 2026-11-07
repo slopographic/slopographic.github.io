@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Time · the tabs (SlopTabs): click, arrow keys, #hash</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../time/index.html#conv"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: time/js/app.js, time/index.html, shared/ui/tabs.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow, D = () => f.contentDocument, $ = (id) => D().getElementById(id);
+  const key = (el, k) => el.dispatchEvent(new (W().KeyboardEvent)('keydown', { key: k, bubbles: true, cancelable: true }));
+
+  describe('Slop Time tabs', () => {
+    it('opens on the tab in the #hash', async () => {
+      await waitFor(() => W().SlopTimeApp && W().SlopTimeApp.active === 'conv', { timeout: 20000 });
+      expect($('p-conv').hidden).toBe(false);
+      expect($('p-world').hidden).toBe(true);
+      expect($('tab-conv').getAttribute('aria-selected')).toBe('true');
+    });
+    it('a click shows that panel and puts it in the #hash', async () => {
+      $('tab-meet').click();
+      await waitFor(() => W().SlopTimeApp.active === 'meet' && W().location.hash === '#meet');
+      expect($('p-meet').hidden).toBe(false);
+      expect($('p-conv').hidden).toBe(true);
+    });
+    it('the arrow keys, Home and End move between tabs and focus the new one', async () => {
+      $('tab-meet').focus();
+      key($('tab-meet'), 'ArrowRight');
+      await waitFor(() => W().SlopTimeApp.active === 'conv');
+      expect(D().activeElement.id).toBe('tab-conv');
+      key($('tab-conv'), 'End');
+      await waitFor(() => W().SlopTimeApp.active === 'sync');
+      key($('tab-sync'), 'Home');
+      await waitFor(() => W().SlopTimeApp.active === 'world' && !$('p-world').hidden);
+      expect($('tab-world').tabIndex).toBe(0);
+      expect($('tab-sync').tabIndex).toBe(-1);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

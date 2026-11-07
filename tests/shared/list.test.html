@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopList (the record list)</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/ui/list.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <div id="host"></div><span id="count"></span>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/ctxmenu.js"></script>
+  <script src="../../shared/ui/list.js"></script>
+  <script src="../../expenses/i18n/en/views.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, waitFor, run } = SlopTest;
+  const host = document.getElementById('host'), count = document.getElementById('count');
+  const key = (t, k, o = {}) => t.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...o }));
+  const rows = () => [...host.querySelectorAll('.sl-row')];
+  const menuLabels = () => [...document.querySelectorAll('.sui-menu .sui-row')].map((r) => r.textContent.trim());
+  const RECS = [
+    { id: 'a', who: 'City Taxi', amt: '€24.00', status: 'posted' },
+    { id: 'b', who: 'Paper Co', amt: '€9.50', status: 'void' },
+    { id: 'c', who: 'Cloud host', amt: '€120.00', status: 'posted' },
+  ];
+  let opened, list;
+  const make = (extra = {}) => SlopList.mount(host, {
+    label: 'Expenses', count: 'expenses.li.count', summary: count, empty: 'Nothing spent yet.',
+    row: (r) => ({ title: r.who, amount: r.amt, cls: r.status === 'void' ? 'is-void' : '', meta: ['2026-10-20', r.status === 'void' ? { chip: 'Void', cls: 'void' } : null, ''] }),
+    open: (r) => { opened = r.id; },
+    menu: (r) => [{ label: 'Open ' + r.who, act: () => { opened = 'menu:' + r.id; } }, { label: 'Void…' }],
+    ...extra,
+  });
+
+  describe('SlopList', () => {
+    beforeEach(() => { opened = null; SlopUI.closeMenu(); list = make(); list.set(RECS); });
+    it('draws one row per record with its title, amount and meta, chips for the objects, and skips empty meta', () => {
+      expect(rows().length).toBe(3);
+      expect(rows()[0].querySelector('.sl-title').textContent).toBe('City Taxi');
+      expect(rows()[0].querySelector('.sl-amount').textContent).toBe('€24.00');
+      expect(rows()[1].classList.contains('is-void')).toBe(true);
+      expect(rows()[1].querySelector('.sl-chip.void').textContent).toBe('Void');
+      expect(rows()[0].querySelectorAll('.sl-meta span').length).toBe(1);
+      expect(host.querySelector('.sl-list').getAttribute('role')).toBe('list');
+      expect(host.querySelector('.sl-list').getAttribute('aria-label')).toBe('Expenses');
+    });
+    it('the count is the app\'s plural family in the singular or plural, and an empty list shows the empty message', () => {
+      expect(count.textContent).toBe('3 expenses');
+      list.set([RECS[0]]);
+      expect(count.textContent).toBe('1 expense');
+      list.set([]);
+      expect(count.textContent).toBe('0 expenses');
+      expect(host.querySelector('.sl-empty').hidden).toBe(false);
+      expect(host.querySelector('.sl-empty').textContent).toBe('Nothing spent yet.');
+    });
+    it('a click or Enter on a row opens that record', () => {
+      rows()[2].querySelector('.sl-meta').click();
+      expect(opened).toBe('c');
+      rows()[1].focus();
+      key(rows()[1], 'Enter');
+      expect(opened).toBe('b');
+    });
+    it('one row is tabbable; the arrows, Home and End move the focus between rows', () => {
+      expect(rows().filter((r) => r.tabIndex === 0).length).toBe(1);
+      rows()[0].focus();
+      key(rows()[0], 'ArrowDown');
+      expect(document.activeElement).toBe(rows()[1]);
+      key(rows()[1], 'End');
+      expect(document.activeElement).toBe(rows()[2]);
+      key(rows()[2], 'ArrowDown');
+      expect(document.activeElement).toBe(rows()[2]);
+      key(rows()[2], 'Home');
+      expect(document.activeElement).toBe(rows()[0]);
+      expect(rows()[0].tabIndex).toBe(0);
+      expect(rows()[2].tabIndex).toBe(-1);
+    });
+    it('a right-click opens the row\'s menu (SlopCtx and SlopUI.menu), and its items act on that record', async () => {
+      const r = rows()[1].getBoundingClientRect();
+      rows()[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 5, clientY: r.top + 5, detail: 1 }));
+      await waitFor(() => menuLabels().length);
+      expect(menuLabels()).toEqual(['Open Paper Co', 'Void…']);
+      document.querySelector('.sui-menu .sui-row').click();
+      expect(opened).toBe('menu:b');
+    });
+    it('the Menu key opens the focused row\'s menu', async () => {
+      rows()[2].focus();
+      key(rows()[2], 'ContextMenu');
+      await waitFor(() => menuLabels().length);
+      expect(menuLabels()[0]).toBe('Open Cloud host');
+    });
+    it('a selected row is marked (class and aria-current); empty can be an element; a list without open is static', () => {
+      const msg = document.createElement('div'); msg.className = 'my-empty'; msg.append('Nothing here', document.createElement('button'));
+      const L = SlopList.mount(host, { row: (r) => ({ title: r.who, selected: r.id === 'b' }), empty: msg });
+      L.set(RECS);
+      expect(rows()[1].classList.contains('is-selected')).toBe(true);
+      expect(rows()[1].getAttribute('aria-current')).toBe('true');
+      expect(rows()[0].hasAttribute('aria-current')).toBe(false);
+      expect(host.querySelector('.sl-list').classList.contains('is-static')).toBe(true);
+      L.set([]);
+      expect(host.querySelector('.my-empty').hidden).toBe(false);
+      expect(host.querySelector('.my-empty button')).toBeTruthy();
+      list = make(); list.set(RECS);
+    });
+    it('the count takes each CLDR form of the language: Polish 1 faktura, 2 faktury, 5 faktur, 22 faktury', () => {
+      // one SlopI18n in Polish with the invoices count family (the shipped pl table will carry the same forms)
+      const real = window.SlopI18n, pl = real.create({ defaultLang: 'pl', profile: null, document: null });
+      pl.add('en', { 'invoices.li.count': '{n} invoices', 'invoices.li.count#one': '{n} invoice' });
+      pl.add('pl', { 'invoices.li.count': '{n} faktury', 'invoices.li.count#one': '{n} faktura', 'invoices.li.count#few': '{n} faktury', 'invoices.li.count#many': '{n} faktur' });
+      window.SlopI18n = pl;
+      try {
+        const L = SlopList.mount(host, { count: 'invoices.li.count', summary: count });
+        const n = (k) => Array.from({ length: k }, (_, i) => ({ id: 'r' + i }));
+        const read = (k) => { L.set(n(k)); return count.textContent; };
+        expect([1, 2, 5, 22].map(read)).toEqual(['1 faktura', '2 faktury', '5 faktur', '22 faktury']);
+        expect(read(12)).toBe('12 faktur');   // 12 to 14 are many in Polish, 22 to 24 few
+        L.destroy();
+      } finally { window.SlopI18n = real; }
+      list = make(); list.set(RECS);
+    });
+    it('without a count the list reads "N items", and count may be a function of n', () => {
+      const L = SlopList.mount(host, {});
+      L.set(RECS);
+      expect(count.textContent).toBe('3 expenses');   // no summary given: the app's line is untouched
+      const M = SlopList.mount(host, { summary: count, count: (k) => `${k} rows` });
+      M.set(RECS.slice(1));
+      expect(count.textContent).toBe('2 rows');
+      L.destroy(); M.destroy(); list = make(); list.set(RECS);
+    });
+    it('redrawing keeps the focused row where it was', () => {
+      rows()[1].focus();
+      key(rows()[1], 'ArrowDown');
+      list.set(RECS.slice().reverse());
+      expect(document.activeElement).toBe(rows()[2]);
+      expect(list.rows().map((r) => r.id)).toEqual(['c', 'b', 'a']);
+    });
+  });
+
+  run({ name: 'Shared · SlopList' });
+  </script>
+</body>
+</html>

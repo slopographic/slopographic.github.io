@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shell · the site's contact address: a mailto link in the footer, hidden when the site has none</title></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shared/contact/contact.js
+  // The contact address (brand/README.md "A contact address") is set in one place, shared/contact/contact.js, which a
+  // white-label build writes from the profile's email (null: none). A footer line [data-contact] shows
+  // "Contact: <address>" as a mailto link, and is hidden when the site has no address.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  /** A bare page with a footer line, the address (undefined: the build's own value), then contact.js. */
+  async function page(email) {
+    const f = document.createElement('iframe');
+    const stub = email === undefined ? '' : `window.SLOP_CONTACT = ${JSON.stringify(email)};`;
+    f.srcdoc = `<!doctype html><html><head></head><body><main><h1>Page</h1></main>
+      <footer class="footer"><p class="fine legal" id="line" data-contact hidden><span data-i18n="footer.contact">Contact</span>: <a href="#" data-contact-email></a></p></footer>
+      <script>${stub}<\/script><script src="../../shared/contact/contact.js"><\/script><script>window.done = true;<\/script></body></html>`;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.done && f.contentDocument.readyState === 'complete');
+    return f;
+  }
+
+  describe('the footer contact line', () => {
+    it("the build's own value: shown as a mailto link when it has an address, hidden when it has none", async () => {
+      const f = await page(undefined), D = f.contentDocument, at = f.contentWindow.SlopContact.email();
+      const line = D.getElementById('line'), a = line.querySelector('a');
+      expect(line.hidden).toBe(!at);
+      if (at) {
+        expect(a.getAttribute('href')).toBe('mailto:' + at);
+        expect(a.textContent).toBe(at);
+      }
+      f.remove();
+    });
+    it('an address shows "Contact: <address>" with a mailto link', async () => {
+      const f = await page('info@example.com'), D = f.contentDocument, line = D.getElementById('line'), a = line.querySelector('a');
+      expect(line.hidden).toBe(false);
+      expect(getComputedStyle(line).display === 'none').toBe(false);
+      expect(a.getAttribute('href')).toBe('mailto:info@example.com');
+      expect(a.textContent).toBe('info@example.com');
+      expect(line.textContent).toBe('Contact: info@example.com');
+      expect(f.contentWindow.SlopContact.mount()).toBe(1);
+      f.remove();
+    });
+    it('null (a profile without email) hides the line and leaves the link empty', async () => {
+      const f = await page(null), D = f.contentDocument, line = D.getElementById('line');
+      expect(f.contentWindow.SlopContact.email()).toBe('');
+      expect(line.hidden).toBe(true);
+      expect(line.querySelector('a').getAttribute('href')).toBe('#');
+      expect(line.querySelector('a').textContent).toBe('');
+      expect(f.contentWindow.SlopContact.mount()).toBe(0);
+      f.remove();
+    });
+    it('a value that is not one address is no address', async () => {
+      for (const bad of ['', 'info', 'mailto:info@example.com', 'a b@example.com', 42]) {
+        const f = await page(bad);
+        expect(f.contentWindow.SlopContact.email()).toBe('');
+        expect(f.contentDocument.getElementById('line').hidden).toBe(true);
+        f.remove();
+      }
+    });
+  });
+
+  run({ name: 'Contact line' });
+</script>
+</body>
+</html>

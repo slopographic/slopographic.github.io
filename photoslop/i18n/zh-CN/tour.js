@@ -1,0 +1,20 @@
+/* PhotoSlop, Simplified Chinese (the guided tour, shared/tour/tours/photoslop.js). Rules: shared/i18n/APPS-HOWTO.md. Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'photoslop.tour.title': 'PhotoSlop 导览',
+  'photoslop.tour.new_title': '开始一个文件',
+  'photoslop.tour.new_text': '“新建”用于设置文档的尺寸、预设和背景（在窄窗口中位于“更多 ▾”下）；“打开”用于加载 PSD、ORA 或图片。每个文件都有自己的标签页。',
+  'photoslop.tour.menus_title': '菜单栏',
+  'photoslop.tour.menus_text': '文件、编辑、图像、图层、选择和滤镜都在这里。每个菜单都列出了它的命令。',
+  'photoslop.tour.tools_title': '工具',
+  'photoslop.tour.tools_text': '画笔、选择、文字和裁剪工具位于工具箱中。选择一个，然后在选项栏中进行设置。',
+  'photoslop.tour.options_title': '工具选项',
+  'photoslop.tour.options_text': '选项栏会随当前工具而变化：大小、不透明度、混合模式等等。',
+  'photoslop.tour.canvas_title': '画布',
+  'photoslop.tour.canvas_text': '在画布上绘制、选择和变换。状态栏显示缩放和大小。',
+  'photoslop.tour.panels_title': '图层和面板',
+  'photoslop.tour.panels_text': '图层、历史记录和属性位于此列。在手机上，“图层”按钮可将它们显示出来。',
+  'photoslop.tour.export_title': '导出',
+  'photoslop.tour.export_text': '导出 PNG、JPEG、WebP 或 PSD。文件在你的设备上生成；不会上传任何内容。',
+  'photoslop.tour.theme_title': '主题',
+  'photoslop.tour.theme_text': '在专业、浅色和 Paint ’98 之间切换。',
+});

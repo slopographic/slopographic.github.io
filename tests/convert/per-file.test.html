@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: every file has its own Convert to; select rows and set them together; mixed kinds; presets; keys</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); localStorage.setItem('slop-consent', JSON.stringify({ v: 1, ads: false, analytics: false, t: Date.now() })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/ui/targets.js, convert/js/ui/file-row.js, convert/js/ui/bulk.js, convert/js/ui/focus.js, convert/js/ui/list-view.js
+  // Covers: convert/js/ui/option-sets.js, convert/js/ui/options.js, convert/js/ui/run.js, convert/js/ui/tool.js, convert/js/ui/markup.js, convert/js/ui/route.js
+  // Covers: shared/ui/menubutton.js, convert/css/convert.css
+  import { pngOf } from './fixtures.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D, T;
+  const $ = (s) => D.querySelector(s);
+  const $$ = (s) => [...D.querySelectorAll(s)];
+  const row = (name) => $$('li.cv-file').find((li) => li.querySelector('.cv-file-name').textContent === name);
+  const toBtn = (name) => row(name).querySelector('.cv-to');
+  const key = (el, k, more = {}) => el.dispatchEvent(new W.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...more }));
+  const menu = () => $('.smb-menu');
+  const menuIds = () => [...menu().querySelectorAll('.smb-row')].map((r) => r.dataset.value);
+  const targetOf = (name) => T.targetOf(T.items.find((i) => i.name === name));
+
+  async function open(src, width = 1280) {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = src; document.body.append(F);
+    await waitFor(() => F.contentWindow && F.contentWindow.document.querySelector('[data-convert-root]') && F.contentWindow.document.querySelector('[data-convert-root]').convertTool, { timeout: 30000 });
+    W = F.contentWindow; D = W.document; T = $('[data-convert-root]').convertTool;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+  }
+  const csv = () => new W.File(['Name,Price\nGoo,4\n'], 'Price list.csv', { type: 'text/csv' });
+  const png = async (name) => new W.File([await (await pngOf(12, 8)).arrayBuffer()], name, { type: 'image/png' });
+  const pdf = () => new W.File(['%PDF-1.4\n%%EOF\n'], 'Report.pdf', { type: 'application/pdf' });
+  const obj = () => new W.File(['mtllib cube.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl Red\nf 1 2 3\n'], 'cube.obj');
+  const mtl = () => new W.File(['newmtl Red\nKd 1 0 0\n'], 'cube.mtl');
+
+  describe('each file has its own Convert to', () => {
+    it('a mix of kinds: every row shows its own default, with a format tile and a label naming the file', async () => {
+      await open('../../convert/index.html');
+      await T.addFiles([csv(), await png('photo.png'), pdf()]);
+      expect([targetOf('Price list.csv'), targetOf('photo.png'), targetOf('Report.pdf')]).toEqual(['csv-to-json', 'to-jpg', 'pdf-to-images']);
+      const b = toBtn('Price list.csv');
+      expect(b.getAttribute('aria-label')).toBe('Convert Price list.csv to: CSV to JSON');
+      expect([b.getAttribute('aria-haspopup'), b.getAttribute('aria-expanded'), !!b.querySelector('.sflow-solo .sflow-tile')]).toEqual(['menu', 'false', true]);
+      expect(row('photo.png').querySelector('.cv-file-check').getAttribute('aria-label')).toBe('Select photo.png');
+      expect($('#cv-note').textContent).toContain('3 files will be converted, to 3 formats');
+      expect($('#cv-note').textContent).toContain('each row has its own Convert to');
+    }, { timeout: 40000 });
+    it('a row\'s menu offers only what that file can become, grouped like the picker, the chosen one checked', async () => {
+      toBtn('photo.png').click();
+      expect(!!menu()).toBe(true);
+      expect(menu().getAttribute('aria-label')).toBe('Convert photo.png to');
+      const ids = menuIds();
+      expect(ids.includes('to-webp') && ids.includes('images-to-pdf')).toBe(true);
+      expect(ids.includes('csv-to-json') || ids.includes('to-png')).toBe(false);
+      expect(menu().querySelector('[aria-checked="true"]').dataset.value).toBe('to-jpg');
+      expect(menu().querySelectorAll('.smb-h').length > 1).toBe(true);
+      menu().querySelector('[data-value="to-webp"]').click();
+      expect(menu()).toBe(null);
+      expect([targetOf('photo.png'), targetOf('Price list.csv')]).toEqual(['to-webp', 'csv-to-json']);
+      expect(toBtn('photo.png').getAttribute('aria-label')).toBe('Convert photo.png to: To WebP');
+      expect(D.activeElement).toBe(toBtn('photo.png'));   // focus comes back to the row's button after the redraw
+    });
+    it('the keyboard: ArrowDown opens it in its search box, ArrowDown again goes to the rows, Enter picks, Escape closes', async () => {
+      const b = toBtn('Price list.csv');
+      b.focus();
+      key(b, 'ArrowDown');
+      expect(D.activeElement.classList.contains('smb-search')).toBe(true);   // a CSV has many formats: the menu has a search box
+      expect(b.getAttribute('aria-expanded')).toBe('true');
+      key(D.activeElement, 'ArrowDown');
+      expect(D.activeElement.dataset.value).toBe('csv-to-json');
+      key(D.activeElement, 'ArrowDown');
+      const second = D.activeElement.dataset.value;
+      expect(second === 'csv-to-json').toBe(false);
+      key(D.activeElement, 'Escape');
+      expect([menu(), D.activeElement]).toEqual([null, b]);
+      key(b, 'ArrowDown'); key(D.activeElement, 'ArrowDown');
+      const rows = [...menu().querySelectorAll('.smb-row')];
+      const xlsx = rows.find((r) => r.dataset.value === 'csv-to-xlsx');
+      while (D.activeElement !== xlsx) key(D.activeElement, 'ArrowDown');
+      key(D.activeElement, 'Enter');
+      expect(targetOf('Price list.csv')).toBe('csv-to-xlsx');
+      expect(D.activeElement).toBe(toBtn('Price list.csv'));
+    });
+    it('the search box finds a format by its keywords; each card has the Options of its own target', async () => {
+      toBtn('photo.png').click();
+      const box = menu().querySelector('.smb-search');
+      box.value = 'jpeg'; box.dispatchEvent(new W.Event('input', { bubbles: true }));
+      expect([...menu().querySelectorAll('.smb-row')].filter((r) => !r.hidden && !r.closest('[hidden]')).map((r) => r.dataset.value)).toContain('to-jpg');
+      W.SlopMenuButton.close();
+      const id = (n) => T.items.find((i) => i.name === n).id;
+      expect(!!$(`#cv-o-${id('photo.png')}-quality`)).toBe(true);   // To WebP has a quality
+      expect(!!$(`#cv-o-${id('Report.pdf')}-format`)).toBe(true);   // PDF to images has a format
+      expect(!!$('#cv-opts-body') || !!$('fieldset.cv-opts')).toBe(false);   // no separate options block
+      expect(!!$('#cv-picker') || !!$('#cv-target')).toBe(false);   // no big picker, no hidden select
+    });
+  });
+
+  describe('select rows and set them together', () => {
+    it('Select all, then the bulk bar: a mix offers only what all of them share', async () => {
+      const all = $('.cv-bulk-allbox');
+      expect(!!all && $('#cv-bulk').hidden === false).toBe(true);
+      $('.cv-bulk-clear') && $('.cv-bulk-clear').click();
+      all.click();
+      expect($('.cv-bulk-n').textContent).toBe('3 selected');
+      $('.cv-bulk-to').click();
+      expect(menuIds()).toEqual(['base64-encode', 'zip-files']);
+      W.SlopMenuButton.close();
+    });
+    it('the formats on offer follow the selection: only what the selected rows share', async () => {
+      await T.addFiles([await png('b.png')]);
+      T.items.forEach((i) => { i.selected = false; }); T.render();
+      row('photo.png').querySelector('.cv-file-check').click();
+      row('Report.pdf').querySelector('.cv-file-check').click();
+      expect($('.cv-bulk-n').textContent).toBe('2 selected');
+      expect(T.targets()).toEqual(['base64-encode', 'zip-files']);
+    });
+    it('shift-click selects the range; the bulk Convert to sets every selected row and only those', async () => {
+      T.items.forEach((i) => { i.selected = false; }); T.render();
+      await T.addFiles([await png('c.png')]);
+      row('photo.png').querySelector('.cv-file-check').click();
+      row('c.png').querySelector('.cv-file-check').dispatchEvent(new W.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }));
+      expect(T.selected().map((i) => i.name)).toEqual(['photo.png', 'Report.pdf', 'b.png', 'c.png']);
+      row('Report.pdf').querySelector('.cv-file-check').click();   // off again
+      expect(T.selected().map((i) => i.name)).toEqual(['photo.png', 'b.png', 'c.png']);
+      $('.cv-bulk-to').click();
+      menu().querySelector('[data-value="to-bmp"]').click();
+      expect(['photo.png', 'b.png', 'c.png'].map(targetOf)).toEqual(['to-bmp', 'to-bmp', 'to-bmp']);
+      expect([targetOf('Price list.csv'), targetOf('Report.pdf')]).toEqual(['csv-to-xlsx', 'pdf-to-images']);
+      expect(T.target).toBe('to-bmp');   // what the selected rows share
+    });
+    it('the bulk bar\'s Options set every selected file; the flow tile opens the bulk menu', async () => {
+      const ids = ['photo.png', 'b.png', 'c.png'].map((n) => T.items.find((i) => i.name === n).id);
+      const q = $('#cv-o-bulk-background');
+      expect(!!q).toBe(true);
+      q.value = '#ff0000'; q.dispatchEvent(new W.Event('change', { bubbles: true }));
+      expect(ids.map((i) => $(`#cv-o-${i}-background`).value)).toEqual(['#ff0000', '#ff0000', '#ff0000']);
+      expect(T.valuesOf(T.items.find((i) => i.name === 'b.png'), T.groups().find((g) => g.conv.id === 'to-bmp').conv).background).toBe('#ff0000');
+      $('.cv-flow .sflow-to').click();
+      expect(menu().getAttribute('aria-label')).toBe('Convert the 3 selected files to');
+      W.SlopMenuButton.close();
+    });
+    it('setTarget sets the selected rows; with no selection it sets every file', async () => {
+      T.setTarget('to-ico');
+      expect(['photo.png', 'b.png', 'c.png'].map(targetOf)).toEqual(['to-ico', 'to-ico', 'to-ico']);
+      expect(targetOf('Price list.csv')).toBe('csv-to-xlsx');
+      $('.cv-bulk-clear').click();
+      expect(T.selected().length).toBe(0);
+      T.setTarget('zip-files');
+      expect(T.items.every((i) => targetOf(i.name) === 'zip-files')).toBe(true);
+    });
+    it('bulk Remove takes the selected rows away', async () => {
+      row('b.png').querySelector('.cv-file-check').click();
+      row('c.png').querySelector('.cv-file-check').click();
+      $('.cv-bulk-rm').click();
+      expect(T.items.map((i) => i.name)).toEqual(['Price list.csv', 'photo.png', 'Report.pdf']);
+    });
+  });
+
+  describe('Convert runs each file with its own target', () => {
+    it('a CSV to XLSX and a PNG to JPG in one run give one file each', async () => {
+      T.clear();
+      await T.addFiles([csv(), await png('photo.png')]);
+      toBtn('Price list.csv').click(); menu().querySelector('[data-value="csv-to-xlsx"]').click();
+      await T.run();
+      expect(T.outputs.map((o) => o.name)).toEqual(['Price list.xlsx', 'photo.jpg']);
+      expect($$('#cv-out a').length).toBe(2);
+      expect($('#cv-status').textContent).toContain('2 files ready');
+    }, { timeout: 30000 });
+    it('an .mtl beside its .obj goes with the model and is not converted on its own', async () => {
+      T.clear();
+      await T.addFiles([obj(), mtl()]);
+      expect([targetOf('cube.obj'), targetOf('cube.mtl')]).toEqual(['3d-to-stl', '@with']);
+      expect(toBtn('cube.mtl').getAttribute('aria-label')).toBe('Convert cube.mtl to: With cube.obj');
+      expect(T.groups().map((g) => [g.conv.id, g.items.map((i) => i.name)])).toEqual([['3d-to-stl', ['cube.obj', 'cube.mtl']]]);
+      await T.run();
+      expect(T.outputs.map((o) => o.name)).toEqual(['cube.stl']);
+    }, { timeout: 40000 });
+    it('a picture the .mtl names goes with the model; a photo dropped beside it is converted on its own', async () => {
+      T.clear();
+      await T.addFiles([obj(), new W.File(['newmtl Red\nmap_Kd textures/tex.png\n'], 'cube.mtl'), await png('tex.png'), await png('photo.png')]);
+      expect(['cube.mtl', 'tex.png', 'photo.png'].map(targetOf)).toEqual(['@with', '@with', 'to-jpg']);
+      toBtn('photo.png').click();
+      expect(menuIds()[0]).toBe('@with');   // it can still be put with the model
+      menu().querySelector('[data-value="@with"]').click();
+      expect(targetOf('photo.png')).toBe('@with');
+    }, { timeout: 40000 });
+  });
+
+  describe('presets and the ?to= link', () => {
+    it('?to=to-webp is the default for the files that can take it; the others keep their own', async () => {
+      await open('../../convert/index.html?to=to-webp');
+      await T.addFiles([await png('a.png'), csv()]);
+      expect([targetOf('a.png'), targetOf('Price list.csv')]).toEqual(['to-webp', 'csv-to-json']);
+    }, { timeout: 40000 });
+    it('a pair page (CSV to XLSX) sets every file to its conversion, and the menu holds just that one', async () => {
+      await open('../../convert/csv-to-xlsx/index.html');
+      await T.addFiles([csv(), new W.File(['a,b\n'], 'more.csv', { type: 'text/csv' })]);
+      expect(T.items.map((i) => targetOf(i.name))).toEqual(['csv-to-xlsx', 'csv-to-xlsx']);
+      toBtn('more.csv').click();
+      expect(menuIds()).toEqual(['csv-to-xlsx']);
+      W.SlopMenuButton.close();
+    }, { timeout: 40000 });
+    it('the OBJ to STL page keeps the .mtl with the model', async () => {
+      await open('../../convert/obj-to-stl/index.html');
+      await T.addFiles([obj(), mtl()]);
+      expect([targetOf('cube.obj'), targetOf('cube.mtl'), T.target]).toEqual(['3d-to-stl', '@with', '3d-to-stl']);
+      row('cube.mtl').querySelector('.cv-file-check').click();   // a companion alone has no format of its own: said plainly
+      expect($('.cv-bulk-none').textContent).toBe('No format fits the selected file. Select files of one kind, or set each row.');
+      expect(T.targets()).toEqual([]);
+    }, { timeout: 40000 });
+  });
+
+  describe('a phone: 390 px', () => {
+    it('rows wrap under the name with no sideways scroll, and the menu fits the screen', async () => {
+      await open('../../convert/index.html', 390);
+      await T.addFiles([csv(), await png('a photo with a rather long file name.png'), pdf()]);
+      await sleep(50);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      const r = row('Price list.csv'), name = r.querySelector('.cv-file-name').getBoundingClientRect(), to = r.querySelector('.cv-to').getBoundingClientRect();
+      expect(to.top >= name.bottom - 1 && to.right <= 390).toBe(true);
+      toBtn('Report.pdf').click();
+      const m = menu().getBoundingClientRect();
+      expect(m.left >= 0 && m.right <= 390).toBe(true);
+      W.SlopMenuButton.close();
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'File convert: per-file targets' });
+  </script>
+</body>
+</html>

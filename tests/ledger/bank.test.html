@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Ledger: bank reconciliation (import a statement, match, record a payment and an expense, set aside)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script>
+  // Covers: shared/data/expenses.js, ledger/css/ledger.css, ledger/js/ui/bank.js, ledger/js/core/bank.js, ledger/index.html, ledger/js/ui/app.js, ledger/js/ui/commands.js, shared/data/readtext.js, shared/data/schema-defs.js, shared/data/store.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const S = () => W.SlopData;
+  const CSV = ['Date,Description,Amount,Balance', '2026-10-20,ACME LTD invoice,"1200.00",1200.00', '2026-10-21,Coffee Corner,-4.50,1195.50',
+    '2026-10-22,Office chair,-89.00,1106.50', '2026-10-23,Bank fee,-2.00,1104.50', ',Closing balance,,1104.50'].join('\n');
+  const rows = () => [...D.querySelectorAll('#bkRows tr')];
+  const rowOf = (text) => rows().find((r) => r.children[1].textContent.startsWith(text));
+  const stat = (k) => [...D.querySelectorAll('#bkStats .stat')].find((s) => s.querySelector('span').textContent === k).querySelector('b').textContent;
+  const press = (tr, label) => [...tr.querySelectorAll('button')].find((b) => b.textContent.startsWith(label)).click();
+
+  describe('Bank reconciliation', () => {
+    it('imports a statement: four lines, the coffee already in the books is matched, the closing balance skipped', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../ledger/index.html#bank';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopLedger && f.contentWindow.SlopLedger.bankView && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+      W = f.contentWindow; D = W.document;
+      await S().store.erase(); await S().store.ready();
+      const c = (await S().store.put('customers', { name: 'Acme Ltd', stage: 'customer' })).value;
+      const d = (await S().store.put('invoices', { customerId: c.id, date: '2026-10-01', lines: [{ description: 'Work', qty: 1, unitPrice: 120000, taxRate: 0 }] })).value;
+      await S().billing.issue(d.id);
+      await S().expenses.record({ date: '2026-10-21', supplier: 'Coffee Corner', amount: 450, tax: 0, currency: 'USD', method: 'bank', account: '5000' });
+      await S().expenses.record({ date: '2026-10-01', supplier: 'Paper Co', amount: 200, tax: 0, currency: 'USD', account: '5000', payLater: true, dueDate: '2026-10-31' });
+      await W.SlopLedger.bankView.importFile(new W.File([CSV], 'statement.csv', { type: 'text/csv' }));
+      expect(stat('Statement lines')).toBe('4');
+      expect(stat('Matched')).toBe('1');
+      expect(stat('To review')).toBe('3');
+      expect(!!rowOf('Coffee Corner')).toBe(false);   // matched lines are hidden until the box is ticked
+    });
+    it('money in that equals an open invoice: Payment for INV-0001 records it and the line is matched', async () => {
+      const tr = rowOf('ACME LTD');
+      expect([...tr.querySelectorAll('button')].map((b) => b.textContent)).toContain('Payment for INV-0001');
+      press(tr, 'Payment for INV-0001');
+      await waitFor(() => !rowOf('ACME LTD'));
+      const inv = (await S().store.list('invoices')).value[0];
+      expect(inv.status).toBe('paid');
+      expect(stat('Matched')).toBe('2');
+    });
+    it('money out that equals a bill owed: Pay bill from Paper Co pays it and matches the line', async () => {
+      const tr = rowOf('Bank fee');
+      expect([...tr.querySelectorAll('button')].map((b) => b.textContent)).toContain('Pay bill from Paper Co');
+      press(tr, 'Pay bill from Paper Co');
+      await waitFor(() => !rowOf('Bank fee'));
+      expect((await S().store.list('expenses')).value.find((e) => e.supplier === 'Paper Co').status).toBe('posted');
+    });
+    it('money out: Record as expense… posts it from the bank and matches the line', async () => {
+      press(rowOf('Office chair'), 'Record as expense');
+      await waitFor(() => D.querySelector('.sui-dlg'));
+      [...D.querySelectorAll('.sui-dlg button')].find((b) => b.textContent === 'Record expense').click();
+      await waitFor(() => !rowOf('Office chair'));
+      const ex = (await S().store.list('expenses')).value.find((e) => e.description === 'Office chair');
+      expect([ex.amount, ex.method]).toEqual([8900, 'bank']);
+      await waitFor(() => stat('To review') === '0');
+      expect(stat('Set aside')).toBe('0');
+      expect(stat('Still to explain')).toBe('$0.00');
+      expect($('bkEmpty').hidden).toBe(false);
+    });
+    it('the same statement again adds nothing; Show matched lists every line; unmatch, set aside, bring back', async () => {
+      await W.SlopLedger.bankView.importFile(new W.File([CSV], 'statement.csv', { type: 'text/csv' }));
+      expect(stat('Statement lines')).toBe('4');
+      $('bkShowAll').click();
+      await waitFor(() => rows().length === 4);
+      expect(rowOf('Coffee Corner').textContent).toContain('Matched:');
+      press(rowOf('Coffee Corner'), 'Unmatch');
+      await waitFor(() => stat('To review') === '1');
+      press(rowOf('Coffee Corner'), 'Set aside');
+      await waitFor(() => stat('Set aside') === '1' && stat('To review') === '0');
+      press(rowOf('Coffee Corner'), 'Bring back');
+      await waitFor(() => stat('To review') === '1');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

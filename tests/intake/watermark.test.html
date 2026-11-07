@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Watermark: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script>
+  // Covers: watermark/js/main.js, watermark/js/probe.js
+  // Slop Watermark's files (pictures, videos and PDFs, mixed) on the one intake: a drop on the zone or the preview, the
+  // zone's Choose files, the header's Open files…, a paste, ?drive=<id> (another app's Open in…, launch) and the sample
+  // all reach the same reader (the list) with the same events.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = '../../watermark/index.html';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.document.body && fr.contentWindow.document.body.classList.contains('ready') && fr.contentWindow.SlopIntake.spec('watermark'), { timeout: 20000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('watermark'), reader = s.process;
+    s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+    for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+  }
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 40; c.height = 30;
+    c.getContext('2d').fillRect(0, 0, 40, 30);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const count = () => W.WMItems.count();
+  async function through(source, start, n = 2) {
+    seen = []; events = [];
+    const before = count();
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after') && count() === before + n, { timeout: 15000 });
+    expect(seen).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'watermark' && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Watermark: one way in', () => {
+    it('a drop on the zone', async () => {
+      await boot();
+      const files = [await png('a.png'), await png('b.png')];
+      await through('drop', () => D.getElementById('wm-drop').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf(files) })));
+    }, { timeout: 40000 });
+    it("the zone's Choose files", async () => {
+      const files = [await png('c.png'), await png('d.png')];
+      await through('picker', () => { const i = D.querySelector('#wm-drop input[type=file]'); i.files = dtOf(files).files; i.dispatchEvent(new W.Event('change')); });
+    });
+    it('Open files… (a picture, a video and a PDF)', async () => {
+      const mp4 = new W.File([await (await fetch('../convert/fixtures/tone.mp4')).arrayBuffer()], 'clip.mp4', { type: 'video/mp4' });
+      const L = await (await import('../../convert/js/core/lib.js')).loadPdfLib(), doc = await L.PDFDocument.create();
+      doc.addPage([400, 300]);
+      const pdf = new W.File([await doc.save()], 'paper.pdf', { type: 'application/pdf' });
+      const files = [await png('e.png'), mp4, pdf];
+      W.SlopUI.pickFiles = async () => files;
+      const b = [...D.querySelectorAll('#wm-bar button')].find((x) => /Open files/.test(x.textContent + (x.title || '') + (x.getAttribute('aria-label') || '')));
+      expect(!!b).toBe(true);
+      expect(D.getElementById('wm-open')).toBe(null);   // no hidden file input of its own: the intake's picker
+      await through('picker', () => b.click(), 3);
+      expect(W.WMItems.all().slice(-3).map((x) => x.media)).toEqual(['picture', 'video', 'pdf']);
+    }, { timeout: 40000 });
+    it('a paste', async () => {
+      const files = [await png('g.png')];
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf(files) })), 1);
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      const blob = await png('sent.png');
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'sent.png', type: 'image/png', blob });
+      await through('launch', () => W.SlopIntake.launch({ to: 'watermark' }), 1);
+    });
+    it('the sample', async () => {
+      W.WMItems.clear(); W.WMList.render();
+      const b = await waitFor(() => D.querySelector('#wm-drop .sd-sample'));
+      await through('sample', () => b.click(), 4);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Watermark' });
+</script>
+</body>
+</html>

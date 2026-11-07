@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop multi-layer selection tests</title>
+  <!-- Covers: photoslop/js/layers/multi.js, photoslop/js/ui/panels.js, photoslop/js/ui/context.js, photoslop/js/ui/menus.js,
+       photoslop/js/tools/select.js, photoslop/js/tools/transform.js, photoslop/js/tools/transform-idle.js, photoslop/js/core/ops.js, photoslop/js/core/model.js,
+       photoslop/js/core/composite.js, photoslop/js/layers/fx.js -->
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  /** A fresh app with a 200 × 100 document: Background, then A, B and C, each a 10 × 10 red square (C is active). */
+  async function scene() {
+    ({ W, win } = await freshApp());
+    W.newDocTab(200, 100, '#ffffff', 'Multi'); W.actualPixels(); W.selectTool('move'); W.T.move.auto = false;
+    const sq = (name, x, y) => { const c = W.mkCanvas(200, 100), g = W.cx(c); g.fillStyle = '#ff0000'; g.fillRect(x, y, 10, 10); return W.addLayer({ name, canvas: c }, 'Add ' + name).id; };
+    return { bg: W.D.layers[0].id, a: sq('A', 10, 10), b: sq('B', 50, 30), c: sq('C', 120, 60) };
+  }
+  const row = (id) => win.document.querySelector(`#panel-layers li.layer[data-id="${id}"]`);
+  /** A click on a layer's name in the Layers panel, with modifier keys. */
+  const pick = (id, mods = {}) => row(id).querySelector('.lp-name').dispatchEvent(new win.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, mods)));
+  const sel = () => W.selectedLayerIds();
+  const L = (id) => W.D.layers.find((l) => l.id === id);
+  const names = () => W.D.layers.map((l) => l.name);
+  const key = (code, k, mods = {}) => win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', Object.assign({ code, key: k, bubbles: true, cancelable: true }, mods)));
+  const panelBtn = (label) => win.document.querySelector(`#panel-layers .lp-btn[aria-label="${label}"]`);
+  /** Client point for a document point (the view is at 100 %). */
+  const scr = (x, y) => { const r = W.V.el.getBoundingClientRect(); return { x: r.left + W.V.ox + x * W.V.zoom, y: r.top + W.V.oy + y * W.V.zoom }; };
+  const ptr = (type, p) => W.V.el.dispatchEvent(new win.PointerEvent(type, { clientX: p.x, clientY: p.y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 7, pointerType: 'mouse', bubbles: true, cancelable: true }));
+  const bounds = (id) => W.layerBoundsDoc(L(id));
+  function menuItem(group, k) {
+    const find = (list) => list.reduce((a, it) => a || (it && typeof it === 'object' ? (it.k === k ? it : it.sub ? find(it.sub) : null) : null), null);
+    return find(W.MENUS.find(([n]) => n === group)[1]);
+  }
+
+  describe('PhotoSlop selects several layers like Photoshop', () => {
+    it('a plain click selects one layer, Shift+click a range, Ctrl/Cmd+click toggles one; none makes a history step', async () => {
+      const { bg, a, b, c } = await scene();
+      const steps = W.Hist.idx;
+      expect(win.document.querySelector('#panel-layers ul.layers').getAttribute('aria-multiselectable')).toBe('true');
+      pick(a);
+      expect(W.D.activeId).toBe(a); expect(sel()).toEqual([a]);
+      pick(c, { shiftKey: true });
+      expect(W.D.activeId).toBe(a); expect(sel()).toEqual([a, b, c]);
+      expect(row(a).classList.contains('active')).toBe(true);
+      expect(row(b).classList.contains('selected')).toBe(true); expect(row(c).classList.contains('selected')).toBe(true);
+      expect(row(bg).classList.contains('selected')).toBe(false);
+      expect([a, b, c].map((id) => row(id).getAttribute('aria-selected'))).toEqual(['true', 'true', 'true']);
+      expect(row(bg).getAttribute('aria-selected')).toBe('false');
+      pick(b, { ctrlKey: true });
+      expect(sel()).toEqual([a, c]); expect(row(b).classList.contains('selected')).toBe(false);
+      // toggling the active layer out hands "active" to another selected layer; the last one stays selected
+      pick(a, { ctrlKey: true });
+      expect(sel()).toEqual([c]); expect(W.D.activeId).toBe(c);
+      pick(c, { ctrlKey: true });
+      expect(sel()).toEqual([c]);
+      pick(bg, { metaKey: true });
+      expect(sel()).toEqual([bg, c]); expect(W.D.activeId).toBe(bg);
+      // Ctrl+Shift adds a range to the selection
+      pick(b, { ctrlKey: true, shiftKey: true });
+      expect(sel()).toEqual([bg, a, b, c]);
+      pick(b);
+      expect(sel()).toEqual([b]); expect(W.D.activeId).toBe(b);
+      expect(win.document.querySelectorAll('#panel-layers li.layer.selected').length).toBe(0);
+      expect(W.Hist.idx).toBe(steps);
+    }, { timeout: 40000 });
+
+    it('Shift+click on a mask thumbnail still turns the mask off, Alt+click on a row still clips', async () => {
+      const { a, b, c } = await scene();
+      pick(b); W.addMask('reveal');
+      pick(a); pick(c, { shiftKey: true });
+      row(b).querySelector('.lp-thumb.mask').dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }));
+      expect(L(b).mask.enabled).toBe(false);
+      expect(sel()).toEqual([a, b, c]);
+      pick(c, { altKey: true });
+      expect(L(c).clip).toBe(true);
+    }, { timeout: 40000 });
+
+    it('the Move tool drags and nudges every selected layer in one step; undo leaves one layer selected', async () => {
+      const { a, b, c } = await scene();
+      pick(a); pick(b, { ctrlKey: true });
+      W.store.set('snap', false);   // no snapping to the page's edges and centre: the drag is exact
+      const steps = W.Hist.idx;
+      ptr('pointerdown', scr(100, 50)); ptr('pointermove', scr(105, 52)); ptr('pointermove', scr(110, 55)); ptr('pointerup', scr(110, 55));
+      expect(W.Hist.idx).toBe(steps + 1);
+      expect([bounds(a).x, bounds(a).y, bounds(b).x, bounds(b).y]).toEqual([20, 15, 60, 35]);
+      expect([bounds(c).x, bounds(c).y]).toEqual([120, 60]);
+      key('ArrowRight', 'ArrowRight');
+      expect([bounds(a).x, bounds(b).x, bounds(c).x]).toEqual([21, 61, 120]);
+      expect(W.Hist.idx).toBe(steps + 2);
+      expect(sel()).toEqual([a, b]);
+      W.undo();
+      expect([bounds(a).x, bounds(b).x]).toEqual([20, 60]);
+      expect(sel().length).toBe(1);
+    }, { timeout: 40000 });
+
+    it('Delete and Duplicate act on every selected layer; with all selected, Delete keeps them', async () => {
+      const { bg, a, b, c } = await scene();
+      pick(a); pick(b, { shiftKey: true });
+      expect(menuItem('Layer', 'delete_layer').dyn()).toBe('Delete Layers');
+      const steps = W.Hist.idx;
+      panelBtn('Delete layer').click();
+      expect(names()).toEqual(['Background', 'C']);
+      expect(W.D.activeId).toBe(bg); expect(sel()).toEqual([bg]);
+      expect(W.Hist.idx).toBe(steps + 1); expect(W.Hist.states[W.Hist.idx].label).toBe('Delete Layers');
+      W.undo();
+      expect(names()).toEqual(['Background', 'A', 'B', 'C']);
+      key('KeyA', 'a', { ctrlKey: true, altKey: true });   // Select ▸ All Layers
+      expect(sel().length).toBe(4);
+      panelBtn('Delete layer').click();
+      expect(names().length).toBe(4);
+      pick(a); pick(b, { shiftKey: true });
+      panelBtn('Duplicate layer').click();
+      expect(names()).toEqual(['Background', 'A', 'A copy', 'B', 'B copy', 'C']);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Duplicate Layers');
+      const copies = W.D.layers.filter((l) => / copy$/.test(l.name)).map((l) => l.id);
+      expect(sel()).toEqual(copies); expect(L(W.D.activeId).name).toBe('A copy');
+      expect(c).toBe(W.D.layers[5].id);
+    }, { timeout: 40000 });
+
+    it('Ctrl+E merges the selected layers (Merge Layers), and is Merge Down with one layer', async () => {
+      const { a, b, c } = await scene();
+      pick(c);
+      expect(menuItem('Layer', 'merge_down').dyn()).toBe('Merge Down');
+      pick(a); pick(c, { ctrlKey: true });
+      expect(menuItem('Layer', 'merge_down').dyn()).toBe('Merge Layers');
+      key('KeyE', 'e', { ctrlKey: true });
+      expect(names()).toEqual(['Background', 'C', 'B']);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Merge Layers');
+      const M = W.activeLayer(), px = (x, y) => [...W.cx(M.canvas).getImageData(x - M.x, y - M.y, 1, 1).data];
+      expect(px(15, 15)).toEqual([255, 0, 0, 255]); expect(px(125, 65)).toEqual([255, 0, 0, 255]); expect(px(55, 35)[3]).toBe(0);
+      expect(sel()).toEqual([M.id]); expect(!!L(b)).toBe(true);
+    }, { timeout: 40000 });
+
+    it('Hide Layers in a selected row\'s right-click menu hides every selected layer, in one step', async () => {
+      const { a, b, c } = await scene();
+      pick(a); pick(b, { ctrlKey: true });
+      const r = row(b).getBoundingClientRect();
+      row(b).dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + 60, clientY: r.top + 10 }));
+      expect(sel()).toEqual([a, b]);
+      const item = [...win.document.querySelectorAll('.sui-menu .sui-row')].find((x) => x.querySelector('.sui-lbl').textContent === 'Hide Layers');
+      expect(!!item).toBe(true);
+      const steps = W.Hist.idx;
+      item.click();
+      expect([L(a).visible, L(b).visible, L(c).visible]).toEqual([false, false, true]);
+      expect(W.Hist.idx).toBe(steps + 1);
+    }, { timeout: 40000 });
+
+    it('dragging a selected row moves the whole selection, in its order', async () => {
+      const { bg, a, c } = await scene();
+      pick(bg); pick(a, { shiftKey: true });
+      const dt = new win.DataTransfer(), at = (el, type, y) => el.dispatchEvent(new win.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: el.getBoundingClientRect().left + 60, clientY: y }));
+      const src = row(a), dst = row(c), top = dst.getBoundingClientRect().top + 2;
+      at(src, 'dragstart', src.getBoundingClientRect().top + 10);
+      at(dst, 'dragover', top); at(dst, 'drop', top); at(src, 'dragend', top);
+      expect(names()).toEqual(['B', 'C', 'Background', 'A']);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Move Layer');
+    }, { timeout: 40000 });
+
+    it('Free Transform scales every selected layer about their shared box', async () => {
+      const { a, b, c } = await scene();
+      pick(a); pick(b, { ctrlKey: true });
+      W.startTransform();
+      expect([W.TRANSFORM.x, W.TRANSFORM.y, W.TRANSFORM.w, W.TRANSFORM.h]).toEqual([10, 10, 50, 30]);
+      W.TRANSFORM.sx = 2; W.TRANSFORM.sy = 2; W.TRANSFORM.interp = 'nearest';
+      const steps = W.Hist.idx;
+      W.commitTransform();
+      expect(W.Hist.idx).toBe(steps + 1);
+      expect(bounds(a)).toEqual({ x: -15, y: -5, w: 20, h: 20 });
+      expect(bounds(b)).toEqual({ x: 65, y: 35, w: 20, h: 20 });
+      expect(bounds(c)).toEqual({ x: 120, y: 60, w: 10, h: 10 });
+    }, { timeout: 40000 });
+
+    it('Select ▸ All Layers selects them all; a new layer or a plain pick leaves one', async () => {
+      const { bg, a, b, c } = await scene();
+      expect(!!menuItem('Select', 'all_layers')).toBe(true);
+      expect(menuItem('Select', 'all_layers').key).toBe('Alt+Ctrl+A');
+      menuItem('Select', 'all_layers').act();
+      expect(sel()).toEqual([bg, a, b, c]); expect(W.D.activeId).toBe(c);
+      const n = W.addLayer();
+      expect(sel()).toEqual([n.id]);
+      expect(win.document.querySelectorAll('#panel-layers li.layer.selected').length).toBe(0);
+    }, { timeout: 40000 });
+
+    it('the panel\'s blend mode, opacity and lock change every selected layer, one step each', async () => {
+      const { a, b, c } = await scene();
+      pick(a); pick(b, { ctrlKey: true });
+      const q = (s) => win.document.querySelector('#panel-layers ' + s), steps = W.Hist.idx;
+      const set = (el, v, ev) => { el.value = String(v); for (const t of ev) el.dispatchEvent(new win.Event(t, { bubbles: true })); };
+      set(q('.lp-blend'), 'multiply', ['change']);
+      expect([L(a).blend, L(b).blend, L(c).blend]).toEqual(['multiply', 'multiply', 'normal']);
+      expect(W.Hist.idx).toBe(steps + 1);
+      set(q('.lp-op'), 30, ['input']); set(q('.lp-op'), 40, ['input', 'change']);
+      expect([L(a).opacity, L(b).opacity, L(c).opacity]).toEqual([0.4, 0.4, 1]);
+      expect(W.Hist.idx).toBe(steps + 2);
+      set(q('input.opt-num'), 50, ['change']);
+      expect([L(a).opacity, L(b).opacity, L(c).opacity]).toEqual([0.5, 0.5, 1]);
+      expect(W.Hist.idx).toBe(steps + 3);
+      panelBtn('Lock / unlock layer').click();
+      expect([L(a).locked, L(b).locked, L(c).locked]).toEqual([true, true, false]);
+      expect(W.Hist.idx).toBe(steps + 4);
+      key('Slash', '/', { ctrlKey: true });   // Layer ▸ Lock / Unlock Layer
+      expect([L(a).locked, L(b).locked, L(c).locked]).toEqual([false, false, false]);
+      expect(W.Hist.idx).toBe(steps + 5);
+      expect(sel()).toEqual([a, b]);
+    }, { timeout: 40000 });
+
+    it('Arrange (Ctrl+[ ], Shift+Ctrl+[ ]) moves the whole selection, keeping its order', async () => {
+      const { bg, a } = await scene();
+      pick(bg); pick(a, { shiftKey: true });
+      const steps = W.Hist.idx;
+      key('BracketRight', ']', { ctrlKey: true });
+      expect(names()).toEqual(['B', 'Background', 'A', 'C']);
+      key('BracketRight', '}', { ctrlKey: true, shiftKey: true });
+      expect(names()).toEqual(['B', 'C', 'Background', 'A']);
+      key('BracketRight', ']', { ctrlKey: true });   // already on top: nothing moves, no step
+      expect(W.Hist.idx).toBe(steps + 2);
+      key('BracketLeft', '[', { ctrlKey: true });
+      expect(names()).toEqual(['B', 'Background', 'A', 'C']);
+      key('BracketLeft', '{', { ctrlKey: true, shiftKey: true });
+      expect(names()).toEqual(['Background', 'A', 'B', 'C']);
+      expect(W.Hist.idx).toBe(steps + 4); expect(W.Hist.states[W.Hist.idx].label).toBe('Move Layer');
+      expect(sel()).toEqual([bg, a]);
+      pick(a); key('BracketRight', ']', { ctrlKey: true });   // one layer: as before
+      expect(names()).toEqual(['Background', 'B', 'A', 'C']);
+    }, { timeout: 40000 });
+
+    it('the Move tool\'s bounds box outlines all the selected layers', async () => {
+      const { a, b } = await scene();
+      pick(a);
+      expect(W.boxTarget()).toEqual({ x: 10, y: 10, w: 10, h: 10 });
+      pick(b, { ctrlKey: true });
+      expect(W.boxTarget()).toEqual({ x: 10, y: 10, w: 50, h: 30 });
+      const p0 = W.idleBoxPoints()[0], s0 = W.toScreen(10, 10);
+      expect([p0.x, p0.y]).toEqual([s0.x, s0.y]);
+      // with a selection: the selected part of each layer (B is cut at x = 55)
+      const m = W.mkCanvas(200, 100), g = W.cx(m); g.fillStyle = '#fff'; g.fillRect(0, 0, 55, 100); W.D.sel = W.makeSel(m);
+      expect(W.boxTarget()).toEqual({ x: 10, y: 10, w: 45, h: 30 });
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop multi-layer selection' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Site footer navigation: columns, folding on phones, no sideways scroll, readable text</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; background: #fff; }</style>
+</head>
+<body>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/theme/theme.js"></script>
+<script src="../harness.js"></script>
+<script src="../../shared/color/contrast.js"></script>
+<script src="../a11y/contrast.js"></script>
+<script>
+// Covers: shared/footnav/footnav.css, tools/seo/footnav.mjs
+/* The footer navigation (tools/seo/footnav.mjs) on the homepage, an app landing page and a converter page, each in a frame
+ * at 1280 and 390 px: at 1280 every column is open and shows its links side by side; at 390 every column starts folded,
+ * opens on a tap, and the page never scrolls sideways. Its text is audited for contrast (tests/a11y/contrast.js) in the
+ * Light and Dark themes at both widths, each column scrolled into view (open on the phone). */
+const { describe, it, expect, waitFor, run } = SlopTest;
+// a site that is not indexed has no landing pages (tests/brand-facts.js seoIndex)
+const PAGES = ['../../index.html', ...(window.BRAND_FACTS.seoIndex ? ['../../apps/pdf/'] : []), '../../convert/mov-to-mp4/'];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function open(src, width, theme = 'dark') {
+  try {
+    localStorage.clear();
+    localStorage.setItem('slop-consent', JSON.stringify({ version: 1, timestamp: 1, categories: { necessary: true, analytics: false, ads: false, rates: false } }));
+    SlopTheme.set(theme);
+  } catch (e) { /* storage blocked */ }
+  const old = document.getElementById('f');
+  if (old) old.remove();
+  const f = document.createElement('iframe');
+  f.id = 'f';
+  f.style.cssText = `width:${width}px;height:800px`;
+  f.src = src;
+  document.body.prepend(f);
+  await waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('.fnav'), { timeout: 30000 });
+  await sleep(400);
+  const doc = f.contentDocument;
+  const st = doc.createElement('style');   // colours as they end, and nothing floating over the footer
+  st.textContent = '*,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important} #slopc-banner,.slopc-banner,[data-mascot],.mascot{display:none!important}';
+  doc.head.append(st);
+  doc.documentElement.style.scrollBehavior = 'auto';
+  return f.contentWindow;
+}
+const cols = (win) => [...win.document.querySelectorAll('.fnav details')];
+const sideways = (win) => win.document.documentElement.scrollWidth - win.document.documentElement.clientWidth;
+
+for (const src of PAGES) {
+  const name = src.replace(/^(\.\.\/)+/, '') || 'home';
+  describe(name, () => {
+    it('1280 px: every column is open, its links visible, laid out side by side', async () => {
+      const win = await open(src, 1280);
+      const c = cols(win);
+      expect(c.length).toBeGreaterThanOrEqual(4);
+      expect(c.every((d) => d.open)).toBe(true);
+      const links = [...win.document.querySelectorAll('.fnav a')];
+      expect(links.every((a) => a.checkVisibility())).toBe(true);
+      const first = c[0].querySelectorAll('li');
+      expect(first[1].getBoundingClientRect().top).toBe(first[0].getBoundingClientRect().top);   // the list runs in columns
+      expect(sideways(win)).toBeLessThanOrEqual(0);
+    }, { timeout: 60000 });
+
+    it('390 px: the columns start folded, open on a tap, and nothing scrolls sideways', async () => {
+      const win = await open(src, 390);
+      const c = cols(win);
+      expect(c.every((d) => !d.open)).toBe(true);
+      expect(win.document.querySelector('.fnav a').checkVisibility()).toBe(false);
+      for (const d of c) expect(d.querySelector('summary').getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+      expect(sideways(win)).toBeLessThanOrEqual(0);
+      for (const d of c) d.querySelector('summary').click();
+      await sleep(50);
+      expect(c.every((d) => d.open)).toBe(true);
+      expect(win.document.querySelector('.fnav a').checkVisibility()).toBe(true);
+      expect(sideways(win)).toBeLessThanOrEqual(0);
+    }, { timeout: 60000 });
+
+    for (const theme of ['light', 'dark']) {
+      for (const width of [1280, 390]) {
+        it(`${theme} ${width} px: every footer text reads on its background`, async () => {
+          const win = await open(src, width, theme);
+          const bad = [];
+          let checked = 0;
+          for (const d of cols(win)) {
+            d.open = true;
+            d.scrollIntoView({ block: 'start' });
+            await sleep(30);
+            const a = SlopContrast.audit(win, { root: win.document.querySelector('.fnav') });
+            checked += a.checked;
+            for (const x of a.fails) bad.push(`${x.sel} "${x.text}" ${x.fg} on ${x.bg} = ${x.ratio}`);
+          }
+          expect(checked).toBeGreaterThan(20);
+          expect([...new Set(bad)]).toEqual([]);
+        }, { timeout: 60000 });
+      }
+    }
+  });
+}
+run({ name: 'Footer navigation' });
+</script>
+</body>
+</html>

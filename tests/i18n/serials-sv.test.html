@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Serial counter in Swedish</title>
+  <!-- Covers: serials/i18n/index.js, serials/js/app.js, serials/js/frame.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Serial counter', path: '../../serials/index.html', ns: 'serials',
+    ready: (doc) => doc.querySelector('#srSide .sf-h') && doc.querySelector('#gate .ai-panel, #ui:not([hidden])'),
+    checks: [
+      ['h1', 'Serienummerräknare', 'Serial counter'],
+      ['.sr-lede', 'Lägg till en omgång foton', 'Add a batch of photos'],
+      ['#read', 'Läs foton', 'Read photos'],
+      ['#srSide .sf-h', 'Mönster', 'Pattern'],
+      ['#unique-empty', 'Inga serienummer än', 'No serials yet'],
+      ['#gate h2', 'behöver en modell', 'needs a model'],
+    ],
+  });
+  SlopTest.run({ name: 'Serial counter in Swedish' });
+  </script>
+</body>
+</html>

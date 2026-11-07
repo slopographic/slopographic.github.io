@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows: PhotoSlop's Auto enhance photos and Portrait retouch on three pictures</title>
+  <style>body { margin: 0; background: #111; } iframe#app { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  // Covers: shared/ops/retouch.js, shared/ops/all.js, shared/macros/frame.js, photoslop/js/app/macros.js, photoslop/js/retouch/boot.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const A = () => WFT.A;
+  /** A picture with a blue cast: a grey block (left), a white block and two colours. */
+  async function castPicture(name, w, h, k) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), cast = (r, gg, b) => `rgb(${Math.round(r * (0.8 - k))}, ${gg}, ${Math.min(255, Math.round(b * (1.15 + k)))})`;
+    g.fillStyle = cast(200, 200, 200); g.fillRect(0, 0, w, h);
+    g.fillStyle = cast(120, 120, 120); g.fillRect(0, 0, w * 0.4, h);
+    g.fillStyle = cast(180, 70, 55); g.fillRect(w * 0.6, 0, w * 0.4, h / 2);
+    g.fillStyle = cast(60, 140, 75); g.fillRect(w * 0.6, h / 2, w * 0.4, h / 2);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    return new File([blob], name, { type: 'image/png' });
+  }
+
+  describe('PhotoSlop retouch in Slop Workflows', () => {
+    it('the two operations are under PhotoSlop in + Add step', async () => {
+      await WFT.boot('', { fresh: true });
+      const g = A().R.apps().find((x) => x.label === 'PhotoSlop');
+      expect(!!g).toBe(true);
+      const ids = g.ops.map((o) => o.id);
+      expect(ids).toContain('photoslop.auto-enhance');
+      expect(ids).toContain('photoslop.portrait');
+      expect(A().R.byId('photoslop.auto-enhance').label).toBe('Auto enhance photos');
+    }, { timeout: 40000 });
+
+    it('Auto enhance photos runs on three pictures in a hidden PhotoSlop: each grey block comes out grey', async () => {
+      A().addStep('photoslop.auto-enhance', { sharpen: 0, format: 'png' });
+      await A().addFiles([await castPicture('a.png', 240, 160, 0), await castPicture('b.png', 200, 200, 0.05), await castPicture('c.png', 320, 180, 0.08)]);
+      const r = await A().run();
+      expect(r.ok).toBe(true);
+      const outs = A().S.run.result.outputs;
+      expect(outs.length).toBe(3);
+      for (const o of outs) {
+        const p = await WFT.pixels(o.blob), [R, G, B] = p.at(Math.round(p.w * 0.2), Math.round(p.h / 2));
+        expect(Math.abs(R - G)).toBeLessThan(8);
+        expect(Math.abs(B - G)).toBeLessThan(8);
+      }
+      expect(outs.map((o) => o.name).sort()).toEqual(['a.png', 'b.png', 'c.png']);
+      expect(!!WFT.D.querySelector('iframe[data-macro-host="photoslop"]')).toBe(true);
+    }, { timeout: 180000 });
+
+    it('Portrait retouch runs as a step too and keeps the picture size', async () => {
+      await WFT.boot('', { fresh: true });
+      A().addStep('photoslop.portrait', { smoothing: 50, format: 'png' });
+      await A().addFiles([await WFT.picture('face.png', 220, 180, '#e0aa8c')]);
+      const r = await A().run();
+      expect(r.ok).toBe(true);
+      const p = await WFT.pixels(A().S.run.result.outputs[0].blob);
+      expect([p.w, p.h]).toEqual([220, 180]);
+    }, { timeout: 120000 });
+  });
+  run({ name: 'PhotoSlop retouch in Slop Workflows' });
+  </script>
+</body>
+</html>

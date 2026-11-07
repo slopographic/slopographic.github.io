@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shell · the header buttons survive the app's menu bar, whichever mounts first</title></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shell/header.js, shared/menubar/menubar.js
+  // Ledger lost its whole shell header about one load in six (more often with the shell's scripts cached): the shell's
+  // scripts load side by side with the page's, so SlopHeader.mount() could run before the page's inline
+  // SlopMenuBar.mount({ host: '#menubar' }), whose replaceChildren() then wiped the buttons. Both orders are forced here,
+  // never left to timing.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const MENUS = JSON.stringify({ File: [{ label: 'New', act: () => {} }] });
+  /** A bare page with both modules; `order` runs them: 'shell' first, or 'menubar' first. `host` false: no host, the bar
+   *  is added at the top of the page (as in most apps). */
+  async function page(order, host) {
+    const f = document.createElement('iframe');
+    const stub = 'window.SlopNotify = { mountBell(box) { const b = document.createElement("button"); b.className = "bell"; box.append(b); } };';
+    const mb = `SlopMenuBar.mount({ app: 'Ledger', menus: ${MENUS}${host ? ", host: '#menubar'" : ''} })`;
+    const steps = order === 'shell' ? ['SlopHeader.mount()', mb] : [mb, 'SlopHeader.mount()'];
+    f.srcdoc = `<!doctype html><body>${host ? '<header id="menubar"><span class="old">old</span></header>' : '<main>app</main>'}
+      <script>${stub}<\/script><script src="../../shell/header.js"><\/script><script src="../../shared/menubar/menubar.js"><\/script>
+      <script>${steps.join(';')}; window.done = true;<\/script></body>`;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.done);
+    return f;
+  }
+  describe('SlopHeader and SlopMenuBar, both orders', () => {
+    for (const host of [true, false]) {
+      for (const order of ['shell', 'menubar']) {
+        it(`${host ? 'host #menubar' : 'bar added at the top'}, ${order} first: one set of shell buttons, at the end of the bar`, async () => {
+          const f = await page(order, host), D = f.contentDocument;
+          const bar = D.querySelector('.smb-bar');
+          expect(!!bar).toBe(true);
+          expect(D.querySelectorAll('.sh-hdr').length).toBe(1);
+          const box = D.querySelector('.sh-hdr');
+          expect(box.parentNode).toBe(bar);
+          expect(bar.lastElementChild).toBe(box);
+          expect(box.classList.contains('sh-fab')).toBe(false);   // not left floating over the page
+          expect(!!box.querySelector('.sh-switch') && !!box.querySelector('.bell')).toBe(true);
+          expect(!!bar.querySelector('.smb-menus .smb-menu-b')).toBe(true);
+          f.remove();
+        });
+      }
+    }
+  });
+  describe('Ledger', () => {
+    it('the shell header stays in #menubar, also when the menu bar mounts after it (the order that wiped it)', async () => {
+      const f = document.createElement('iframe');
+      f.style.width = '1366px'; f.style.height = '800px';
+      f.src = '../../ledger/index.html';
+      document.body.append(f);
+      const D = () => f.contentDocument;
+      await waitFor(() => D() && D().querySelector('#menubar .sh-switch') && D().querySelector('#menubar .smb-menus'), { timeout: 30000 });
+      // Replay the losing order on the real page: the shell's buttons are in, then the menu bar fills its host again.
+      const W = f.contentWindow, bar = D().getElementById('menubar');
+      bar.classList.remove('smb-bar');
+      W.SlopMenuBar.mount({ app: 'Ledger', tools: ['#baseLabel'], menus: { Help: ['cmd:cmd.palette'] }, host: '#menubar' });
+      expect(D().querySelectorAll('.sh-hdr').length).toBe(1);
+      expect(!!D().querySelector('#menubar .sh-hdr .sh-switch')).toBe(true);
+      expect(!!D().querySelector('#menubar .smb-tools #baseLabel')).toBe(true);
+      f.remove();
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shell header order' });
+</script>
+</body>
+</html>

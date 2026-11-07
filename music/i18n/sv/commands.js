@@ -1,0 +1,28 @@
+/* Slop Music, Swedish, same keys as music/i18n/en/commands.js: the titles and groups of the commands in the Ctrl+K palette (js/app/ai-commands.js). Their
+ * descriptions and arguments are for the assistant and stay English. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'music.cmd.play': 'Spela',
+  'music.cmd.pause': 'Pausa',
+  'music.cmd.play_pause': 'Spela eller pausa',
+  'music.cmd.play_track': 'Spela ett spår…',
+  'music.cmd.play_playlist': 'Spela en spellista…',
+  'music.cmd.next': 'Nästa spår',
+  'music.cmd.previous': 'Föregående spår',
+  'music.cmd.seek': 'Spola',
+  'music.cmd.volume': 'Ställ in volymen',
+  'music.cmd.speed': 'Ställ in hastigheten',
+  'music.cmd.shuffle': 'Blanda',
+  'music.cmd.repeat': 'Upprepa',
+  'music.cmd.queue_track': 'Lägg till ett spår i kön…',
+  'music.cmd.find_tracks': 'Sök spår…',
+  'music.cmd.tag_track': 'Tagga ett spår…',
+  'music.cmd.create_playlist': 'Ny spellista…',
+  'music.cmd.rename_playlist': 'Byt namn på spellista…',
+  'music.cmd.add_to_playlist': 'Lägg till ett spår i en spellista…',
+  'music.cmd.remove_from_playlist': 'Ta bort ett spår från en spellista…',
+  'music.cmd.delete_playlist': 'Ta bort spellista…',
+  'music.cmd.export_playlist': 'Exportera en spellista…',
+  'music.cmd.group_player': 'Spelare',
+  'music.cmd.group_library': 'Bibliotek',
+  'music.cmd.group_playlists': 'Spellistor',
+});

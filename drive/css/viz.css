@@ -1,0 +1,38 @@
+/* Slop Drive — the Nodes graph and the Disk usage map (treemap and sunburst). */
+.nodes, .usage { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.nodes-svg { flex: 1; width: 100%; height: 100%; touch-action: none; cursor: grab; background: radial-gradient(circle, var(--line) 1px, transparent 1.5px) 0 0 / 22px 22px; }
+.nodes-svg:active { cursor: grabbing; }
+.nodes-svg .edges path { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+.nd rect:first-of-type { fill: var(--panel); stroke: var(--line-2); }
+.nd.fold rect:first-of-type { fill: var(--panel-2); }
+.nd:hover rect:first-of-type { stroke: var(--dim); }
+.nd.sel rect:first-of-type { stroke: var(--sel-line); stroke-width: 2; fill: var(--sel-bg); }
+.nd.drop rect:first-of-type { stroke: var(--accent-line); stroke-width: 3; }
+.nd.focus rect:first-of-type { stroke-dasharray: 4 3; }
+.nd text { fill: var(--fg); font: 12px var(--font-ui); pointer-events: none; }
+.nd .knob circle { fill: var(--panel); stroke: var(--line-2); cursor: pointer; }
+.nd .knob:hover circle { stroke: var(--accent-line); }
+.nd .knob text { font-weight: 700; font-size: 12px; fill: var(--dim); }
+.nodes-svg .more { fill: var(--faint); font: italic 11px var(--font-ui); }
+.viz-tools { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 4px; align-items: center; padding: 4px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); }
+.viz-tools .tb { width: auto; min-width: 30px; height: 28px; padding: 0 8px; }
+.viz-tools .muted { padding: 0 8px; }
+.viz-tools.top { position: static; flex-wrap: wrap; gap: 10px; margin: 10px 12px 0; box-shadow: none; padding: 6px 8px; }
+.usage .stage { flex: 1; margin: 10px 12px 12px; min-height: 0; position: relative; }
+.usage .viz { display: block; }
+.tm rect { stroke: var(--surface); stroke-width: 1; }
+.tm.fold > rect { stroke: var(--line-2); }
+.tm:hover > rect { filter: brightness(1.15); }
+.tm.sel > rect, .sb.sel { stroke: var(--fg); stroke-width: 2.5; }
+.tm.drop > rect { stroke: var(--accent-line); stroke-width: 3; }
+.tm .tl { font: 600 11px var(--font-ui); fill: var(--fg); pointer-events: none; }
+.tm .tl.ink { fill: #0a0a0a; }
+.sb { stroke: var(--surface); stroke-width: 1; cursor: pointer; }
+.sb:hover { filter: brightness(1.2); }
+.sb-c { cursor: pointer; }
+.sb-c circle { fill: var(--panel); stroke: var(--line-2); }
+.sb-c .c1 { font: 700 13px var(--font-ui); fill: var(--fg); }
+.sb-c .c2 { font: 11px var(--mono); fill: var(--faint); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--dim); margin-left: auto; }
+.legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; background: var(--k); vertical-align: -1px; }
+.viz-tip { position: absolute; z-index: 10; pointer-events: none; white-space: pre; padding: 6px 9px; border-radius: 6px; background: #0a0a0a; color: #f1ede4; font-size: 11.5px; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); max-width: 260px; overflow: hidden; text-overflow: ellipsis; }

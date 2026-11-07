@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop HTML to PDF: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: html2pdf/js/app.js
+  // HTML to PDF on the one intake: Open HTML…, a drop on the page, a paste and ?drive=<id> (launch, new) reach the same
+  // reader with the same events; Attach local images… is a part of its own.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const html = (name) => new W.File(['<h1>' + name + '</h1>'], name, { type: 'text/html' });
+  async function through(source, start, app = 'html2pdf') {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'html2pdf') expect(seen).toEqual([source]);
+    expect(events.map((e) => e[0])).toEqual(['before', 'file', 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+  describe('HTML to PDF: one way in', () => {
+    it('Open HTML…', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../html2pdf/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopIntake.spec('html2pdf') && fr.contentWindow.SlopUI; } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('html2pdf'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      W.SlopUI.pickFiles = async () => [html('a.html')];
+      await through('picker', () => D.getElementById('h2p-open').click());
+    }, { timeout: 40000 });
+    it('a drop on the page', async () => {
+      await through('drop', () => D.body.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([html('b.html')]) })));
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([html('c.html')]) })));
+    });
+    it('?drive=<id> (launch)', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'd.html', type: 'text/html', blob: html('d.html') });
+      await through('launch', () => W.SlopIntake.launch({ to: 'html2pdf' }));
+    });
+    it('Attach local images… is a part of its own', async () => {
+      const c = D.createElement('canvas'); c.width = c.height = 4;
+      W.SlopUI.pickFiles = async () => [new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'pic.png', { type: 'image/png' })];
+      seen = [];
+      await through('picker', () => D.getElementById('h2p-images').click(), 'html2pdf.images');
+      expect(seen).toEqual([]);
+      expect(D.getElementById('h2p-image-list').textContent).toContain('pic.png');
+    });
+  });
+  run({ name: 'Shared intake: HTML to PDF' });
+</script>
+</body>
+</html>

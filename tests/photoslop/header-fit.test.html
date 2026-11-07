@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop: the top bar fits beside the Slop AI panel (1440 and 1280), Export at the foot of the right panels</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1440px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  // Covers: shared/tour/tours/photoslop.js, photoslop/js/app/topbar-fit.js, photoslop/js/app/main.js, photoslop/js/app/layout.js, photoslop/js/ui/menus.js, shared/layouts/core.js, shared/ui/resize-panel.js, photoslop/css/layout.css, photoslop/index.html, shared/frame/panel.js, shared/frame/frame.css
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const vis = (n) => n.getBoundingClientRect().width > 0 && n.getBoundingClientRect().height > 0;
+
+  async function withAI(width) {
+    const app = await freshApp(), win = app.win, D = win.document;
+    app.frame.style.width = width + 'px';
+    await waitFor(() => win.innerWidth === width);
+    const btn = await waitFor(() => D.querySelector('.sh-ai'));
+    btn.click();
+    await waitFor(() => D.documentElement.classList.contains('sap-beside'), { timeout: 15000 });
+    await sleep(400);
+    return { app, win, D };
+  }
+
+  describe('PhotoSlop with the Slop AI panel open', () => {
+    for (const width of [1440, 1280]) {
+      it(`at ${width}px the top bar fits the app: no clipped menu, nothing under the panel, no sideways scroll`, async () => {
+        const { win, D } = await withAI(width);
+        const bar = D.querySelector('.topbar'), app = D.getElementById('app').getBoundingClientRect(), sap = D.querySelector('.sap').getBoundingClientRect();
+        expect(app.right).toBeLessThanOrEqual(sap.left + 1);
+        await waitFor(() => bar.scrollWidth <= bar.clientWidth + 1, { timeout: 5000 }).catch(() => {});   // the fit settles on the next frame
+        expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth + 1);
+        const right = bar.getBoundingClientRect().right;
+        for (const n of [...bar.querySelectorAll('button, a')].filter(vis)) expect(Math.round(n.getBoundingClientRect().right)).toBeLessThanOrEqual(Math.round(right));
+        const menus = [...D.querySelectorAll('#menubar .mb-item')];
+        expect(menus.length).toBeGreaterThan(8);
+        const mb = D.getElementById('menubar');
+        expect(mb.scrollWidth).toBeLessThanOrEqual(mb.clientWidth + 1);   // every menu shows whole
+        for (const m of menus) expect(vis(m)).toBe(true);
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+        // what did not fit is in More ▾, and its items click the same buttons
+        const more = D.getElementById('topMore');
+        if (!more.hidden) {
+          more.click();
+          const rows = await waitFor(() => [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')].map((r) => r.textContent.trim()).filter(Boolean));
+          expect(rows.length).toBeGreaterThan(0);
+          D.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        }
+      }, { timeout: 60000 });
+    }
+
+    it('without the panel at 1440px every button shows and More ▾ is not needed', async () => {
+      const app = await freshApp(), D = app.win.document;
+      await sleep(300);
+      expect(D.getElementById('topMore').hidden).toBe(true);
+      expect(vis(D.getElementById('newBtn'))).toBe(true);
+    }, { timeout: 60000 });
+  });
+
+  describe('the tour and a folded top bar', () => {
+    it('when New is folded into More ▾, the tour\'s first step points at More ▾ (at full width, at New)', async () => {
+      const app = await freshApp({ query: '?tour=1' }), win = app.win, D = win.document;
+      const T = await waitFor(() => win.SlopTour && win.SlopTour.spot && win.SlopTour.spot.target && win.SlopTour);
+      expect(T.spot.target.id).toBe('newBtn');
+      app.frame.style.width = '820px';   // narrow enough for New to fold once the shell's buttons gave way (shared/ui/hbtn.js)
+      await waitFor(() => D.getElementById('newBtn').classList.contains('ps-fold') && !D.getElementById('topMore').hidden, { timeout: 5000 });
+      await T.start('photoslop', { restart: true });
+      await waitFor(() => T.spot.target);
+      expect(T.spot.target.id).toBe('topMore');
+      expect(vis(T.spot.target)).toBe(true);
+      T.close && T.close();
+    }, { timeout: 60000 });
+  });
+
+  // Regression: the shell's buttons (shared/ui/hbtn.js) and PhotoSlop's own (topbar-fit.js) both fit the same bar. When the
+  // shell measured first after a resize, it hid AI, Convert… and Language, and New then had room: the bar's look (and the
+  // tour's first step) hung on which ran first. Now topbar-fit.js sets the order: the shell's buttons give way first, then the app's fold.
+  describe('the shell\'s buttons and PhotoSlop\'s own fit the same bar', () => {
+    it('at 820px the result is the same whichever measures first: the shell\'s buttons give way, then New folds into More ▾', async () => {
+      const app = await freshApp(), win = app.win, D = win.document;
+      await waitFor(() => win.SlopHbtn && D.querySelector('.topbar [data-hbtn-yield]') && win.PSTopbarFit);
+      app.frame.style.width = '820px';
+      await waitFor(() => win.innerWidth === 820);
+      const bar = D.querySelector('.topbar');
+      const state = () => [...bar.querySelectorAll('.ps-fold, [data-hbtn-yield][hidden]')].map((n) => n.id || n.className).join(' | ');
+      // the app first, the shell's buttons still as at full width (all shown, with their labels)
+      for (const b of bar.querySelectorAll('[data-hbtn-yield]')) { b.hidden = false; b.classList.remove('sh-icon-only'); }
+      bar.classList.remove('slop-htight');
+      win.PSTopbarFit.fit(); win.SlopHbtn.check(bar);
+      const appFirst = state();
+      // the shell first, the app's buttons still as at full width (none folded)
+      for (const n of bar.querySelectorAll('.ps-fold')) n.classList.remove('ps-fold');
+      win.SlopHbtn.check(bar); win.PSTopbarFit.fit();
+      expect(state()).toBe(appFirst);
+      expect(D.getElementById('newBtn').classList.contains('ps-fold')).toBe(true);
+      expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth + 1);
+    }, { timeout: 60000 });
+  });
+
+  describe('Export, the main button, at the foot of the right panels', () => {
+    it('is not in the top bar; it sits at the bottom of the panels and opens Export As', async () => {
+      const app = await freshApp(), D = app.win.document;
+      const exp = D.getElementById('exportBtn'), panels = D.getElementById('panels');
+      expect(D.querySelector('.topbar').contains(exp)).toBe(false);
+      expect(exp.closest('.sf-p-foot').parentNode).toBe(panels);
+      expect(Math.round(exp.getBoundingClientRect().bottom)).toBeLessThanOrEqual(Math.round(panels.getBoundingClientRect().bottom));
+      expect(exp.getBoundingClientRect().left).toBeGreaterThan(D.getElementById('viewport').getBoundingClientRect().right - 1);
+      exp.click();
+      await waitFor(() => D.querySelector('.sui-back, dialog[open], [role="dialog"]'), { timeout: 5000 });
+    }, { timeout: 60000 });
+  });
+  describe('the right panels resize (shared/ui/resize-panel.js) and keep their width', () => {
+    it('a handle on the panels\' edge; the width comes back after a reload; Reset panel sizes puts it back', async () => {
+      let app = await freshApp(), D = app.win.document;
+      const r = app.win.SlopResizePanel.panels().find((p) => p.id === 'panels');
+      expect(r.handle.getAttribute('role')).toBe('separator');
+      r.setWidth(400);
+      await sleep(50);
+      expect(Math.round(D.getElementById('panels').getBoundingClientRect().width)).toBe(400);
+      app = await freshApp({ keep: true }); D = app.win.document;
+      await sleep(50);
+      expect(Math.round(D.getElementById('panels').getBoundingClientRect().width)).toBe(400);
+      app.win.SlopResizePanel.resetAll();
+      await sleep(50);
+      expect(Math.round(D.getElementById('panels').getBoundingClientRect().width)).toBe(280);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'PhotoSlop: top bar fit and Export' });
+  </script>
+</body>
+</html>

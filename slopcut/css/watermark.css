@@ -1,0 +1,3 @@
+/* SlopCut: the Watermark tab (js/watermark/panel.js). The panel itself is the site's one (shared/watermark/panel.css). */
+.wm-panel { display: flex; flex-direction: column; gap: 8px; padding: 6px 8px 12px; }
+.wm-panel .ins-title { margin-bottom: 2px; }

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ledger · the assistant's commands: post entries, add accounts, export the trial balance and statements</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1100px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: ledger/js/ui/commands.js, shared/data/ai-records-apps.js, shared/data/ai-records.js, shared/biz/biz.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  let W, C;
+  const S = () => W.SlopData;
+  const run = async (id, args) => { const r = await C.exec('ledger.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const driveText = async (r) => (await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).blob.text();
+
+  describe('Slop Ledger: assistant commands', () => {
+    it('prepare() loads the ledger commands with the record commands', async () => {
+      frame.src = '../../ledger/index.html';
+      await waitFor(() => frame.contentWindow && frame.contentWindow.SlopLedger && frame.contentDocument.getElementById('boot') && frame.contentDocument.getElementById('boot').hidden, { timeout: 20000 });
+      W = frame.contentWindow; C = W.SlopCmd;
+      await S().store.erase(); await S().store.ready();
+      await C.prepare();
+      for (const t of ['create-journal-entry', 'add-account', 'export-trial-balance', 'export-statement', 'create-record', 'list-records', 'export-records']) expect(!!C.get('ledger.ai.' + t)).toBe(true);
+      expect(SlopCmdArgs.jsonSchema(C.get('ledger.ai.create-journal-entry').args).properties.lines.type).toBe('array');
+    }, { timeout: 30000 });
+
+    it('create_journal_entry posts a balanced entry in minor units; an unbalanced one is refused', async () => {
+      const r = await run('create-journal-entry', { date: '2026-10-20', memo: 'Printer paper', lines: [{ account: '5000', debit: '100.00' }, { account: '1010', credit: '100' }] });
+      expect(r.value.done).toMatch(/2 lines/);
+      const e = (await S().store.get('journal', r.value.id)).value;
+      expect(e.lines.map((l) => [l.account, l.debit, l.credit])).toEqual([['5000', 10000, 0], ['1010', 0, 10000]]);
+      expect(e.source.startsWith('manual:')).toBe(true);
+      const bad = await C.exec('ledger.ai.create-journal-entry', { lines: [{ account: '5000', debit: '10' }, { account: '1010', credit: '9' }] });
+      expect(bad.ok).toBe(false);
+      expect((await S().store.list('journal')).value.length).toBe(1);
+    });
+
+    it('add_account, then the trial balance and the profit and loss as CSV in Slop Drive', async () => {
+      await run('add-account', { code: '6100', name: 'Travel', type: 'expense' });
+      expect((await S().store.get('accounts', '6100')).value.name).toBe('Travel');
+      await run('create-journal-entry', { date: '2026-10-21', memo: 'Train', lines: [{ account: '6100', debit: '25.50' }, { account: '1000', credit: '25.50' }] });
+      const tb = await driveText(await run('export-trial-balance', {}));
+      expect(tb).toContain('5000');
+      expect(tb).toContain('100.00');
+      expect(tb).toContain('Travel');
+      W.SlopLedger.util.today = () => '2026-10-24';
+      const pl = await driveText(await run('export-statement', { statement: 'profit_and_loss', period: 'year' }));
+      expect(pl).toContain('Expenses,6100,Travel,25.50');
+      expect(pl).toContain('Result');
+      const bs = await driveText(await run('export-statement', { statement: 'balance_sheet', period: 'year' }));
+      expect(bs).toContain('Assets');
+      const list = (await run('list-records', { collection: 'accounts', search: 'travel' })).value;
+      expect(list[0].code).toBe('6100');
+    }, { timeout: 20000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

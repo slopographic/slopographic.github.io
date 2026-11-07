@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI Tools in Swedish</title>
+  <!-- Covers: aitools/i18n/index.js, aitools/ocr/ocr.js, aitools/denoise/denoise.js, aitools/portrait/portrait.js, aitools/tags/tags.js, aitools/speech/speech.js, aitools/hub.js, aitools/common.js, aitools/get-more.js, aitools/frame.js, aitools/intake.js, aitools/support.js, aitools/models.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop AI Tools', path: '../../aitools/index.html', ns: 'aitools',
+    ready: (doc) => doc.querySelector('#toolList .ai-card h3'),
+    checks: [
+      ['main h2', 'Verktyg', 'Tools'],
+      ['.ai-intro', 'Fem verktyg som körs', 'Five tools that run'],
+      ['#toolList .ai-card:nth-child(2) h3', 'Tal till text', 'Speech to text'],
+      ['#toolList .ai-card:nth-child(3) .ai-pill', 'Klar', 'Ready'],
+      ['.ai-top .brand', 'Slopographic start', 'Slopographic home', 'aria-label'],
+    ],
+  });
+  // the tool pages: the OCR page (its gate asks for the model), Denoise (no model) and the others' controls
+  AppSv.spec({
+    name: 'AI Tools OCR page', path: '../../aitools/ocr/index.html', ns: 'aitools',
+    ready: (doc) => doc.querySelector('#gate .ai-panel, #ui:not([hidden])') && doc.querySelector('#aiSide .sf-h'),
+    checks: [
+      ['.ai-crumb', 'AI-verktyg', 'AI Tools'],
+      ['#run', 'Läs text', 'Read text'],
+      ['#out', 'Texten visas här', 'The text appears here', 'placeholder'],
+      ['#gate h2', 'behöver en modell', 'needs a model'],
+      ['#aiSide .sf-h', 'Inställningar', 'Settings'],
+    ],
+  });
+  AppSv.spec({
+    name: 'AI Tools Denoise page', path: '../../aitools/denoise/index.html', ns: 'aitools',
+    ready: (doc) => doc.querySelector('#aiSide .sf-h'),
+    checks: [
+      ['h1', 'Brusreducering', 'Denoise'],
+      ['#mode option[value="median"]', 'Median (prickar och damm)', 'Median (speckle and dust)'],
+      ['#run', 'Tillämpa', 'Apply'],
+      ['#dl', 'Ladda ned PNG', 'Download PNG'],
+    ],
+  });
+  for (const [page, sel, sv, en] of [['speech', '#run', 'Transkribera', 'Transcribe'], ['tags', '#run', 'Föreslå taggar', 'Suggest tags'], ['portrait', '#dl', 'Ladda ned PNG', 'Download PNG']]) {
+    AppSv.spec({ name: 'AI Tools ' + page + ' page', path: '../../aitools/' + page + '/index.html', ns: 'aitools', ready: (doc) => doc.querySelector('#aiSide .sf-h'),
+      checks: [[sel, sv, en], ['.ai-crumb', 'AI-verktyg', 'AI Tools']] });
+  }
+  SlopTest.run({ name: 'Slop AI Tools in Swedish' });
+  </script>
+</body>
+</html>

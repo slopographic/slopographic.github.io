@@ -1,0 +1,52 @@
+{
+  "note": "Models for Slop Upscale (upscale/). Converted to ONNX by vendor/models/tools/upscale-fsrcnn.py and upscale-realesrgan.py from the official weights listed here; each conversion is checked against the source framework before it is written. bundled: true ships with the site; bundled: false is an opt-in download through Get more (shared/library). Files are checked against sha256 on every load. Licence texts sit next to each model.",
+  "models": [
+    {
+      "id": "fsrcnn-x2",
+      "name": "FSRCNN x2 (Fast)",
+      "arch": "FSRCNN (Dong et al., ECCV 2016), 56-12-4 network",
+      "scale": 2,
+      "bundled": true,
+      "file": "fsrcnn/fsrcnn-x2.onnx",
+      "bytes": 35823,
+      "sha256": "c2b6925f67fca0125e413739a9090682345353ac220136af5ec397991a4e9928",
+      "channels": "Y (luma); colour from Lanczos",
+      "licence": "Apache-2.0",
+      "licenceFile": "fsrcnn/LICENSE",
+      "source": "https://github.com/Saafke/FSRCNN_Tensorflow (models/FSRCNN_x2.pb, sha256 366b33f0084c7b3f2bf6724f0a2c77bca94fcec9d7b6d72389d330073b380d5c)",
+      "trained": "T91 and General100 (per the source README)"
+    },
+    {
+      "id": "fsrcnn-x4",
+      "name": "FSRCNN x4 (Fast)",
+      "arch": "FSRCNN (Dong et al., ECCV 2016), 56-12-4 network",
+      "scale": 4,
+      "bundled": true,
+      "file": "fsrcnn/fsrcnn-x4.onnx",
+      "bytes": 38559,
+      "sha256": "08cfb34887ceeb2c96bd7e9db817dd9e50207f3ff6a29015a710494a13eaa94c",
+      "channels": "Y (luma); colour from Lanczos",
+      "licence": "Apache-2.0",
+      "licenceFile": "fsrcnn/LICENSE",
+      "source": "https://github.com/Saafke/FSRCNN_Tensorflow (models/FSRCNN_x4.pb, sha256 5c68d18db561aed8ead4ffedf1b897ea615baaf60ebf6c35f8e641f8fa4a21bf)",
+      "trained": "T91 and General100 (per the source README)"
+    },
+    {
+      "id": "realesrgan-x4plus",
+      "name": "Real-ESRGAN x4plus (Quality)",
+      "arch": "Real-ESRGAN, RRDBNet (23 blocks, 64 features), x4",
+      "scale": 4,
+      "bundled": false,
+      "file": "realesrgan-x4plus/model.onnx",
+      "bytes": 67051618,
+      "sha256": "8213c3a2f08808d375d2b1aeeb52847fb53a38aea9df15835eabb203dbcbc52c",
+      "channels": "RGB",
+      "licence": "BSD-3-Clause",
+      "licenceFile": "realesrgan-x4plus/LICENSE",
+      "licenceNote": "The code (xinntao/Real-ESRGAN) is BSD-3-Clause. The weights are published in the same repository (release v0.1.0) under that licence; no separate weights licence is given. Trained on DF2K and OST data, which is not redistributed here.",
+      "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth (sha256 4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1, params_ema)",
+      "convertedWith": "vendor/models/tools/upscale-realesrgan.py (PyTorch 2.14, ONNX opset 17, checked against PyTorch: max error 1e-6)"
+    }
+  ],
+  "notUsed": "FSRCNN weights from yjn870/FSRCNN-pytorch were not used: that repository has no licence file, and its weights are hosted on a file host this build cannot reach."
+}

@@ -1,0 +1,28 @@
+/* Slop Music, English (the source of truth for these keys): the titles and groups of the commands in the Ctrl+K palette (js/app/ai-commands.js). Their
+ * descriptions and arguments are for the assistant and stay English. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'music.cmd.play': 'Play',
+  'music.cmd.pause': 'Pause',
+  'music.cmd.play_pause': 'Play or pause',
+  'music.cmd.play_track': 'Play a track…',
+  'music.cmd.play_playlist': 'Play a playlist…',
+  'music.cmd.next': 'Next track',
+  'music.cmd.previous': 'Previous track',
+  'music.cmd.seek': 'Seek',
+  'music.cmd.volume': 'Set the volume',
+  'music.cmd.speed': 'Set the speed',
+  'music.cmd.shuffle': 'Shuffle',
+  'music.cmd.repeat': 'Repeat',
+  'music.cmd.queue_track': 'Add a track to the queue…',
+  'music.cmd.find_tracks': 'Find tracks…',
+  'music.cmd.tag_track': 'Tag a track…',
+  'music.cmd.create_playlist': 'New playlist…',
+  'music.cmd.rename_playlist': 'Rename playlist…',
+  'music.cmd.add_to_playlist': 'Add a track to a playlist…',
+  'music.cmd.remove_from_playlist': 'Remove a track from a playlist…',
+  'music.cmd.delete_playlist': 'Delete playlist…',
+  'music.cmd.export_playlist': 'Export a playlist…',
+  'music.cmd.group_player': 'Player',
+  'music.cmd.group_library': 'Library',
+  'music.cmd.group_playlists': 'Playlists',
+});

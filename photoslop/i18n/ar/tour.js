@@ -1,0 +1,20 @@
+/* PhotoSlop, Arabic (ar): the guided tour. Same keys as photoslop/i18n/en/tour.js. Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-ar.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'photoslop.tour.title': "جولة PhotoSlop",
+  'photoslop.tour.new_title': "ابدأ ملفًا",
+  'photoslop.tour.new_text': "«جديد» يضبط حجم المستند وإعداده المسبق وخلفيته (في «المزيد ▾» على النافذة الضيقة)؛ «فتح» يحمّل ملف PSD أو ORA أو صورة. يحصل كل ملف على علامة تبويب.",
+  'photoslop.tour.menus_title': "شريط القوائم",
+  'photoslop.tour.menus_text': "ملف وتحرير وصورة وطبقة وتحديد ومرشح موجودة هنا. كل قائمة تسرد أوامرها.",
+  'photoslop.tour.tools_title': "الأدوات",
+  'photoslop.tour.tools_text': "الفرش والتحديد والنص والقص في صندوق الأدوات. اختر واحدة، ثم اضبطها في شريط الخيارات.",
+  'photoslop.tour.options_title': "خيارات الأداة",
+  'photoslop.tour.options_text': "يتغير شريط الخيارات مع الأداة النشطة: الحجم والعتامة ووضع المزج وغيرها.",
+  'photoslop.tour.canvas_title': "اللوحة",
+  'photoslop.tour.canvas_text': "ارسم وحدّد وحوّل على اللوحة. يعرض شريط الحالة التكبير والحجم.",
+  'photoslop.tour.panels_title': "الطبقات واللوحات",
+  'photoslop.tour.panels_text': "الطبقات والسجل والخصائص في هذا العمود. على الهاتف يُظهرها زر الطبقات.",
+  'photoslop.tour.export_title': "تصدير",
+  'photoslop.tour.export_text': "صدّر PNG أو JPEG أو WebP أو PSD. يُصنع الملف على جهازك؛ ولا يُرفع شيء.",
+  'photoslop.tour.theme_title': "السمة",
+  'photoslop.tour.theme_text': "بدّل بين احترافي وفاتح وPaint ’98.",
+});

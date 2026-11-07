@@ -1,0 +1,80 @@
+/* Slop 3D: layout and theme tokens. Pro (dark) is the default; data-theme="light" gives the light palette. */
+:root {
+  --bg: #0e0e10; --panel: #17181c; --panel-2: #1f2025; --line: #2c2e35; --ink: #f1ede4; --muted: #9a9ca6;
+  --accent: #d4ff3a; --accent-ink: #0e0e10; --danger: #ff4f6e; --view: #1d1e22;
+  --radius: 8px;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #f4f2ec; --panel: #ffffff; --panel-2: #f0eee7; --line: #d8d5cb; --ink: #1a1a1c; --muted: #6b6d75;
+  --accent: #5b7a00; --accent-ink: #ffffff; --view: #e6e4dc;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+button, select, input { font: inherit; color: inherit; }
+.app { display: grid; grid-template-rows: auto 1fr; height: 100vh; height: 100dvh; }
+.topbar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; flex-wrap: wrap; }
+/* The shared header buttons (Drive, Tour, Theme, Apps: shared/ui/hbtn.css) wear the look of .tb-btn. */
+.topbar { --slop-hbtn-h: 30px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: transparent; --slop-hbtn-line: transparent; --slop-hbtn-hover: var(--panel-2); --slop-hbtn-fs: 13px; }
+/* Under 1260 px the actions take a row of their own under the name and the shared buttons. */
+@media (max-width: 1259px) { .appname { margin-right: auto; } .actions { order: 1; flex-basis: 100%; margin-left: 0; } }
+/* From 1260 to 1536 px everything shares one row: the logo is the home link (the word goes) and the buttons sit closer,
+ * so the shared buttons (icons only there, shared/ui/hbtn.js) do not wrap onto a second row at 1280. */
+@media (min-width: 1260px) and (max-width: 1536px) {
+  .topbar { gap: 8px; }
+  .appname .home-link { display: none; }
+  .actions { gap: 2px; }
+  .actions .tb-btn { padding-inline: 6px; }
+}
+.brand { display: inline-flex; width: 26px; height: 26px; color: var(--accent); }
+.brand-mark { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; }
+.brand-mark path:first-child { fill: currentColor; fill-opacity: .15; }
+.appname { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.appname b { font-size: 14px; }
+.home-link { color: var(--muted); font-size: 12px; text-decoration: none; }
+.docname { color: var(--muted); font-size: 12px; }
+.docname::before { content: "— "; }
+.docname:empty::before { content: ""; }
+.actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.tb-btn, .btn, .vp-btn { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px 9px; cursor: pointer; color: var(--ink); }
+a.tb-btn { text-decoration: none; display: inline-block; }
+.actions .tb-btn, .actions .btn { display: inline-flex; align-items: center; height: 30px; padding-block: 0; }   /* one height with --slop-hbtn-h */
+.actions [hidden] { display: none; }   /* the display above must not show a hidden button (Mesh outside edit mode) */
+.tb-btn:hover, .vp-btn:hover { background: var(--panel-2); border-color: var(--line); }
+.tb-btn[aria-pressed="true"] { background: var(--panel-2); border-color: var(--accent); }
+.tb-btn:focus-visible, .btn:focus-visible, .vp-btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.tb-field { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; padding: 0 4px; }
+.tb-sel, .insp-in { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; min-width: 0; }
+.workspace { display: grid; grid-template-columns: 230px minmax(0, 1fr) 270px; min-height: 0; }
+.panel { background: var(--panel); min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.panel-left { border-right: 1px solid var(--line); }
+.panel-right { border-left: 1px solid var(--line); }
+.panel-h { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; padding: 10px 12px 6px; font-weight: 600; }
+.panel-body { overflow: auto; flex: 1; min-height: 0; padding: 0 0 12px; }
+.viewport { position: relative; min-width: 0; min-height: 0; background: var(--view); }
+#view { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+.vp-views { position: absolute; top: 8px; left: 8px; display: flex; gap: 4px; flex-wrap: wrap; max-width: calc(100% - 16px); }
+.vp-btn { background: rgba(20, 20, 24, .6); color: #f1ede4; font-size: 12px; padding: 4px 8px; }
+:root[data-theme="light"] .vp-btn { background: rgba(255, 255, 255, .7); color: #1a1a1c; }
+.vp-hint { position: absolute; left: 10px; bottom: 30px; margin: 0; font-size: 12px; color: var(--ink); pointer-events: none; background: color-mix(in srgb, var(--panel) 82%, transparent); padding: 2px 6px; border-radius: 4px; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status { position: absolute; left: 0; right: 0; bottom: 0; font-size: 12px; color: var(--muted); padding: 4px 10px; background: rgba(0, 0, 0, .3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-theme="light"] .status { background: rgba(255, 255, 255, .6); }
+.nogl { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--ink); background: var(--view); }
+.nogl[hidden] { display: none; }
+.vp-panels { display: none; }
+/* Phones: the viewport fills the screen; Scene and Properties are SlopSheets (js/app/layout.js, shared/ui/sheet.js gives
+   their place, motion and ×), opened by the buttons at the viewport's foot. */
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .panel-left, .panel-right { --ssh-z: 70; border: 0; }   /* over the spotlight dock (z 60) */
+  .panel-right { max-height: 60vh; }
+  .vp-panels { display: flex; gap: 4px; position: absolute; right: 8px; bottom: 30px; }
+  .vp-panels .vp-btn { min-height: 36px; }
+  .vp-panels .vp-btn[aria-expanded="true"] { border-color: var(--accent); }
+  .vp-hint { max-width: calc(100% - 200px); }
+  .actions { margin-left: 0; }
+}
+@media (max-width: 560px) { .appname .home-link { display: none; } }   /* the logo links home; the shared buttons keep one row */

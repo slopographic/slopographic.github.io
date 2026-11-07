@@ -1,0 +1,106 @@
+/* Settings page. Shares tokens and the header and footer with style/base.css and style/footer.css. */
+/* The header's section tabs and the shared header buttons (shell/header.js) sit together at the right, as on the home page. */
+.nav .tabs { margin-left: auto; }
+.settings-hero { padding: 36px 0 8px; }
+.settings-main { max-width: 760px; margin: 0 auto; padding: 0 24px 48px; }
+.page-title { font-family: var(--cond); font-stretch: 62%; font-weight: 900; font-size: clamp(44px, 9vw, 96px); line-height: 0.9; text-transform: uppercase; margin: 0 0 18px; }
+.page-title em { text-transform: none; color: var(--slop); font-size: 1.05em; letter-spacing: -0.02em; }
+.settings-main h2 { font-family: var(--cond); font-stretch: 62%; font-weight: 800; font-size: 26px; text-transform: uppercase; margin: 40px 0 12px; }
+.settings-main p { color: var(--bone-dim); margin: 0 0 14px; }
+.settings-main p strong { color: var(--bone); font-weight: 600; }
+.settings-main .privacy { color: var(--bone); font-size: 16px; border-left: 3px solid var(--slop); padding: 4px 0 4px 16px; }
+.set-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 16px 0; border-top: 1px solid var(--line); }
+.set-row:last-of-type { border-bottom: 1px solid var(--line); }
+.set-row h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; color: var(--bone); }
+.set-row p { margin: 0; font-size: 14px; }
+.set-switch { position: relative; flex: none; width: 56px; height: 32px; margin-top: 2px; }
+.set-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.set-switch .track { position: absolute; inset: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--ink-3); pointer-events: none; transition: background 0.15s; }
+.set-switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--bone-dim); transition: transform 0.15s, background 0.15s; }
+.set-switch input:checked + .track { background: var(--slop); border-color: var(--slop); }
+.set-switch input:checked + .track::after { transform: translateX(24px); background: var(--ink); }
+.set-switch input:focus-visible + .track { outline: 2px solid var(--slop); outline-offset: 2px; }
+.set-switch input:disabled { cursor: not-allowed; }
+.set-switch input:disabled + .track { opacity: 0.4; }
+.settings-note { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--bone-faint); min-height: 1.5em; }
+.settings-main .btn { margin-top: 4px; }
+[hidden] { display: none !important; }
+
+@media (max-width: 560px) {
+  .settings-main { padding: 0 16px 40px; }
+  .settings-main h2 { margin-top: 32px; }
+}
+
+/* Defaults, exchange rates and app settings. */
+.set-row-field { align-items: center; }
+.set-row-field > div { flex: 1; min-width: 0; }
+.set-row-field label { font-size: 16px; font-weight: 600; color: var(--bone); }
+.set-select, .settings-main .rate-form input, .settings-main .rate-form select { font: inherit; font-size: 15px; color: var(--bone); background: var(--ink-3); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; max-width: 100%; }
+.set-select { width: 220px; flex: none; }
+.set-select:disabled { opacity: 0.5; }
+.settings-main .sub-title { font-family: var(--cond); font-stretch: 62%; font-weight: 800; font-size: 20px; text-transform: uppercase; margin: 28px 0 10px; }
+.rates-update { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 16px 0 4px; }
+.rate-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: end; }
+.rate-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--bone-dim); }
+.rate-form .rate-note { grid-column: span 2; }
+.rate-form .btn { justify-self: start; }
+.rate-table-wrap { overflow-x: auto; margin-top: 12px; }
+.rate-table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--bone); }
+.rate-table caption { text-align: left; color: var(--bone-dim); padding-bottom: 6px; font-size: 13px; }
+.rate-table th, .rate-table td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.app-block { border-top: 1px solid var(--line); padding: 16px 0; }
+.app-block h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; color: var(--bone); }
+.app-opt { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.app-opt label, .set-check { font-size: 14px; color: var(--bone); display: flex; gap: 8px; align-items: center; }
+.app-block .btn { margin-top: 6px; }
+
+@media (max-width: 560px) {
+  .set-select { width: 100%; }
+  .set-row-field { flex-direction: column; align-items: stretch; }
+  .rate-form .rate-note { grid-column: auto; }
+}
+
+/* Appearance: one radio per theme, each with a swatch painted from the theme's tokens (see appearance.js). */
+.theme-picker { border: 0; margin: 0 0 8px; padding: 0; min-width: 0; }
+.theme-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.theme-opt { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.theme-opt:hover { border-color: var(--bone-dim); }
+.theme-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.theme-opt:has(input:checked) { border-color: var(--slop); box-shadow: 0 0 0 1px var(--slop); }
+.theme-opt:has(input:focus-visible) { outline: 2px solid var(--slop); outline-offset: 2px; }
+.theme-swatch { position: relative; display: flex; height: 76px; border-radius: 4px; overflow: hidden; border: 1px solid var(--sw-border, var(--line)); background: var(--sw-bg); }
+.theme-half { flex: 1; background: var(--sw-bg); }
+.theme-panel { position: absolute; left: 12px; right: 12px; top: 12px; bottom: 26px; background: var(--sw-surface); border-radius: 3px; }
+.theme-dot { position: absolute; right: 18px; bottom: 18px; width: 14px; height: 14px; border-radius: 50%; background: var(--sw-accent); }
+.theme-aa { position: absolute; left: 18px; bottom: 14px; font-family: var(--cond); font-weight: 800; font-size: 18px; color: var(--sw-text); }
+.theme-text { display: flex; flex-direction: column; gap: 2px; }
+.theme-name { font-size: 15px; font-weight: 600; color: var(--bone); }
+.theme-hint { font-family: var(--mono); font-size: 12px; color: var(--bone-faint); }
+
+/* Local folder section (settings/folder.js) */
+.folder-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.folder-ask { display: grid; gap: 8px; margin: 8px 0; }
+.folder-changes { margin: 0; padding-left: 20px; }
+
+/* Storage section (settings/storage.js) */
+.storage-box { display: grid; gap: 10px; margin: 12px 0; }
+.storage-box .meter-h { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 13px; }
+.storage-parts { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.storage-parts li { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.storage-parts small { font-family: var(--mono); color: var(--bone-faint); text-align: end; }
+.storage-acts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.storage-act { display: grid; gap: 6px; align-content: start; }
+.storage-act .btn { justify-self: start; }
+.meter-bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.meter-bar i { display: block; height: 100%; background: var(--slop); }
+/* The top of the Storage section (settings/storage-keep.js): kept or not, Keep my files, the browser's limit, a folder. */
+.storage-keep { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-block: 10px; border-block-end: 1px solid var(--sl-border, var(--line)); }
+.storage-keep .persist-note { flex: 1 1 260px; margin: 0; padding-inline-start: 10px; border-inline-start: 3px solid var(--sl-border, var(--line)); color: var(--sl-text, var(--bone)); font-size: 14px; }
+.storage-keep[data-state="granted"] .persist-note { border-inline-start-color: var(--sl-accent, var(--slop)); }
+.storage-keep .persist-answer { flex: 1 1 100%; margin: 0; font-size: 14px; color: var(--sl-text, var(--bone)); }   /* the browser's answer, right under the button */
+.storage-keep .btn { margin-top: 0; }
+.storage-limit { padding: 12px 14px; border: 1px solid var(--sl-border, var(--line)); border-radius: 8px; background: var(--sl-surface, var(--ink-2)); }
+.storage-limit h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--sl-text, var(--bone)); }
+.settings-main .storage-limit p { margin: 0 0 8px; font-size: 14px; }
+.storage-folder { display: grid; gap: 4px; padding-block-start: 8px; border-block-start: 1px dashed var(--sl-border, var(--line)); }
+.storage-folder .btn { justify-self: start; text-decoration: none; }

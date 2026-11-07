@@ -1,0 +1,42 @@
+/* Slop PDF — the sidebar dock (ui/dock.js) and its Layers and History sections (tools/layers-panel.js, history-panel.js). */
+.pp-main { min-height: 0; }
+.pp-dock { border-top: 1px solid var(--line); }
+.pp-dock-sec { border-bottom: 1px solid var(--line); }
+.pp-dock-sec:last-child { border-bottom: 0; }
+.pp-dock-h { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 16px; border: 0; background: none; color: var(--fg); cursor: pointer; text-align: left; font: 700 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.pp-dock-h:hover { background: var(--input); }
+.pp-dock-h:focus-visible { outline: 2px solid var(--accent-line); outline-offset: -2px; }
+.pp-dock-chev { width: 0; height: 0; flex: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid currentColor; transition: transform .15s ease; }
+.pp-dock-h[aria-expanded="false"] .pp-dock-chev { transform: rotate(-90deg); }
+.pp-dock-meta { margin-left: auto; color: var(--faint); font-weight: 500; letter-spacing: 0; }
+.pp-dock-body { padding: 0 16px 14px; }
+.pp-dock-body[hidden] { display: none; }
+
+/* Layers */
+.lyr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.lyr { display: grid; grid-template-columns: 24px minmax(0, 1fr) 24px 24px 24px 24px; align-items: center; gap: 2px; padding: 2px 3px; border-radius: 6px; border: 1px solid transparent; }
+.lyr.on { border-color: var(--accent-line); background: color-mix(in srgb, var(--accent-line) 12%, transparent); }
+.lyr.is-hidden .lyr-name { opacity: .5; text-decoration: line-through; }
+.lyr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 4px; border: 0; background: none; color: var(--fg); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.lyr-b { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--dim); cursor: pointer; }
+.lyr-b:hover:not(:disabled) { background: var(--input); color: var(--fg); }
+.lyr-b:disabled { opacity: .35; cursor: default; }
+.lyr-b .ic { width: 15px; height: 15px; }
+.lyr-lock.on { color: var(--accent-line); }
+.lyr-vis.off { color: var(--faint); }
+.lyr-del:hover:not(:disabled) { color: var(--danger); }
+.lyr-hint { margin: 8px 0 0; }
+
+/* History */
+.hist-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.hist-b { width: 100%; padding: 5px 8px; border: 0; border-radius: 6px; background: none; color: var(--fg); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.hist-b:hover { background: var(--input); }
+.hist.on .hist-b { background: color-mix(in srgb, var(--accent-line) 18%, transparent); font-weight: 600; }
+.hist.is-undone .hist-b { color: var(--faint); }
+.lyr-b:focus-visible, .lyr-name:focus-visible, .hist-b:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+/* Layers: This page / All pages */
+.lyr-scope { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--line, #d9d9de); border-radius: 8px; margin: 0 0 8px; }
+.lyr-scope-b { min-height: 28px; padding: 4px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.lyr-scope-b.on { background: var(--accent, #1b1b1f); color: var(--accent-fg, #fff); }
+.lyr-group { display: grid; gap: 4px; margin: 0 0 10px; }
+.lyr-group-h { margin: 6px 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--muted, #6b6b73); }

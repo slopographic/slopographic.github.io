@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopHub (Drive, bus, Send to)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script>window.SLOP_DRIVE_DB = 'slop-drive-test-hub-' + Date.now();   // a private Drive for this run</script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const H = window.SlopHub;
+  const blob = (text, type = 'text/plain') => new Blob([text], { type });
+
+  describe('Slop Drive', () => {
+    it('put and get round-trip a file with its metadata', async () => {
+      const id = await H.put(blob('hello'), { name: 'a.txt', from: 'tests', meta: { n: 1 } });
+      expect(typeof id).toBe('string');
+      const r = await H.get(id);
+      expect(r.name).toBe('a.txt');
+      expect(r.type).toBe('text/plain');
+      expect(r.size).toBe(5);
+      expect(r.from).toBe('tests');
+      expect(r.meta).toEqual({ n: 1 });
+      expect(await r.blob.text()).toBe('hello');
+    });
+    it('list filters by accept patterns and sorts newest first', async () => {
+      await H.clear();
+      const a = await H.put(blob('x', 'image/png'), { name: 'one.png' });
+      await sleep(5);
+      const b = await H.put(blob('y', 'application/pdf'), { name: 'two.pdf' });
+      await sleep(5);
+      const c = await H.put(blob('z', 'image/jpeg'), { name: 'three.jpg' });
+      expect((await H.list()).map((r) => r.id)).toEqual([c, b, a]);
+      expect((await H.list({ accept: 'image/*' })).map((r) => r.id)).toEqual([c, a]);
+      expect((await H.list({ accept: ['application/pdf'] })).map((r) => r.name)).toEqual(['two.pdf']);
+    });
+    it('remove and clear delete files', async () => {
+      const id = await H.put(blob('gone'), { name: 'gone.txt' });
+      await H.remove(id);
+      expect(await H.get(id)).toBeFalsy();
+      await H.clear();
+      expect(await H.list()).toEqual([]);
+    });
+    it('matches MIME patterns', () => {
+      expect(H.matches('image/png', 'image/*')).toBe(true);
+      expect(H.matches('image/png', ['application/pdf', '*'])).toBe(true);
+      expect(H.matches('text/plain', 'image/*')).toBe(false);
+    });
+  });
+
+  describe('Send to', () => {
+    it('lists the apps that accept a type', () => {
+      const ids = H.appsAccepting('application/pdf').map((a) => a.id);
+      expect(ids).toContain('pdf');
+      expect(H.appsAccepting('image/png').every((a) => a.kind === 'app')).toBe(true);
+    });
+    it('sendTo puts the file in the Drive and opens the app with ?drive=<id>', async () => {
+      const opened = [];
+      const realOpen = window.open;
+      window.open = (url, target) => { opened.push([url, target]); return {}; };
+      try {
+        const id = await H.sendTo('pdf', blob('%PDF', 'application/pdf'), 'doc.pdf');
+        expect(opened.length).toBe(1);
+        const u = new URL(opened[0][0]);
+        expect(u.pathname.endsWith('/pdf/')).toBe(true);
+        expect(u.searchParams.get('drive')).toBe(id);
+        expect(opened[0][1]).toBe('_blank');
+        expect((await H.get(id)).name).toBe('doc.pdf');
+      } finally { window.open = realOpen; }
+      await H.sendTo('nope', blob('x'), 'x').then(() => { throw new Error('should reject'); }, (e) => expect(e.message).toContain('Unknown app'));
+    });
+    it('sendMenuItems makes one "Send to" item per accepting app (Slop Workflows through its own entry items)', () => {
+      const items = H.sendMenuItems(() => blob('x', 'image/png'), 'pic.png', 'image/png');
+      expect(items.filter((i) => !/workflow/.test(i.label)).length).toBe(H.appsAccepting('image/png').filter((a) => a.id !== 'workflows').length);
+      expect(items.map((i) => i.label)).toContain('Add to a workflow…');
+      expect(items[0].label.startsWith('Send to ')).toBe(true);
+      expect(typeof items[0].act).toBe('function');
+    });
+    it('consumeLaunch returns the ?drive= file once and tidies the URL', async () => {
+      const id = await H.put(blob('launch'), { name: 'l.txt' });
+      history.replaceState(null, '', location.pathname + '?drive=' + id);
+      const r = await H.consumeLaunch();
+      expect(r.id).toBe(id);
+      expect(location.search).toBe('');
+      expect(await H.consumeLaunch()).toBe(null);
+    });
+  });
+
+  describe('bus', () => {
+    it('receives messages from other tabs and ignores its own', async () => {
+      const got = [];
+      const off = H.on('ping', (d) => got.push(d));
+      H.emit('ping', { mine: true });
+      const other = new BroadcastChannel('slopographic');
+      other.postMessage({ type: 'ping', data: { from: 'other' }, src: 'someone-else', time: Date.now() });
+      await waitFor(() => got.length === 1);
+      await sleep(50);
+      expect(got).toEqual([{ from: 'other' }]);
+      off();
+      other.close();
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

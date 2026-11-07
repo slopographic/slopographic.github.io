@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs tabs</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 720px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+
+  /** Load docs in the iframe and wait until it has booted (SlopDocs.ready) and its first page is drawn. */
+  async function open() {
+    f.src = '../../docs/';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready && f.contentWindow.document.querySelector('#pages .page'), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  function typeText(W, s) {
+    const ime = W.document.getElementById('ime');
+    for (const ch of s) { ime.value = ch; ime.dispatchEvent(new W.InputEvent('input', { inputType: 'insertText', data: ch, bubbles: true })); }
+  }
+  const text = (W) => W.SlopDocs.doc.blocks.map((b) => W.SlopDocEngine.M.paraText(b)).join('\n');
+  const tabEls = (W) => [...W.document.querySelectorAll('#tabs .sl-doctab')];
+
+  describe('Slop Docs tabs', () => {
+    it('two tabs switch, and a reload brings both back with their text', async () => {
+      // A clean start: no tabs stored from an earlier run of this page.
+      localStorage.removeItem('slop.doctabs.docs.v1');
+      await new Promise((r) => { const q = indexedDB.deleteDatabase('slop-doctabs'); q.onsuccess = q.onerror = q.onblocked = () => r(); });
+      let W = await open();
+      typeText(W, 'First tab');
+      W.document.querySelector('.sl-doctabs-new').click(); // + opens a blank tab after the active one
+      expect(tabEls(W).length).toBe(2);
+      expect(text(W)).toBe('');
+      typeText(W, 'Second tab');
+      expect(text(W)).toBe('Second tab');
+      tabEls(W)[0].click(); // switch back to the first tab
+      expect(text(W)).toBe('First tab');
+      expect(tabEls(W)[0].getAttribute('aria-selected')).toBe('true');
+      await W.SlopDocs.session.flush();
+
+      // Reload the page: the same two tabs, the first one on screen.
+      W.__beforeReload = true;
+      W.location.reload();
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready && !f.contentWindow.__beforeReload, { timeout: 30000 });
+      W = f.contentWindow;
+      await sleep(100);
+      expect(tabEls(W).length).toBe(2);
+      expect(text(W)).toBe('First tab');
+      tabEls(W)[1].click();
+      expect(text(W)).toBe('Second tab');
+      tabEls(W)[0].click();
+      expect(text(W)).toBe('First tab');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Docs tabs' });
+  </script>
+</body>
+</html>

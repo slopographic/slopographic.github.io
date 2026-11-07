@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · files, images, offline and Slop Hub tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const PNG1 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGP4z8DwnwEIGBgY/jMwAAAX9gL+XzX8xAAAAABJRU5ErkJggg==';
+
+  describe('project files (.slpress)', () => {
+    it('round-trips a document with stories, styles, masters and image assets', async () => {
+      const doc = PR.templates.make('magazine');
+      doc.assets.extra = PNG1;
+      const blob = await PR.io.projectBlob(doc);
+      expect(blob.size).toBeGreaterThan(1000);
+      const u8 = new Uint8Array(await blob.arrayBuffer());
+      expect(ascii(u8, 0, 2)).toBe('PK');
+      const back = await PR.io.parseProject(u8);
+      expect(JSON.stringify(back.stories)).toBe(JSON.stringify(doc.stories));
+      expect(back.styles.para.Title.size).toBe(44);
+      expect(back.masters.length).toBe(1);
+      expect(back.assets.extra).toBe(PNG1);
+      expect(Object.keys(back.assets).length).toBe(Object.keys(doc.assets).length);
+    });
+    it('opens a saved project and lays it out without overset text', async () => {
+      const blob = await PR.io.projectBlob(PR.templates.make('flyer'));
+      await PR.io.openBytes(new Uint8Array(await blob.arrayBuffer()), 'Flyer.slpress');
+      expect(PR.state.doc.name).toBe('Flyer');
+      expect(PR.state.fileName).toBe('Flyer.slpress');
+      expect(PR.engine.oversetStories().length).toBe(0);
+    });
+    it('the event flyer template has neutral sample copy', () => {   // Covers: press/js/io/templates2.js
+      const text = JSON.stringify(PR.templates.make('flyer').stories);
+      expect(text.includes('The Print Hall')).toBe(true);
+      expect(text.includes('12 Harbour Street')).toBe(true);
+    });
+    it('zip writer and reader agree (stored and deflated entries)', async () => {
+      const z = await PR.zip.write([{ name: 'a.txt', data: 'hello hello hello hello hello' }, { name: 'b.bin', data: new Uint8Array([1, 2, 3]), store: true }]);
+      const files = await PR.zip.read(new Uint8Array(await z.arrayBuffer()));
+      expect(new TextDecoder().decode(files['a.txt'])).toBe('hello hello hello hello hello');
+      expect([...files['b.bin']]).toEqual([1, 2, 3]);
+    });
+  });
+
+  describe('images and PNG export', () => {
+    it('places an image into a frame and exports a page PNG at the requested resolution', async () => {
+      freshDoc({ pages: 1, facing: false, w: 144, h: 72 });
+      const fr = PR.model.item('rect', 10, 10, 50, 50); fr.layer = PR.state.doc.layers[0].id; PR.state.doc.pages[0].items.push(fr);
+      await PR.place.image(PNG1, fr, 'dot');
+      expect(fr.type).toBe('image'); expect(PR.state.doc.assets[fr.asset]).toBe(PNG1);
+      const blob = await PR.raster.pageBlob(0, 144);
+      const bmp = await W.createImageBitmap(blob);
+      expect(bmp.width).toBe(288); expect(bmp.height).toBe(144);
+    });
+    it('places a text file as a threaded story with autoflow', async () => {
+      freshDoc({ pages: 1, facing: true });
+      const text = Array(30).fill(PR.ui.placeholder(5)).join('\n');
+      PR.place.text(text, { autoflow: true });
+      expect(PR.state.doc.pages.length).toBeGreaterThan(1);
+      expect(PR.engine.oversetStories().length).toBe(0);
+    });
+  });
+
+  describe('fonts', () => {
+    it('parses and subsets the bundled TrueType font', async () => {
+      const bytes = await PR.fonts.bytes(PR.state.doc, 'Liberation Sans', 'Regular');
+      const f = PR.ttf.parse(bytes);
+      expect(f.family).toBe('Liberation Sans'); expect(f.upm).toBe(2048);
+      const gA = PR.ttf.gid(f, 65); expect(gA).toBeGreaterThan(0);
+      expect(Math.round(PR.ttf.advance(f, gA))).toBe(667);
+      const sub = PR.ttf.subset(f, { [gA]: 1 });
+      expect(sub.length).toBeLessThan(bytes.length / 2);
+      const f2 = PR.ttf.parse(sub); expect(f2.numGlyphs).toBe(f.numGlyphs); expect(PR.ttf.gid(f2, 65)).toBe(gA);
+      // the subset is a loadable font
+      const face = new W.FontFace('SubsetTest', sub.buffer); await face.load();
+      expect(face.status).toBe('loaded');
+    });
+  });
+
+  describe('offline single file', () => {
+    // Covers: press/js/io/build.js
+    it('builds a self-contained HTML that boots without the site', async () => {
+      const html = await PR.build.make();
+      expect(html).toContain('slop-press-build');
+      expect(html).not.toMatch(/<script[^>]+src="js\//);
+      expect(html).not.toContain('shared/hub.js"');
+      // every English table rides along (it fetches none): the shared components' parts too (UI_PARTS in i18n.js)
+      const i18n = await (await fetch('../../shared/i18n/i18n.js')).text();
+      const parts = /\/\*ui-parts\*\/\{\s*parts:\s*\[([^\]]*)\]/.exec(i18n)[1].match(/[\w-]+/g);
+      const tables = PR.build.tables({ 'shared/i18n/i18n.js': i18n, 'press/i18n/index.js': '' });
+      expect(parts.filter((x) => !tables.includes('shared/i18n/ui/en/' + x + '.js'))).toEqual([]);
+      const f = document.createElement('iframe'); f.style.cssText = 'width:900px;height:600px;border:0';
+      f.src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      document.body.append(f);
+      await waitFor(() => { try { return f.contentDocument.querySelector('#app.ready'); } catch (e) { return false; } }, { timeout: 30000 });
+      const P2 = f.contentWindow.PR;
+      expect(P2.state.doc.pages.length).toBeGreaterThan(0);
+      const bytes = await P2.pdf.export({});
+      expect(ascii(bytes, 0, 8)).toBe('%PDF-1.6');
+      expect(ascii(bytes)).toContain('/FontFile2');
+      f.remove();
+    }, { timeout: 60000 });
+  });
+
+  describe('Slop Hub', () => {
+    it('opens a .slpress from Slop Drive with ?drive= and offers Send to', async () => {
+      const blob = await PR.io.projectBlob(PR.templates.make('card'));
+      const id = await W.SlopHub.put(new Blob([blob], { type: 'application/x-slop-press' }), { name: 'Card.slpress', from: 'test' });
+      const f = await frameApp('../../press/index.html?new&drive=' + id);
+      const P2 = f.contentWindow.PR;
+      await waitFor(() => P2.state.doc && P2.state.doc.name === 'Business Card');
+      expect(P2.state.doc.pages.length).toBe(2);
+      expect(f.contentWindow.location.search).not.toContain('drive=');
+      const items = P2.hub.sendItems().filter((x) => x !== '-');
+      expect(items.some((x) => /Send PDF to Slop PDF/.test(x.label))).toBe(true);
+      await W.SlopHub.remove(id); f.remove();
+    }, { timeout: 40000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

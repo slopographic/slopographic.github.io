@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Workflows: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script src="../workflows/helpers.js"></script>
+<script>
+  // Covers: workflows/js/ui/run.js, workflows/js/ui/app.js, workflows/js/ui/mount.js, workflows/js/ui/library.js, workflows/js/ui/steps.js
+  // Slop Workflows on the one intake: a drop on the zone, its Choose files, a paste, ?drive=<id> (Add to a workflow…), the
+  // sample and the page's addFiles reach the same reader (each batch at once) with the same events. Import a .slopflow
+  // is a part of its own.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, A, seen = [], events = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const txt = (name) => new W.File(['hello ' + name], name, { type: 'text/plain' });
+  async function through(source, start, n = 1, app = 'workflows') {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'workflows') expect(seen).toEqual([[source, n]]);
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Workflows: one way in', () => {
+    it('a drop on the zone', async () => {
+      A = await WFT.boot('', { fresh: true }); W = WFT.W; D = WFT.D;
+      expect(A.runner.intakeId).toBe('workflows');
+      const s = W.SlopIntake.spec('workflows'), reader = s.processAll;
+      s.processAll = (files, ctx) => { seen.push([ctx.source, files.length]); return reader(files, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      const n = A.S.files.length;
+      await through('drop', () => D.getElementById('wf-drop').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([txt('a.txt'), txt('b.txt')]) })), 2);
+      expect(A.S.files.length).toBe(n + 2);
+    }, { timeout: 40000 });
+    it("the zone's Choose files", async () => {
+      await through('picker', () => { const i = D.querySelector('#wf-drop input[type=file]'); i.files = dtOf([txt('c.txt')]).files; i.dispatchEvent(new W.Event('change')); });
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([txt('d.txt')]) })));
+    });
+    it('?drive=<id> (Add to a workflow…, launch)', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'sent.txt', type: 'text/plain', blob: txt('sent.txt') });
+      await through('launch', () => W.SlopIntake.launch({ to: 'workflows' }));
+    });
+    it('the page API (addFiles) resolves the added files', async () => {
+      let got;
+      await through('api', async () => { got = await A.addFiles([txt('e.txt')]); });
+      expect(got.map((f) => f.name)).toEqual(['e.txt']);
+    });
+    it('Import a .slopflow file is a part of its own', async () => {
+      const text = A.F.toText(A.S.doc);
+      W.SlopUI.pickFiles = async () => [new W.File([text], 'flow.slopflow', { type: 'application/json' })];
+      seen = [];
+      await through('picker', () => A.lib.pickImport(), 1, 'workflows.import');
+      expect(seen).toEqual([]);
+    });
+  });
+  run({ name: 'Shared intake: Slop Workflows' });
+</script>
+</body>
+</html>

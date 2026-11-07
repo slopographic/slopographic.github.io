@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopUI and SlopMenuBar · submenus mirrored right to left (Arabic, Hebrew)</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/menubar/menubar.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/menubar/menubar.js"></script>
+  <script>
+  // Covers: shared/slopui.js, shared/slopui.css, shared/menubar/menubar.js, shared/menubar/menubar.css
+  const { describe, it, expect, run } = SlopTest;
+  const U = window.SlopUI;
+  const html = document.documentElement;
+  const key = (target, k) => target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  const items = () => [{ label: 'Export', sub: [{ label: 'PNG', act: () => {} }, { label: 'PDF', act: () => {} }] }, { label: 'Close', act: () => {} }];
+  const flyouts = () => [...document.querySelectorAll('.sui-menu')].filter((m) => +m.dataset.level > 0);
+
+  describe('SlopUI menus follow the page direction', () => {
+    it('left to right: the arrow points right, ArrowRight opens the submenu on the right, ArrowLeft closes it', () => {
+      html.setAttribute('dir', 'ltr');
+      const m = U.menu(items(), 200, 100);
+      const row = m.querySelector('.sui-has-sub');
+      expect(row.querySelector('.sui-key').textContent).toBe('▸');
+      row.focus(); key(row, 'ArrowRight');
+      expect(flyouts().length).toBe(1);
+      expect(flyouts()[0].getBoundingClientRect().left >= m.getBoundingClientRect().right - 1).toBe(true);
+      key(flyouts()[0], 'ArrowLeft');
+      expect(flyouts().length).toBe(0);
+      U.closeMenu();
+    });
+    it('right to left: the arrow points left, ArrowLeft opens the submenu on the left, ArrowRight closes it', () => {
+      html.setAttribute('dir', 'rtl');
+      const m = U.menu(items(), 500, 100);
+      const row = m.querySelector('.sui-has-sub');
+      expect(row.querySelector('.sui-key').textContent).toBe('◂');
+      row.focus(); key(row, 'ArrowRight');
+      expect(flyouts().length).toBe(0);
+      key(row, 'ArrowLeft');
+      expect(flyouts().length).toBe(1);
+      expect(flyouts()[0].getBoundingClientRect().right <= m.getBoundingClientRect().left + 1).toBe(true);
+      key(flyouts()[0], 'ArrowRight');
+      expect(flyouts().length).toBe(0);
+      U.closeMenu();
+      html.setAttribute('dir', 'ltr');
+    });
+  });
+
+  describe('SlopMenuBar submenus follow the page direction', () => {
+    it('right to left: the submenu opens on the left and ArrowLeft opens it', () => {
+      html.setAttribute('dir', 'rtl');
+      SlopMenuBar.mount({ app: 'RTL', menus: { File: [{ label: 'More', sub: [{ label: 'Deep', act: () => {} }] }] } });
+      [...document.querySelectorAll('.smb-menu-b')].find((b) => b.textContent === 'File').click();
+      const more = document.querySelector('.smb-item.smb-has-sub'), pop = more.nextElementSibling;
+      key(more, 'ArrowLeft');
+      expect(pop.hidden).toBe(false);
+      expect(pop.getBoundingClientRect().right <= more.getBoundingClientRect().left + 4).toBe(true);
+      key(pop, 'ArrowRight');
+      expect(pop.hidden).toBe(true);
+      html.setAttribute('dir', 'ltr');
+    });
+  });
+
+  run({ name: 'SlopUI RTL menus' });
+  </script>
+</body>
+</html>

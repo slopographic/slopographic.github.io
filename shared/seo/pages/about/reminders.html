@@ -1,0 +1,43 @@
+<!-- seo:template seo.aboutpage.reminders: written to reminders/about/index.html by tools/seo/write.mjs; {{key}} is a key of the SEO tables (shared/seo/i18n), relative to the prefix unless it starts with seo. -->
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+  <script src="../../shared/theme/theme.js" data-app="reminders" data-src="shared/theme/theme.js"></script>
+  <link rel="expect" href="#slop-built" blocking="render">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1e1e1e">
+  <link rel="icon" href="../../favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../../shared/landing/landing.css">
+</head>
+<body>
+  <div class="l-wrap">
+    <header class="l-top">
+      <a class="l-brand" href="../../"><span class="l-brand-dot" aria-hidden="true"></span>Slopographic</a>
+      <nav aria-label="{{seo.ui.nav.site}}">
+        <a href="../../">{{seo.ui.nav.home}}</a>
+        <a href="../../settings/">{{seo.ui.nav.settings}}</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="l-hero" aria-labelledby="hero-title">
+        <p class="l-eyebrow">{{seo.ui.about.eyebrow}}</p>
+        <h1 id="hero-title">Slop Reminders</h1>
+        <p class="l-promise">{{hero.0}}</p>
+        <div class="l-cta">
+          <a class="l-btn primary" href="../">{{seo.ui.about.open}}</a>
+          <a class="l-btn ghost" href="../../drive/">{{seo.ui.about.back_drive}}</a>
+        </div>
+      </section>
+
+      <section class="l-sec" aria-labelledby="about-title">
+        <h2 id="about-title">{{seo.ui.about.about}}</h2>
+        <p>{{about.0}}</p>
+      </section>
+    </main>
+  </div>
+  <script src="../../shell/shell.js"></script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Checksum in Swedish</title>
+  <!-- Covers: checksum/i18n/index.js, checksum/js/checksum.js, checksum/js/layout.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Checksum', path: '../../checksum/index.html', ns: 'checksum',
+    ready: (doc) => doc.querySelector('#ck-side .sf-h') && doc.querySelector('#ck-copy'),
+    checks: [
+      ['#ck-copy', 'Kopiera hash', 'Copy hash'],
+      ['#ck-pick', 'Välj en fil', 'Choose a file'],
+      ['#ck-expect', 'Klistra in hashen', 'Paste the hash', 'placeholder'],
+      ['#ck-side .sf-h', 'Algoritm', 'Algorithm'],
+    ],
+  });
+  SlopTest.run({ name: 'Checksum in Swedish' });
+  </script>
+</body>
+</html>

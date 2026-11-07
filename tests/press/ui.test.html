@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · UI tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function pointer(type, x, y, opts = {}) {
+    const c = W.document.getElementById('view'), r = c.getBoundingClientRect();
+    c.dispatchEvent(new W.PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, clientX: r.left + x, clientY: r.top + y, pointerId: 7, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1 }, opts)));
+  }
+  function drag(x0, y0, x1, y1) { pointer('pointerdown', x0, y0); for (let k = 1; k <= 5; k++) pointer('pointermove', x0 + (x1 - x0) * k / 5, y0 + (y1 - y0) * k / 5); pointer('pointerup', x1, y1); }
+  function type(text) { const ta = W.document.getElementById('textInput'); ta.value = text; ta.dispatchEvent(new W.InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' })); }
+  function key(k, o = {}) { const ta = W.document.getElementById('textInput'); ta.dispatchEvent(new W.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o))); }
+  const closed = () => waitFor(() => !W.document.querySelector('.sui-back'));
+
+  describe('commands and menus', () => {
+    it('registers every tool, menu and style command (SlopCmd when available)', async () => {
+      await bootPress();
+      const A = PR.actions;
+      ['file.exportPDF', 'tool.text', 'layout.addPage', 'type.pageNumber', 'style.para.Heading 1', 'style.char.Emphasis'].forEach((id) => expect(!!A.get(id)).toBe(true));
+      if (W.SlopCmd) { expect(A.bound).toBe(true); expect(W.SlopCmd.get('style.para.Heading 1')).toBeTruthy(); expect(W.SlopCmd.get('tool.select').title).toBe('Selection Tool'); }
+      expect(A.keyFor('file.save')).toMatch(/S/);
+    });
+    it('opens a menubar dropdown with live shortcut labels', async () => {
+      const btn = [...W.document.querySelectorAll('#menus .menu-btn')].find((b) => b.textContent === 'File');
+      btn.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+      const m = await waitFor(() => W.document.querySelector('.sui-menu.pr-dropdown'));
+      expect(m.textContent).toContain('Export PDF…');
+      W.SlopUI.closeMenu();
+    });
+    it('Document Setup changes the page size through the dialog', async () => {
+      freshDoc({ pages: 2, facing: true });
+      PR.actions.run('file.docSetup');
+      const dlg = await waitFor(() => W.document.querySelector('.sui-dlg'));
+      const inputs = dlg.querySelectorAll('input[data-unit]');
+      inputs[0].value = '100'; inputs[1].value = '150';
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'OK').click();
+      await closed();
+      expect(Math.round(PR.state.doc.size.w)).toBe(283); expect(Math.round(PR.state.doc.size.h)).toBe(425);
+    });
+  });
+
+  describe('drawing and editing on the canvas', () => {
+    it('draws a text frame with the Type tool, types (incl. IME composition) and undoes', async () => {
+      freshDoc({ pages: 1, facing: false }); PR.view.fitPage(); await sleep(50);
+      PR.tools.set('text');
+      drag(300, 200, 600, 400);
+      expect(PR.state.text).toBeTruthy();
+      type('Hello'); key('Enter'); type('world');
+      const ta = W.document.getElementById('textInput');
+      ta.dispatchEvent(new W.CompositionEvent('compositionstart', { bubbles: true }));
+      ta.value = 'にほ'; ta.dispatchEvent(new W.InputEvent('input', { bubbles: true, isComposing: true }));
+      ta.dispatchEvent(new W.CompositionEvent('compositionend', { bubbles: true, data: '日本' }));
+      const st = PR.state.doc.stories[PR.state.text.story];
+      expect(st.text).toBe('Hello\nworld日本');
+      key('ArrowLeft', { shiftKey: true }); key('ArrowLeft', { shiftKey: true });
+      expect(Math.abs(PR.state.text.caret - PR.state.text.anchor)).toBe(2);
+      key('Backspace');
+      expect(st.text).toBe('Hello\nworld');
+      PR.actions.run('type.emDash'); PR.actions.run('type.pageNumber');
+      expect(PR.state.doc.stories[PR.state.text.story].text).toBe('Hello\nworld—' + PR.model.PAGE_NUM);
+      PR.actions.run('edit.undo');
+      expect(PR.state.doc.stories[Object.keys(PR.state.doc.stories)[0]].text).toBe('Hello\nworld—');
+    });
+    it('applies paragraph and character styles to the selection', async () => {
+      freshDoc({ pages: 1, facing: false });
+      const fr = PR.model.item('text', 40, 40, 300, 200); PR.items.add(PR.state.doc, PR.state.doc.pages[0].items, fr, { text: 'Title\nBody text', ps: 'Body' });
+      PR.touch(); PR.textEdit.enter(fr, 2);
+      PR.actions.run('style.para.Heading 1');
+      const s = PR.state.doc.stories[fr.story];
+      expect(s.paras.map((p) => p.ps)).toEqual(['Heading 1', 'Body']);
+      PR.state.text.anchor = 6; PR.state.text.caret = 10;
+      PR.actions.run('style.char.Emphasis');
+      expect(s.runs.some((r) => r.cs === 'Emphasis' && r.n === 4)).toBe(true);
+      PR.actions.run('type.bold');
+      expect(PR.format.current().char.fontStyle).toBe('Bold Italic');
+    });
+    it('draws, moves (with snapping) and deletes a rectangle', async () => {
+      freshDoc({ pages: 1, facing: false }); PR.view.fitPage(); await sleep(30);
+      PR.tools.set('rect'); drag(400, 300, 500, 380);
+      const r = PR.selected()[0]; expect(r.type).toBe('rect'); expect(r.w).toBeGreaterThan(10);
+      PR.tools.set('select');
+      const x0 = r.x; const p = PR.view.toScreen(PR.view.active().x + r.x + 5, PR.view.active().y + r.y + 5);
+      drag(p.x, p.y, p.x + 60, p.y);
+      expect(r.x).toBeGreaterThan(x0 + 10);
+      PR.actions.run('edit.duplicate'); expect(PR.state.doc.pages[0].items.length).toBe(2);
+      PR.actions.run('edit.delete'); expect(PR.state.doc.pages[0].items.length).toBe(1);
+    });
+    it('threads two frames through the out port and shows overset state', async () => {
+      freshDoc({ pages: 1, facing: false });
+      const d = PR.state.doc, M = PR.model;
+      const a = M.item('text', 40, 40, 120, 40), b = M.item('text', 40, 200, 120, 300);
+      PR.items.add(d, d.pages[0].items, a, { text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' });
+      PR.items.add(d, d.pages[0].items, b); PR.touch();
+      expect(PR.engine.overset(a)).toBe(true);
+      PR.select([a.id]); PR.selectTool.loaded = a.id; PR.selectTool.linkTo(b);
+      expect(a.next).toBe(b.id); expect(PR.engine.overset(a)).toBe(false);
+      expect(PR.engine.frame(b).lines.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('pages, masters and panels', () => {
+    it('adds pages, edits a master and applies it', async () => {
+      freshDoc({ pages: 1, facing: true });
+      PR.actions.run('layout.addPage'); PR.actions.run('layout.addPage');
+      expect(PR.state.doc.pages.length).toBe(3);
+      PR.ui.showPanel('pages'); await sleep(450);
+      expect(W.document.querySelectorAll('.pthumb').length).toBe(3);
+      const m = PR.pages.newMaster(PR.state.doc, 'Feature'); PR.history.commit('m');
+      PR.ui.editMaster(m.id, 1);
+      expect(PR.view.surfaces().length).toBe(2);
+      PR.actions.run('layout.editMaster');
+      expect(PR.state.editMaster).toBe(null);
+      PR.pages.applyMaster(PR.state.doc, [1, 2], m.id);
+      expect(PR.state.doc.pages[2].master).toBe(m.id);
+    });
+    it('template picker builds every template', async () => {
+      ['magazine', 'flyer', 'card', 'zine'].forEach((id) => {
+        const d = PR.templates.make(id);
+        expect(d.pages.length).toBeGreaterThan(0);
+        expect(Object.keys(d.stories).length).toBeGreaterThan(0);
+      });
+      await PR.io.openDoc(PR.templates.make('zine'));
+      expect(PR.engine.oversetStories().length).toBe(0);
+      expect(PR.state.doc.pages.length).toBe(8);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

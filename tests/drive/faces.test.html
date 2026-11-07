@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: faces</title></head>
+<body>
+  <!-- The real Drive app in a same-origin iframe, with a STUBBED face detector (no model is needed here). -->
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, rec, calls = 0;
+  // A fixed embedding per face (no model): the vector depends on the box position only.
+  const fakeEmbed = async (src, f) => { const v = new Array(128).fill(0); v[Math.round(f.x) % 128] = 1; return v; };
+  const stub = () => ({ detect: async () => { calls++; return [{ x: 4, y: 4, w: 10, h: 10, score: 0.9 }, { x: 20, y: 4, w: 8, h: 8, score: 0.8 }]; } });
+
+  describe('Drive: face count, details and boxes (stubbed detector)', () => {
+    it('boots Drive with detection on and a picture in it', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await W.SlopFaces.cache.clear();
+      W.SlopProfile.reset('faces');
+      W.SlopFaces.setBackend(stub());
+    W.SlopFaces.setEmbedder(fakeEmbed); // no recogniser model in the test: a fixed vector per face
+      expect(W.SlopFaces.setEnabled(true).ok).toBe(true);
+      rec = await H.get(await H.put(await DT.png('#d4ff3a', 40, 30), { name: 'portrait.png', from: 'clean' }));
+      await DR.refresh(); DR.render();
+      expect(DR.isFaceable(rec)).toBe(true);
+    });
+
+    it('Find faces stores the count, keyed by the file id and its modified time', async () => {
+      await DR.findFaces([rec]);
+      const row = await W.SlopFaces.cache.get('drive', rec.id, DR.faceStamp(rec));
+      expect(row).toBeTruthy();
+      expect(row.faces.length).toBe(2);
+      expect(calls).toBe(1);
+      expect(DR.faceText(row.faces.length)).toBe('2 faces');
+    });
+
+    it('the details panel shows the face count and a Find faces action', async () => {
+      DR.toggleInfo(true);
+      DR.select([DR.keyOf(rec)]);
+      DR.renderInfo(true);
+      await waitFor(() => { const c = W.document.querySelector('#info .faces-n'); return c && c.textContent === '2 faces'; });
+      const acts = [...W.document.querySelectorAll('#info .acts .btn')].map((b) => b.textContent);
+      expect(acts).toContain('Find faces');
+    });
+
+    it('Quick look shows a "2 faces" badge; opening it draws one box per face over the picture', async () => {
+      const d = DR.quickLook(rec);
+      await waitFor(() => W.document.querySelector('.sui-dlg .face-badge'), { timeout: 8000 });
+      expect(W.document.querySelector('.sui-dlg .face-badge').textContent).toBe('2 faces');
+      expect(W.document.querySelectorAll('.sui-dlg svg.face-ov rect').length).toBe(0); // hidden by default
+      W.document.querySelector('.sui-dlg .face-badge').click();
+      await waitFor(() => W.document.querySelectorAll('.sui-dlg svg.face-ov rect').length === 2, { timeout: 8000 });
+      expect(W.document.querySelectorAll('.sui-dlg svg.face-ov rect').length).toBe(2);
+      d.close(false);
+    });
+
+    it('Faces and people lists the two faces as two people (their embeddings differ), each with its picture', async () => {
+      DR.openFaces();
+      await waitFor(() => W.document.querySelectorAll('.faces-panel .fp-card').length === 2, { timeout: 8000 });
+      expect(W.document.querySelectorAll('.faces-panel .fp-card').length).toBe(2);
+      expect(W.document.querySelector('.faces-panel .faces-mode').value).toBe('count');
+      W.SlopFaces.panel.close();
+    });
+
+    it('an edited picture (new modified time) has no result until it is checked again', async () => {
+      await H.update(rec.id, { modified: Date.now() + 60000 });
+      await DR.refresh();
+      const rec2 = await H.get(rec.id);
+      expect(await DR.facesOf(rec2)).toBe(null);
+      await DR.findFaces([rec2]);
+      expect(calls).toBe(2);
+      expect((await DR.facesOf(rec2)).faces.length).toBe(2);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive · faces (stubbed)' });
+  </script>
+</body>
+</html>

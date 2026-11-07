@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QR SLOP assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="qr-frame.js"></script>
+  <script>
+  // Covers: qr/js/ai-commands.js, qr/js/commands.js, shared/commands/sources.js
+  const { describe, it, expect } = SlopTest;
+  const { W, open, pixels } = QRT;
+  let C;
+  const run = async (id, args) => { const r = await C.exec('qr.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const idOf = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+
+  describe('QR SLOP: the assistant makes and exports codes', () => {
+    it('prepare() loads the commands; none is destructive', async () => {
+      await open();
+      C = W().SlopCmd;
+      expect(C.get('qr.ai.new-qr')).toBe(null);
+      await C.prepare();
+      for (const t of ['new-qr', 'set-content', 'set-design', 'add-logo', 'remove-logo', 'export-qr']) expect(C.get('qr.ai.' + t).destructive).toBe(false);
+    }, { timeout: 30000 });
+
+    it('new_qr with a URL and colours; set_content to Wi-Fi; set_design; a bad field is refused', async () => {
+      const r = await run('new-qr', { label: 'Shop', kind: 'url', text: 'https://example.com/shop', fg: '#ff0000', size: 300 });
+      expect(r.value).toMatch(/300 px/);
+      let st = C.state();
+      expect(st.encoded).toBe('https://example.com/shop');
+      expect(W().QRApp.last().svg.toLowerCase()).toContain('#ff0000');
+      await run('set-content', { kind: 'wifi', values: { ssid: 'Hive', password: 'honey123', security: 'WPA' } });
+      st = C.state();
+      expect(st.encoded).toContain('S:Hive');
+      expect(st.encoded).toContain('P:honey123');
+      await run('set-design', { ec: 'Q', shape: 'round' });
+      expect(C.state().settings.style.shape).toBe('round');
+      const bad = await C.exec('qr.ai.set-content', { values: { colour: 'x' } });
+      expect(bad.ok).toBe(false);
+    });
+
+    it('add_logo forces error correction H; remove_logo; the checkpoint puts the code back', async () => {
+      const back = C.checkpoint();
+      const r = await run('add-logo', { mark: 'star', width: 20 });
+      expect(r.value).toMatch(/error correction H/);
+      expect(!!C.state().settings.logo.href).toBe(true);
+      await run('remove-logo', {});
+      expect(C.state().settings.logo.href).toBe(null);
+      await run('set-content', { kind: 'text', text: 'changed' });
+      back();
+      expect(C.state().encoded).toContain('S:Hive');
+    });
+
+    it('export_qr: PNG to Slop Drive with its settings, SVG to Slop Drive', async () => {
+      const p = await run('export-qr', { format: 'png' });
+      const rec = await W().SlopHub.get(idOf(p));
+      expect(rec.name).toMatch(/^qr-shop-.*\.png$/);
+      const px = await pixels(rec.blob);
+      expect(px.w).toBe(300);
+      const json = await W().SlopHub.get(rec.meta.qrSettings);
+      expect(JSON.parse(await json.blob.text()).values.ssid).toBe('Hive');
+      const s = await run('export-qr', { format: 'svg' });
+      const srec = await W().SlopHub.get(idOf(s));
+      expect(await srec.blob.text()).toContain('<svg');
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'QR SLOP assistant commands' });
+  </script>
+</body>
+</html>

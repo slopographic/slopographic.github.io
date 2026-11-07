@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopTour in Swedish, switched live</title>
+  <!-- Covers: shared/tour/engine.js, shared/tour/panel.js, shared/tour/spot.js, shared/tour/mount.js, shared/tour/core.js,
+       shared/tour/tours/hex.js, hex/i18n/en/tour.js, hex/i18n/sv/tour.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Slop Hex in Swedish in a same-origin iframe (it shares this page's localStorage, so the language choice): the open
+  // tour shows the app's Swedish tour words and the panel's Swedish words, and a live switch to English re-renders the
+  // same step in English (title, text, queue, counter, buttons, tip, palette command) without moving to another step.
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  let f = null;
+  const q = (s) => f.contentDocument.querySelector(s);
+  const txt = (s) => (q(s) ? q(s).textContent.trim() : '');
+  const KEY = /\b(hex|ui|shell)\.tour\.[a-z0-9_]+/;
+  function open(lang) {
+    localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    localStorage.removeItem('slop.tour.hex');
+    f = document.createElement('iframe');
+    f.src = '../../hex/index.html';
+    document.body.append(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && q('.stour-btn') && f.contentWindow.SlopI18n, { timeout: 30000 });
+  }
+  const panelText = () => [txt('.stour-name'), txt('.stour-count'), txt('.stour-title'), txt('.stour-text'), txt('.stour-list'), txt('.stour-tip')].join('\n');
+
+  describe('SlopTour in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { try { f.contentWindow.SlopTour && f.contentWindow.SlopTour.close(); } catch (e) { /* frame gone */ } f && f.remove(); localStorage.clear(); });
+
+    it('shows the Swedish tour, then switches to English live on the same step, and back', async () => {
+      await open('sv');
+      const w = f.contentWindow;
+      expect(txt('.stour-btn')).toBe('Guide');
+      expect(w.SlopCmd.get('tour.start.hex').title).toBe('Starta rundtur: Slop Hex');
+      q('.stour-btn').click();
+      await waitFor(() => q('.stour-panel') && !q('.stour-panel').hidden && txt('.stour-title'), { timeout: 20000 });
+      expect(txt('.stour-name')).toBe('Rundtur i Slop Hex');
+      expect(txt('.stour-title')).toBe('Öppna');
+      expect(txt('.stour-text')).toContain('släpp en i fönstret');
+      expect(txt('.stour-count')).toBe('1 av 6');
+      expect(txt('.stour-back')).toBe('Tillbaka');
+      expect(txt('.stour-next')).toBe('Nästa');
+      q('.stour-next').click();
+      await waitFor(() => txt('.stour-title') === 'Öppna från Drive');
+      expect(txt('.stour-list')).toContain('Gå till position');
+      expect(KEY.test(panelText())).toBe(false);
+
+      w.SlopI18n.set('en');
+      await waitFor(() => txt('.stour-title') === 'Open from Drive', { timeout: 20000 });
+      expect(txt('.stour-name')).toBe('Slop Hex tour');
+      expect(txt('.stour-text')).toBe('Open a file that is already in Slop Drive.');
+      expect(txt('.stour-count')).toBe('2 of 6');
+      expect(txt('.stour-next')).toBe('Next');
+      expect(txt('.stour-list')).toContain('Go to offset');
+      if (!q('.stour-tip').hidden) expect(txt('.stour-tip')).toContain('Open from Drive');
+      expect(w.SlopTour.current().index).toBe(1);
+      await waitFor(() => w.SlopCmd.get('tour.start.hex').title === 'Start tour: Slop Hex', { timeout: 10000 });
+      expect(txt('.stour-btn')).toBe('Tour');
+
+      w.SlopI18n.set('sv');
+      await waitFor(() => txt('.stour-title') === 'Öppna från Drive' && txt('.stour-count') === '2 av 6', { timeout: 20000 });
+      expect(KEY.test(panelText())).toBe(false);
+    }, { timeout: 90000 });
+  });
+
+  run({ name: 'SlopTour in Swedish, switched live' });
+  </script>
+</body>
+</html>

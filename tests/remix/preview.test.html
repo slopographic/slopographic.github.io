@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Reel Remix first visit: what it makes and how, and the sample clips and photos fill the bin</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:900px" src="../../remix/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: remix/index.html, remix/js/ui.js, remix/css/remix.css, assets/shots/remix.jpg
+  const { describe, it, expect, waitFor } = SlopTest;
+  const win = () => document.getElementById('app').contentWindow, doc = () => win().document;
+  describe('Reel Remix first visit', () => {
+    it('the empty bin shows a picture of a reel and three steps above Choose files and the sample button', async () => {
+      await waitFor(() => win() && win().RM && win().RM.ready && doc().querySelector('#rm-drop .sd-preview'), { timeout: 20000 });
+      const z = doc().getElementById('rm-drop');
+      SlopTest.shot(z.querySelector('.sd-pic img'), '../assets/shots/remix.jpg');
+      expect([...z.querySelectorAll('.sd-steps li')].map((li) => li.textContent))
+        .toEqual(['Drop clips and photos', 'Press Remix: it plans the cuts', 'Play it, then export a video']);
+      expect(z.querySelector('.sd-sample').textContent).toBe('Try it with 2 clips and 3 photos');
+    });
+    it('the sample adds two clips with their length and three photos; Remix then plans a reel from them', async () => {
+      const RM = win().RM;
+      doc().querySelector('#rm-drop .sd-sample').click();
+      await waitFor(() => RM.state.items.length === 5, { timeout: 30000 });
+      const vids = RM.state.items.filter((x) => x.kind === 'video');
+      expect(vids.map((x) => x.name)).toEqual(['Sample hills.webm', 'Sample sea.webm']);
+      expect(vids.every((x) => x.dur > 3 && x.dur < 5.5)).toBe(true);
+      expect(RM.state.items.filter((x) => x.kind === 'image').length).toBe(3);
+      await waitFor(() => doc().querySelectorAll('#rm-bin .rm-name').length === 5);
+      const pv = doc().querySelector('#rm-drop .sd-preview');
+      expect(win().getComputedStyle(pv).display).toBe('none'); // the preview is for an empty bin
+      doc().getElementById('rm-remix').click();
+      await waitFor(() => /^Remixed: /.test(doc().getElementById('rm-status').textContent), { timeout: 10000 });
+    });
+    it('at 390 px the empty page has no sideways scroll', async () => {
+      const old = document.getElementById('app'), f = document.createElement('iframe');
+      f.id = 'app'; f.style.cssText = 'width:390px;height:844px'; f.src = '../../remix/index.html';
+      old.replaceWith(f);
+      await waitFor(() => win() && win().RM && win().RM.ready && doc().querySelector('#rm-drop .sd-preview'), { timeout: 20000 });
+      expect(doc().documentElement.scrollWidth <= 390).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Reel Remix: first visit' });
+  </script>
+</body>
+</html>

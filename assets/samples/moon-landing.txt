@@ -1,0 +1,5 @@
+moon-landing.ogg: 24 seconds of Neil Armstrong stepping onto the Moon (Apollo 11, 20 July 1969),
+"That's one small step for man, one giant leap for mankind."
+Source: https://commons.wikimedia.org/wiki/File:Armstrong_Small_Step.ogg (NASA audio; Wikimedia Commons
+licence: Public domain, as a work of NASA, a US government agency). Downloaded unchanged on 2026-10-24.
+Used by Slop Transcribe's "Try it with a sample" (shared/samples/samples.js SlopSamples.asset).

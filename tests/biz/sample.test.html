@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fill with a sample: a seeded quote with its customer and lines, the dialog with its seed, an expense through its posting</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/biz/sample.js, shared/biz/biz.js, shared/data/ai-records.js, shared/sample/records.js, quotes/index.html, expenses/index.html, crm/index.html, inventory/index.html, purchases/index.html, timesheets/index.html, contacts/js/app/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, C, D;
+  const S = () => W.SlopData;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  async function boot(app, ns) {
+    const f = document.getElementById('app');
+    f.src = `../../${app}/index.html`;
+    await waitFor(() => f.contentWindow && f.contentWindow[ns] && f.contentWindow[ns].app && f.contentWindow.SlopCmd && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; C = W.SlopCmd; D = W.document;
+    await S().store.erase(); await S().store.ready();
+  }
+  const strip = (q) => q.lines.map((l) => [l.description, l.qty, l.unitPrice, l.taxRate]);
+
+  describe('Slop Quotes: a seeded sample quote', () => {
+    it('make_sample makes a quote with a sample customer and lines; the same seed makes the same quote', async () => {
+      await boot('quotes', 'SlopQuotes');
+      await C.prepare();
+      expect(C.get('quotes.ai.make-sample').destructive).toBe(false);
+      const a = await run('quotes.ai.make-sample', { collection: 'quotes', seed: '4821' });
+      expect(a.value.done).toMatch(/seed 4821/);
+      expect(a.value.done).toMatch(/sample quote QUO|sample quote/);
+      const q1 = (await S().store.get('quotes', a.value.made[0].id)).value;
+      expect(q1.lines.length > 0).toBe(true);
+      expect(q1.sample).toBe(true);
+      const cust = (await S().store.get('customers', q1.customerId)).value;
+      expect(cust.sample).toBe(true);
+      expect(/\.example$/.test(cust.email)).toBe(true);
+      const b = await run('quotes.ai.make-sample', { collection: 'quotes', seed: '4821' });
+      const q2 = (await S().store.get('quotes', b.value.made[0].id)).value;
+      expect(strip(q2)).toEqual(strip(q1));
+      expect(q2.customerId).toBe(q1.customerId);
+      const c = await run('quotes.ai.make-sample', { collection: 'quotes', seed: '4822', count: 3, locale: 'sv' });
+      expect(c.value.made.length).toBe(3);
+    }, { timeout: 30000 });
+
+    it('the checkpoint takes the assistant\'s samples away again', async () => {
+      const before = (await S().store.list('customers')).value.length;
+      const back = C.checkpoint();
+      await run('quotes.ai.make-sample', { collection: 'customers', seed: 'undo-me' });
+      expect((await S().store.list('customers')).value.length).toBe(before + 1);
+      back();
+      await waitFor(async () => (await S().store.list('customers')).value.length === before);
+    });
+
+    it('File ▸ Fill with a sample… opens the dialog with a seed; a typed seed is kept and said', async () => {
+      expect(!!C.get('biz.sample')).toBe(true);
+      C.run('biz.sample');
+      await waitFor(() => D.querySelector('.biz-sample .biz-seed'));
+      const seed = D.querySelector('.biz-sample .biz-seed');
+      expect(/^\d{4,5}$/.test(seed.value)).toBe(true);
+      seed.value = 'my-seed';
+      const before = (await S().store.list('quotes')).value.length;
+      [...D.querySelectorAll('.sui-dlg .sui-btn')].find((b) => b.textContent === 'Make').click();
+      await waitFor(() => /seed my-seed/.test((D.querySelector('.sui-toast') || {}).textContent || ''));
+      expect((await S().store.list('quotes')).value.length).toBe(before + 1);
+      const box = D.querySelector('.biz-sample .biz-seed-row').getBoundingClientRect();
+      expect(box.height > 0).toBe(true);
+    });
+  });
+
+  describe('Slop Expenses: a sample goes through its posting', () => {
+    it('make_sample records an expense with its journal entry', async () => {
+      await boot('expenses', 'SlopExpenses');
+      await C.prepare();
+      const r = await run('expenses.ai.make-sample', { seed: '77' });
+      const e = (await S().store.get('expenses', r.value.made[0].id)).value;
+      expect(e.amount > 0 && e.sample === true).toBe(true);
+      const j = (await S().store.list('journal')).value.filter((x) => x.source === `expense:${e.id}`);
+      expect(j.length).toBe(1);
+    }, { timeout: 30000 });
+  });
+  describe('Slop Contacts: Fill with a sample… is a command there too', () => {
+    it('biz.sample opens the dialog, and a sample contact is saved', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../contacts/index.html';
+      await waitFor(() => f.contentWindow && /contacts/.test(f.contentWindow.location.pathname) && f.contentWindow.SlopData && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get && f.contentWindow.SlopCmd.get('biz.sample'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd; D = W.document;
+      const before = (await S().store.list('customers')).value.length;
+      C.run('biz.sample');
+      await waitFor(() => D.querySelector('.biz-sample .biz-seed'));
+      [...D.querySelectorAll('.sui-dlg .sui-btn')].find((b) => b.textContent === 'Make').click();
+      await waitFor(async () => (await S().store.list('customers')).value.length === before + 1);
+      await waitFor(() => /seed \d+/.test((D.querySelector('.sui-toast') || {}).textContent || ''));
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Fill with a sample' });
+  </script>
+</body>
+</html>

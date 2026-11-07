@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop Rotate View tool tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- The Rotate View tool (R), as in Photoshop CC: the key and the toolbox, a drag that follows the pointer's angle round
+       the viewport centre, Shift's 15° steps, the compass, Esc and Reset View, the angle field, spring-loaded R, and
+       smudge, blur and sharpen left without a key.
+       Covers: photoslop/js/tools/rotate.js, photoslop/js/tools/paint.js, photoslop/js/ui/chrome.js,
+       photoslop/js/ui/doc-dialogs.js, photoslop/js/app/commands.js, photoslop/js/tools/transform-idle.js -->
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, win, C;
+  const key = (type, code, k, mods = {}) => { const e = new win.KeyboardEvent(type, Object.assign({ code, key: k, bubbles: true, cancelable: true }, mods)); win.document.body.dispatchEvent(e); return e; };
+  const press = (code, k, mods) => key('keydown', code, k, mods);
+  const release = (code, k, mods) => key('keyup', code, k, mods);
+  const ptr = (type, p, o = {}) => W.V.el.dispatchEvent(new win.PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, pointerId: 5, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1, isPrimary: true, clientX: p.x, clientY: p.y }, o)));
+  /** A client point on a circle round the viewport centre, at deg (0° = right, 90° = down, as on screen). */
+  const onCircle = (deg, R = 150) => { const r = W.V.el.getBoundingClientRect(), a = (deg * Math.PI) / 180; return { x: r.left + W.V.W / 2 + R * Math.cos(a), y: r.top + W.V.H / 2 + R * Math.sin(a) }; };
+  /** Presses at `from`°, moves in steps to `to`° and (unless keepDown) lets go. */
+  function turn(from, to, o = {}, keepDown = false, steps = 8) {
+    ptr('pointerdown', onCircle(from), o);
+    for (let i = 1; i <= steps; i++) ptr('pointermove', onCircle(from + ((to - from) * i) / steps), o);
+    if (!keepDown) ptr('pointerup', onCircle(to), o);
+  }
+  const near = (a, b, tol = 0.5) => Math.abs(a - b) <= tol;
+  const opt = (sel) => win.document.querySelector('#options ' + sel);
+
+  describe('PhotoSlop Rotate View tool', () => {
+    it('R selects the Rotate View tool, which sits after the Hand tool and has the angle field and Reset View', async () => {
+      ({ W, win } = await freshApp()); C = win.SlopCmd;
+      W.newDocTab(400, 300, '#ffffff', 'Rotate'); W.selectTool('brush');
+      press('KeyR', 'r'); release('KeyR', 'r');
+      expect(W.UI.tool).toBe('rotate');
+      const ids = [...win.document.querySelectorAll('#toolbox .tool')].map((b) => b.dataset.tool);
+      expect(ids.indexOf('rotate')).toBe(ids.indexOf('hand') + 1);
+      const b = win.document.querySelector('#toolbox .tool[data-tool="rotate"]');
+      expect(b.title).toBe('Rotate View Tool (R)');
+      expect(b.classList.contains('active')).toBe(true);
+      expect(!!opt('.rot-angle')).toBe(true);
+      expect(opt('.rot-reset').textContent).toBe('Reset View');
+      expect(C.get('ps.tool.rotate').keys).toEqual(['R']);
+      expect(W.V.el.dataset.tool).toBe('rotate');
+    }, { timeout: 40000 });
+
+    it('a drag turns the view by the angle the pointer turns round the centre, live, and never touches the document', async () => {
+      W.setRotation(0);
+      const hist = W.Hist.idx, pixels = W.flattenCanvas().toDataURL();
+      ptr('pointerdown', onCircle(0));
+      ptr('pointermove', onCircle(20));
+      expect(near(W.V.rot, 20)).toBe(true); // live, while the button is down
+      ptr('pointermove', onCircle(60)); ptr('pointerup', onCircle(60));
+      expect(near(W.V.rot, 60)).toBe(true);
+      expect(opt('.rot-angle').value).toBe('60');
+      turn(90, 45); // back the other way: counter-clockwise
+      expect(near(W.V.rot, 15)).toBe(true);
+      expect(W.Hist.idx).toBe(hist);
+      expect(W.flattenCanvas().toDataURL()).toBe(pixels);
+    });
+
+    it('the drag is unwrapped across ±180° and keeps fractions of a degree', async () => {
+      W.setRotation(0);
+      turn(170, 190);
+      expect(near(W.V.rot, 20)).toBe(true);
+      W.setRotation(170);
+      turn(0, 30); // past 180 the angle wraps to the other side
+      expect(near(W.V.rot, -160)).toBe(true);
+      W.setRotation(0);
+      turn(0, 12.34);
+      expect(near(W.V.rot, 12.3, 0.11)).toBe(true);
+    });
+
+    it('Shift snaps the angle to 15° steps', async () => {
+      W.setRotation(0);
+      turn(0, 37, { shiftKey: true });
+      expect(W.V.rot).toBe(30);
+      turn(0, 22, { shiftKey: true });
+      expect(W.V.rot).toBe(45);
+      turn(0, -52, { shiftKey: true });
+      expect(W.V.rot).toBe(0);
+    });
+
+    it('a compass shows while dragging, its red needle pointing at the document\'s up', async () => {
+      W.setRotation(0);
+      const c = win.document.createElement('canvas'); c.width = W.V.W; c.height = W.V.H;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      W.TOOL.rotate.overlay(g);
+      expect(g.getImageData(0, 0, c.width, c.height).data.some((v) => v)).toBe(false); // nothing without a drag
+      turn(0, 0.1, {}, true);
+      W.TOOL.rotate.overlay(g);
+      const px = (x, y) => g.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+      const R = Math.max(28, Math.min(70, Math.min(W.V.W, W.V.H) * 0.12));
+      const up = px(W.V.W / 2, W.V.H / 2 - R * 0.5), down = px(W.V.W / 2, W.V.H / 2 + R * 0.5);
+      expect(up[0] > 180 && up[1] < 100).toBe(true); // red
+      expect(down[0] > 200 && down[1] > 200).toBe(true); // white
+      expect(W.V.el.classList.contains('rotating')).toBe(true);
+      ptr('pointerup', onCircle(0.1));
+      expect(W.TOOL.rotate.s).toBe(null);
+      expect(W.V.el.classList.contains('rotating')).toBe(false);
+    });
+
+    it('Esc, Reset View and the angle field set the angle; zoom and pan stay', async () => {
+      W.setRotation(50); W.setZoom(2);
+      const z = W.V.zoom, ox = W.V.ox;
+      press('Escape', 'Escape');
+      expect(W.V.rot).toBe(0);
+      expect(W.V.zoom).toBe(z); expect(W.V.ox).toBe(ox);
+      W.setRotation(-70);
+      expect(opt('.rot-angle').value).toBe('-70');
+      opt('.rot-reset').click();
+      expect(W.V.rot).toBe(0);
+      const f = opt('.rot-angle'); f.value = '33'; f.dispatchEvent(new win.Event('change'));
+      expect(W.V.rot).toBe(33);
+      expect(win.document.querySelector('.vb-angle').textContent).toBe('33°');
+      W.resetView();
+    });
+
+    it('a lost pointer (or a second finger) puts the angle back where the drag began', async () => {
+      W.setRotation(10);
+      turn(0, 40, {}, true);
+      expect(near(W.V.rot, 50)).toBe(true);
+      ptr('pointercancel', onCircle(40));
+      expect(W.V.rot).toBe(10);
+      W.setRotation(0);
+    });
+
+    it('holding R springs to the tool and the release goes back; a tap keeps it', async () => {
+      W.selectTool('brush');
+      press('KeyR', 'r'); expect(W.UI.tool).toBe('rotate');
+      press('KeyR', 'r', { repeat: true });
+      turn(0, 30);
+      release('KeyR', 'r');
+      expect(W.UI.tool).toBe('brush');
+      expect(near(W.V.rot, 30)).toBe(true);
+      // held without a drag for a moment: back as well
+      press('KeyR', 'r'); await sleep(450); release('KeyR', 'r');
+      expect(W.UI.tool).toBe('brush');
+      // let go mid-drag: back once the drag ends
+      press('KeyR', 'r'); turn(0, 15, {}, true); release('KeyR', 'r');
+      expect(W.UI.tool).toBe('rotate');
+      ptr('pointerup', onCircle(15));
+      expect(W.UI.tool).toBe('brush');
+      // a quick tap: the tool stays
+      press('KeyR', 'r'); release('KeyR', 'r');
+      expect(W.UI.tool).toBe('rotate');
+      // R typed in a field is text, not the tool
+      W.selectTool('brush');
+      const f = win.document.createElement('input'); win.document.body.append(f); f.focus();
+      f.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'KeyR', key: 'r', bubbles: true, cancelable: true }));
+      f.dispatchEvent(new win.KeyboardEvent('keyup', { code: 'KeyR', key: 'r', bubbles: true, cancelable: true }));
+      expect(W.UI.tool).toBe('brush');
+      f.remove(); W.resetView();
+    });
+
+    it('smudge, blur and sharpen have no key: no (R) in the toolbox, no Shift+R cycle, still in the palette', async () => {
+      for (const id of ['smudge', 'blur', 'sharpen']) {
+        expect(W.TOOL[id].key).toBe(null);
+        const b = win.document.querySelector(`#toolbox .tool[data-tool="${id}"]`);
+        expect(b.title).toBe(W.TOOL[id].name);
+        expect(C.get('ps.tool.' + id).keys).toEqual([]);
+      }
+      expect(W.TOOL_KEYS.R).toEqual(['rotate']);
+      expect(!!C.get('ps.tool.cycle-r')).toBe(false);
+      W.selectTool('rotate');
+      press('KeyR', 'R', { shiftKey: true }); release('KeyR', 'R', { shiftKey: true });
+      expect(W.UI.tool).toBe('rotate');
+      C.get('ps.tool.blur').run();
+      expect(W.UI.tool).toBe('blur');
+      expect(W.store.get('lastOf.null', null)).toBe(null);
+      // no transform box over the canvas while the tool is on
+      W.addLayer({ name: 'Box', canvas: W.mkCanvas(400, 300) }, 'Add Box');
+      const g = W.activeLayer().canvas.getContext('2d'); g.fillRect(10, 10, 50, 50);
+      W.selectTool('move'); expect(W.boxTarget()).not.toBe(null);
+      W.selectTool('rotate'); expect(W.boxTarget()).toBe(null);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop Rotate View tool' });
+  </script>
+</body>
+</html>

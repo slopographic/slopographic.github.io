@@ -1,0 +1,30 @@
+/* SlopFaces: the face badge, the face boxes' label and the Faces and people dialog (shared/faces/panel.js). Used by
+ * Slop Gallery and Slop Drive. Colours come from the app's theme tokens, with fallbacks. */
+.face-badge { font: inherit; font-size: 13px; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line, #3a3a3a); background: var(--panel, #1b1b1b); color: var(--ink, #eee); }
+.face-badge[aria-pressed="true"], .face-badge.on { border-color: var(--accent, #d4ff3a); color: var(--accent, #d4ff3a); }
+.face-badge:focus-visible { outline: 2px solid var(--accent, #d4ff3a); outline-offset: 2px; }
+.faces-panel .sui-body { max-height: 74vh; overflow: auto; }
+.faces-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
+.faces-modew { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.faces-tabs, .faces-tools { display: flex; gap: 6px; }
+.faces-head .faces-say { flex-basis: 100%; margin: 0; font-size: 13px; }
+.faces-merge, .faces-acts, .faces-detail-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.faces-hint { margin: 8px 0; font-size: 13px; }
+.fp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.fp-card { border: 1px solid var(--line, #3a3a3a); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.fp-card.on { border-color: var(--accent, #d4ff3a); }
+.fp-pick { position: absolute; top: 8px; right: 8px; }
+.fp-name { font: inherit; font-weight: 600; background: transparent; color: inherit; border: 0; border-bottom: 1px solid transparent; padding: 2px 0; min-width: 0; }
+.fp-name:focus { border-bottom-color: var(--accent, #d4ff3a); outline: none; }
+.fp-n { margin: 0; font-size: 13px; }
+.fp-strip, .faces-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.faces-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.fc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; min-width: 0; }
+.fc img, .fc-empty { width: 96px; height: 96px; max-width: 100%; border-radius: 8px; object-fit: cover; background: #111; display: grid; place-items: center; }
+.fc.on img { outline: 2px solid var(--accent, #d4ff3a); }
+.fc input { position: absolute; top: 4px; left: 4px; }
+.fc-cap { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted, #aaa); }
+.faces-photos { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 10px; }
+.faces-photo { font-size: 13px; }
+@media (max-width: 600px) { .fp-grid { grid-template-columns: 1fr; } .faces-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); } }

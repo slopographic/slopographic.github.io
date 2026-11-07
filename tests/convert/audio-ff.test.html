@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+  <meta name="slop-test-limit" content="240"><title>File convert: audio to OGG, Opus, FLAC and M4A, and GIF to MP4, with ffmpeg</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/core/media-more.js, convert/js/core/ffmpeg-engine.js
+// The real ffmpeg core from the pinned cdn commit, on the tone.mp4 fixture. Its AAC is not decoded here (the test browser's
+// renderer stops on it), so the lengths are compared with the OGG's.
+import { CONVERSIONS } from '../../convert/js/core/catalog.js';
+import { detectKind } from '../../convert/js/core/detect.js';
+const { describe, it, expect } = SlopTest;
+const fixture = async (name, type) => new File([await (await fetch('fixtures/' + name)).arrayBuffer()], name, { type });
+const run = (id, file, kind, o = {}) => CONVERSIONS.find((c) => c.id === id).run([{ file, name: file.name, kind }], o);
+const ascii = (b, from, len) => String.fromCharCode(...b.subarray(from, from + len));
+const bytes = async (blob) => new Uint8Array(await blob.arrayBuffer());
+/** The sound decodes in this browser and lasts about as long as the tone. */
+async function seconds(blob) {
+  const ctx = new OfflineAudioContext(1, 1, 44100);
+  return (await ctx.decodeAudioData(await blob.arrayBuffer())).duration;
+}
+
+describe('audio with ffmpeg.wasm', () => {
+  it('to OGG Vorbis and Opus: Ogg pages, the right codec, the same length', async () => {
+    const src = await fixture('tone.mp4', 'video/mp4');
+    const [ogg] = await run('to-ogg', src, 'mp4', { bitrate: '128' });
+    const o = await bytes(ogg.blob);
+    expect([ogg.name, ogg.blob.type, ascii(o, 0, 4), ascii(o, 29, 6)]).toEqual(['tone.ogg', 'audio/ogg', 'OggS', 'vorbis']);
+    window.LEN = await seconds(ogg.blob);
+    expect(window.LEN > 0.5).toBe(true);
+    const [opus] = await run('to-opus', new File([ogg.blob], 'tone.ogg'), 'ogg', { bitrate: '64' });
+    const p = await bytes(opus.blob);
+    expect([opus.name, ascii(p, 0, 4), ascii(p, 28, 8)]).toEqual(['tone.opus', 'OggS', 'OpusHead']);   // from the OGG: any audio input works
+    expect(detectKind('tone.opus', '', p.subarray(0, 512))).toBe('ogg');
+    expect(Math.abs(await seconds(opus.blob) - window.LEN) < 0.2).toBe(true);
+  }, { timeout: 240000 });
+  it('to FLAC (lossless) and M4A (AAC)', async () => {
+    const src = await fixture('tone.mp4', 'video/mp4');
+    const [flac] = await run('to-flac', src, 'mp4');
+    expect([flac.name, flac.blob.type, ascii(await bytes(flac.blob), 0, 4)]).toEqual(['tone.flac', 'audio/flac', 'fLaC']);
+    expect(Math.abs(await seconds(flac.blob) - window.LEN) < 0.2).toBe(true);
+    const [m4a] = await run('to-m4a', src, 'mp4', { bitrate: '128' });
+    const m = await bytes(m4a.blob);
+    expect([m4a.name, m4a.blob.type, ascii(m, 4, 4), new TextDecoder('latin1').decode(m).includes('mp4a')]).toEqual(['tone.m4a', 'audio/mp4', 'ftyp', true]);
+  }, { timeout: 240000 });
+  it('GIF to MP4: an H.264 MP4 with the GIF\'s size made even', async () => {
+    const [gif] = await run('video-to-gif', await fixture('tone.mp4', 'video/mp4'), 'mp4', { width: 81, fps: 5 });
+    const [mp4] = await run('gif-to-mp4', new File([gif.blob], 'anim.gif', { type: 'image/gif' }), 'gif', { crf: 28 });
+    const b = await bytes(mp4.blob);
+    expect([mp4.name, ascii(b, 4, 4)]).toEqual(['anim.mp4', 'ftyp']);
+    const v = document.createElement('video'); v.muted = true; v.src = URL.createObjectURL(mp4.blob);
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('the MP4 does not play')); });
+    expect([v.videoWidth % 2, v.videoHeight % 2, v.videoWidth]).toEqual([0, 0, 80]);
+  }, { timeout: 240000 });
+});
+SlopTest.run({ name: 'File convert: audio and GIF with ffmpeg' });
+</script>
+</body>
+</html>

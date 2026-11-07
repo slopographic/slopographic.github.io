@@ -1,0 +1,7 @@
+{
+  "slots": [
+    { "id": "home-footer", "name": "Home footer", "unit": "", "width": 728, "height": 90 },
+    { "id": "convert-sidebar", "name": "Convert sidebar", "unit": "", "width": 300, "height": 250 },
+    { "id": "about-footer", "name": "About footer", "unit": "", "width": 728, "height": 90 }
+  ]
+}

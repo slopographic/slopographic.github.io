@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Pastebin tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. Slop Drive is the shared hub on this test origin (its own IndexedDB, fresh per run),
+       so the test reads the paste records back through this page's SlopHub, as tests/code does. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  // Covers: paste/js/store.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const H = () => window.SlopHub;
+  const SRC = '../../paste/index.html';
+  const CODE = 'const total = 42; // the answer\nfunction add(a, b) {\n  return "sum " + (a + b);\n}';
+
+  /** Load the app fresh (about:blank first, so a reload never reads the old page's ready flag). */
+  async function open(src = SRC) {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = src;
+    const want = new URL(src, location.href).pathname;
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname === want && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    return W();
+  }
+  /** Paste text outside a field, the way a browser paste reaches the page. */
+  function pasteText(text) {
+    const dt = new (W().DataTransfer)();
+    dt.setData('text/plain', text);
+    const ev = new (W().Event)('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'clipboardData', { value: dt });
+    W().document.body.dispatchEvent(ev);
+  }
+  const saved = () => waitFor(() => q('#pb-save') && q('#pb-save').textContent === 'Saved to Slop Drive', { timeout: 8000 });
+  async function records() { return (await H().list({ trashed: 'any' })).filter((r) => r.meta && r.meta.type === 'paste'); }
+  const pasteRec = async (title) => (await records()).find((r) => r.meta.title === title);
+
+  describe('Slop Pastebin: paste, list and highlight', () => {
+    it('pastes text anywhere on the page and lists it with its title line', async () => {
+      await open();
+      // a first visit opens a new, blank paste in the editor; pasting fills it
+      expect(q('#pb-editor').hidden).toBe(false);
+      pasteText(CODE);
+      await waitFor(() => qa('#pb-items .pb-item').length === 1, { timeout: 4000 });
+      expect(q('.pb-item-snip').textContent).toBe('const total = 42; // the answer');
+      expect(q('#pb-src').value).toBe(CODE);
+    });
+
+    it('applies the chosen language: the code block gets the language class and token spans', async () => {
+      const lang = q('#pb-lang');
+      lang.value = 'javascript';
+      lang.dispatchEvent(new (W().Event)('change', { bubbles: true }));
+      const code = q('#pb-code');
+      expect(code.classList.contains('language-javascript')).toBe(true);
+      expect(code.querySelectorAll('.tok-kw').length).toBeGreaterThanOrEqual(3);
+      expect(code.querySelector('.tok-com').textContent).toBe('// the answer');
+      expect(code.querySelector('.tok-str').textContent).toBe('"sum "');
+      expect(code.querySelector('.tok-fn').textContent).toBe('add');
+    });
+
+    it('saves the paste to Slop Drive in the background and says so', async () => {
+      await saved();
+      const r = await pasteRec('');
+      expect(!!r).toBeTruthy();
+      expect(r.meta.language).toBe('javascript');
+      expect(r.meta.expiry).toBe('never');
+      expect(r.meta.pasteId.length).toBe(16);
+      expect(r.blob ? await r.blob.text() : null).toBe(CODE);
+      expect(r.from).toBe('paste');
+    });
+
+    it('the expiry label is kept as a label only', async () => {
+      const sel = q('#pb-expiry');
+      sel.value = '7d';
+      sel.dispatchEvent(new (W().Event)('change', { bubbles: true }));
+      expect(q('#pb-meta').textContent).toMatch(/1 week/);
+      expect(q('#pb-meta').textContent).toMatch(/nothing is deleted/);
+      await saved();
+      expect((await records())[0].meta.expiry).toBe('7d');
+    });
+
+    it('the share link is local (?paste=<id>) and opens the same paste', async () => {
+      q('#pb-share').click();
+      const link = q('#pb-link').value;
+      const r = await pasteRec('');
+      expect(link).toContain('?paste=' + r.meta.pasteId);
+      expect(new URL(link).origin).toBe(location.origin);
+      const w = await open(link);
+      await waitFor(() => w.document.getElementById('pb-src') && w.document.getElementById('pb-src').value === CODE, { timeout: 4000 });
+      expect(w.document.getElementById('pb-editor').hidden).toBe(false);
+      expect(w.location.search).toBe('?paste=' + r.meta.pasteId);
+    }, { timeout: 40000 });
+
+    it('an unknown link says so and opens nothing', async () => {
+      const w = await open('../../paste/index.html?paste=nothere123456789');
+      await sleep(200);
+      expect(w.document.getElementById('pb-editor').hidden).toBe(true);
+    }, { timeout: 40000 });
+
+    it('pastes an image as an image paste and shows it', async () => {
+      const w = await open();
+      const c = document.createElement('canvas');
+      c.width = 4; c.height = 4;
+      c.getContext('2d').fillStyle = '#d4ff3a';
+      c.getContext('2d').fillRect(0, 0, 4, 4);
+      const png = await new Promise((r) => c.toBlob(r, 'image/png'));
+      const dt = new (w.DataTransfer)();
+      dt.items.add(new w.File([png], 'dot.png', { type: 'image/png' }));
+      const ev = new w.Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'clipboardData', { value: dt });
+      w.document.body.dispatchEvent(ev);
+      await waitFor(() => w.document.getElementById('pb-img') && w.document.getElementById('pb-img').src.startsWith('blob:'), { timeout: 4000 });
+      expect(w.document.getElementById('pb-image-wrap').hidden).toBe(false);
+      expect(w.document.getElementById('pb-text-wrap').hidden).toBe(true);
+      await saved();
+      expect((await records()).some((r) => r.meta.kind === 'image')).toBe(true);
+    });
+
+    it('reopens the last paste on a visit without a link', async () => {
+      await saved();
+      const w = await open();
+      await waitFor(() => !w.document.getElementById('pb-editor').hidden, { timeout: 4000 });
+      expect(w.document.getElementById('pb-image-wrap').hidden).toBe(false);
+    }, { timeout: 40000 });
+
+    it('the text paste comes back from Slop Drive after a reload, with its highlight', async () => {
+      const w = await open();
+      const item = [...w.document.querySelectorAll('#pb-items .pb-item')].find((x) => x.querySelector('.pb-item-snip').textContent.startsWith('const total'));
+      expect(!!item).toBe(true);
+      item.click();
+      await sleep(50);
+      expect(w.document.getElementById('pb-src').value).toBe(CODE);
+      expect(w.document.getElementById('pb-code').classList.contains('language-javascript')).toBe(true);
+      expect(w.document.getElementById('pb-code').querySelectorAll('.tok-kw').length).toBeGreaterThanOrEqual(3);
+    }, { timeout: 40000 });
+
+    it('the highlighter escapes markup and leaves unknown languages as text', async () => {
+      const H2 = await import('../../paste/js/highlight.js');
+      expect(H2.highlight('<b>x</b>', 'html')).not.toContain('<b>');
+      expect(H2.highlight('<b>x</b>', 'plain')).toBe('&lt;b&gt;x&lt;/b&gt;');
+      expect(H2.highlight('{"a": 1, "b": true}', 'json')).toContain('tok-prop');
+      expect(H2.highlight('# Title', 'markdown')).toContain('tok-head');
+      expect(H2.highlight('def f(x):\n  return x  # done', 'python')).toContain('tok-com');
+    });
+
+    it('registers its commands with SlopCmd and every paste is a Drive record of its own', async () => {
+      const w = await open();
+      expect(!!w.SlopCmd.get('paste.new')).toBe(true);
+      expect(w.SlopCmd.keyFor('paste.new')).not.toBe('');
+      const all = await records();
+      expect(all.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(all.map((r) => r.meta.pasteId)).size).toBe(all.length);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Slop Pastebin' });
+  </script>
+</body>
+</html>

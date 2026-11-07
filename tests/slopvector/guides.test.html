@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · guides tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const S = () => SV.state;
+  const frame = () => new Promise((r) => W.requestAnimationFrame(() => W.requestAnimationFrame(r)));
+  const btn = (label) => [...W.document.querySelectorAll('.sgd-panel .sgd-btn')].find((b) => b.textContent === label);
+  /** A pointer event at a document point, sent the way the stage listens (down on the stage, move/up on window). */
+  function ptr(type, x, y) {
+    const r = W.document.getElementById('stage').getBoundingClientRect(), v = S().view;
+    const ev = new W.PointerEvent(type, { clientX: r.left + v.x + x * v.zoom, clientY: r.top + v.y + y * v.zoom, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 3, pointerType: 'mouse', bubbles: true, cancelable: true });
+    (type === 'pointerdown' ? W.document.getElementById('stage') : W).dispatchEvent(ev);
+  }
+
+  describe('guide layouts', () => {
+    it('opens the shared panel from View ▸ New Guide Layout…', async () => {
+      blank(); W.localStorage.removeItem('slopvector.guidePanel');
+      S().prefs.guides = true; S().prefs.lockGuides = false; S().prefs.snapGrid = false; S().prefs.snapGuides = true;
+      const view = UI.menuItems('View').map((i) => i && i.label);
+      expect(view).toContain('New Guide Layout…'); expect(view).toContain('Snap to Guides'); expect(view).toContain('New Guide…');
+      SV.runAction('view.guideLayout');
+      expect(!!W.SlopGuides.panel).toBe(true);
+      expect(W.document.querySelector('.sgd-panel select').value).toBe('artboard');
+    });
+
+    it('previews and applies 12 columns, one undo step', async () => {
+      const P = W.SlopGuides.panel;
+      P.set({ tab: 'form', unit: 'px', snap: 'off', form: { margins: { top: '', right: '', bottom: '', left: '' }, cols: { count: 12, width: '', gutter: '20' }, rows: { count: '' } } });
+      await frame(); await frame();
+      expect(S().guidePreview.length).toBe(24);
+      expect(W.document.querySelectorAll('#overlay .guide.preview').length).toBe(24);
+      const h0 = S().hIdx;
+      btn('Apply').click();
+      expect(S().doc.guides.v.length).toBe(24);
+      expect(S().doc.guides.v[23]).toBe(1200);
+      expect(S().hIdx).toBe(h0 + 1);
+      SV.undo(); expect(S().doc.guides.v.length).toBe(0);
+      SV.redo(); expect(S().doc.guides.v.length).toBe(24);
+    });
+
+    it('notation and intervals tabs; Replace and Clear', async () => {
+      const P = W.SlopGuides.panel;
+      P.set({ tab: 'notation', notation: '| ~ | ~ | ( h )' }); await frame();
+      btn('Replace').click();
+      expect(S().doc.guides).toEqual({ h: [0, 400, 800], v: [] });
+      P.set({ tab: 'intervals', intervals: { x: { on: true, step: '300', origin: '0' }, y: { on: false } } }); await frame();
+      btn('Apply').click();
+      expect(S().doc.guides.v).toEqual([0, 300, 600, 900, 1200]);
+      btn('Clear').click();
+      expect(S().doc.guides).toEqual({ h: [], v: [] });
+      SV.undo(); expect(S().doc.guides.v.length).toBe(5);
+      P.close(); expect(S().guidePreview).toBe(null);
+    });
+
+    it('layouts can target the selection', async () => {
+      blank();
+      SV.activeLayer().children.push(SV.mk.rect(100, 100, 200, 100, 0, { fill: '#f00' })); SV.commit('r');
+      SV.select([SV.activeLayer().children[0].id]);
+      const P = SV.openGuidePanel(); await frame();
+      P.set({ target: 'selection', tab: 'notation', notation: '| ~ | ~ |' }); await frame();
+      expect(P.guides().map((g) => g.pos)).toEqual([100, 200, 300]);
+      P.close();
+    });
+
+    it('moving objects snaps to generated guides', async () => {
+      SV.applyGuideList([{ o: 'v', pos: 455 }], 'replace');
+      expect(SV.snapBox(SV.buildSnap(S().sel), { x: 100, y: 100, w: 200, h: 100 }, 352, 0).dx).toBe(355);
+      // A real drag with the Selection tool
+      SV.setTool ? SV.setTool('select') : (S().tool = 'select');
+      ptr('pointerdown', 150, 150); ptr('pointermove', 300, 150); ptr('pointermove', 503, 151); ptr('pointerup', 503, 151);
+      const b = SV.selBBox(S().sel);
+      expect(b.x).toBe(455);
+    });
+
+    it('Snap to Guides can be switched off', () => {
+      SV.runAction('view.snapGuides');
+      expect(S().prefs.snapGuides).toBe(false);
+      expect(SV.snapBox(SV.buildSnap(S().sel), { x: 100, y: 100, w: 200, h: 100 }, 352, 0).dx).toBe(352);
+      SV.runAction('view.snapGuides');
+      expect(S().prefs.snapGuides).toBe(true);
+    });
+
+    it('New Guide… accepts units; Guides from Selection; Clear Guides', async () => {
+      SV.runAction('view.newGuide');
+      await waitFor(() => W.document.querySelector('.sui-dlg input[aria-label=Position]'));
+      const dlg = W.document.querySelector('.sui-dlg');
+      dlg.querySelector('select').value = 'h';
+      dlg.querySelector('input[aria-label=Position]').value = '25%';
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'OK').click();
+      expect(S().doc.guides.h).toEqual([200]);
+      SV.runAction('view.guidesFromSel');
+      expect(S().doc.guides.v.length).toBeGreaterThanOrEqual(3);
+      SV.runAction('view.clearGuides');
+      expect(S().doc.guides).toEqual({ h: [], v: [] });
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'SlopVector · guides' });</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+/* Slop Press — theme tokens: Pro (dark), Light, Classic 98 (shared look with SlopVector) */
+:root {
+  --ink: #0a0a0a; --bone: #f1ede4; --slop: #d4ff3a;
+  --font-ui: 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Archivo', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --fs: 12px; --fs-s: 11px;
+  --menubar-h: 30px; --cb-h: 40px; --sb-h: 26px; --tab-h: 28px; --ruler: 18px;
+  --toolbar-w: 44px; --dock-w: 292px;
+  --radius: 4px; --radius-s: 3px;
+  --bevel-out: none; --bevel-in: none; --bevel-btn: none; --bevel-btn-down: none;
+  /* Pro (dark) */
+  --bg-app: #1e1e1e; --bg-panel: #2b2b2b; --bg-panel-2: #323232; --bg-input: #1c1c1c; --bg-hover: #3a3a3a; --bg-active: #4a4a4a;
+  --border: #3c3c3c; --border-dark: #151515; --sep: #3a3a3a;
+  --text: #dcdcdc; --text-dim: #a3a3a3; --text-faint: #9c9c9c;
+  --accent: #d4ff3a; --accent-ink: #0a0a0a; --accent-line: #d4ff3a; --accent-soft: rgba(212, 255, 58, .14);
+  --pasteboard: #383838; --ruler-bg: #262626; --ruler-fg: #8d8d8d; --ruler-tick: #555;
+  --menu-bg: #2f2f2f; --menu-hover-bg: #d4ff3a; --menu-hover-fg: #0a0a0a;
+  --shadow: 0 10px 34px rgba(0, 0, 0, .5), 0 2px 6px rgba(0, 0, 0, .35);
+  --btn-bg: #3a3a3a; --btn-hover: #444; --btn-border: #4a4a4a;
+  --title-bg: #2b2b2b; --title-fg: #e6e6e6;
+  --sel-row: rgba(212, 255, 58, .12); --sel-row-strong: rgba(212, 255, 58, .2);
+  --artboard-shadow: rgba(0, 0, 0, .42);
+  --doctab-bg: #2b2b2b; --doctab-fg: #e2e2e2;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg-app: #e6e6e6; --bg-panel: #f2f2f2; --bg-panel-2: #e5e5e5; --bg-input: #ffffff; --bg-hover: #e1e1e1; --bg-active: #d0d0d0;
+  --border: #cdcdcd; --border-dark: #bdbdbd; --sep: #d4d4d4;
+  --text: #1c1c1c; --text-dim: #555; --text-faint: #636363;
+  --accent: #d4ff3a; --accent-ink: #0a0a0a; --accent-line: #5d7a00; --accent-soft: rgba(150, 190, 0, .16);
+  --pasteboard: #cacaca; --ruler-bg: #ececec; --ruler-fg: #666; --ruler-tick: #a8a8a8;
+  --menu-bg: #fafafa; --menu-hover-bg: #d4ff3a; --menu-hover-fg: #0a0a0a;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .18), 0 2px 6px rgba(0, 0, 0, .12);
+  --btn-bg: #fff; --btn-hover: #f4f4f4; --btn-border: #c4c4c4;
+  --title-bg: #f2f2f2; --title-fg: #1c1c1c;
+  --sel-row: rgba(160, 205, 0, .18); --sel-row-strong: rgba(160, 205, 0, .3);
+  --artboard-shadow: rgba(0, 0, 0, .18);
+  --doctab-bg: #f2f2f2; --doctab-fg: #222;
+  color-scheme: light;
+}
+:root[data-theme="classic"] {
+  --font-ui: Tahoma, 'MS Sans Serif', 'Microsoft Sans Serif', 'Segoe UI', Geneva, Verdana, sans-serif;
+  --mono: 'Lucida Console', 'Courier New', monospace;
+  --fs: 11px; --fs-s: 11px;
+  --radius: 0; --radius-s: 0;
+  --bg-app: #c0c0c0; --bg-panel: #c0c0c0; --bg-panel-2: #c0c0c0; --bg-input: #ffffff; --bg-hover: #000080; --bg-active: #c0c0c0;
+  --border: #808080; --border-dark: #000; --sep: #808080;
+  --text: #000; --text-dim: #222; --text-faint: #4a4a4a;
+  --accent: #000080; --accent-ink: #fff; --accent-line: #000080; --accent-soft: rgba(0, 0, 128, .12);
+  --pasteboard: #008080; --ruler-bg: #c0c0c0; --ruler-fg: #000; --ruler-tick: #404040;
+  --menu-bg: #c0c0c0; --menu-hover-bg: #000080; --menu-hover-fg: #fff;
+  --shadow: 2px 2px 0 rgba(0, 0, 0, .55);
+  --btn-bg: #c0c0c0; --btn-hover: #c0c0c0; --btn-border: transparent;
+  --title-bg: linear-gradient(90deg, #000080, #0a5ea8); --title-fg: #fff;
+  --sel-row: #000080; --sel-row-strong: #000080;
+  --artboard-shadow: #000;
+  --doctab-bg: linear-gradient(90deg, #000080, #0a5ea8); --doctab-fg: #fff;
+  --bevel-out: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #fff;
+  --bevel-in: inset -1px -1px #fff, inset 1px 1px #808080, inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a;
+  --bevel-btn: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+  --bevel-btn-down: inset -1px -1px #fff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+  color-scheme: light;
+}
+
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  overflow: hidden; background: var(--bg-app); color: var(--text);
+  font: var(--fs)/1.35 var(--font-ui); -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .45; }
+[hidden] { display: none !important; }
+.mono { font-family: var(--mono); }
+.grow { flex: 1 1 auto; }
+:focus-visible { outline: 1px solid var(--accent-line); outline-offset: 1px; }
+.noscript { padding: 40px; text-align: center; }

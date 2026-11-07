@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="slop-test-touch">
+<title>SlopLabel · touch</title>
+<!-- SlopLabel with a finger (tests/run.mjs --touch: an iPad in WebKit, an Android tablet in Chromium; and the desktop run).
+     Covers: label/js/ui/interact.js -->
+<style>html, body { margin: 0; height: 100%; overflow: hidden; background: #111; } iframe { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../label/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let WIN, W;
+  const frame = () => new Promise((r) => WIN.requestAnimationFrame(() => WIN.requestAnimationFrame(r)));
+  /** Frame client point (the iframe sits at 0,0) of a label point in mm. */
+  const at = (x, y) => { const r = W.V.cv.getBoundingClientRect(); return { x: r.left + W.App.panX + x * W.App.zoom, y: r.top + W.App.panY + y * W.App.zoom }; };
+  const mid = (o) => { const b = W.boxOf(o); return at(b.x + b.w / 2, b.y + b.h / 2); };
+  let box, txt;
+
+  describe('SlopLabel by touch', () => {
+    it('boots with the touch layer, and the stage is a touch surface', async () => {
+      WIN = document.getElementById('app').contentWindow;
+      await waitFor(() => WIN.document && WIN.document.body && WIN.document.body.classList.contains('ready'), { timeout: 30000 });
+      await waitFor(() => WIN.SlopTouch && WIN.SlopTouch.ready, { timeout: 20000 });
+      W = new Proxy({}, { get: (_, k) => WIN.eval(String(k)) });
+      const st = W.$('stage');
+      expect(st.getAttribute('data-touch-surface')).toBe('nav');
+      expect(WIN.getComputedStyle(st).touchAction).toBe('none');
+      const d = W.newDoc({ stock: W.stockById('roll-100x50'), unit: 'mm' }); d.grid.snap = false; W.setDoc(d, 'Touch');
+      box = W.addObject(W.makeObject('rect', { x: 10, y: 10, w: 25, h: 15 }));
+      txt = W.addObject(W.makeObject('text', { x: 55, y: 25, w: 35, h: 10, content: 'Hello' }));
+      W.select([]); W.fitView(); await frame(); await sleep(100);
+      expect(W.App.doc.objects.length).toBe(2);
+    });
+    it('a tap selects an object, a tap on the empty label clears it', async () => {
+      await TouchKit.tap(mid(box)); await frame();
+      expect(W.App.sel).toEqual([box.id]);
+      await TouchKit.tap(at(45, 45)); await frame();
+      expect(W.App.sel.length).toBe(0);
+      await sleep(350);
+    });
+    it('a drag moves the object', async () => {
+      const x0 = W.objById(box.id).x;
+      await TouchKit.drag(mid(box), 50, 0); await frame();
+      expect(W.objById(box.id).x).toBeGreaterThan(x0 + 2);
+    });
+    it('a finger grabs a resize handle from about 15 px away', async () => {
+      W.select([box.id]); await frame(); await sleep(50);
+      const b = W.boxOf(W.objById(box.id)), w0 = b.w, se = at(b.x + b.w, b.y + b.h);
+      await TouchKit.drag({ x: se.x + 12, y: se.y + 12 }, 40, 0); await frame();
+      expect(W.objById(box.id).w).toBeGreaterThan(w0 + 2);
+    });
+    it('a double tap on text selects it and puts the caret in its content', async () => {
+      W.select([]); await frame(); await sleep(350);
+      await TouchKit.doubleTap(mid(txt));
+      await waitFor(() => WIN.document.activeElement && WIN.document.activeElement.id === 'pContent', { timeout: 3000 });
+      expect(W.App.sel).toEqual([txt.id]);
+      WIN.document.activeElement.blur();
+    });
+    it('a long press opens the context menu, and it stays open when the finger lifts', async () => {
+      W.SlopUI.closeMenu();
+      await TouchKit.longPress(mid(box));
+      await waitFor(() => WIN.document.querySelector('.sui-menu'), { timeout: 3000 });
+      await sleep(200);
+      expect(!!WIN.document.querySelector('.sui-menu')).toBe(true);
+      expect(W.App.sel).toEqual([box.id]);
+      W.SlopUI.closeMenu();
+    });
+    it('a pinch zooms the label, not the page', async () => {
+      const z0 = W.App.zoom, r = W.V.cv.getBoundingClientRect();
+      await TouchKit.pinch({ x: r.left + r.width / 2, y: r.top + r.height * 0.85 }, 2); await frame();
+      expect(W.App.zoom).toBeGreaterThan(z0 * 1.3);
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      if (WIN.visualViewport) expect(WIN.visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+  });
+  SlopTest.run({ name: 'SlopLabel touch' });
+  </script>
+</body>
+</html>

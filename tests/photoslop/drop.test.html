@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop drop tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- The real app runs in a same-origin iframe. Drags are built in the app's own realm (its DataTransfer and DragEvent). -->
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // A file drop on PhotoSlop's document area opens it once (as a tab), a drop on the Place zone places it as a layer, the
+  // strip's Choose files button is the only thing that opens the file picker, and a drop outside the document area opens
+  // nothing. The picker is counted (its click is stubbed, so no native dialog opens).
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, W, picks = 0, realClick = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const $ = (sel) => win.document.querySelector(sel);
+
+  /** A drag of one PNG (or any named file) in the app's realm. */
+  async function dragOf(name = 'picture.png', type = 'image/png') {
+    const c = win.document.createElement('canvas'); c.width = 16; c.height = 12;
+    const g = c.getContext('2d'); g.fillStyle = '#d4ff3a'; g.fillRect(0, 0, 16, 12);
+    const blob = type === 'image/png' ? await new Promise((r) => c.toBlob(r, 'image/png')) : new win.Blob(['hello'], { type });
+    const dt = new win.DataTransfer();
+    dt.items.add(new win.File([blob], name, { type }));
+    return dt;
+  }
+  const centre = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }; };
+  const fire = (el, type, dt) => el.dispatchEvent(new win.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, ...centre(el) }));
+  /** Enter, over and drop on one element, as a real drag does. */
+  function dropOn(el, dt) { fire(el, 'dragenter', dt); fire(el, 'dragover', dt); fire(el, 'drop', dt); }
+  /** Drops the files through the strip's own input (what Choose files does after the picker). */
+  function pickInStrip(dt) {
+    const input = $('#psDrop input[type=file]');
+    input.files = dt.files;
+    input.dispatchEvent(new win.Event('change'));
+  }
+  const docs = () => W.DOCS.length;
+  const layers = () => W.D.layers.length;
+  /** Lets the reader finish (a second open would show by then) and returns how much the count moved. */
+  async function settle(count, before) {
+    await sleep(1500);
+    return count() - before;
+  }
+
+  describe('PhotoSlop file drops', () => {
+    it('boots with the picker counted', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      win = frame.contentWindow;
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      realClick = win.HTMLInputElement.prototype.click;
+      // A file input's click counts as a picker opening and opens nothing (no native dialog in the test).
+      win.HTMLInputElement.prototype.click = function () { if (this.type === 'file') { picks++; return undefined; } return realClick.call(this); };
+      expect($('#psDrop')).toBeTruthy();
+      expect(W.D.layers.length).toBeGreaterThan(0);
+    }, { timeout: 40000 });
+
+    it('a PNG dropped on the strip opens once and opens no picker', async () => {
+      picks = 0;
+      const before = docs();
+      dropOn($('#psDrop'), await dragOf('strip.png'));
+      expect(await settle(docs, before)).toBe(1);
+      expect(picks).toBe(0);
+    });
+
+    it('a PNG dropped on the canvas opens once', async () => {
+      picks = 0;
+      const before = docs();
+      dropOn($('#view'), await dragOf('canvas.png'));
+      expect(await settle(docs, before)).toBe(1);
+      expect(picks).toBe(0);
+    });
+
+    it('a PNG dropped on the tab bar (the document area as a whole) opens once', async () => {
+      const before = docs();
+      dropOn($('#tabs'), await dragOf('tabs.png'));
+      expect(await settle(docs, before)).toBe(1);
+    });
+
+    it('a drop outside the document area (the toolbox) opens nothing', async () => {
+      const before = docs(), layersBefore = layers();
+      dropOn($('#toolbox'), await dragOf('toolbox.png'));
+      expect(await settle(docs, before)).toBe(0);
+      expect(layers()).toBe(layersBefore);
+    });
+
+    it('a drop on the Place zone places a layer and opens no tab', async () => {
+      const before = docs(), layersBefore = layers();
+      const dt = await dragOf('placed.png');
+      fire($('#view'), 'dragenter', dt); // the zones show over the document area
+      const zone = $('.sdc-zone[data-choice="current"]');
+      expect(zone).toBeTruthy();
+      expect(zone.parentElement.hidden).toBe(false);
+      fire(zone, 'dragover', dt);
+      fire(zone, 'drop', dt);
+      expect(await settle(layers, layersBefore)).toBe(1);
+      expect(docs()).toBe(before);
+    });
+
+    it('a hover over the Place zone does not change a later Choose files pick (it opens a tab)', async () => {
+      const dt = await dragOf('hover.png');
+      fire($('#view'), 'dragenter', dt);
+      fire($('.sdc-zone[data-choice="current"]'), 'dragover', dt);
+      fire($('.sdc-zone[data-choice="current"]'), 'dragleave', dt); // the drag leaves: the zones hide
+      expect($('.sdc-zones').hidden).toBe(true);
+      const before = docs();
+      pickInStrip(await dragOf('picked.png'));
+      expect(await settle(docs, before)).toBe(1);
+      expect(layers()).toBe(1); // the new tab is one picture, not a layer placed into the document that was open
+    });
+
+    it('the strip is not positioned over the menu bar, the top bar or the tool options', () => {
+      const strip = $('#psDrop').getBoundingClientRect();
+      const hit = ['header.topbar', '#menubar', '#options'].filter((sel) => {
+        const r = $(sel).getBoundingClientRect();
+        return strip.left < r.right && r.left < strip.right && strip.top < r.bottom && r.top < strip.bottom;
+      });
+      expect(hit).toEqual([]);
+    });
+
+    it('Choose files is the only thing that opens the picker', async () => {
+      picks = 0;
+      $('#psDrop .sd-choose').click();
+      expect(picks).toBe(1);
+      $('#psDrop .sd-msg').click();
+      $('#view').click();
+      expect(picks).toBe(1);
+    });
+
+    it('a text file is refused with a reason, and nothing opens', async () => {
+      const before = docs();
+      dropOn($('#psDrop'), await dragOf('notes.txt', 'text/plain'));
+      expect(await settle(docs, before)).toBe(0);
+      expect($('#psDrop .sd-row.error')).toBeTruthy();
+    });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop file drops' });
+  </script>
+</body>
+</html>

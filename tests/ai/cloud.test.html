@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: your own AI account in the side panel (fake provider)</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // Covers: shared/ai/cloud/connect.js, shared/ai/cloud/keys.js, shared/ai/cloud/meter.js, shared/ai/cloud/engine.js,
+  //   shared/ai/cloud/anthropic.js, shared/ai/cloud/net.js, shared/ai/cloud/providers.js, shared/ai/filetools.js,
+  //   shared/ai/panel.js, shared/ai/panel-run.js, shared/ai/picker.js, shared/ai/apptools.js, shared/ai/tools.js
+  const { describe, it, expect, sleep } = SlopTest;
+  /** waitFor that says what the panel showed when it gave up. */
+  const waitFor = (f, o) => SlopTest.waitFor(f, o).catch(() => { throw new Error('waitFor timed out on ' + f.toString().slice(0, 100) + ' | panel: ' + (P && P.document.querySelector('.sap') ? P.document.querySelector('.sap').textContent.slice(0, 700) : 'none')); });
+  const KEY = 'sk-ant-api03-TESTKEY-0123456789abcdef';
+  let P, F;
+  const q = (s) => P.document.querySelector(s);
+  const qa = (s) => [...P.document.querySelectorAll(s)];
+  const dialog = () => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const steps = () => qa('.sap-step').map((s) => [...s.childNodes].filter((n) => !n.classList || !n.classList.contains('sap-step-r')).map((n) => n.textContent).join(''));   // the call, without its result line
+  const lastBody = () => F.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body;
+  async function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-ai\.permissions|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.(cloud|permissions)/.test(k)) sessionStorage.removeItem(k);
+    // empty the key store (deleting the database would wait for any page that still has it open)
+    await new Promise((res) => { const r = indexedDB.open('slop-ai-keys'); r.onerror = () => res(); r.onupgradeneeded = () => { r.transaction.abort(); };
+      r.onsuccess = () => { const d = r.result; if (!d.objectStoreNames.contains('keys')) { d.close(); return res(); } const t = d.transaction('keys', 'readwrite'); t.objectStore('keys').clear(); t.oncomplete = t.onerror = () => { d.close(); res(); }; }; });
+  }
+  async function idbKey(provider) {
+    return new Promise((res) => {
+      const r = indexedDB.open('slop-ai-keys');
+      r.onupgradeneeded = () => { r.transaction.abort(); res(null); };
+      r.onerror = () => res(null);
+      r.onsuccess = () => { const d = r.result; if (!d.objectStoreNames.contains('keys')) { d.close(); return res(null); } const g = d.transaction('keys').objectStore('keys').get(provider); g.onsuccess = () => { d.close(); res(g.result || null); }; g.onerror = () => { d.close(); res(null); }; };
+    });
+  }
+  function choose(provider) { const s = q('.sap-cloud-provider'); s.value = provider; s.dispatchEvent(new P.Event('change')); }
+  /** Sends, answers the one-time notice if it shows, and waits for the reply. */
+  async function send(text, { notice = true } = {}) {
+    const done = P.SlopAIPanel.send(text);
+    if (notice) {
+      const d = await waitFor(dialog);
+      expect(d.textContent).toContain('Send your requests to Anthropic?');
+      [...d.querySelectorAll('button')].find((b) => b.textContent === 'Continue').click();
+    }
+    await done;
+  }
+
+  describe('connect Claude with your own key', () => {
+    it('the model choice offers it; Test connection lists the models; the key stays in this tab only', async () => {
+      await wipe();
+      P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width: 900, height: 760 });
+      F = CU.install(P, 'anthropic');
+      P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+      const box = await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+      if (!box.open) q('.sap-cloud summary').click();
+      expect(box.textContent).toContain('Use your own AI account');
+      expect(q('.sap-cloud-key').type).toBe('password'); expect(q('.sap-cloud-key').getAttribute('autocomplete')).toBe('off');
+      choose('anthropic');
+      await waitFor(() => /platform\.claude\.com/.test(q('.sap-cloud-help a') && q('.sap-cloud-help a').href));
+      // a wrong key: the provider's 401 in plain words
+      q('.sap-cloud-key').value = 'sk-ant-wrong';
+      F.fail = { status: 401, body: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } } };
+      q('.sap-cloud-test').click();
+      await waitFor(() => /did not accept the key/.test(q('.sap-cloud-msg').textContent));
+      expect(q('.sap-cloud-msg').classList.contains('bad')).toBe(true);
+      q('.sap-cloud-key').value = KEY;
+      q('.sap-cloud-test').click();
+      await waitFor(() => /Connected to Claude\. 3 models\./.test(q('.sap-cloud-msg').textContent));
+      const t = F.requests[F.requests.length - 1];
+      expect(t.url).toBe('https://api.anthropic.com/v1/models?limit=100');
+      expect(t.headers['x-api-key']).toBe(KEY); expect(t.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
+      const opts = [...q('.sap-cloud-model').options].map((o) => o.value);
+      expect(opts).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
+      q('.sap-cloud-model').value = 'claude-sonnet-5-5';
+      expect(q('.sap-cloud-remember').checked).toBe(false);
+      q('.sap-cloud-use').click();
+      await waitFor(() => q('.sap-status').textContent === 'Claude · Claude Sonnet 5.5');
+      expect(q('.sap-foot').textContent).toBe('Sent to Anthropic with your key. Files only when you allow each one.');
+      expect(sessionStorage.getItem('slop-ai.cloud.key:anthropic')).toBe(KEY);
+      expect(await idbKey('anthropic')).toBe(null);
+      expect(localStorage.getItem('slop-ai.cloud')).not.toContain(KEY);
+      expect(JSON.parse(localStorage.getItem('slop-ai.cloud')).active).toBe('anthropic');
+    }, { timeout: 40000 });
+  });
+
+  describe('the chat controls the page with native tool calls', () => {
+    it('the notice comes once; run_command runs; each step and the tokens show; no temperature is sent', async () => {
+      F.replies.push(CU.anthropic.call('run_command', { id: 'demo.bold' }), CU.anthropic.text('Made it bold.'));
+      await send('make it bold');
+      expect(P.ran).toEqual(['demo.bold']);
+      expect(steps()).toEqual(['✓Bold (done)']);
+      expect(q('.sap-list').textContent).toContain('Made it bold.');
+      const b = lastBody(), res = b.messages[b.messages.length - 1].content[0];
+      expect(res.type).toBe('tool_result'); expect(res.tool_use_id).toMatch(/^toolu_/); expect(res.content).toContain('Ran “Bold”');
+      expect(b.temperature).toBe(undefined); expect(b.model).toBe('claude-sonnet-5-5');
+      expect(b.messages[1].content[0]).toEqual({ type: 'thinking', thinking: '', signature: b.messages[1].content[0].signature });
+      expect(b.tools.map((x) => x.name)).toContain('look_at_file'); expect(b.tools.map((x) => x.name)).toContain('run_operation');
+      const usage = qa('.sap-usage').pop().textContent;
+      expect(usage).toMatch(/^1,7\d\d tokens · less than \$0\.01 · This visit: 1,7\d\d tokens · less than \$0\.01$/);
+      // the notice was answered once: the next request goes without it
+      F.replies.push(CU.anthropic.text('Hello again.'));
+      await send('hi', { notice: false });
+      expect(q('.sap-list').textContent).toContain('Hello again.');
+    }, { timeout: 30000 });
+
+    it('a destructive command asks first', async () => {
+      const asked = []; P.SlopAIPermissions.prompt = async (r) => { asked.push(r.detail); return 'once'; };
+      F.replies.push(CU.anthropic.call('run_command', { id: 'demo.clear' }), CU.anthropic.text('Cleared.'));
+      await send('clear the canvas', { notice: false });
+      expect(asked.length).toBe(1); expect(asked[0]).toContain('Clear canvas');
+      expect(P.ran).toEqual(['demo.bold', 'demo.clear']);
+    }, { timeout: 20000 });
+
+    it('look_at_file asks each time and sends only a small copy; a no sends nothing', async () => {
+      const c = P.document.createElement('canvas'); c.width = 1600; c.height = 800;
+      const g = c.getContext('2d'); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 1600, 800);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      const name = 'cloud-test-' + Date.now() + '.png';
+      await P.SlopHub.put(blob, { name, from: 'test' });
+      const asked = []; let answer = 'once'; P.SlopAIPermissions.prompt = async (r) => { asked.push(r.title + ' | ' + r.detail + ' | ' + r.kind); return answer; };
+      F.replies.push(CU.anthropic.call('look_at_file', { file: name }), CU.anthropic.text('A red picture.'));
+      await send('what is in my picture?', { notice: false });
+      expect(asked.length).toBe(1); expect(asked[0]).toMatch(/^Send a copy to Anthropic\? \| .*“cloud-test-\d+\.png”.*1024 px.* \| send$/);
+      const r = lastBody().messages.pop().content[0];
+      expect(r.content[1].type).toBe('image'); expect(r.content[1].source.media_type).toBe('image/jpeg');
+      const img = await createImageBitmap(await (await fetch('data:image/jpeg;base64,' + r.content[1].source.data)).blob());
+      expect([img.width, img.height]).toEqual([1024, 512]);
+      answer = 'deny';
+      F.replies.push(CU.anthropic.call('look_at_file', { file: name }), CU.anthropic.text('OK, I will not look.'));
+      await send('look again', { notice: false });
+      expect(asked.length).toBe(2);
+      const r2 = lastBody().messages.pop().content[0];
+      expect(r2.is_error).toBe(true); expect(JSON.stringify(r2)).not.toContain('base64');
+    }, { timeout: 30000 });
+
+    it('the spending cap stops the run and refuses new requests until it is raised', async () => {
+      const C = P.SlopAIKit.cloud, s = C.keys.settings();
+      const before = C.meter.total().tokens;
+      C.keys.save(Object.assign(s, { cap: before + 100 }));
+      F.replies.push(CU.anthropic.call('run_command', { id: 'demo.bold' }));
+      await send('bold again', { notice: false });
+      expect(P.ran.length).toBe(2);   // the call came after the cap was reached: not run
+      expect(q('.sap-list').textContent).toContain('reached your spending cap');
+      const n = F.requests.length;
+      await send('and again', { notice: false });
+      expect(F.requests.length).toBe(n);
+      C.keys.save(Object.assign(C.keys.settings(), { cap: 0 }));
+    }, { timeout: 20000 });
+
+    it('Stop aborts the request in flight', async () => {
+      let release;
+      P.fetch = (url, init) => new Promise((res, rej) => { release = res; init.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' }))); });
+      const done = P.SlopAIPanel.send('slow one');
+      await waitFor(() => q('.sap-send.stop'));
+      q('.sap-send').click();
+      await done;
+      expect(q('.sap-list').textContent).toContain('Stopped.');
+      expect(q('.sap-send').classList.contains('stop')).toBe(false);
+      F = CU.install(P, 'anthropic');
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Slop AI: your own AI account' });
+  </script>
+</body>
+</html>

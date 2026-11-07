@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop restore original aspect ratio tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  /** Client point for a document point (the viewport is at 100 % for these small documents). */
+  const scr = (x, y) => { const r = W.V.el.getBoundingClientRect(); return { x: r.left + W.V.ox + x * W.V.zoom, y: r.top + W.V.oy + y * W.V.zoom }; };
+  const key = (k, mods = {}) => win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', Object.assign({ code: k, key: k, bubbles: true, cancelable: true }, mods)));
+  /** Right-click at a document point on the canvas. */
+  function rightClick(x, y) { const s = scr(x, y); W.V.el.dispatchEvent(new win.MouseEvent('contextmenu', { clientX: s.x, clientY: s.y, button: 2, bubbles: true, cancelable: true })); }
+  /** The open menu's rows by label: { row, disabled }. */
+  const rows = () => [...win.document.querySelectorAll('.sui-menu .sui-row')];
+  const row = (label) => rows().find((r) => r.textContent.trim() === label);
+  /** The centre of the transform box, in document points. */
+  const boxCentre = () => { const cs = W.tfCorners(); return { x: (cs[0].x + cs[2].x) / 2, y: (cs[0].y + cs[2].y) / 2 }; };
+  /** Ratio of the box as drawn (width over height, from the corners). */
+  const boxRatio = () => { const cs = W.tfCorners(), w = Math.hypot(cs[1].x - cs[0].x, cs[1].y - cs[0].y), h = Math.hypot(cs[3].x - cs[0].x, cs[3].y - cs[0].y); return w / h; };
+  /** A 120 × 60 red block (ratio 2) on a 200 × 100 transparent layer. */
+  function scene(name) {
+    W.newDocTab(200, 100, 'transparent', name); W.actualPixels(); W.selectTool('move'); W.setColor('fg', '#000000');
+    const c = W.mkCanvas(200, 100), g = W.cx(c); g.fillStyle = '#ff0000'; g.fillRect(40, 20, 120, 60);
+    W.addLayer({ name: 'Block', canvas: c }, 'Add Block'); return W.activeLayer();
+  }
+
+  describe('PhotoSlop: restore original aspect ratio', () => {
+    it('boots', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      W.store.set('snap', false);
+      expect(typeof W.tfCanRestore).toBe('function');
+      expect(win.SlopAspect && typeof win.SlopAspect.restore).toBe('function');
+    }, { timeout: 40000 });
+
+    it('a non-proportional Free Transform gets the layer back to its ratio from the right-click menu', () => {
+      scene('Restore menu');
+      W.startTransform(); expect(W.TRANSFORM.active).toBe(true);
+      expect(boxRatio()).toBeCloseTo(2, 1);
+      W.TRANSFORM.lock = false; W.tfScale('x', 50); // W halved, H unchanged: the box is 1 : 1 now
+      expect(boxRatio()).toBeCloseTo(1, 1);
+      const c = boxCentre(); rightClick(c.x, c.y);
+      expect(row('Restore original aspect ratio')).toBeTruthy();
+      expect(row('Restore original aspect ratio').disabled).toBe(false);
+      expect(row('Reset transform')).toBeTruthy();
+      row('Restore original aspect ratio').click();
+      expect(W.TRANSFORM.sx).toBeCloseTo(0.5, 2); expect(W.TRANSFORM.sy).toBeCloseTo(0.5, 2); // width kept at 60
+      expect(boxRatio()).toBeCloseTo(2, 1);
+      key('Enter');
+      expect(W.TRANSFORM.active).toBe(false);
+      const b = W.alphaBounds(W.activeLayer().canvas), r = b.w / b.h;
+      expect(Math.abs(r - 2) < 0.05).toBe(true);
+    });
+
+    it('the same item works from the keyboard command palette', () => {
+      scene('Restore command');
+      W.startTransform(); W.TRANSFORM.lock = false; W.tfScale('y', 50); // H halved: a 120 × 30 box, ratio 4
+      expect(boxRatio()).toBeCloseTo(4, 1);
+      expect(win.SlopCmd.get('ps.transform-restore-aspect') != null).toBe(true);
+      win.SlopCmd.run('ps.transform-restore-aspect', { source: 'palette' });
+      expect(W.TRANSFORM.sy).toBeCloseTo(1, 2); expect(boxRatio()).toBeCloseTo(2, 1);
+      key('Escape');
+    });
+
+    it('a flipped box keeps its flip and gets the ratio back', () => {
+      scene('Restore flip');
+      W.startTransform(); W.TRANSFORM.lock = false; W.tfScale('x', 50); W.TRANSFORM.sx = -0.5; // flipped, W halved
+      const c = boxCentre(); rightClick(c.x, c.y); row('Restore original aspect ratio').click();
+      expect(W.TRANSFORM.sx).toBeCloseTo(-0.5, 2); expect(W.TRANSFORM.sy).toBeCloseTo(0.5, 2);
+      key('Escape');
+    });
+
+    it('a top edge handle keeps the height instead of the width', () => {
+      scene('Restore top');
+      W.startTransform(); W.TRANSFORM.lock = false; W.tfScale('x', 50); // 60 × 60 box
+      const cs = W.tfCorners(), mx = (cs[0].x + cs[1].x) / 2, my = (cs[0].y + cs[1].y) / 2;
+      rightClick(mx, my); row('Restore original aspect ratio').click();
+      // height 60 kept: width becomes 120 → sx = 1, sy = 1
+      expect(W.TRANSFORM.sx).toBeCloseTo(1, 2); expect(W.TRANSFORM.sy).toBeCloseTo(1, 2);
+      key('Escape');
+    });
+
+    it('idle, the item is shown on the box but disabled: an idle layer has no source ratio', () => {
+      scene('Restore idle');
+      W.selectTool('move');
+      const b = W.idleBoxPoints()[0]; expect(!!b).toBe(true);
+      const s = scr(W.boxTarget().x, W.boxTarget().y);
+      W.V.el.dispatchEvent(new win.MouseEvent('contextmenu', { clientX: s.x, clientY: s.y, button: 2, bubbles: true, cancelable: true }));
+      const r = row('Restore original aspect ratio');
+      expect(!!r).toBe(true); expect(r.disabled).toBe(true);
+      win.SlopUI.closeMenu();
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop restore aspect ratio' });
+  </script>
+</body>
+</html>

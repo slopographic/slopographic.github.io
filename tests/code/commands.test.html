@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: commands and dialogs</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, text, H, view, doc, textOf, typeText, key, rec, tabNames, dialog, dialogButtons, clickButton, waitFor, sleep } = CT;
+  let w;
+  const ids = ['open', 'new', 'save', 'saveAs', 'close', 'find', 'replace', 'wrap', 'files', 'run'];
+
+  describe('Slop Code: SlopCmd commands', () => {
+    it('boots and registers every command with SlopCmd', async () => {
+      w = await frame('../../code/');
+      const have = w.SlopCmd.list().map((c) => c.id);
+      for (const id of ids) expect(have).toContain('code.' + id);
+      expect(w.SlopCmd.keysFor('code.save').length).toBeGreaterThan(0);
+    });
+
+    it('the palette and the menus show the shortcut for each command', async () => {
+      expect(w.SlopCmd.keyFor('code.open')).toMatch(/O$/);
+      expect(w.SlopCmd.keyFor('code.saveAs')).toMatch(/Shift/);
+    });
+
+    it('New asks for a type and a name, sets the extension, and opens the file', async () => {
+      w.document.getElementById('cd-new').click();
+      await waitFor(() => dialog(w) && dialog(w).querySelector('.sui-title').textContent === 'New file', { timeout: 5000 });
+      const select = dialog(w).querySelector('select');
+      select.value = 'typescript';
+      select.dispatchEvent(new w.Event('change'));
+      const name = dialog(w).querySelector('input');
+      expect(name.value).toBe('untitled.ts');
+      name.value = 'thing';
+      clickButton(w, 'Create');
+      await waitFor(() => doc(w) && doc(w).name === 'thing.ts', { timeout: 8000 });
+      const r = await H().get(doc(w).id);
+      expect(r.type).toBe('text/typescript');
+      expect(r.blob.size).toBe(0);
+    });
+
+    it('Save as puts a copy in a chosen folder and opens it', async () => {
+      const folder = await H().createFolder('Copies');
+      const p = w.SlopUI.prompt, pick = w.SlopHub.pickFolder;
+      w.SlopUI.prompt = async () => 'thing.ts';
+      w.SlopHub.pickFolder = async () => folder;
+      try { await w.SlopCode.actions.saveAs(); } finally { w.SlopUI.prompt = p; w.SlopHub.pickFolder = pick; }
+      const made = await H().list({ folderId: folder });
+      expect(made.map((r) => r.name)).toEqual(['thing.ts']);
+      expect(doc(w).id).toBe(made[0].id);
+    });
+
+    it('Ctrl+Alt+Z toggles line wrap on and off, and the status bar says so', async () => {
+      const wrapOn = () => !!w.document.querySelector('.cm-lineWrapping');
+      const was = wrapOn();
+      key(w, 'z', { ctrl: true, alt: true });
+      await waitFor(() => wrapOn() !== was, { timeout: 3000 });
+      expect(w.document.getElementById('cd-status').textContent).toContain(wrapOn() ? 'Wrap on' : 'Wrap off');
+      key(w, 'z', { ctrl: true, alt: true });
+      await waitFor(() => wrapOn() === was, { timeout: 3000 });
+    });
+
+    it('Ctrl+F opens the find panel and Ctrl+H opens it with the replace field focused', async () => {
+      key(w, 'f', { ctrl: true });
+      await waitFor(() => w.document.querySelector('.cm-search'), { timeout: 3000 });
+      expect(w.document.activeElement.name).toBe('search');
+      key(w, 'h', { ctrl: true });
+      await waitFor(() => w.document.activeElement && w.document.activeElement.name === 'replace', { timeout: 3000 });
+      expect(!!w.document.querySelector('.cm-search input[name=replace]')).toBe(true);
+    });
+
+    it('Ctrl+Enter runs an HTML file and shows the preview; Files toggles the tree column', async () => {
+      const id = await H().put(text('<p>run me</p>', 'text/html'), { name: 'run.html', from: 'test' });
+      await w.SlopCode.openRecord(await rec(id));
+      await waitFor(() => doc(w).id === id, { timeout: 8000 });
+      key(w, 'Enter', { ctrl: true });
+      await waitFor(() => w.document.getElementById('cd-frame').srcdoc.includes('run me'), { timeout: 5000 });
+      expect(w.document.getElementById('cd-preview').hidden).toBe(false);
+      key(w, 'b', { ctrl: true });
+      await sleep(50);
+      expect(w.document.getElementById('cd-app').classList.contains('cd-tree-hidden')).toBe(true);
+      key(w, 'b', { ctrl: true });
+      await sleep(50);
+      expect(w.document.getElementById('cd-app').classList.contains('cd-tree-hidden')).toBe(false);
+    });
+
+    it('Ctrl+Alt+W closes the tab (asking if there are unsaved changes)', async () => {
+      const before = tabNames(w).length;
+      key(w, 'w', { ctrl: true, alt: true });
+      await waitFor(() => tabNames(w).length === before - 1, { timeout: 5000 });
+    });
+  });
+
+  describe('Slop Code: the page itself', () => {
+    it('shows no browser dialog and has a Commands button that opens the palette', async () => {
+      let opened = false;
+      const orig = w.SlopCmd.open;
+      w.SlopCmd.open = () => { opened = true; };
+      try { w.document.getElementById('cd-cmd').click(); } finally { w.SlopCmd.open = orig; }
+      expect(opened).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: commands and dialogs' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="support.exportCard=true">
+  <title>Support card · PhotoSlop export</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const cardIn = (w) => w.document.querySelector('.slopsup-card');
+  /** Loads a fresh copy of the app: waits for the new document's load event, not the old one. */
+  const load = (src) => new Promise((res) => { f.addEventListener('load', res, { once: true }); f.src = src; });
+
+  describe('PhotoSlop export shows the support card', () => {
+    it('the first export shows the corner card; a second export does not repeat it', async () => {
+      localStorage.removeItem('slop-support'); localStorage.removeItem('slop-consent');
+      await load('../../photoslop/index.html');
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      const W = f.contentWindow;
+      expect(cardIn(W)).toBe(null);
+      W.quickExport(); // the real PNG export path (download + toast + support card)
+      await waitFor(() => cardIn(W), { timeout: 10000 });
+      expect(cardIn(W).classList.contains('slopsup-corner')).toBe(true);
+      expect(cardIn(W).textContent).toContain('Analytics and ads are off by default.');
+      W.document.querySelector('.slopsup-x').click();
+      await sleep(20);
+      await W.quickExport(); // wait for the whole export (its PNG encode and the support check), so nothing from it lands in the next test
+      await sleep(300);
+      expect(cardIn(W)).toBe(null);
+    });
+    it('the ads slider in the PhotoSlop card writes the consent record', async () => {
+      localStorage.removeItem('slop-support'); localStorage.removeItem('slop-consent');
+      await load('../../photoslop/index.html');
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      const W = f.contentWindow;
+      W.quickExport();
+      await waitFor(() => cardIn(W), { timeout: 10000 });
+      const range = cardIn(W).querySelector('input[type="range"]');
+      expect(range.value).toBe('0');
+      range.value = '1';
+      range.dispatchEvent(new W.Event('input', { bubbles: true }));
+      await waitFor(() => { const r = localStorage.getItem('slop-consent'); return r && JSON.parse(r).categories.ads === true; }, { timeout: 5000 });
+      expect(JSON.parse(localStorage.getItem('slop-consent')).categories.ads).toBe(true);
+    });
+  });
+
+  run({ name: 'Support card · PhotoSlop' });
+  </script>
+</body>
+</html>

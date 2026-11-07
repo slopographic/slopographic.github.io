@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Effects: the commands with arguments (AI panel, WebMCP, macros) drive the real app</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../effects/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: effects/js/app/ai-commands.js, effects/js/app/ai-ops.js, effects/js/app/ai-export.js, effects/js/app/cmd.js, effects/index.html, shared/ai/cmdtools.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  let W, S, Cmd;
+  const exec = async (id, args, ctx) => { const r = await Cmd.exec('fx.ai.' + id, args, ctx); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const layerOf = (id) => S.doc.layers.find((l) => l.id === id);
+  const loadKit = () => new Promise((res, rej) => { const s = W.document.createElement('script'); s.src = '../shared/ai/cmdtools.js'; s.onload = res; s.onerror = rej; W.document.head.append(s); });
+  const png = () => new Promise((res) => { const c = W.document.createElement('canvas'); c.width = 40; c.height = 20; const g = c.getContext('2d'); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 40, 20); c.toBlob(res, 'image/png'); });
+
+  describe('Slop Effects commands with arguments', () => {
+    it('registers the commands with schemas, descriptions and tool names; they show in the palette', async () => {
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopEffects && f.contentWindow.SlopEffects.app && f.contentWindow.SlopCmd.get('fx.ai.render'), { timeout: 20000 });
+      W = f.contentWindow; S = W.SlopEffects.app.S; Cmd = W.SlopCmd;
+      await loadKit();
+      const ours = Cmd.list().filter((c) => c.id.startsWith('fx.ai.'));
+      expect(ours.length).toBeGreaterThan(15);
+      for (const c of ours) {
+        expect(c.hidden).toBe(false);
+        if (!c.args || !c.description || !c.group) throw new Error(c.id + ' lacks args, a description or a group');
+      }
+      const names = W.SlopAIKit.cmdTools.specs(Cmd).map((t) => t.name);
+      for (const n of ['app_state', 'new_project', 'set_composition', 'add_layer', 'set_layer_property', 'add_keyframe', 'add_effect', 'set_effect',
+        'remove_effect', 'animate', 'random_motion', 'delete_layer', 'duplicate_layer', 'move_layer', 'edit_layer', 'add_media_from_drive', 'render', 'export_frame', 'save_project', 'go_to_time']) {
+        if (!names.includes(n)) throw new Error('no tool ' + n + ' in ' + names.join(', '));
+      }
+    });
+    it('flags the destructive commands for the panel and the tools', () => {
+      const K = W.SlopAIKit.cmdTools;
+      for (const id of ['new-project', 'delete-layer', 'remove-effect']) { expect(Cmd.get('fx.ai.' + id).destructive).toBe(true); expect(K.isDestructive(Cmd.get('fx.ai.' + id))).toBe(true); }
+      for (const id of ['add-layer', 'duplicate-layer', 'render', 'add-effect']) expect(K.isDestructive(Cmd.get('fx.ai.' + id))).toBe(false);
+    });
+    it('new_project takes a social size, frame rate, length and a transparent background', async () => {
+      const r = await exec('new-project', { name: 'Promo', size: 'shorts', fps: 25, duration: 3, background: 'transparent' });
+      expect(S.doc.comp).toEqual({ width: 1080, height: 1920, fps: 25, duration: 3, background: 'transparent' });
+      expect(S.doc.name).toBe('Promo');
+      expect(S.doc.layers.length).toBe(0);
+      expect(String(r.value)).toContain('1080×1920');
+      await exec('set-composition', { width: 640, height: 360, background: '#112233' });
+      expect([S.doc.comp.width, S.doc.comp.height, S.doc.comp.background]).toEqual([640, 360, '#112233']);
+    });
+    it('add_layer adds a text layer with its colour and position in one undo step; state lists it by id', async () => {
+      const before = S.hist.past.length;
+      await exec('add-layer', { type: 'text', text: 'Hello', size: 64, color: 'red', x: 100, y: 50, opacity: 80 });
+      expect(S.hist.past.length).toBe(before + 1);
+      const st = Cmd.state();
+      const L = st.layers[0];
+      expect(L.type).toBe('text');
+      expect(L.source.text).toBe('Hello'); expect(L.source.color).toBe('#ff0000'); expect(L.source.size).toBe(64);
+      expect(L.base.position).toEqual([100, 50]); expect(L.base.opacity).toBe(80);
+      expect(/^l\d+$/.test(L.id)).toBe(true);
+      expect(JSON.parse(JSON.stringify(st)).comp.width).toBe(640);
+      await exec('add-layer', { type: 'solid', color: '#00ff00', name: 'Back' });
+      expect(S.doc.layers.map((l) => l.name)).toContain('Back');
+    });
+    it('sets a property, adds keyframes with an ease, and names a missing layer plainly', async () => {
+      const id = S.doc.layers.find((l) => l.type === 'text').id;
+      await exec('set-layer-property', { layer: id, property: 'rotation', value: 30 });
+      expect(layerOf(id).base.rotation).toBe(30);
+      await exec('add-keyframe', { layer: 'text 1', property: 'position', time: 0, x: 0, y: 0, ease: 'easeOutQuad' });
+      await exec('add-keyframe', { layer: id, property: 'position', time: 2, x: 300 });
+      const keys = S.doc.tl.tracks[id].position;
+      expect(keys.length).toBe(2);
+      expect(keys[0].ease).toBe('easeOutQuad');
+      expect(keys[1].value).toEqual([300, 0]);
+      expect(Cmd.state().layers.find((l) => l.id === id).keys.position).toBe(2);
+      const bad = await Cmd.exec('fx.ai.set-layer-property', { layer: 'nope', property: 'opacity', value: 1 });
+      expect(bad.ok).toBe(false);
+      expect(bad.error).toContain('No layer "nope"');
+    });
+    it('add_effect clamps its settings to the ranges and ignores ones the kind lacks; set_effect turns it off', async () => {
+      const id = S.doc.layers.find((l) => l.type === 'text').id;
+      const r = await exec('add-effect', { layer: id, kind: 'glow', radius: 999, intensity: 1.5, amount: 0.4 });
+      const fx = layerOf(id).effects.slice(-1)[0];
+      expect(fx.kind).toBe('glow');
+      expect(fx.params.radius).toBe(200); expect(fx.params.intensity).toBe(1.5);
+      expect(r.notes.join(' ')).toContain('radius');
+      expect(String(r.value)).toContain('glow has no amount');
+      await exec('set-effect', { layer: id, effect: fx.id, on: false, radius: 10 });
+      const now = layerOf(id).effects.find((x) => x.id === fx.id);
+      expect(now.on).toBe(false); expect(now.params.radius).toBe(10);
+      await exec('add-effect', { layer: id, kind: 'blur', radius: 4 });
+      expect(layerOf(id).effects.length).toBe(2);
+      await exec('remove-effect', { layer: id, effect: 'blur' });
+      expect(layerOf(id).effects.map((x) => x.kind)).toEqual(['glow']);
+    });
+    it('animate and random motion write keys; the same seed gives the same keys', async () => {
+      const id = S.doc.layers.find((l) => l.name === 'Back').id;
+      await exec('animate', { layer: id, direction: 'in', preset: 'fade-in' });
+      expect(S.doc.tl.tracks[id].opacity.length).toBeGreaterThan(1);
+      await exec('random-motion', { layer: id, seed: 7, properties: 'rotation', every: 0.5 });
+      const first = JSON.stringify(S.doc.tl.tracks[id].rotation);
+      S.undo();
+      await exec('random-motion', { layer: id, seed: 7, properties: 'rotation', every: 0.5 });
+      expect(JSON.stringify(S.doc.tl.tracks[id].rotation)).toBe(first);
+    });
+    it('duplicates, reorders and deletes layers', async () => {
+      const text = S.doc.layers.find((l) => l.type === 'text').id;
+      const n = S.doc.layers.length;
+      await exec('duplicate-layer', { layer: text });
+      expect(S.doc.layers.length).toBe(n + 1);
+      const copy = S.sel.layer;
+      await exec('move-layer', { layer: copy, to: 'bottom' });
+      expect(S.doc.layers[S.doc.layers.length - 1].id).toBe(copy);
+      await exec('move-layer', { layer: copy, to: 'top' });
+      expect(S.doc.layers[0].id).toBe(copy);
+      await exec('edit-layer', { layer: copy, rename: 'Copy', text: 'Bye', hidden: true });
+      expect([layerOf(copy).name, layerOf(copy).source.text, layerOf(copy).hidden]).toEqual(['Copy', 'Bye', true]);
+      await exec('delete-layer', { layer: copy });
+      expect(!!layerOf(copy)).toBe(false);
+      expect(S.doc.layers.length).toBe(n);
+    });
+    it('adds an image from Slop Drive by id and by name', async () => {
+      const driveId = await W.SlopHub.put(await png(), { name: 'red-box-ai-test.png', from: 'test' });
+      const r = await exec('add-media-from-drive', { drive_id: driveId });
+      const L = layerOf(S.sel.layer);
+      expect(L.type).toBe('image');
+      expect(S.doc.media.find((m) => m.id === L.source.mediaId).driveId).toBe(driveId);
+      expect(String(r.value)).toContain('red-box-ai-test.png');
+      await exec('add-media-from-drive', { name: 'RED-BOX-ai' });
+      expect(S.doc.layers.filter((l) => l.type === 'image').length).toBe(2);
+      const bad = await Cmd.exec('fx.ai.add-media-from-drive', { drive_id: 'no-such-file' });
+      expect(bad.ok).toBe(false);
+    });
+    it('renders a PNG sequence to Slop Drive with progress, and stops on an aborted signal', async () => {
+      await exec('set-composition', { width: 64, height: 64, fps: 24, duration: 0.25 });
+      const seen = [];
+      const r = await exec('render', { format: 'png', name: 'ai-render' }, { onProgress: (p) => seen.push(p) });
+      const id = String(r.value).match(/id ([^)]+)\)/)[1];
+      const rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('ai-render-frames.zip');
+      expect(rec.blob.size).toBeGreaterThan(100);
+      expect(seen[seen.length - 1]).toBe(1);
+      const ac = new W.AbortController(); ac.abort();
+      const stopped = await Cmd.exec('fx.ai.render', { format: 'png' }, { signal: ac.signal });
+      expect(stopped.ok).toBe(false);
+      expect(stopped.error).toBe('The render was stopped');
+      expect(W.document.getElementById('fx-status').classList.contains('is-on')).toBe(false);
+    }, { timeout: 30000 });
+    it('export_frame saves a PNG of a frame at the composition size to Slop Drive and downloads it', async () => {
+      await exec('set-composition', { width: 64, height: 32, fps: 24, duration: 1 });
+      const got = [];
+      W.SlopUI.download = (blob, name) => got.push({ blob, name });
+      const r = await exec('export-frame', { time: 0.5, name: 'ai-frame', to: 'both' });
+      const id = String(r.value).match(/id ([^)]+)\)/)[1];
+      const rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('ai-frame-0012.png');
+      expect(rec.type).toBe('image/png');
+      const bmp = await W.createImageBitmap(rec.blob);
+      expect(bmp.width).toBe(64);
+      expect(bmp.height).toBe(32);
+      expect(got.length).toBe(1);
+      expect(got[0].name).toBe('ai-frame-0012.png');
+    });
+    it('save_project saves the project file to Slop Drive, then writes back to the same file', async () => {
+      W.SlopEffects.app.act.renameProject('AI project');
+      const r1 = await exec('save-project', { to: 'drive' });
+      const id = String(r1.value).match(/id ([^)]+)\)/)[1];
+      expect(S.file.driveId).toBe(id);
+      const rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('AI project.effects.json');
+      const data = W.SlopEffects.project.fromFile(await rec.blob.text());
+      expect(data.data.layers.length).toBe(S.doc.layers.length);
+      await exec('add-layer', { type: 'solid', color: '#00ff00' });
+      const r2 = await exec('save-project', { to: 'drive' });
+      expect(String(r2.value)).toContain('id ' + id);
+      const again = W.SlopEffects.project.fromFile(await (await W.SlopHub.get(id)).blob.text());
+      expect(again.data.layers.length).toBe(S.doc.layers.length);
+      const got = [];
+      W.SlopUI.download = (blob, name) => got.push({ blob, name });
+      await exec('save-project', { to: 'download' });
+      expect(got[0].name).toBe('AI project.effects.json');
+    });
+    it('the checkpoint undoes every change since it was taken; the palette runs a command with its defaults', async () => {
+      const mark = S.doc;
+      const back = Cmd.checkpoint();
+      await exec('add-layer', { type: 'shape', shape: 'ellipse', color: '#0000ff' });
+      await exec('go-to-time', { time: 0.1 });
+      await exec('set-composition', { duration: 1 });
+      back();
+      expect(S.doc).toBe(mark);
+      const n = S.doc.layers.length;
+      Cmd.run('fx.ai.add-layer', { source: 'palette' });
+      expect(S.doc.layers.length).toBe(n + 1);
+      expect(layerOf(S.sel.layer).type).toBe('text');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

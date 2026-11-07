@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Document apps (Invoices, Quotes, Orders, Purchases): the list beside the editor, numbers on one line, the bold header</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/docs/doc-app.js, shared/docs/paper.css, shared/docs/paper.js, shared/docs/page.js, invoices/js/ui/app.js
+  // Regressions found while writing the tutorials: (1) the list beside an open record stayed at "0 quotes" after the first save,
+  // and Invoices' outstanding balances said "Nothing is owed" after an issue; (2) money and quantities broke onto two lines
+  // in narrow columns ("$1,200.0 / 0"); (3) in the Bold header layout the editable fields below the band were white on white.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const set = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); el.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const button = (text) => [...D.querySelectorAll('#eActions button, .ws-panel .sf-p-foot button')].find((b) => b.textContent === text);
+  const APPS = [
+    { app: 'quotes', ns: 'SlopQuotes', core: 'quotes', saveFn: 'save', summary: 'qSummary', one: '1 quote', zero: '0 quotes' },
+    { app: 'orders', ns: 'SlopOrders', core: 'orders', saveFn: 'save', summary: 'oSummary', one: '1 order', zero: '0 orders' },
+    { app: 'purchases', ns: 'SlopPurchases', core: 'purchases', saveFn: 'save', summary: 'pSummary', one: '1 purchase order', zero: '0 purchase orders', supplier: true, next: 'Place order' },
+    { app: 'invoices', ns: 'SlopInvoices', core: 'invoices', saveFn: 'saveDraft', summary: 'iSummary', one: '1 invoice', zero: '0 invoices', next: 'Issue…' },
+  ];
+  /** Loads an app in a fresh frame (the old one's window would still answer until the new page starts). */
+  async function boot(a, hash) {
+    document.getElementById('app').remove();
+    const f = document.createElement('iframe');
+    f.id = 'app';
+    const loaded = new Promise((res) => f.addEventListener('load', res, { once: true }));
+    f.src = `../../${a.app}/index.html?t=${Date.now()}${hash}`;
+    document.body.prepend(f);
+    await loaded;
+    await waitFor(() => f.contentWindow && f.contentWindow[a.ns] && f.contentWindow[a.ns].app && f.contentWindow.document.getElementById('boot')
+      && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  /** The number of lines a cell's text takes. */
+  function linesOf(el) {
+    const tw = D.createTreeWalker(el, W.NodeFilter.SHOW_TEXT);
+    let n, most = 0;
+    while ((n = tw.nextNode())) { const r = D.createRange(); r.selectNodeContents(n); most = Math.max(most, new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size); }
+    return most;
+  }
+  const lum = (css) => { const m = css.match(/\d+(\.\d+)?/g).map(Number); return (m[0] + m[1] + m[2]) / 3; };
+  /** Every editable field outside the header band is dark on the white page. */
+  const readable = () => [...D.querySelectorAll('#ePage .paper .pp-main .pe')].every((b) => lum(W.getComputedStyle(b).color) < 128);
+  /** waitFor that, when it times out, says what the page shows instead (the dialog, the toast, the buttons, the record). */
+  async function waitOr(pred, what, timeout = 8000) {
+    try { return await waitFor(pred, { timeout }); } catch (e) {
+      const dlg = D.querySelector('.sui-dlg, [role="dialog"], [role="alertdialog"]');
+      const toast = D.querySelector('.sui-toast, [role="status"].toast');
+      const recs = await Promise.all(['invoices', 'orders', 'quotes', 'purchaseOrders'].map(async (c) => { const r = await W.SlopData.store.list(c).catch(() => null); return r && r.ok && r.value.length ? `${c}: ${r.value.map((x) => x.status).join(',')}` : ''; }));
+      throw new Error(`${typeof what === 'function' ? what() : what}: waitFor timed out. Dialog: ${dlg ? dlg.textContent.trim().slice(0, 200) : 'none'}; toast: ${toast ? toast.textContent.trim().slice(0, 120) : 'none'}; `
+        + `buttons: ${[...D.querySelectorAll('#eActions button, .ws-panel .sf-p-foot button')].map((b) => b.textContent).join(' | ')}; records: ${recs.filter(Boolean).join('; ')}; `
+        + `hash: ${W.location.hash}; bold: ${!!D.querySelector('#ePage .paper.l-bold')}`);
+    }
+  }
+
+  for (const a of APPS) {
+    describe(`Slop ${a.app}`, () => {
+      it('the list beside the editor shows the first record as soon as it is saved', async () => {
+        await boot(a, '');
+        await W.SlopData.store.erase(); await W.SlopData.store.ready();
+        await W.SlopData.store.put('customers', { name: 'Ada Ltd', stage: 'customer', supplier: !!a.supplier });
+        await boot(a, '#list');
+        await waitFor(() => $(a.summary).textContent === a.zero);
+        W[a.ns].app.go('new');
+        await waitFor(() => !$('view-edit').hidden && $('eCustomer').options.length > 1);
+        expect($('view-list').hidden).toBe(false);   // the workspace: the list on the left
+        set($('eCustomer'), $('eCustomer').options[1].value);
+        const card = D.querySelector('#eLines .line-card');
+        set(card.querySelector('[data-f="description"]'), 'Design');
+        set(card.querySelector('[data-f="qty"]'), '50');
+        set(card.querySelector('[data-f="unitPrice"]'), '1200000');
+        button('Save draft').click();
+        await waitFor(() => $(a.summary).textContent === a.one, { timeout: 8000 });
+        expect(D.querySelectorAll(`#${a.summary.replace('Summary', 'Rows')} .sl-row`).length).toBe(1);
+      });
+      it('money, quantities and dates on the page keep to one line', async () => {
+        await waitFor(() => D.querySelector('#ePage .paper .pp-table .n'));
+        const cells = [...D.querySelectorAll('#ePage .paper .pp-table .n, #ePage .paper .pp-meta dd, #ePage .paper .pp-sums dd')];
+        expect(cells.length).toBeGreaterThan(5);
+        expect(cells.filter((c) => linesOf(c) > 1).map((c) => c.textContent)).toEqual([]);
+        // nothing runs off the page: a table too wide for it scrolls inside it
+        const paper = D.querySelector('#ePage .paper').getBoundingClientRect();
+        expect(D.querySelector('#ePage .paper .pp-main').getBoundingClientRect().right <= paper.right).toBe(true);
+      });
+      // A change made while a save was being written or read back used to be overwritten by the saved record (the layout
+      // went back, and the next step saved the old one): the Bold header test below failed now and then on a busy machine.
+      const saveBtn = () => [...D.querySelectorAll('#eActions button, .ws-panel .sf-p-foot button')].find((b) => /^Save/.test(b.textContent));
+      /** Saves with obj[fn] held back, picks a layout meanwhile, then checks it stays unsaved and the next step's save writes it. */
+      async function pickDuringSave(obj, fn, layout) {
+        const orig = obj[fn];
+        let release, held = false;
+        const gate = new Promise((r) => { release = r; });
+        obj[fn] = async (...x) => { held = true; await gate; return orig.apply(obj, x); };
+        try {
+          saveBtn().click();
+          await waitFor(() => held);
+          set(D.querySelector('select[aria-label="PDF and print layout"]'), layout);
+        } finally { obj[fn] = orig; release(); }
+        await waitFor(() => !$('eMsg').textContent.includes('…'));
+        expect(D.querySelector(`#ePage .paper.l-${layout}`)).toBeTruthy();
+        expect(W[a.ns].editor.isDirty()).toBe(true);   // still unsaved, so a step (which saves only what is unsaved) writes it
+        W[a.ns].editor.saveIfNeeded();
+        await waitOr(async () => (await W.SlopData.store.list(a.app)).value[0].pdfLayout === layout, `the ${layout} layout saved`, 5000);
+      }
+      it('a layout picked while the draft is being saved stays, and the next save writes it', async () => {
+        await pickDuringSave(W[a.ns][a.core], a.saveFn, 'sidebar');
+        if (a.app === 'invoices') await pickDuringSave(W[a.ns].context, 'load', 'minimal');   // while the saved invoice is read back
+      });
+      it('the Bold header layout keeps the fields below the band readable, before and after the next step', async () => {
+        const sel = D.querySelector('select[aria-label="PDF and print layout"]');
+        set(sel, 'bold');
+        await waitOr(() => D.querySelector('#ePage .paper.l-bold'), 'the bold layout');
+        expect(readable()).toBe(true);
+        expect(D.querySelector('#ePage .paper .pp-desc').textContent).toBe('Design');
+        if (!a.next) return;
+        W.SlopUI.confirm = async () => true;
+        button(a.next).click();
+        await waitOr(() => !button(a.next) && D.querySelector('#ePage .paper.l-bold'), `after ${a.next}`);
+        expect(readable()).toBe(true);
+        expect(D.querySelector('#ePage .paper .pp-name').textContent).toBe('Ada Ltd');
+        expect(D.querySelector('#ePage .paper .pp-desc').textContent).toBe('Design');
+        if (a.app === 'invoices') {
+          // issued: the outstanding balances beside it now list the customer
+          await waitOr(() => D.querySelector('#iOutstanding .sl-row') && D.querySelector('#iOutstanding .sl-row').textContent.includes('Ada Ltd'), () => `the outstanding list (${D.querySelector('#iOutstanding') ? D.querySelector('#iOutstanding').textContent.trim().slice(0, 160) : 'no #iOutstanding'})`);
+        }
+      });
+    });
+  }
+  run();
+  </script>
+</body>
+</html>

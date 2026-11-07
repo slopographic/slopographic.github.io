@@ -1,0 +1,19 @@
+/* Layout lane (shared/video/lane-view.js). Colours come from the host app's tokens when present. */
+.lv { display: grid; gap: 6px; font: 12px/1.35 system-ui, sans-serif; color: var(--sui-text, #222); }
+.lv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lv-title { margin-right: 4px; }
+.lv-sel { max-width: 16em; }
+.lv-btn { font: inherit; padding: 3px 8px; border: 1px solid var(--sui-line, #bbb); border-radius: 4px; background: var(--sui-panel, #fff); color: inherit; cursor: pointer; }
+.lv-btn:disabled { opacity: .5; cursor: default; }
+.lv-track { position: relative; height: 34px; border-radius: 4px; background: var(--sui-track, #ececf1); overflow: hidden; outline-offset: 2px; touch-action: none; user-select: none; }
+.lv-track:focus-visible { outline: 2px solid var(--sui-accent, #3b6cf6); }
+.lv-band { position: absolute; top: 0; bottom: 0; border-right: 1px solid rgba(0, 0, 0, .15); background: var(--sui-band, hsl(220 60% 88%)); overflow: hidden; }
+.lv-band:nth-of-type(even) { background: var(--sui-band2, hsl(200 55% 82%)); }
+.lv-bl { display: block; padding: 9px 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+.lv-mark { position: absolute; top: 0; bottom: 0; width: 10px; margin-left: -5px; padding: 0; border: 0; background: var(--sui-accent, #3b6cf6); color: #fff; font-size: 9px; cursor: ew-resize; touch-action: none; }
+.lv-mark.on { box-shadow: inset 0 0 0 2px #fff; }
+.lv-mark.drag { opacity: .8; }
+/* A finger-sized switch (--slop-hit: 44 px under a coarse pointer, shared/input/touch.css) */
+.lv-mark::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--slop-hit, 0px); transform: translateX(-50%); }
+.lv-ph { position: absolute; top: 0; bottom: 0; width: 1px; background: #d33; pointer-events: none; }
+.lv-hint { margin: 0; color: var(--sui-muted, #666); font-size: 11px; }

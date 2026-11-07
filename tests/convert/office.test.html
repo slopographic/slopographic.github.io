@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: Word to PDF, HTML, Markdown and text with the Slop Docs engine</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/core/office.js, convert/js/core/doc-out.js, convert/js/core/catalog.js, convert/js/core/detect.js, convert/js/preview/model.js
+  // Covers: convert/js/core/office-pages.js, convert/js/core/pages.js, shared/seo/convert-copy.mjs, convert/js/core/chain-flags.js
+  // Covers: docs/js/io/docx-in.js, docs/js/io/md-out.js, docs/js/io/html-out.js, docs/js/fonts/doc-fonts.js, docs/js/bridge.js, docs/js/ui/files.js
+  // A small Word file (office-fixture.js: headings, a list, a table, Swedish and Arabic text, a link) goes through the real
+  // converters; pdf.js reads the PDF back. The Arabic font comes through SlopFontJIT from memory (office-helpers.js).
+  // Last: the Convert dialog opened in Slop Docs starts the open document on Word to PDF.
+  import { sampleDocx, DOCX_TEXT } from './office-fixture.js';
+  import { serveArabic, readPdf, pageText, pageSize, ARABIC } from './office-helpers.js';
+  import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+  import { detectKind } from '../../convert/js/core/detect.js';
+  import { defaultTarget } from '../../convert/js/ui/targets.js';
+  import { buildPreview } from '../../convert/js/preview/model.js';
+  import { PAGES } from '../../convert/js/core/pages.js';
+  import { CONVERT_PAGES } from '../../shared/seo/convert-copy.mjs';
+  // the English page: a build whose root language is another has it under /en/ (shared/seo/HANDOFF.md, "Languages")
+  const EN_DIR = window.BRAND_FACTS && window.BRAND_FACTS.defaultLang !== 'en' ? 'en/' : '';
+  // a build that is not indexed (seo.index) and starts in another language has no English copies of the pages
+  const EN_PAGES = !(EN_DIR && window.BRAND_FACTS && !window.BRAND_FACTS.seoIndex);
+  const { describe, it, expect, waitFor } = SlopTest;
+  const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+  const docx = async (name = 'Rapport.docx') => new File([await sampleDocx()], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  const run = async (id, o = {}) => conv(id).run([{ name: 'Rapport.docx', file: await docx(), kind: 'docx' }], o);
+  const fetched = await serveArabic();
+
+  describe('Word files in the catalog', () => {
+    it('a .docx is told apart (also with no name), and Word to PDF comes first, then HTML, Markdown and text', async () => {
+      const f = await docx();
+      const head = new Uint8Array(await f.slice(0, 512).arrayBuffer());
+      expect([detectKind(f.name, f.type, head), detectKind('', '', head), detectKind('x.bin', '', head)]).toEqual(['docx', 'docx', 'docx']);
+      const ids = conversionsFor(['docx']).map((c) => c.id).filter((id) => !conv(id).from.includes('*'));
+      expect(ids).toEqual(['docx-to-pdf', 'docx-to-html', 'docx-to-md', 'docx-to-text']);
+      expect(defaultTarget('docx')).toBe('docx-to-pdf');
+      expect(conv('docx-to-pdf').keywords).toContain('word');
+      expect(conv('docx-to-md').chain).toBe('first');
+    });
+  });
+
+  describe('the Word and PowerPoint pages', () => {
+    it('each page exists with its tool and its own head copy', async () => {
+      const slugs = ['docx-to-pdf', 'word-to-pdf', 'docx-to-html', 'docx-to-markdown', 'docx-to-text', 'pptx-to-pdf', 'powerpoint-to-pdf', 'pptx-to-images', 'pptx-to-text'];
+      const titles = new Set();
+      for (const slug of slugs) {
+        const p = PAGES.find((x) => x.slug === slug);
+        expect(!!conv(p.conv)).toBe(true);
+        expect(CONVERT_PAGES[`convert/${slug}`].title).toBe(p.title);
+        titles.add(p.title);
+        if (!EN_PAGES) continue;
+        const html = await (await fetch(`../../${EN_DIR}convert/${slug}/`)).text();
+        expect(html).toContain(`data-preset="${p.conv}"`);
+        expect(html).toContain(`<title>${p.title}</title>`);
+        expect(html).toContain(`<h1>${p.h1}</h1>`);
+      }
+      expect(titles.size).toBe(slugs.length);
+      if (!window.BRAND_FACTS.seoIndex) return;   // a site that is not indexed has no sitemap (and no language folders)
+      const sitemap = await (await fetch('../../sitemap.xml')).text();
+      expect(slugs.every((s) => sitemap.includes(`/convert/${s}/`))).toBe(true);
+    }, { timeout: 30000 });
+  });
+
+  describe('Word to PDF', () => {
+    it('makes A4 pages with the real text: headings, Swedish letters, the list, the table and the Arabic, with its font', async () => {
+      const out = await run('docx-to-pdf');
+      expect(out[0].name).toBe('Rapport.pdf');
+      expect(out.info).toBe(undefined);   // no "may show as boxes": the Arabic font was downloaded
+      expect(fetched).toContain('NotoSansArabic-test.ttf');
+      const pdf = await readPdf(out[0].blob);
+      expect(pdf.numPages).toBe(1);
+      const page = await pdf.getPage(1);
+      expect(await pageSize(page)).toEqual([595, 842]);   // A4, from the document's own page size
+      const text = await pageText(page);
+      for (const t of [DOCX_TEXT.title, 'världen', 'åäö', 'ÅÄÖ', 'fet', 'kursiv', 'Lista', 'Ett', 'Under', 'Första', 'Namn', 'Malmö']) expect(text).toContain(t);
+      expect(ARABIC.test(text)).toBe(true);
+      const links = (await page.getAnnotations()).filter((a) => a.subtype === 'Link').map((a) => a.url);
+      expect(links).toContain(DOCX_TEXT.link);   // the hyperlink stays a link
+    }, { timeout: 90000 });
+    it('the page size option sets US Letter', async () => {
+      const [pdf] = await run('docx-to-pdf', { page: 'letter' });
+      expect(await pageSize(await (await readPdf(pdf.blob)).getPage(1))).toEqual([612, 792]);
+    }, { timeout: 60000 });
+    it('a file that is not a Word document says so', async () => {
+      const bad = new File([new Uint8Array([0x50, 0x4b, 5, 6, ...new Array(18).fill(0)])], 'broken.docx');
+      let msg = '';
+      try { await conv('docx-to-pdf').run([{ name: 'broken.docx', file: bad, kind: 'docx' }], {}); } catch (e) { msg = e.message; }
+      expect(msg).toContain('broken.docx');
+    }, { timeout: 30000 });
+  });
+
+  describe('Word to HTML, Markdown and text', () => {
+    it('HTML: a page with headings, nested lists, the table, the link and right-to-left Arabic', async () => {
+      const [h] = await run('docx-to-html');
+      expect(h.name).toBe('Rapport.html');
+      const d = new DOMParser().parseFromString(await h.blob.text(), 'text/html');
+      expect(d.querySelector('h1').textContent).toBe(DOCX_TEXT.title);
+      expect(d.querySelectorAll('ul ul li').length).toBe(1);
+      expect([...d.querySelectorAll('ol li')].map((li) => li.textContent)).toEqual(['Första', 'Andra']);
+      expect([...d.querySelectorAll('th')].map((x) => x.textContent)).toEqual(['Namn', 'Stad']);
+      expect(d.querySelector('a').getAttribute('href')).toBe(DOCX_TEXT.link);
+      const ar = [...d.querySelectorAll('p')].find((p) => p.textContent === DOCX_TEXT.arabic);
+      document.body.append(ar);
+      expect(getComputedStyle(ar).direction).toBe('rtl');   // dir="auto" reads the Arabic
+      ar.remove();
+      const [frag] = await run('docx-to-html', { standalone: false });
+      expect((await frag.blob.text()).startsWith('<h1')).toBe(true);
+    }, { timeout: 30000 });
+    it('Markdown: headings, bold, italic, the link, lists and a pipe table', async () => {
+      const [m] = await run('docx-to-md');
+      const md = await m.blob.text();
+      expect(m.name).toBe('Rapport.md');
+      for (const t of [`# ${DOCX_TEXT.title}`, '**fet**', '*kursiv*', `[länk](${DOCX_TEXT.link})`, '## Lista', '- Ett', '    - Under', '2. Andra', '| Namn | Stad |', '| --- | --- |', '| Omar | حلب |']) expect(md).toContain(t);
+    }, { timeout: 30000 });
+    it('text: one line per paragraph and cell; the preview shows it', async () => {
+      const [t] = await run('docx-to-text');
+      const lines = (await t.blob.text()).split('\n');
+      expect(lines.slice(0, 3)).toEqual([DOCX_TEXT.title, `${DOCX_TEXT.swedish}, fet och kursiv text med en länk.`, DOCX_TEXT.arabic]);
+      const f = await docx();
+      const pv = await buildPreview(conv('docx-to-text'), [{ name: f.name, file: f, kind: 'docx', size: f.size }], {});
+      expect(pv.after.kind).toBe('text');
+      expect(pv.after.text).toContain('Malmö');
+    }, { timeout: 30000 });
+  });
+
+  describe('the Convert dialog from Slop Docs', () => {
+    it('starts the open document on Word to PDF, and converts it', async () => {
+      const fr = document.createElement('iframe');
+      fr.style.cssText = 'width:1100px;height:800px';
+      fr.src = '../../docs/index.html';
+      document.body.append(fr);
+      const W = await waitFor(() => fr.contentWindow && fr.contentWindow.SlopDocs && fr.contentWindow.SlopDocs.doc && fr.contentWindow, { timeout: 40000 });
+      const { open } = await W.eval(`import(${JSON.stringify(new URL('../../shared/convert/dialog.js', location.href).href)})`);
+      const ctl = open();
+      await ctl.ready;
+      const to = await waitFor(() => ctl.element.querySelector('.cv-to'), { timeout: 20000 });
+      expect(ctl.element.querySelector('.cv-file .cv-file-name').textContent).toMatch(/\.docx$/);
+      expect(to.dataset.target).toBe('docx-to-pdf');
+      expect(ctl.targets()).toContain('docx-to-md');
+      ctl.element.querySelector('.cv-form button[type=submit]').click();
+      await waitFor(() => ctl.results().length === 1, { timeout: 60000 });
+      const [res] = ctl.results();
+      expect(res.name).toMatch(/\.pdf$/);
+      expect(await res.blob.slice(0, 5).text()).toBe('%PDF-');
+      ctl.close();
+      fr.remove();
+    }, { timeout: 120000 });
+  });
+  SlopTest.run({ name: 'File convert: Word files' });
+  </script>
+</body>
+</html>

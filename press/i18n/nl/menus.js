@@ -1,0 +1,22 @@
+/* The Slop Press menu titles, Dutch. Same keys as press/i18n/en/menus.js. Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'press.menu.layout': 'Indeling',
+  'press.menu.type': 'Tekst',
+  'press.menu.object': 'Object',
+  'press.menu.window': 'Venster',
+  'press.menu.tools': 'Tools',
+  'press.menu.styles': 'Stijlen',
+  'press.menu.send_to': 'Verzenden naar',
+  'press.menu.pages': 'Pagina’s',
+  'press.menu.para_style': 'Alineastijl',
+  'press.menu.char_style': 'Tekenstijl',
+  'press.menu.alignment': 'Uitlijning',
+  'press.menu.special_char': 'Speciaal teken invoegen',
+  'press.menu.composer': 'Composer',
+  'press.menu.arrange': 'Rangschikken',
+  'press.menu.fitting': 'Passend maken',
+  'press.menu.text_wrap': 'Tekstomloop',
+  'press.menu.theme': 'Thema',
+  'press.menu.hub_unavailable': 'Slop Hub niet beschikbaar',
+  'press.menu.none': '(geen)',
+});

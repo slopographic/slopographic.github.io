@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · geometry tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const ringArea = (r) => G.polyArea(r);
+
+  describe('geometry', () => {
+    it('composes and inverts affine matrices', () => {
+      const M = G.mul(G.translate(10, -4), G.mul(G.rotate(0.7, 3, 5), G.scale(2, 3)));
+      G.mul(M, G.inv(M)).forEach((v, i) => expect(v).toBeCloseTo([1, 0, 0, 1, 0, 0][i], 1e-9));
+      const p = G.ap(G.rotate(Math.PI / 2, 0, 0), 1, 0);
+      expect(p.x).toBeCloseTo(0, 1e-12); expect(p.y).toBeCloseTo(1, 1e-12);
+    });
+    it('splits beziers continuously and finds exact bounding boxes', () => {
+      const P0 = { x: 0, y: 0 }, P1 = { x: 0, y: 100 }, P2 = { x: 100, y: 100 }, P3 = { x: 100, y: 0 };
+      const [a, b] = G.splitBez(P0, P1, P2, P3, 0.3), at = G.bez(P0, P1, P2, P3, 0.3);
+      expect(a[3]).toEqual(b[0]); expect(a[3].x).toBeCloseTo(at.x, 1e-9);
+      const bb = G.subsBBox(G.ellipseSubs(50, 40, 30, 20));
+      expect([bb.x, bb.y, bb.w, bb.h].map((v) => Math.round(v * 1000) / 1000)).toEqual([20, 20, 60, 40]);
+    });
+    it('flattens a circle to within 0.05% of πr²', () => {
+      const a = Math.abs(G.polyArea(circlePts(0, 0, 100)));
+      expect(Math.abs(a - Math.PI * 1e4) / (Math.PI * 1e4)).toBeLessThan(5e-4);
+    });
+    it('parses every SVG path command and serialises back', () => {
+      const subs = G.parseD('M10 10 h50 v50 a25 25 0 1 1 -50 0z m5 5 l1 1 Q 20 0 30 15 T 50 15 C60 0 70 0 80 15 S 100 30 110 15');
+      expect(subs.length).toBe(2); expect(subs[0].closed).toBe(true); expect(subs[1].pts.length).toBe(6);
+      const again = G.parseD(G.toD(subs));
+      expect(again.map((s) => s.pts.length)).toEqual(subs.map((s) => s.pts.length));
+      expect(G.toD(again)).toBe(G.toD(subs));
+    });
+    it('parses compact arc flags and survives garbage', () => {
+      expect(G.parseD('M0 0a5 5 0 105 5').length).toBe(1);
+      expect(G.parseD('M0 0 L 10 10 L oops').length).toBe(1);
+    });
+    it('curve-fits a freehand sine into a few beziers within tolerance', () => {
+      const raw = []; for (let i = 0; i <= 200; i++) raw.push({ x: i * 2, y: Math.sin(i / 20) * 40 });
+      const sp = G.fitFreehand(raw, 1.5, false);
+      expect(sp.pts.length).toBeLessThan(14);
+      const polys = G.flatten([sp], 0.2);
+      expect(Math.max(...raw.filter((_, i) => i % 10 === 0).map((p) => G.distToPolys(polys, p)))).toBeLessThan(3);
+    });
+    it('hit-tests fills by winding rule', () => {
+      const polys = [{ pts: square(0, 0, 100), closed: true }, { pts: square(25, 25, 50), closed: true }];
+      expect(G.pointInPolys(polys, { x: 50, y: 50 }, 'nonzero')).toBe(true);
+      expect(G.pointInPolys(polys, { x: 50, y: 50 }, 'evenodd')).toBe(false);
+      expect(G.distToPolys(polys, { x: 50, y: -3 })).toBeCloseTo(3, 1e-9);
+    });
+  });
+
+  describe('boolean ops', () => {
+    const A = () => ({ rings: [square(0, 0, 100)] }), B = () => ({ rings: [square(50, 50, 100)] });
+    const tot = (rs) => rs.reduce((a, r) => a + Math.abs(ringArea(r)), 0);
+    it('unite / intersect / minus / exclude give exact areas', () => {
+      expect(tot(G.boolean([A(), B()], 'union'))).toBeCloseTo(17500, 1e-6);
+      expect(tot(G.boolean([A(), B()], 'intersect'))).toBeCloseTo(2500, 1e-6);
+      expect(tot(G.boolean([A(), B()], 'minus'))).toBeCloseTo(7500, 1e-6);
+      const x = G.boolean([A(), B()], 'xor');
+      expect(x.length).toBe(2); expect(tot(x)).toBeCloseTo(15000, 1e-6);
+    });
+    it('cuts holes with opposite winding', () => {
+      const r = G.boolean([{ rings: [square(0, 0, 300)] }, { rings: [square(100, 100, 50)] }], 'minus');
+      expect(r.length).toBe(2);
+      const areas = r.map(ringArea).sort((a, b) => a - b);
+      expect(Math.sign(areas[0])).toBe(-Math.sign(areas[1]));
+      expect(Math.abs(areas[0]) + Math.abs(areas[1])).toBeCloseTo(92500, 1e-6);
+    });
+    it('merges edge-sharing shapes into one clean ring', () => {
+      const r = G.boolean([{ rings: [square(0, 0, 100)] }, { rings: [square(100, 0, 100)] }], 'union');
+      expect(r.length).toBe(1); expect(r[0].length).toBe(4); expect(Math.abs(ringArea(r[0]))).toBeCloseTo(20000, 1e-6);
+    });
+    it('unites three operands in one pass and respects evenodd operands', () => {
+      const r = G.boolean([A(), B(), { rings: [square(160, 160, 20)] }], 'union');
+      expect(tot(r)).toBeCloseTo(17500 + 400, 1e-6);
+      const donut = { rings: [square(0, 0, 100), square(25, 25, 50)], rule: 'evenodd' };
+      expect(tot(G.boolean([donut, { rings: [square(40, 40, 20)] }], 'intersect'))).toBe(0);
+    });
+    it('unites curves and refits them to smooth beziers with the analytic area', () => {
+      const ck = new Set(), s1 = G.ellipseSubs(0, 0, 100, 100), s2 = G.ellipseSubs(120, 0, 100, 100);
+      G.cornerKeysOf(s1, ck); G.cornerKeysOf(s2, ck);
+      const rings = G.boolean([{ rings: [G.flatten(s1, 0.35)[0].pts] }, { rings: [G.flatten(s2, 0.35)[0].pts] }], 'union', ck);
+      const subs = G.fitRings(rings, ck);
+      const r = 100, d = 120, lens = 2 * r * r * Math.acos(d / (2 * r)) - (d / 2) * Math.sqrt(4 * r * r - d * d), exact = 2 * Math.PI * r * r - lens;
+      expect(subs[0].pts.length).toBeLessThan(20);
+      expect(Math.abs(Math.abs(area(subs)) - exact) / exact).toBeLessThan(3e-3);
+    });
+    it('slopify grows drips below the shape and stays closed', () => {
+      const res = G.slopify(G.rectSubs(0, 0, 200, 120), { seed: 7 });
+      expect(res.body.length).toBe(1); expect(res.body[0].closed).toBe(true);
+      expect(G.subsBBox(res.body).h).toBeGreaterThan(130);
+      expect(res.gloss).toBeTruthy();
+    });
+  });
+
+  SlopTest.run({ name: 'SlopVector · geometry' });
+  </script>
+</body>
+</html>

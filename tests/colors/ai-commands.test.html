@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Colors: the assistant's commands (SlopCmd with argument schemas)</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style></head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+// Covers: colors/js/commands.js, colors/js/ai-commands.js, colors/js/state.js, colors/js/io.js, colors/js/wheel.js, colors/js/core/wheel.js
+const { describe, it, expect, waitFor, run } = SlopTest;
+let W, D;
+const exec = async (id, args) => { const r = await W.SlopCmd.exec('colors.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r.value; };
+describe('Slop Colors: the assistant', () => {
+  it('the commands load on demand and each has a schema; state reads the page', async () => {
+    localStorage.removeItem('slop-colors');
+    const fr = document.getElementById('app');
+    fr.src = '../../colors/index.html';
+    await waitFor(() => { try { return fr.contentWindow.SlopCmd && fr.contentWindow.CO.main && fr.contentDocument.querySelector('#co-download'); } catch (e) { return false; } }, { timeout: 30000 });
+    W = fr.contentWindow; D = W.document;
+    await W.SlopCmd.prepare();
+    const tools = W.SlopCmd.list().filter((c) => c.id.startsWith('colors.ai.')).map((c) => c.tool).sort();
+    expect(tools).toEqual(['add_colors', 'add_from_picture', 'check_contrast', 'convert_color', 'export_palette', 'fix_contrast', 'make_palette', 'move_wheel_handle', 'new_palette', 'read_wheel', 'remove_color', 'rename_palette', 'set_color', 'set_wheel']);
+    const st = await W.SlopCmd.state();
+    expect(st.app).toBe('Slop Colors');
+    expect(st.current.hex).toBe('#3366cc');
+    expect(st.wheel).toEqual({ model: 'rgb', harmony: 'complementary', colors: ['#3366cc', '#cc9933'] });
+  }, { timeout: 40000 });
+  it('new_palette, add_colors, remove_color and rename_palette change the page\'s palette', async () => {
+    await exec('new-palette', { name: 'Sunset', colors: ['#ff7e5f', 'rgb(254 180 123)'] });
+    await exec('add-colors', { colors: ['hsl(270 50% 40%)'] });
+    expect(W.CO.state.get().palette.colors.map((c) => c.hex)).toEqual(['#ff7e5f', '#feb47b', '#663399']);
+    await exec('remove-color', { index: 2 });
+    await exec('rename-palette', { name: 'Dusk' });
+    expect(W.CO.state.get().palette).toEqual({ name: 'Dusk', colors: [{ hex: '#ff7e5f' }, { hex: '#663399' }] });
+    expect(D.querySelectorAll('#co-palette .co-sw').length).toBe(2);
+    const bad = await W.SlopCmd.exec('colors.ai.add-colors', { colors: ['not a colour'] });
+    expect(bad.ok).toBe(false);
+  });
+  it('set_color, convert_color, make_palette', async () => {
+    const all = await exec('set-color', { color: 'oklch(62.796% 0.25768 29.234)' });
+    expect(all.hex).toBe('#ff0000');
+    expect((await exec('convert-color', { color: '#3366cc' })).hsl).toBe('hsl(220 60% 50%)');
+    await exec('make-palette', { from: 'scale', kind: 'shades', steps: 2 });
+    expect(W.CO.state.get().palette.colors.map((c) => c.hex)).toEqual(['#ff0000', '#800000']);
+    await exec('make-palette', { from: 'ramp' });
+    expect(W.CO.state.get().palette.colors.length).toBe(11);
+  });
+  it('check_contrast and fix_contrast', async () => {
+    const c = await exec('check-contrast', { fg: '#777777', bg: '#ffffff' });
+    expect(c.passes.aaNormal).toBe(false); expect(c.passes.aaLarge).toBe(true);
+    await exec('fix-contrast', { level: 'AAA' });
+    expect(W.SlopContrastMath.ratioHex(W.CO.state.get().fg, '#ffffff')).toBeGreaterThanOrEqual(7);
+  });
+  it('set_wheel, move_wheel_handle and read_wheel drive the colour wheel as a hand does', async () => {
+    await exec('set-color', { color: '#ff0000' });
+    let w = await exec('set-wheel', { harmony: 'complementary', wheel: 'ryb' });
+    expect(w.handles.map((h) => h.hex)).toEqual(['#ff0000', '#00ff00']);
+    expect(D.querySelectorAll('#co-wheel .co-wh').length).toBe(2);
+    w = await exec('move-wheel-handle', { handle: 1, hue: 240, saturation: 100, brightness: 100 });
+    expect(W.CO.state.get().current).toBe('#0000ff');
+    expect(w.handles[1].hex).toBe('#ff8000');   // blue's complement on the artist's wheel is orange
+    w = await exec('set-wheel', { colors: ['#ffff00', '#00ffff'] });
+    expect(w.harmony).toBe('custom');
+    expect(w.handles.map((h) => h.hex)).toEqual(['#0000ff', '#ffff00', '#00ffff']);
+    await exec('move-wheel-handle', { handle: 3, hue: 0 });
+    expect(W.CO.state.get().custom).toEqual(['#ffff00', '#ff0000']);
+    const r = await exec('read-wheel', {});
+    expect(r.wheel).toBe('ryb'); expect(r.handles.length).toBe(3); expect(r.handles[0].hue).toBe(240);
+    const bad = await W.SlopCmd.exec('colors.ai.move-wheel-handle', { handle: 7, hue: 10 });
+    expect(bad.ok).toBe(false);
+    await exec('set-wheel', { harmony: 'triadic', wheel: 'rgb' });
+    await exec('make-palette', { from: 'harmony' });
+    expect(W.CO.state.get().palette.colors.map((c) => c.hex)).toEqual(['#0000ff', '#ff0000', '#00ff00']);
+  });
+  it('add_from_picture reads a picture on this site; export_palette saves to Slop Drive', async () => {
+    await exec('new-palette', { name: 'Photo' });
+    const msg = await exec('add-from-picture', { url: '../tests/shared/fixtures/formats/sample.webp', count: 4 });
+    expect(msg).toMatch(/Found 4 main colours/);
+    expect(W.CO.state.get().palette.colors.length).toBe(4);
+    const out = await exec('export-palette', { format: 'ase', to: 'drive' });
+    const id = /id ([^)]+)\)/.exec(out)[1], rec = await W.SlopHub.get(id);
+    expect(rec.name).toBe('sample.ase');
+    expect(new Uint8Array(await rec.blob.arrayBuffer()).slice(0, 4)).toEqual(new Uint8Array([65, 83, 69, 70]));
+  }, { timeout: 30000 });
+});
+run({ name: 'Slop Colors: the assistant' });
+</script>
+</body>
+</html>

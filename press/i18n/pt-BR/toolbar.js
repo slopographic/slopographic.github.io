@@ -1,0 +1,25 @@
+/* Slop Press, Brazilian Portuguese: o painel de Ferramentas (ui/toolbar.js), as amostras de cor e o seletor (ui/kit.js), Criar guias (ui/guides.js).
+ * Keys start with press.tool., press.kit. and press.guide. Same keys as press/i18n/en/toolbar.js. Terms: shared/i18n/glossary-pt-BR.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'press.tool.undo_fill': 'Preenchimento',
+  'press.tool.undo_stroke': 'Contorno',
+  'press.tool.fill_tip': 'Preenchimento (clique para escolher)',
+  'press.tool.fill_label': 'Cor de preenchimento',
+  'press.tool.stroke_tip': 'Contorno (clique para escolher)',
+  'press.tool.stroke_label': 'Cor do contorno',
+  'press.tool.title_key': '{name} ({key})',
+  'press.kit.colour': 'Cor',
+  'press.kit.custom_colour': 'Cor personalizada…',
+  'press.kit.mode': 'Modo',
+  'press.kit.mode_cmyk': 'CMYK (processo, impressão)',
+  'press.kit.ink.c': 'Ciano',
+  'press.kit.ink.m': 'Magenta',
+  'press.kit.ink.y': 'Amarelo',
+  'press.kit.ink.k': 'Preto',
+  'press.guide.title': 'Criar guias',
+  'press.guide.margins': 'Margens',
+  'press.guide.page': 'Página',
+  'press.guide.selection': 'Seleção',
+  'press.guide.undo_create': 'Criar guias',
+  'press.guide.undo_clear': 'Remover guias',
+});

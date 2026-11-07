@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts · Picker: the preview line and the family list</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="mock.js"></script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, run } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, ms = 10000) {
+    const t0 = Date.now();
+    for (;;) { let v = null; try { v = await fn(); } catch (e) { v = null; } if (v) return v; if (Date.now() - t0 > ms) throw new Error('timed out waiting'); await sleep(50); }
+  }
+  const STD = [['Helvetica', 'Helvetica (sans)'], ['Times', 'Times (serif)'], ['Courier', 'Courier (mono)']];
+  /** A select in a box on the page, as an app's panel has it. */
+  function box() { const d = document.createElement('div'); document.body.append(d); return d; }
+  function selectIn(d) { const s = document.createElement('select'); d.append(s); return s; }
+  const sampleOf = (sel) => sel.parentNode.querySelector('.slop-font-sample');
+  const family = (el) => el.style.fontFamily.replace(/["']/g, '');
+
+  describe('Fonts picker: the preview line (opts.preview)', () => {
+    beforeEach(async () => { await SlopFonts.ready(); document.body.innerHTML = ''; });
+
+    it('attach(select, {preview: true}) adds a .slop-font-sample after the select, in the chosen family', async () => {
+      const d = box(), sel = selectIn(d);
+      const api = SlopFonts.attach(sel, { value: 'Times', legacy: STD, preview: true });
+      const s = sampleOf(sel);
+      expect(!!s).toBe(true, 'the sample is in the select\'s box');
+      expect(s === api.preview).toBe(true);
+      expect(!!(sel.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true, 'the sample comes after the select');
+      expect(s.getAttribute('aria-hidden')).toBe('true');
+      expect(family(s).includes('Times New Roman')).toBe(true, s.style.fontFamily);
+    });
+
+    it('without the option there is no sample (the default is off)', async () => {
+      const d = box(), sel = selectIn(d);
+      SlopFonts.attach(sel, { value: 'Helvetica', legacy: STD });
+      expect(sampleOf(sel)).toBe(null);
+      expect(document.querySelector('.slop-font-sample')).toBe(null);
+    });
+
+    it('the sample follows the chosen family on a change and on set(family)', async () => {
+      const d = box(), sel = selectIn(d);
+      const api = SlopFonts.attach(sel, { value: 'Helvetica', legacy: STD, preview: true });
+      const s = sampleOf(sel);
+      await until(() => sel.querySelector('option[value="Lato"]'));
+      sel.value = 'Lato';
+      sel.dispatchEvent(new Event('change'));
+      await until(() => family(s).includes('Lato'));
+      expect(family(s).includes('Lato')).toBe(true, s.style.fontFamily);
+      await until(() => document.fonts.check('16px "Lato"'));
+      expect(document.fonts.check('16px "Lato"')).toBe(true, 'the face is loaded for the sample');
+      await api.set('Courier');
+      expect(family(s).includes('Courier New')).toBe(true, s.style.fontFamily);
+      await api.set('Montserrat');
+      await until(() => document.fonts.check('16px "Montserrat"'));
+      expect(family(s).includes('Montserrat')).toBe(true, s.style.fontFamily);
+    });
+
+    it('a bundled family is listed in the Bundled group, next to the standard names', async () => {
+      const d = box(), sel = selectIn(d);
+      SlopFonts.attach(sel, { value: 'Helvetica', legacy: STD, preview: true });
+      await until(() => sel.querySelector('option[value="Inter"]'));
+      const grp = (label) => [...sel.querySelectorAll('optgroup')].find((g) => g.label === label);
+      expect(!!grp('Bundled (offline)') && !!grp('Bundled (offline)').querySelector('option[value="Inter"]')).toBe(true);
+      expect(!!grp('Standard').querySelector('option[value="Times"]')).toBe(true);
+      expect(sel.querySelectorAll('option[value="Source Sans 3"]').length).toBe(1);
+    });
+  });
+  run({ name: 'Fonts · picker preview and family list' });
+  </script>
+</body>
+</html>

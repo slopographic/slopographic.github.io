@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts · Missing-font check: the list, once per document, the download path</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="mock.js"></script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script src="../../shared/fonts/missing.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, ms = 10000) {
+    const t0 = Date.now();
+    for (;;) { let v = null; try { v = await fn(); } catch (e) { v = null; } if (v) return v; if (Date.now() - t0 > ms) throw new Error('timed out waiting'); await sleep(50); }
+  }
+  const panel = () => document.querySelector('.sf-ov');
+  const rowOf = (name) => panel() && panel().querySelector(`.sf-row[data-family="${name}"]`);
+  const btnIn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+  const libDialog = () => document.querySelector('.slop-lib');
+
+  describe('Missing-font check: the list', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('check() returns the families that are neither built in nor installed, with the closest family and the pack', async () => {
+      const missing = await SlopFonts.check(['Inter', 'Barlow', 'Arial', 'Test Pack Sans', 'Courier Prime Mono'], { standard: ['Arial'] });
+      expect(missing.map((m) => m.family)).toEqual(['Barlow', 'Test Pack Sans', 'Courier Prime Mono']);
+      expect(missing[0]).toEqual({ family: 'Barlow', closest: 'Source Sans 3', pack: null, category: 'sans' });
+      expect(missing[1].pack).toEqual({ id: 'test-pack', name: 'Test Pack Sans' });
+      expect(missing[2].closest).toBe('Space Mono');
+      expect(missing[2].category).toBe('mono');
+    });
+    it('a name is listed once, and an empty list gives an empty result', async () => {
+      expect((await SlopFonts.check(['Barlow', 'Barlow'], {})).length).toBe(1);
+      expect((await SlopFonts.check([], {})).length).toBe(0);
+    });
+    it('a font the person added is no longer missing', async () => {
+      FontTest.closeAll();
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      await until(() => rowOf('Barlow'));
+      FontTest.drop(rowOf('Barlow'), await FontTest.barlowFile());
+      await until(() => rowOf('Barlow') && rowOf('Barlow').textContent.includes('Installed from your file'));
+      expect((await SlopFonts.check(['Barlow'])).length).toBe(0);
+      FontTest.closeAll();
+    });
+  });
+
+  describe('Missing-font check: download from the library', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('Download from the library opens the pack confirmation and downloads nothing until confirmed', async () => {
+      const before = window.__net.packBytes;
+      SlopFonts.openPanel({ fonts: ['Test Pack Sans'] });
+      await until(() => rowOf('Test Pack Sans'));
+      btnIn(rowOf('Test Pack Sans'), 'Download from the library').click();
+      await until(() => libDialog() && libDialog().textContent.includes('Download Test Pack Sans?'));
+      expect(window.__net.packBytes).toBe(before);
+      btnIn(libDialog(), 'Cancel').click();
+      await until(() => !libDialog() || !libDialog().textContent.includes('Download Test Pack Sans?'));
+      FontTest.closeAll();
+    });
+    it('confirming the download installs the pack; the row is answered and the family is no longer missing', async () => {
+      const before = window.__net.packBytes;
+      SlopFonts.openPanel({ fonts: ['Test Pack Sans'] });
+      await until(() => rowOf('Test Pack Sans'));
+      btnIn(rowOf('Test Pack Sans'), 'Download from the library').click();
+      await until(() => libDialog() && libDialog().textContent.includes('Download Test Pack Sans?'));
+      btnIn(libDialog(), 'Download ').click();
+      await until(() => rowOf('Test Pack Sans') && rowOf('Test Pack Sans').textContent.includes('Installed from the library'));
+      expect(window.__net.packBytes).toBe(before + 1);
+      expect((await SlopFonts.check(['Test Pack Sans'])).length).toBe(0);
+      FontTest.closeAll();
+    });
+  });
+
+  describe('Missing-font check: once per document', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('askOnce opens the panel the first time a document has a missing font, and not again for that document', async () => {
+      const doc = { name: 'a.pdf' };
+      const h = await SlopFonts.askOnce(doc, ['Barlow', 'Inter']);
+      expect(h).toBeTruthy();
+      await until(() => rowOf('Barlow'));
+      h.close();
+      expect(panel()).toBe(null);
+      expect(await SlopFonts.askOnce(doc, ['Barlow', 'Inter'])).toBe(null);
+      expect(panel()).toBe(null);
+      // The panel stays available: the Fonts panel opens again on request.
+      SlopFonts.openPanel({ fonts: ['Barlow', 'Inter'] });
+      await until(() => rowOf('Barlow'));
+      FontTest.closeAll();
+    });
+    it('a document whose fonts are all installed is never asked about; another document is', async () => {
+      expect(await SlopFonts.askOnce({}, ['Inter', 'Arial'], { standard: ['Arial'] })).toBe(null);
+      expect(panel()).toBe(null);
+      const h = await SlopFonts.askOnce({}, ['Barlow']);
+      expect(h).toBeTruthy();
+      await until(() => rowOf('Barlow'));
+      FontTest.closeAll();
+    });
+    it('askOnce needs the document object', async () => {
+      let threw = false;
+      try { await SlopFonts.askOnce('a.pdf', ['Barlow']); } catch (e) { threw = true; }
+      expect(threw).toBe(true);
+    });
+  });
+
+  describe('SlopFontCheck.ask (the PDF editor\'s prompt, same answers)', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('resolves a Map family -> { family, how } once every family has an answer (closest)', async () => {
+      const p = SlopFontCheck.ask([{ family: 'Barlow', closest: 'Source Sans 3', pack: null }], ['Barlow (subset)']);
+      await until(() => rowOf('Barlow'));
+      expect(panel().textContent.includes('Fonts this document uses are not installed')).toBe(true);
+      expect(panel().textContent.includes('Use the closest font instead (Source Sans 3)')).toBe(true);
+      btnIn(rowOf('Barlow'), 'Use the closest font instead').click();
+      const answers = await p;
+      expect(answers.get('Barlow')).toEqual({ family: 'Source Sans 3', how: 'closest' });
+      expect(panel()).toBe(null);
+    });
+    it('answers by a dropped file, and resolves null when the person cancels', async () => {
+      const p = SlopFontCheck.ask([{ family: 'Barlow', closest: 'Source Sans 3', pack: null }], ['Barlow']);
+      await until(() => rowOf('Barlow'));
+      FontTest.drop(rowOf('Barlow'), await FontTest.barlowFile());
+      const answers = await p;
+      expect(answers.get('Barlow')).toEqual({ family: 'Barlow', how: 'file' });
+      const q = SlopFontCheck.ask([{ family: 'Test Pack Sans', closest: 'Source Sans 3', pack: { id: 'test-pack', name: 'Test Pack Sans' } }], ['Test Pack Sans']);
+      await until(() => panel());
+      btnIn(panel(), 'Cancel edit').click();
+      expect(await q).toBe(null);
+      expect(panel()).toBe(null);
+    });
+  });
+
+  SlopTest.run({ name: 'Fonts · missing-font check' });
+  </script>
+</body>
+</html>

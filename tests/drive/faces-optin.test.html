@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: face detection opt-in</title></head>
+<body>
+  <!-- Opt-in: the dialog on first use, "Not now" and "Turn on", turning it off on Profile stops detection, and one
+       switch on Profile (the Drive and Gallery sections) that writes one stored value. Detector stubbed. -->
+  <!-- Covers: settings/app-settings.js, shared/profile/app-options.js -->
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, H, rec, calls = 0;
+  // A fixed embedding per face (no model): the vector depends on the box position only.
+  const fakeEmbed = async (src, f) => { const v = new Array(128).fill(0); v[Math.round(f.x) % 128] = 1; return v; };
+  const stub = () => ({ detect: async () => { calls++; return [{ x: 2, y: 2, w: 6, h: 6, score: 0.9 }]; } });
+  const dialog = () => W.document.querySelector('.faces-dlg');
+  const btn = (label) => [...W.document.querySelectorAll('.faces-dlg .sui-btn')].find((b) => b.textContent === label);
+
+  describe('Drive: face detection is off by default and asks on first use', () => {
+    it('boots Drive with the setting off and a picture in it', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await W.SlopFaces.cache.clear();
+      W.SlopProfile.reset('faces');
+      W.localStorage.removeItem('slop-faces-asked');
+      W.SlopFaces.setBackend(stub());
+    W.SlopFaces.setEmbedder(fakeEmbed); // no recogniser model in the test: a fixed vector per face
+      expect(W.SlopFaces.enabled()).toBe(false);
+      expect(W.SlopFaces.status()).toBe('off');
+      rec = await H.get(await H.put(await DT.png('#d4ff3a', 40, 30), { name: 'first.png', from: 'clean' }));
+      await DR.refresh(); DR.render();
+    });
+
+    it('the first Find faces opens the explanation dialog and detects nothing yet', async () => {
+      await waitFor(() => !dialog()); // the last one may still be fading out
+      await waitFor(() => !dialog());
+      const p = DR.findFaces([rec]);
+      await waitFor(() => dialog());
+      expect(W.document.querySelector('.faces-dlg .sui-title').textContent).toBe('Find faces on this device?');
+      const text = dialog().textContent;
+      expect(text).toContain('runs on this device');
+      expect(text).toContain('Nothing is uploaded');
+      expect(text).toContain('YuNet');
+      expect(text).toContain('turn it on or off again');
+      expect(dialog().querySelector('a').getAttribute('href')).toBe('../settings/#app-drive');
+      expect(W.SlopFaces.asked()).toBe(true);
+      expect(calls).toBe(0);
+      btn('Not now').click();
+      await p;
+      expect(W.SlopFaces.enabled()).toBe(false);
+      expect(calls).toBe(0);
+      expect(await DR.facesOf(rec)).toBe(null);
+    });
+
+    it('"Turn on" in the dialog turns detection on and carries on with the pictures', async () => {
+      await waitFor(() => !dialog()); // the last one may still be fading out
+      await waitFor(() => !dialog());
+      const p = DR.findFaces([rec]);
+      await waitFor(() => dialog());
+      btn('Turn on').click();
+      await p;
+      expect(W.SlopFaces.enabled()).toBe(true);
+      expect(calls).toBe(1);
+      expect((await DR.facesOf(rec)).faces.length).toBe(1);
+    });
+  });
+
+  describe('turning it off stops detection', () => {
+    it('with the setting off on Profile, nothing is detected and Find faces asks again', async () => {
+      W.SlopProfile.set('faces', 'detect', false); // what the Profile switch does
+      expect(W.SlopFaces.enabled()).toBe(false);
+      expect(await W.SlopFaces.detect({ width: 40, height: 30 })).toEqual([]);
+      expect(calls).toBe(1);
+      await waitFor(() => !dialog()); // the last one may still be fading out
+      await waitFor(() => !dialog());
+      const p = DR.findFaces([rec]);
+      await waitFor(() => dialog());
+      btn('Not now').click();
+      await p;
+      expect(calls).toBe(1);
+    });
+  });
+
+  describe('Profile: one switch, one stored value, shown in Drive and Gallery', () => {
+    it('the switch in the Drive section and the one in the Gallery section stay in step', async () => {
+      const S = await DT.frame('../../settings/', (w) => w.SlopAppSettings && w.document.querySelectorAll('#app-settings input[type=checkbox]').length >= 2, { width: 1100, height: 900 });
+      const boxes = [...S.document.querySelectorAll('#app-settings input[type=checkbox]')];
+      expect(boxes.length).toBe(2);
+      expect(S.document.getElementById('app-drive').textContent).toContain('Face detection');
+      expect(S.document.getElementById('app-gallery').textContent).toContain('Face detection');
+      expect(boxes[0].checked).toBe(false);
+      boxes[0].click();
+      await waitFor(() => S.SlopProfile.get('faces', 'detect') === true);
+      await waitFor(() => boxes[1].checked === true);
+      expect(W.SlopFaces.enabled()).toBe(true);
+      expect(S.SlopProfile.overrides('faces')).toEqual({ detect: true });
+      boxes[1].click();
+      await waitFor(() => boxes[0].checked === false);
+      expect(W.SlopFaces.enabled()).toBe(false);
+      expect(S.SlopProfile.overrides('faces')).toEqual({});
+      // the sections' words follow a language switch (settings/app-settings.js draws them again from their keys)
+      S.SlopI18n.set('sv');
+      await waitFor(() => S.document.getElementById('app-drive').textContent.includes('Ansiktsdetektering'), { timeout: 15000 });
+      expect(S.document.getElementById('app-gallery').textContent).toContain('Tröskel för samma person');
+      S.SlopI18n.set('en');
+      await waitFor(() => S.document.getElementById('app-drive').textContent.includes('Face detection'), { timeout: 15000 });
+      S.__frame.remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive · face detection opt-in' });
+  </script>
+</body>
+</html>

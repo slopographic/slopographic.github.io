@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: columns preview</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, D;
+  const q = (s) => D.querySelector(s), qa = (s) => [...D.querySelectorAll(s)];
+  const file = (n) => [...DR.S.files.values()].find((x) => x.name === n);
+  const folder = (n) => [...DR.S.folders.values()].find((x) => x.name === n);
+  const click = (el, opts = {}) => el.dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, opts)));
+  const key = (k) => D.body.dispatchEvent(DT.key(k));
+  const lastCol = () => { const c = qa('#pane .cols > .col'); return c[c.length - 1]; };
+  // The details panel is open by default on wide screens and shows the preview itself, so the column preview only
+  // appears while the panel is closed. Each test closes it first.
+  const closePanel = () => { DR.S.info = false; DR.renderInfo(true); };
+
+  describe('columns view: the preview column', () => {
+    it('boots with a folder tree and two files', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; H = W.SlopHub; D = W.document;
+      await H.clear();
+      const pics = await H.createFolder('Pictures'), docs = await H.createFolder('Docs');
+      await H.createFolder('Inner', pics);
+      await H.put(await DT.png('#5cc8ff', 120, 90), { name: 'one.png', from: 'photoslop', folderId: pics });
+      await H.put(await DT.png('#ff8fb8', 60, 60), { name: 'two.png', from: 'vector', folderId: pics });
+      await H.put(DT.text('line one\nline two'), { name: 'read me.txt', from: 'upload', folderId: docs });
+      await DR.refresh(); closePanel(); DR.setView('columns'); DR.go(folder('Pictures').id);
+      expect(qa('#pane .cols > .col').length).toBe(2);
+    });
+
+    it('after selecting a file, the .col-pv is the last .col and contains the file name', () => {
+      closePanel();
+      click(q(`#pane .crow[data-key="f:${file('two.png').id}"]`));
+      expect(qa('#pane .col-pv').length).toBe(1);
+      expect(lastCol().classList.contains('col-pv')).toBe(true);
+      expect(lastCol().querySelector('.pv-name').textContent).toBe('two.png');
+      expect(lastCol().querySelector('.pv img')).toBeTruthy();
+      // no folder column holds a preview
+      qa('#pane .cols > .col:not(.col-pv)').forEach((c) => expect(c.querySelector('.pv')).toBe(null));
+    });
+
+    it('selecting another file replaces the preview, which stays last', () => {
+      closePanel();
+      click(q(`#pane .crow[data-key="f:${file('one.png').id}"]`));
+      expect(qa('#pane .col-pv').length).toBe(1);
+      expect(lastCol().classList.contains('col-pv')).toBe(true);
+      expect(lastCol().querySelector('.pv-name').textContent).toBe('one.png');
+    });
+
+    it('arrow keys keep one preview, last, showing the focused file', async () => {
+      closePanel();
+      key('ArrowDown');
+      await waitFor(() => DR.S.focus && DR.item(DR.S.focus) && DR.item(DR.S.focus).name !== 'one.png');
+      expect(qa('#pane .col-pv').length).toBe(1);
+      expect(lastCol().classList.contains('col-pv')).toBe(true);
+      expect(lastCol().querySelector('.pv-name').textContent).toBe(DR.item(DR.S.focus).name);
+    });
+
+    it('the preview image still loads after the info panel is open and the view re-renders', async () => {
+      closePanel();
+      DR.go(folder('Pictures').id);
+      click(q(`#pane .crow[data-key="f:${file('two.png').id}"]`));
+      DR.S.info = true; DR.renderInfo(true);   // the panel makes its own object URLs and frees them on each change
+      await DR.refresh(); DR.render();
+      expect(qa('#pane .col-pv').length).toBe(0);
+      closePanel();                             // the column comes back; its own object URL still works
+      await DR.refresh(); DR.render();
+      const img = lastCol().querySelector('.pv img');
+      await waitFor(() => img.complete);
+      expect(img.naturalWidth).toBeGreaterThan(0);
+      expect(lastCol().querySelector('.pv-name').textContent).toBe('two.png');
+    });
+    it('the column preview is absent while the details panel is open, and comes back when it closes', () => {
+      closePanel();
+      click(q(`#pane .crow[data-key="f:${file('two.png').id}"]`));
+      expect(qa('#pane .col-pv').length).toBe(1);
+      DR.toggleInfo(true);                      // the same path as the Info button
+      expect(D.body.classList.contains('info-on')).toBe(true);
+      expect(qa('#pane .col-pv').length).toBe(0);
+      DR.toggleInfo(false);
+      expect(qa('#pane .col-pv').length).toBe(1);
+      expect(lastCol().classList.contains('col-pv')).toBe(true);
+      expect(lastCol().querySelector('.pv-name').textContent).toBe('two.png');
+    });
+
+    it('a folder selection removes the preview', () => {
+      closePanel();
+      click(q(`#pane .crow[data-key="d:${folder('Inner').id}"]`));
+      expect(DR.S.cwd).toBe(folder('Inner').id);
+      expect(qa('#pane .col-pv').length).toBe(0);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: columns preview' });
+  </script>
+</body>
+</html>

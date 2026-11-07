@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · clipping mask tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const px = (c, x, y) => [...c.getContext('2d').getImageData(x, y, 1, 1).data];
+  const RED = [255, 0, 0, 255], WHITE = [255, 255, 255, 255];
+  const groups = () => SV.state.doc.layers[0].children;
+  /** A red rectangle below a black one, both on a blank artboard. Returns the two objects. */
+  function scene() {
+    blank();
+    const content = SV.mk.rect(100, 100, 300, 300, 0, { fill: '#ff0000', stroke: null, sw: 0 }, 'Content');
+    const shape = SV.mk.rect(200, 200, 300, 300, 0, { fill: '#000000', stroke: null, sw: 0 }, 'Clip shape');
+    SV.insertObj(content); SV.insertObj(shape);
+    SV.resetHistory();
+    return { content, shape };
+  }
+
+  describe('clipping masks in SlopVector', () => {
+    it('Make Clipping Mask puts the selection below the shape into a clip group; the export clips it with a clipPath', async () => {
+      const { content, shape } = scene();
+      SV.select([content.id, shape.id]);
+      const h0 = SV.state.hIdx;
+      SV.runAction('clip.make');
+      expect(groups().length).toBe(1);
+      const g = groups()[0];
+      expect(g.clip).toBe(true);
+      expect(g.children.map((o) => o.id)).toEqual([content.id, shape.id]);
+      expect(SV.state.hIdx).toBe(h0 + 1);
+      const svg = IO.exportSVG({});
+      const doc = new W.DOMParser().parseFromString(svg, 'image/svg+xml');
+      expect(doc.querySelector('parsererror')).toBe(null);
+      expect(doc.querySelector('clipPath#sv-clip-' + g.id + ' rect')).toBeTruthy();
+      expect(doc.querySelector('g[clip-path="url(#sv-clip-' + g.id + ')"] rect')).toBeTruthy();
+      expect(doc.querySelectorAll('g[clip-path] rect').length).toBe(1);
+    });
+
+    it('the clip changes the picture: the content shows only inside the shape, and the shape itself is not drawn', async () => {
+      const { content, shape } = scene();
+      const before = await IO.rasterize(1, '#ffffff');
+      expect(px(before, 150, 150)).toEqual(RED, 'before: the red object shows');
+      expect(px(before, 250, 250)).toEqual([0, 0, 0, 255], 'before: the black object on top');
+      SV.select([content.id, shape.id]);
+      SV.runAction('clip.make');
+      const after = await IO.rasterize(1, '#ffffff');
+      expect(px(after, 150, 150)).toEqual(WHITE, 'after: inside the content but outside the clip shape');
+      expect(px(after, 250, 250)).toEqual(RED, 'after: inside both, the content shows (the clip shape is not drawn)');
+      expect(px(after, 350, 350)).toEqual(RED);
+      expect(px(after, 450, 450)).toEqual(WHITE, 'after: outside both');
+    });
+
+    it('a click counts only inside the clip shape: content outside it is not hit', () => {
+      const { content, shape } = scene();
+      SV.select([content.id, shape.id]);
+      SV.runAction('clip.make');
+      const g = groups()[0];
+      expect(SV.hitTest({ x: 150, y: 150 })).toBe(null);
+      const hit = SV.hitTest({ x: 250, y: 250 });
+      expect(!!hit).toBe(true);
+      expect(hit.top.id).toBe(g.id);
+    });
+
+    it('undo is one step and redo restores the group; Release gives the objects back in place, the export has no clipPath', async () => {
+      const { content, shape } = scene();
+      SV.select([content.id, shape.id]);
+      SV.runAction('clip.make');
+      SV.undo();
+      expect(groups().map((o) => o.id)).toEqual([content.id, shape.id]);
+      SV.redo();
+      expect(groups().length).toBe(1);
+      SV.select([groups()[0].id]);
+      SV.runAction('clip.release');
+      expect(groups().map((o) => o.id)).toEqual([content.id, shape.id]);
+      expect(IO.exportSVG({}).includes('clipPath')).toBe(false);
+      expect(SV.state.sel.length).toBe(2);
+    });
+
+    it('the clip group is saved with the document (snapshot, reopened from the same JSON)', () => {
+      const { content, shape } = scene();
+      SV.select([content.id, shape.id]);
+      SV.runAction('clip.make');
+      const saved = JSON.parse(SV.snapshot()).doc;
+      const g = saved.layers[0].children[0];
+      expect(g.clip).toBe(true);
+      expect(g.children.length).toBe(2);
+      expect(g.children[1].name).toBe('Clip shape');
+    });
+
+    it('PDF export writes a clip group (the content stream is clipped to the shape) without error', async () => {
+      const { content, shape } = scene();
+      SV.select([content.id, shape.id]);
+      SV.runAction('clip.make');
+      const blob = await IO.buildPDF();
+      expect(!!blob && blob.size > 300).toBe(true);
+      expect(groups()[0].clip).toBe(true);
+    });
+
+    it('with nothing below the shape the command says so and changes nothing', () => {
+      const { content } = scene(); // the bottom object: nothing lies below it
+      SV.select([content.id]);
+      const before = JSON.stringify(SV.state.doc);
+      SV.runAction('clip.make');
+      expect(JSON.stringify(SV.state.doc)).toBe(before);
+      expect(groups().length).toBe(2);
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'SlopVector · clipping masks' });</script>
+</body>
+</html>

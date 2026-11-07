@@ -1,0 +1,111 @@
+/* Paste: colours come from the shared Slop theme (--sl-* set by shared/theme/theme.js); the fallbacks are the Dark look.
+ * Then the list and editor layout, and the highlighted code block.
+ * Wide (900 px and up): list | paste. Phone (390 px): one pane at a time, chosen by data-pane. */
+:root {
+  --pb-bg: var(--sl-background, #0e0e10); --pb-panel: var(--sl-surface, #17171b); --pb-line: var(--sl-border, #2c2c34);
+  --pb-fg: var(--sl-text, #f1ede4); --pb-dim: color-mix(in srgb, var(--pb-fg) 75%, transparent); --pb-faint: color-mix(in srgb, var(--pb-fg) 65%, transparent);
+  --pb-accent: var(--sl-accent, #d4ff3a); --pb-hover: color-mix(in srgb, var(--pb-fg) 7%, transparent);
+  --pb-on: color-mix(in srgb, var(--pb-accent) 14%, transparent); --pb-ink: var(--sl-on-accent, #10180a);
+  --pb-danger: #ff7b7b; --pb-code: color-mix(in srgb, var(--pb-fg) 8%, var(--pb-panel));
+  /* syntax colours: the dark set by default, the light set on the light and Classic 98 themes */
+  --pb-k: #ff9ec7; --pb-s: #b8e994; --pb-n: #ffcb6b; --pb-c: color-mix(in srgb, #7b7f8a 70%, var(--pb-fg)); --pb-f: #82aaff; --pb-p: #9ad8ff; --pb-t: #ff7b7b; --pb-a: #f5c178; --pb-h: #c3a6ff;
+  --pb-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --pb-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"], :root[data-slop-theme="classic"] {
+  --pb-danger: color-mix(in srgb, #b3261e 75%, var(--pb-fg));   /* darker on Classic 98's grey */
+  --pb-k: #a2215f; --pb-s: #2b6e1c; --pb-n: #9a5b00; --pb-c: color-mix(in srgb, #7f8590 55%, var(--pb-fg)); --pb-f: #1f5bb5; --pb-p: #0d5f7d; --pb-t: #b3261e; --pb-a: #8a4b00; --pb-h: #6a2fb5;
+  color-scheme: light;
+}
+/* SlopUI dialogs, menus and toasts follow the Paste tokens (the shared --s-* fallbacks are fixed greys) */
+:root {
+  --sui-bg: var(--pb-panel); --sui-bg2: var(--pb-bg); --sui-input: var(--pb-bg); --sui-line: var(--pb-line);
+  --sui-fg: var(--pb-fg); --sui-dim: var(--pb-dim); --sui-faint: var(--pb-faint); --sui-hover: var(--pb-hover);
+  --sui-sel: var(--pb-on); --sui-accent: var(--pb-accent); --sui-accent-ink: var(--pb-ink);
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--pb-bg); color: var(--pb-fg); font: 14px/1.4 var(--pb-sans); overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* layout */
+.pb-app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-width: 0; }
+/* The menu bar (shared/menubar) holds the save state and New paste; its buttons are as tall as the shared header buttons
+ * (shared/ui/hbtn.css), and those take the look of the SlopUI buttons. */
+.smb-bar { --slop-hbtn-h: 32px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: var(--pb-panel); --slop-hbtn-line: var(--pb-line); --slop-hbtn-hover: var(--pb-hover); }
+.smb-tools { align-items: center; }
+.smb-tools .sui-btn { height: var(--slop-hbtn-h); }
+.pb-save { color: var(--pb-faint); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-save[data-state="error"] { color: var(--pb-danger); }
+.pb-bar .sui-btn { white-space: nowrap; }
+.pb-narrow { display: inline-flex; align-items: center; }
+.pb-list, .pb-main { grid-row: 1; min-width: 0; min-height: 0; }
+.pb-list { display: flex; flex-direction: column; background: var(--pb-panel); border-right: 1px solid var(--pb-line); }
+.pb-main { display: flex; flex-direction: column; overflow: auto; background: var(--pb-bg); }
+.pb-app[data-pane="list"] .pb-main { display: none; }
+.pb-app[data-pane="editor"] .pb-list { display: none; }
+
+/* the list */
+.pb-search { display: flex; gap: 6px; padding: 10px; }
+.pb-search .sui-btn { height: auto; }
+.pb-search input { flex: 1; min-width: 0; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--pb-line); border-radius: 8px; background: var(--pb-bg); }
+.pb-items:empty { display: none; }   /* the "no pastes" line then sits under the search, not at the bottom */
+.pb-items { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 6px 12px; }
+.pb-item { display: flex; flex-direction: column; gap: 3px; width: 100%; border: 0; background: none; text-align: left; padding: 9px 10px; border-radius: 8px; cursor: pointer; min-width: 0; }
+.pb-item:hover, .pb-item:focus-visible { background: var(--pb-hover); outline: none; }
+.pb-item.on { background: var(--pb-on); }
+.pb-item-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-item-snip { color: var(--pb-dim); font: 13px/1.3 var(--pb-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-item-meta { color: var(--pb-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-none, .pb-empty { margin: 24px 16px; color: var(--pb-faint); }
+.pb-empty { margin: auto; text-align: center; max-width: 36em; }
+
+/* the open paste */
+.pb-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 8px; padding: 10px 14px 14px; box-sizing: border-box; }
+.pb-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pb-danger { color: var(--pb-danger); }
+.pb-fields { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
+.pb-fields > input { flex: 1 1 200px; min-width: 0; border: 0; border-bottom: 1px solid var(--pb-line); background: none; font: 700 20px/1.25 var(--pb-sans); padding: 4px 0; outline: none; }
+.pb-field { display: flex; flex-direction: column; gap: 2px; color: var(--pb-dim); font-size: 12px; }
+.pb-field select, .pb-linkrow input { border: 1px solid var(--pb-line); border-radius: 6px; background: var(--pb-bg); padding: 6px 8px; min-width: 0; }
+.pb-meta { margin: 0; color: var(--pb-faint); font-size: 12px; }
+.pb-share { border: 1px solid var(--pb-line); border-radius: 8px; padding: 8px 10px; background: var(--pb-panel); }
+.pb-linkrow { display: flex; gap: 6px; }
+.pb-linkrow input { flex: 1; min-width: 0; font: 13px var(--pb-mono); }
+.pb-text { flex: 1; min-height: 240px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.pb-text textarea { width: 100%; height: 100%; min-height: 240px; box-sizing: border-box; resize: none; border: 1px solid var(--pb-line); border-radius: 8px; padding: 12px; background: var(--pb-panel); font: 13px/1.55 var(--pb-mono); outline: none; tab-size: 2; }
+.pb-text textarea:focus { border-color: var(--pb-accent); }
+.pb-code { margin: 0; box-sizing: border-box; min-width: 0; overflow: auto; border: 1px solid var(--pb-line); border-radius: 8px; padding: 12px; background: var(--pb-code); font: 13px/1.55 var(--pb-mono); white-space: pre; tab-size: 2; }
+.pb-code code { font: inherit; color: var(--pb-fg); }
+.pb-image { margin: 0; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
+.pb-image img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--pb-line); }
+
+/* highlighting: the same classes for every language (see js/highlight.js) */
+.tok-com { color: var(--pb-c); font-style: italic; }
+.tok-str { color: var(--pb-s); }
+.tok-num { color: var(--pb-n); }
+.tok-kw { color: var(--pb-k); }
+.tok-fn { color: var(--pb-f); }
+.tok-prop { color: var(--pb-p); }
+.tok-tag { color: var(--pb-t); }
+.tok-attr { color: var(--pb-a); }
+.tok-head { color: var(--pb-h); font-weight: 700; }
+.tok-quote { color: var(--pb-c); }
+.tok-link { color: var(--pb-f); text-decoration: underline; }
+
+/* phone */
+@media (max-width: 899px) {
+  .pb-list { border-right: 0; grid-column: 1; }
+  .pb-main { grid-column: 1; }
+  .pb-text { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .pb-text textarea { min-height: 34vh; }
+  .pb-save:not([data-state="error"]) { display: none; }   /* no room on a phone for "Saved"; an error still shows */
+}
+@media (min-width: 900px) {
+  .pb-app { grid-template-columns: 300px minmax(0, 1fr); }
+  .pb-list { grid-column: 1; }
+  .pb-main { grid-column: 2; }
+  .pb-narrow { display: none; }
+  .pb-app .pb-list, .pb-app .pb-main { display: flex !important; }
+}

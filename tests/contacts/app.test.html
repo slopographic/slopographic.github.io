@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Contacts tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in same-origin iframes; the tests drive window.SlopContacts inside them. The test page
+       loads the shared data layer too, so it can seed customers, orders and invoices into the same IndexedDB. -->
+  <!-- Covers: contacts/js/app/card-read.js, contacts/js/app/filter-panel.js, contacts/js/app/groups.js, contacts/js/app/list.js, contacts/js/app/photo-ui.js, contacts/js/app/table.js -->
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script><script src="../../contacts/i18n/en/edit.js"></script><script src="../../contacts/i18n/en/io.js"></script><script src="../../contacts/i18n/en/page.js"></script><script src="../../contacts/i18n/en/tools.js"></script><script src="../../contacts/i18n/en/views.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../contacts/js/core/text.js"></script>
+  <script src="../../contacts/js/core/model.js"></script>
+  <script src="../../contacts/js/core/photo.js"></script>
+  <script src="../../contacts/js/core/phone.js"></script>
+  <script src="../../contacts/js/core/activity.js"></script>
+  <script src="../../contacts/js/core/customer-map.js"></script>
+  <script src="../../contacts/js/core/vcard-read.js"></script>
+  <script src="../../contacts/js/core/vcard-write.js"></script>
+  <script src="../../contacts/js/core/csv-read.js"></script>
+  <script src="../../contacts/js/core/csv-write.js"></script>
+  <script src="../../contacts/js/core/dedupe.js"></script>
+  <script src="../../contacts/js/core/bulk.js"></script>
+  <script src="../../contacts/js/core/zip.js"></script>
+  <script src="../../contacts/js/core/format.js"></script>
+  <script src="contacts.helpers.js"></script>
+  <script src="contacts.spec-vcard.js"></script>
+  <script src="contacts.spec-csv.js"></script>
+  <script src="contacts.spec-dedupe.js"></script>
+  <script src="contacts.spec-photo.js"></script>
+  <script src="contacts.spec-app.js"></script>
+  <script src="contacts.spec-dupes-review.js"></script>
+  <script src="contacts.spec-dupes-button.js"></script>
+  <script src="contacts.spec-card.js"></script>
+  <script src="contacts.spec-inline.js"></script>
+  <script>SlopTest.run({ name: 'Slop Contacts' });</script>
+</body>
+</html>

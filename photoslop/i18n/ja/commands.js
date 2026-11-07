@@ -1,0 +1,23 @@
+/* PhotoSlop, Japanese: the keyboard command messages and the nudge and document switching commands. Same keys as photoslop/i18n/en/commands.js. Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'photoslop.cmd.opacity_toast': '不透明度 {pct}%',
+  'photoslop.cmd.cycle_tools': '{tools} を切り替え',
+  'photoslop.cmd.swap_colors': '描画色と背景色を入れ替え',
+  'photoslop.cmd.default_colors': '既定の色（黒 / 白）',
+  'photoslop.cmd.brush_bigger': 'ブラシのサイズを大きく',
+  'photoslop.cmd.brush_smaller': 'ブラシのサイズを小さく',
+  'photoslop.cmd.brush_harder': 'ブラシの硬さを上げる',
+  'photoslop.cmd.brush_softer': 'ブラシの硬さを下げる',
+  'photoslop.cmd.tool_opacity': 'ツールの不透明度 {pct}%',
+  'photoslop.cmd.nudge_left': '左に {n} px 移動',
+  'photoslop.cmd.nudge_right': '右に {n} px 移動',
+  'photoslop.cmd.nudge_up': '上に {n} px 移動',
+  'photoslop.cmd.nudge_down': '下に {n} px 移動',
+  'photoslop.cmd.next_doc': '次のドキュメント',
+  'photoslop.cmd.prev_doc': '前のドキュメント',
+  'photoslop.cmd.go_to_doc': 'ドキュメント {i} に移動',
+  'photoslop.cmd.restore_aspect': '元の縦横比に戻す',
+  'photoslop.cmd.guides_panel': 'ガイド パネル（ガイド レイアウト）',
+  'photoslop.cmd.search_key': 'コマンドを検索（{key}）',
+  'photoslop.cmd.nav_preset': 'ナビゲーションのプリセット…',
+});

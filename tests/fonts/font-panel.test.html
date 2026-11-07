@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts · Panel: open, drop a file, use the closest font, reopen</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="mock.js"></script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, ms = 10000) {
+    const t0 = Date.now();
+    for (;;) { let v = null; try { v = await fn(); } catch (e) { v = null; } if (v) return v; if (Date.now() - t0 > ms) throw new Error('timed out waiting'); await sleep(50); }
+  }
+  const panel = () => document.querySelector('.sf-ov');
+  const rowOf = (name) => panel() && panel().querySelector(`.sf-row[data-family="${name}"]`);
+  const btnIn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+  const escape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  const spy = () => { const calls = []; const fn = (v) => { calls.push(v); }; fn.calls = calls; return fn; };
+
+  describe('Fonts panel: open', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('lists each font of the document with its status, and the library below', async () => {
+      const h = SlopFonts.openPanel({ fonts: ['Barlow', 'Arial', 'Inter'], standard: ['Arial'], onUse: spy(), onAdd: spy() });
+      await until(() => rowOf('Barlow'));
+      expect(rowOf('Barlow').textContent.includes('Missing')).toBe(true);
+      expect(rowOf('Arial').textContent.includes('Built in')).toBe(true);
+      expect(rowOf('Inter').textContent.includes('Bundled (offline)')).toBe(true);
+      expect(btnIn(rowOf('Barlow'), 'Drop your own font')).toBeTruthy();
+      expect(btnIn(rowOf('Barlow'), 'Use the closest font instead (Source Sans 3)')).toBeTruthy();
+      expect(rowOf('Arial').querySelectorAll('button').length).toBe(0);
+      expect(panel().textContent.includes('Library')).toBe(true);
+      expect(panel().querySelector('[role="dialog"]').getAttribute('aria-modal')).toBe('true');
+      h.close();
+      expect(panel()).toBe(null);
+    });
+    it('the Fonts… entry in a picker opens the same panel with the select\'s font', async () => {
+      const sel = document.createElement('select');
+      document.body.append(sel);
+      const pick = SlopFonts.attach(sel, { value: 'Inter', legacy: ['Georgia'] });
+      document.body.append(pick.fontsButton);
+      pick.fontsButton.click();
+      await until(() => rowOf('Inter'));
+      expect(rowOf('Inter').textContent.includes('Bundled (offline)')).toBe(true);
+      FontTest.closeAll();
+      sel.remove(); pick.fontsButton.remove();
+    });
+  });
+
+  describe('Fonts panel: drop your own font', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('dropping a TTF on a missing row installs it as the person\'s own font and answers the row', async () => {
+      const added = spy();
+      SlopFonts.openPanel({ fonts: ['Barlow'], onAdd: added });
+      await until(() => rowOf('Barlow'));
+      FontTest.drop(rowOf('Barlow'), await FontTest.barlowFile());
+      await until(() => rowOf('Barlow') && rowOf('Barlow').textContent.includes('Installed from your file'));
+      expect(added.calls).toEqual([{ family: 'Barlow', how: 'file', row: 'Barlow' }]);
+      expect((await SlopFonts.check(['Barlow'])).length).toBe(0);
+      const fam = (await SlopFonts.families()).find((f) => f.name === 'Barlow');
+      expect(fam.source).toBe('own');
+      FontTest.closeAll();
+    });
+    it('a file picked with the row\'s file input is stored the same way', async () => {
+      await FontTest.removeOwnFonts();
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      await until(() => rowOf('Barlow'));
+      btnIn(rowOf('Barlow'), 'Drop your own font').click(); // no shared/intake on this page: the panel's own file input
+      FontTest.pick([...document.querySelectorAll('body > input[type="file"]')].pop(), await FontTest.barlowFile());
+      await until(() => rowOf('Barlow') && rowOf('Barlow').textContent.includes('Installed from your file'));
+      FontTest.closeAll();
+    });
+    it('a file that is not a font is refused on the row and nothing is stored', async () => {
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      await until(() => rowOf('Barlow'));
+      const bad = new File([new Uint8Array([1, 2, 3, 4])], 'notes.ttf', { type: 'font/ttf' });
+      FontTest.drop(rowOf('Barlow'), bad);
+      await until(() => rowOf('Barlow').querySelector('[role="status"]').textContent.length > 0 && !rowOf('Barlow').querySelector('[role="status"]').textContent.startsWith('Checking'));
+      expect((await SlopFonts.families()).some((f) => f.name === 'Barlow')).toBe(false);
+      FontTest.closeAll();
+    });
+  });
+
+  describe('Fonts panel: use the closest font', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('the closest bundled family is used for the missing one, and the app is told', async () => {
+      const used = spy();
+      SlopFonts.openPanel({ fonts: ['Barlow'], onUse: used });
+      await until(() => rowOf('Barlow'));
+      btnIn(rowOf('Barlow'), 'Use the closest font instead').click();
+      await until(() => rowOf('Barlow') && rowOf('Barlow').textContent.includes('Using Source Sans 3 instead'));
+      expect(used.calls).toEqual([{ family: 'Barlow', use: 'Source Sans 3' }]);
+      expect(rowOf('Barlow').classList.contains('done')).toBe(true);
+      expect(rowOf('Barlow').querySelectorAll('button').length).toBe(0);
+      FontTest.closeAll();
+    });
+    it('the picker\'s Fonts… entry sets the select to the closest font when that is chosen', async () => {
+      const sel = document.createElement('select');
+      document.body.append(sel);
+      const pick = SlopFonts.attach(sel, { value: 'Barlow', legacy: ['Georgia'] });
+      document.body.append(pick.fontsButton);
+      pick.fontsButton.click();
+      await until(() => rowOf('Barlow'));
+      btnIn(rowOf('Barlow'), 'Use the closest font instead').click();
+      await until(() => sel.value === 'Source Sans 3');
+      FontTest.closeAll();
+      sel.remove(); pick.fontsButton.remove();
+    });
+  });
+
+  describe('Fonts panel: reopen after it was dismissed', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('Close dismisses it (onClose once); it opens again with the same rows', async () => {
+      const closed = spy();
+      const h1 = SlopFonts.openPanel({ fonts: ['Barlow'], onClose: () => closed('x') });
+      await until(() => rowOf('Barlow'));
+      btnIn(panel(), 'Close').click();
+      expect(panel()).toBe(null);
+      expect(closed.calls.length).toBe(1);
+      h1.close();
+      expect(closed.calls.length).toBe(1);
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      await until(() => rowOf('Barlow'));
+      expect(btnIn(rowOf('Barlow'), 'Drop your own font')).toBeTruthy();
+      FontTest.closeAll();
+    });
+    it('Escape dismisses it, and the panel opens again afterwards', async () => {
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      await until(() => rowOf('Barlow'));
+      escape();
+      expect(panel()).toBe(null);
+      SlopFonts.openPanel({ fonts: ['Inter'] });
+      await until(() => rowOf('Inter'));
+      expect(panel() !== null).toBe(true);
+      FontTest.closeAll();
+    });
+    it('opening it twice shows one panel, not two', async () => {
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      SlopFonts.openPanel({ fonts: ['Barlow'] });
+      await until(() => rowOf('Barlow'));
+      expect(document.querySelectorAll('.sf-ov').length).toBe(1);
+      FontTest.closeAll();
+    });
+  });
+
+  SlopTest.run({ name: 'Fonts · panel' });
+  </script>
+</body>
+</html>

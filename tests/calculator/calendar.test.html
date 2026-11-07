@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopculator · a date result is added to Calendar</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../calculator/index.html" title="Slopculator"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const W = () => frame.contentWindow;
+  const $ = (sel) => frame.contentDocument.querySelector(sel);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  /** Types an expression the way a person would, and presses Enter. */
+  async function calculate(text) {
+    await until(() => W().SlopCalcApp && $('#sc-expr'), 'the calculator');
+    const input = $('#sc-expr');
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    $('#sc-enter').click();
+    await sleep(120);
+  }
+  const eventsNow = async () => (await W().SlopData.store.list('events')).value;
+
+  describe('Slopculator: a date result goes on the calendar', () => {
+    it('a number result offers no Add to Calendar button', async () => {
+      await calculate('200 + 20%');
+      expect($('#sc-status').textContent).toMatch(/Saved to the tape/);
+      expect($('#sc-cal').hidden).toBe(true);
+    });
+
+    it('a date result, added to Calendar, is an all-day event on that day in the shared store', async () => {
+      await calculate('2026-01-31 + 1 month');
+      await until(() => !$('#sc-cal').hidden, 'the Add to Calendar button');
+      $('#sc-cal').click();
+      await until(async () => (await eventsNow()).find((e) => e.title === '2026-01-31 + 1 month = Sat 2026-02-28'), 'the event');
+      const found = (await eventsNow()).find((e) => e.title === '2026-01-31 + 1 month = Sat 2026-02-28');
+      expect(found.allDay).toBe(true);
+      expect(found.startDay).toBe('2026-02-28');
+      expect(found.endDay).toBe('2026-02-28');
+      expect($('#sc-status').textContent).toBe('Added to Calendar on 2026-02-28.');
+    });
+  });
+
+  run({ name: 'Slopculator · Calendar' });
+  </script>
+</body>
+</html>

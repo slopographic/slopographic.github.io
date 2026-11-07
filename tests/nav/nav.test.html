@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Navigation presets tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- The real PhotoSLOP runs in a same-origin iframe; the tests send it real wheel and key events. -->
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let win, W, N;
+  const frame = () => document.getElementById('app');
+  async function boot(reset = true) {
+    win = frame().contentWindow;
+    await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+    W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+    N = win.SlopNav;
+    cancelAll();
+    if (reset) N.store.setPreset('photoslop', 'slop');
+  }
+  async function reload() {
+    const done = new Promise((r) => frame().addEventListener('load', r, { once: true }));
+    frame().src = '../../photoslop/index.html?' + Math.random();
+    await done;
+    await boot(false); // keep the saved preset: this is the reload being tested
+  }
+  const wheel = (o) => {
+    const v = win.document.getElementById('viewport');
+    const r = v.getBoundingClientRect();
+    const e = new win.WheelEvent('wheel', Object.assign({ deltaX: 0, deltaY: 0, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true }, o));
+    win.document.getElementById('view').dispatchEvent(e);
+    return e;
+  };
+  const press = (o) => {
+    const e = new win.KeyboardEvent('keydown', Object.assign({ bubbles: true, cancelable: true }, o));
+    win.document.body.dispatchEvent(e);
+    return e;
+  };
+  // Always act on the newest dialog: a closing one can still be in the DOM for a moment.
+  const dlg = () => [...win.document.querySelectorAll('.nav-dlg')].pop() || null;
+  const closeDialog = () => { const d = dlg(); const b = d && [...d.querySelectorAll('.sui-btn')].find((x) => x.textContent === 'Cancel'); if (b) b.click(); };
+  const dialogUp = () => !!dlg();
+  const cancelAll = () => { [...win.document.querySelectorAll('.sui-btn')].filter((x) => x.textContent === 'Cancel').forEach((b) => b.click()); };
+  const tab = (name) => [...dlg().querySelectorAll('.nav-tab')].find((x) => x.textContent === name);
+  async function applyDialog() {
+    const b = [...dlg().querySelectorAll('.sui-btn')].find((x) => x.textContent === 'Apply');
+    b.click();
+    await waitFor(() => !dialogUp(), { timeout: 3000 });
+    await sleep(200);
+  }
+
+  describe('navigation modal', () => {
+    it('opens from the Edit menu and the command palette, and lists the presets', async () => {
+      await boot();
+      const edit = W.MENUS.find(([name]) => name === 'Edit')[1];
+      const prefs = edit.find((x) => x && x.label === 'Preferences');
+      expect(!!prefs).toBe(true);
+      expect(prefs.sub.some((x) => x.label === 'Navigation…')).toBe(true);
+      expect(N.apps.photoslop.title).toBe('PhotoSlop');
+      expect(win.SlopCmd.get('ps.nav-preset')).toBeTruthy();
+      N.openModal('photoslop');
+      await waitFor(dialogUp);
+      const radios = [...dlg().querySelectorAll('.nav-card input')].map((x) => x.value);
+      expect(radios).toEqual(['slop', 'photoshop', 'illustrator', 'figma', 'custom']);
+      expect(dlg().querySelector('.nav-what').textContent).toContain('Wheel zooms around the pointer');
+      closeDialog();
+      await waitFor(() => !dialogUp());
+    });
+
+    it('shows a clash for Illustrator-style H (the Hand Tool key) and says the preset wins', async () => {
+      N.openModal('photoslop');
+      await waitFor(dialogUp);
+      const illu = [...dlg().querySelectorAll('.nav-card input')].find((x) => x.value === 'illustrator');
+      illu.click();
+      await sleep(20);
+      const clash = dlg().querySelector('.nav-clash-box').textContent;
+      expect(clash).toContain('Hand Tool');
+      expect(clash).toContain('wins');
+      closeDialog();
+      await waitFor(() => !dialogUp());
+    });
+  });
+
+  describe('presets change the canvas', () => {
+    it('plain wheel zooms under Slop', async () => {
+      await boot();
+      const z0 = W.V.zoom;
+      const e = wheel({ deltaY: -120 });
+      expect(e.defaultPrevented).toBe(true);
+      expect(W.V.zoom).toBeGreaterThan(z0);
+    });
+
+    it('under Photoshop-style Alt + wheel zooms and plain wheel does not', async () => {
+      await boot();
+      N.store.setPreset('photoslop', 'photoshop');
+      const z0 = W.V.zoom;
+      wheel({ deltaY: -120 });
+      expect(W.V.zoom).toBe(z0);
+      wheel({ deltaY: -120, altKey: true });
+      expect(W.V.zoom).toBeGreaterThan(z0);
+    });
+
+    it('under Photoshop-style Ctrl+0 fits the page and Ctrl+1 shows 100%', async () => {
+      await boot();
+      N.store.setPreset('photoslop', 'photoshop');
+      W.V.zoom = 3; W.dirty();
+      press({ key: '0', code: 'Digit0', ctrlKey: true });
+      expect(W.V.zoom).not.toBe(3);
+      press({ key: '1', code: 'Digit1', ctrlKey: true });
+      expect(W.V.zoom).toBe(1);
+    });
+
+    it('Space plus drag pans, and Space is not left to the app', async () => {
+      await boot();
+      N.store.setPreset('photoslop', 'slop');
+      const ox0 = W.V.ox, v = win.document.getElementById('viewport'), r = v.getBoundingClientRect();
+      const down = (x, y) => new win.PointerEvent('pointerdown', { button: 0, pointerId: 7, clientX: x, clientY: y, bubbles: true, cancelable: true });
+      press({ code: 'Space', key: ' ' });
+      v.dispatchEvent(down(r.left + 100, r.top + 100));
+      v.dispatchEvent(new win.PointerEvent('pointermove', { pointerId: 7, clientX: r.left + 140, clientY: r.top + 100, bubbles: true }));
+      win.dispatchEvent(new win.PointerEvent('pointerup', { pointerId: 7, clientX: r.left + 140, clientY: r.top + 100, bubbles: true }));
+      press({ code: 'Space', key: ' ' });
+      win.document.body.dispatchEvent(new win.KeyboardEvent('keyup', { code: 'Space', key: ' ', bubbles: true }));
+      expect(W.V.ox - ox0).toBe(40);
+    });
+  });
+
+  describe('Custom', () => {
+    it('saves a Custom binding from the dialog and keeps it after a reload', async () => {
+      await boot();
+      N.openModal('photoslop');
+      await waitFor(dialogUp);
+      tab('Customise').click();
+      await sleep(30);
+      const row = [...dlg().querySelectorAll('.nav-row')].find((x) => x.textContent.includes('Wheel zoom'));
+      const sel = row.querySelector('select');
+      sel.value = 'alt';
+      sel.dispatchEvent(new win.Event('change'));
+      await applyDialog();
+      expect(N.store.resolve('photoslop').id).toBe('custom');
+      expect(N.store.resolve('photoslop').bindings.zoomWheel).toBe('alt');
+      await reload();
+      const again = win.SlopNav.store.resolve('photoslop');
+      expect(again.id).toBe('custom');
+      expect(again.bindings.zoomWheel).toBe('alt');
+      const z0 = W.V.zoom;
+      wheel({ deltaY: -120 });
+      expect(W.V.zoom).toBe(z0);
+      wheel({ deltaY: -120, altKey: true });
+      expect(W.V.zoom).toBeGreaterThan(z0);
+    });
+
+    it('Reset to preset puts a row back to the preset it started from', async () => {
+      await boot();
+      N.store.setPreset('photoslop', 'photoshop');
+      N.openModal('photoslop');
+      await waitFor(dialogUp);
+      tab('Customise').click();
+      await sleep(30);
+      const row = [...dlg().querySelectorAll('.nav-row')].find((x) => x.textContent.includes('Wheel zoom'));
+      row.querySelector('select').value = 'ctrl';
+      row.querySelector('select').dispatchEvent(new win.Event('change'));
+      expect(row.querySelector('select').value).toBe('ctrl');
+      [...row.querySelectorAll('button')].find((b) => b.textContent === 'Reset to preset').click();
+      expect(row.querySelector('select').value).toBe('alt');
+      closeDialog();
+      await waitFor(() => !dialogUp());
+    });
+  });
+  SlopTest.run({ name: 'Navigation presets' });
+  </script>
+</body>
+</html>

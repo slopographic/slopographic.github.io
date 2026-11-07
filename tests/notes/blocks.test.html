@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Notes blocks tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe with its own Slop Drive (the shared hub on this test origin, fresh per run). Blocks are
+       picked from the Insert block menu, the right-click menu of the source, and the dialogs they open. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const H = () => window.SlopHub;
+  const SRC = '../../notes/index.html';
+
+  async function open(src = SRC) {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = src;
+    const want = new URL(src, location.href).pathname;
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname === want && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    return W();
+  }
+  /** The labels of the open menu (top level). */
+  const menuLabels = () => qa('.sui-menu .sui-lbl').map((x) => x.textContent);
+  /** Clicks the menu row with this label; a row with a submenu opens it instead. */
+  async function pick(label) {
+    const lbl = await waitFor(() => qa('.sui-menu .sui-lbl').find((x) => x.textContent === label), { timeout: 2000 });
+    lbl.closest('.sui-row').click();
+  }
+  /** The dialog on top that is not fading out. */
+  const topDlg = () => [...W().document.querySelectorAll('.sui-dlg')].filter((d) => !d.closest('.sui-back').classList.contains('sui-out')).pop();
+  /** Fills the open dialog's fields in order (inputs or textareas), then presses its primary button. */
+  async function fill(values) {
+    await waitFor(() => topDlg() && topDlg().querySelector('input, textarea'), { timeout: 4000 });
+    const d = topDlg();
+    const fields = [...d.querySelectorAll('input, textarea')];
+    values.forEach((v, i) => { if (v != null) fields[i].value = v; });
+    d.querySelector('.sui-primary').click();
+  }
+  const dialogOpen = () => !!topDlg();
+  const body = () => q('#nt-body').value;
+  const preview = () => q('#nt-preview');
+  /** Opens the Insert block menu for the open note and picks one block. */
+  async function insert(label) {
+    q('#nt-insert').click();
+    await waitFor(() => qa('.sui-menu .sui-lbl').length, { timeout: 2000 });
+    await pick(label);
+  }
+  async function newNote() {
+    q('#nt-new').click();
+    await waitFor(() => !q('#nt-note').hidden, { timeout: 4000 });
+    q('#nt-body').focus();
+    q('#nt-body').value = '';
+    q('#nt-body').dispatchEvent(new (W().Event)('input', { bubbles: true }));
+  }
+  const records = async () => (await H().list({ trashed: 'any' })).filter((r) => r.meta && r.meta.type === 'notes');
+
+  describe('Slop Notes: blocks', () => {
+    it('the Insert block button and the right-click menu of the source offer every block', async () => {
+      await open();
+      await newNote();
+      q('#nt-insert').click();
+      await waitFor(() => menuLabels().length, { timeout: 2000 });
+      const want = ['Heading', 'Table…', 'Video link…', 'Image…', 'Code block…', 'Checklist…', 'Quote…', 'Divider', 'Callout', 'Link…'];
+      for (const l of want) expect(menuLabels()).toContain(l);
+      W().SlopUI.closeMenu();
+      q('#nt-body').dispatchEvent(new (W().MouseEvent)('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200, button: 2 }));
+      await waitFor(() => menuLabels().length, { timeout: 2000 });
+      expect(menuLabels()).toContain('Table…');
+      W().SlopUI.closeMenu();
+    });
+
+    it('a table block asks for rows and columns and inserts a Markdown table that the preview shows', async () => {
+      await insert('Table…');
+      await fill(['1', '2']);
+      await waitFor(() => body().includes('| Column 1 | Column 2 |'), { timeout: 3000 });
+      expect(body()).toContain('| --- | --- |');
+      await waitFor(() => preview().querySelector('table th'), { timeout: 3000 });
+      expect(preview().querySelectorAll('th').length).toBe(2);
+      expect(preview().querySelectorAll('tbody tr').length).toBe(1);
+    });
+
+    it('a video link becomes a card with a link to open it, and no iframe is put in the preview', async () => {
+      await insert('Video link…');
+      await fill(['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'Demo clip']);
+      await waitFor(() => body().includes('[!VIDEO] Demo clip'), { timeout: 3000 });
+      expect(body()).toContain('[Open on YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ)');
+      expect(body()).toContain('[Thumbnail](https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg)');
+      expect(preview().querySelector('.md-video a').textContent).toBe('Open on YouTube');
+      expect(preview().querySelectorAll('iframe').length).toBe(0);
+    });
+
+    it('a link that is not a video keeps the dialog open with a message', async () => {
+      await insert('Video link…');
+      await fill(['https://example.com/page', '']);
+      expect(dialogOpen()).toBeTruthy();
+      topDlg().querySelector('.sui-btn:not(.sui-primary)').click();
+      await waitFor(() => !dialogOpen(), { timeout: 2000 });
+    });
+
+    it('a code block takes a language, puts the caret inside the fence, and a checklist, quote and divider render', async () => {
+      await insert('Code block…');
+      await fill(['js']);
+      await waitFor(() => body().includes('```js'), { timeout: 3000 });
+      const at = body().indexOf('```js\n') + '```js\n'.length;
+      expect(q('#nt-body').selectionStart).toBe(at);
+      q('#nt-body').setSelectionRange(body().length, body().length);
+      await insert('Checklist…');
+      await fill(['Milk\nEggs']);
+      await insert('Quote…');
+      await fill(['A quoted line']);
+      await insert('Divider');
+      await waitFor(() => body().endsWith('---'), { timeout: 3000 });
+      expect(body()).toContain('- [ ] Milk\n- [ ] Eggs');
+      expect(body()).toContain('> A quoted line');
+      expect(preview().querySelectorAll('input[type=checkbox]').length).toBe(2);
+      expect(preview().querySelector('blockquote').textContent).toBe('A quoted line');
+      expect(preview().querySelector('hr')).toBeTruthy();
+    });
+
+    it('a callout inserts its marker and renders as a callout, and a heading uses its level', async () => {
+      await insert('Callout');
+      await pick('Tip…');
+      await fill(['Save often']);
+      await waitFor(() => body().includes('> [!TIP]'), { timeout: 3000 });
+      expect(preview().querySelector('aside.md-callout.md-tip p').textContent).toBe('Tip');
+      expect(preview().textContent).toContain('Save often');
+      await insert('Heading');
+      await pick('Heading 2');
+      await fill(['Section']);
+      await waitFor(() => body().includes('## Section'), { timeout: 3000 });
+      expect(preview().querySelector('h2').textContent).toBe('Section');
+    });
+
+    it('a link block asks for text and an http address and writes a Markdown link', async () => {
+      await insert('Link…');
+      await fill(['Docs', 'https://example.com/docs']);
+      await waitFor(() => body().includes('[Docs](https://example.com/docs)'), { timeout: 3000 });
+      expect([...preview().querySelectorAll('a')].some((a) => a.getAttribute('href') === 'https://example.com/docs')).toBe(true);
+    });
+
+    it('pasting an HTML table inserts a Markdown table; pasting plain text is left to the browser', async () => {
+      const ta = q('#nt-body');
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      const dt = new (W().DataTransfer)();
+      dt.setData('text/html', '<table><tr><th>Item</th><th>Note</th></tr><tr><td>Pen</td><td>red | blue</td></tr></table>');
+      dt.setData('text/plain', 'Item Note');
+      const handled = ta.dispatchEvent(new (W().ClipboardEvent)('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      expect(handled).toBe(false);
+      await waitFor(() => body().includes('| Pen | red \\| blue |'), { timeout: 3000 });
+      expect(body()).toContain('| Item | Note |\n| --- | --- |\n| Pen | red \\| blue |');
+      const plain = new (W().DataTransfer)();
+      plain.setData('text/plain', 'Just words');
+      const before = body();
+      const notPrevented = ta.dispatchEvent(new (W().ClipboardEvent)('paste', { clipboardData: plain, bubbles: true, cancelable: true }));
+      expect(notPrevented).toBe(true);
+      expect(body()).toBe(before);
+    });
+
+    it('F2 renames a note and a notebook, and the new name is saved in the record', async () => {
+      const noteBtn = q('#nt-notes [data-kind="note"]');
+      noteBtn.dispatchEvent(new (W().KeyboardEvent)('keydown', { key: 'F2', bubbles: true, cancelable: true }));
+      await fill(['Renamed note']);
+      await waitFor(() => qa('#nt-notes .nt-note-title').some((t) => t.textContent === 'Renamed note'), { timeout: 4000 });
+      const nbBtn = qa('#nt-books [data-kind="notebook"]')[0];
+      nbBtn.dispatchEvent(new (W().KeyboardEvent)('keydown', { key: 'F2', bubbles: true, cancelable: true }));
+      await fill(['Diary']);
+      await waitFor(() => qa('#nt-books .nt-name').some((b) => b.textContent === 'Diary'), { timeout: 4000 });
+      await waitFor(async () => (await records()).some((r) => r.meta.kind === 'note' && r.meta.title === 'Renamed note'), { timeout: 8000 });
+      expect((await records()).some((r) => r.meta.kind === 'notebook' && r.meta.title === 'Diary')).toBe(true);
+    }, { timeout: 30000 });
+
+    it('the right-click menu on a note has Rename… and an Export submenu', async () => {
+      const item = q('#nt-notes [data-kind="note"]');
+      item.dispatchEvent(new (W().MouseEvent)('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200, button: 2 }));
+      await waitFor(() => menuLabels().length, { timeout: 2000 });
+      expect(menuLabels()).toContain('Rename…');
+      expect(menuLabels()).toContain('Export');
+      W().SlopUI.closeMenu();
+    });
+  });
+
+  run({ name: 'Slop Notes blocks' });
+  </script>
+</body>
+</html>

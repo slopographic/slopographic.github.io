@@ -1,0 +1,25 @@
+/* Slop Colors, Ukrainian: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('uk', {
+  'colors.wheel.label': 'Колірне коло',
+  'colors.wheel.rule': 'Гармонія',
+  'colors.wheel.model': 'Коло',
+  'colors.wheel.bright': 'Яскравість',
+  'colors.wheel.light': 'Світлота',
+  'colors.wheel.bright_text': 'Яскравість {pct} %',
+  'colors.wheel.light_text': 'Світлота {pct} %',
+  'colors.wheel.keys': 'Перетягніть маркер або скористайтеся на ньому стрілками: уліво й управо — поворот відтінку, угору й униз — зміна насиченості, Shift — десять кроків, Page Up і Page Down — зміна яскравості.',
+  'colors.wheel.base': 'Основний колір',
+  'colors.wheel.handle': 'Колір {n}',
+  'colors.wheel.value': 'Відтінок {hue}°, насиченість {sat} %, {hex}',
+  'colors.wheel.value_oklch': 'Відтінок {hue}°, колірність {sat} %, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (художника)',
+  'colors.wheel.oklch': 'OKLCH (перцептивне)',
+  'colors.harmony.brightness': 'Тони',
+  'colors.harmony.custom': 'Власна',
+  'colors.cmd.g_wheel': 'Колірне коло',
+  'colors.cmd.wheel_rule': 'Коло: задати гармонію «{rule}»',
+  'colors.cmd.wheel_model': 'Коло: використати коло {wheel}',
+  'colors.cmd.wheel_focus': 'Коло: перейти до колірного кола',
+});

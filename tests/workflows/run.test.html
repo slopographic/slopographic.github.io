@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows: a 3-step workflow on 3 pictures (remove background, watermark, resize) to a ZIP; progress; step checks</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script type="module">
+  // Covers: workflows/index.html, workflows/js/ui/app.js, workflows/js/ui/state.js, workflows/js/ui/steps.js, workflows/js/ui/addmenu.js
+  // Covers: workflows/js/ui/run.js, workflows/js/core/plan.js, workflows/js/core/compat.js, convert/js/core/chain-run.js
+  // Covers: shared/ops/registry.js, shared/ops/all.js, shared/ops/load.js, shared/ops/isolate.js, shared/ops/watermark.js, shared/ops/resize.js
+  // Covers: convert/js/ui/options.js, workflows/css/workflows.css, workflows/css/steps.css
+  import { readZip } from '../../shared/office/zip.js';
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const A = () => WFT.A, $ = (id) => WFT.D.getElementById(id);
+
+  describe('Slop Workflows: a real run', () => {
+    let calls;
+    it('builds remove background → watermark → resize from the menu functions, each with its options', async () => {
+      await WFT.boot('', { fresh: true });
+      A().lib.newFlow();
+      calls = WFT.stubCutout(WFT.W);
+      A().addStep('slopisolate.remove-bg', { model: 'fast' });
+      A().addStep('watermark.apply', { text: 'WM', colour: '#ff00ff', size: 30, opacity: 100, shadow: false, position: 'mc' });
+      A().addStep('resize.image', { mode: 'size', width: 200, height: 200, fit: 'fit', format: 'png' });
+      expect(A().S.doc.steps.map((s) => s.id)).toEqual(['slopisolate.remove-bg', 'watermark.apply', 'resize.image']);
+      expect(WFT.D.querySelectorAll('.wf-step').length).toBe(3);
+      expect($('wf-steps').textContent).toContain('Remove background');
+      // the options are the operation's own fields, filled from the step
+      const w = WFT.D.querySelector(`#cv-o-wf-${A().S.doc.steps[2].uid}-width`);
+      expect(w.value).toBe('200');
+    });
+
+    it('runs 3 pictures through the 3 steps, shows the progress of each file at each step, and zips 3 PNGs of 200 × 200 with the watermark', async () => {
+      await A().runner.addFiles([await WFT.picture('a.png'), await WFT.picture('b.png', 320, 200, '#2ad06f'), await WFT.picture('c.jpg', 260, 260, '#e0a020', 'image/jpeg')]);
+      expect(A().S.files.map((f) => f.kind)).toEqual(['png', 'png', 'jpg']);
+      const r = await A().runner.run();
+      expect(r.ok).toBe(true);
+      expect(calls.length).toBe(3);
+      const cells = WFT.D.querySelectorAll('.wf-grid td');
+      expect(cells.length).toBe(9);
+      expect([...cells].every((c) => c.classList.contains('wf-c-done'))).toBe(true);
+      const res = A().S.run.result;
+      expect(res.outputs.map((o) => o.name)).toEqual(['a-200x200.png', 'b-200x200.png', 'c-200x200.png']);
+      const zip = await A().runner.resultsZip();
+      const entries = await readZip(new Uint8Array(await zip.arrayBuffer()));
+      expect([...entries.keys()]).toEqual(['a-200x200.png', 'b-200x200.png', 'c-200x200.png']);
+      for (const data of entries.values()) {
+        expect([...data.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+        const p = await WFT.pixels(new Blob([data], { type: 'image/png' }));
+        expect([p.w, p.h]).toEqual([200, 200]);
+        expect(p.at(2, 2)[3]).toBe(0);   // outside the circle: see-through (background removed)
+        let magenta = 0;                  // the watermark in the middle: magenta text
+        for (let y = 60; y < 140; y++) for (let x = 40; x < 160; x++) { const [r, g, b] = p.at(x, y); if (r > 180 && g < 90 && b > 180) magenta++; }
+        expect(magenta).toBeGreaterThan(150);
+      }
+      expect(WFT.D.querySelector('.wf-side').textContent).toContain('Results (3)');
+    }, { timeout: 40000 });
+
+    it('says before running when a step cannot take what the step before makes, and Run stays off', async () => {
+      A().addStep('images-to-pdf', {});
+      A().addStep('upscale.image', {});
+      const bad = WFT.D.querySelectorAll('.wf-step.wf-bad');
+      expect(bad.length).toBe(1);
+      expect(bad[0].querySelector('.wf-problem').textContent).toMatch(/Upscale cannot take PDF, which step 4 \(Images to PDF\) makes/);
+      expect($('wf-run').disabled).toBe(true);
+      const r = await A().runner.run();
+      expect(r.ok).toBe(false);
+      expect(r.message).toMatch(/^Step 5:/);
+    });
+
+    it('Stop ends a run early and the files not done say Cancelled', async () => {
+      A().S.doc.steps.splice(3);
+      A().emit('doc', {});
+      const p = A().runner.run();
+      A().runner.stop();
+      const r = await p;
+      expect(A().S.run.result.cancelled).toBe(true);
+      expect(r.ok).toBe(false);
+    }, { timeout: 30000 });
+  });
+  run({ name: 'Slop Workflows run' });
+  </script>
+</body>
+</html>

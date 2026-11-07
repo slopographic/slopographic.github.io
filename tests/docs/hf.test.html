@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs headers and footers: the panel, every page, Print, DOCX and .sdoc</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="pdf-helpers.js"></script>
+<script type="module">
+// Covers: docs/js/ui/hf.js, docs/js/model/hf.js, docs/js/io/docx-hf.js, docs/js/io/docx-in.js, docs/js/io/docx.js, docs/js/ui/output.js, docs/js/ui/menus.js, docs/js/ui/commands.js, docs/js/ui/files.js, docs/js/layout/index.js
+import { writeZip, readZip, readText } from '../../shared/office/zip.js';
+const { describe, it, expect, waitFor } = SlopTest;
+const T = window.DocsTest;
+let W = null;
+const dlg = () => W.document.querySelector('.sui-back:not(.sui-out) .hf-dlg');
+const area = (name) => dlg().querySelector(`textarea[data-area="${name}"]`);
+const type = (ta, text) => { ta.value = text; ta.dispatchEvent(new W.Event('input', { bubbles: true })); };
+const click = (el) => el.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+/** The text of each page's spans that sit above the body (header) or below it (footer), from the screen. */
+function zones(W) {
+  const k = W.SlopDocs.R.k();
+  return [...W.document.querySelectorAll('#pages .page')].map((pg, i) => {
+    const P = W.SlopDocs.layout.pages[i], spans = [...pg.querySelectorAll('.t')];
+    const at = (fn) => spans.filter((s) => fn(parseFloat(s.style.top) / k)).sort((a, b) => parseFloat(a.style.left) - parseFloat(b.style.left)).map((s) => s.textContent).join('');
+    return { head: at((y) => y < P.body.top), foot: at((y) => y > P.body.bottom) };
+  });
+}
+async function longDoc() {
+  const M = W.SlopDocEngine.M, d = M.newDoc();
+  d.blocks = Array.from({ length: 70 }, (_, i) => M.para(`Paragraph ${i + 1}. The quick brown fox jumps over the lazy dog, twice over, so the text runs to a second line.`));
+  W.SlopDocs.setDoc(M.normalizeDoc(d));
+  await waitFor(() => W.SlopDocs.layout.pages.length >= 3);
+}
+
+describe('the Header and footer panel', () => {
+  it('Format ▸ Header and footer… opens the panel; typing shows the header and footer on every page with its number', async () => {
+    W = await T.open();
+    await longDoc();
+    const row = W.SlopDocs.menus.format().find((r) => r && r.label === 'Header and footer…');
+    expect(!!row).toBe(true);
+    row.act();
+    await waitFor(dlg);
+    type(area('header'), 'Annual report');
+    area('footer').focus();
+    click([...dlg().querySelectorAll('fieldset[data-area="footer"] button')].find((b) => b.textContent === 'Page X of Y'));
+    const n = W.SlopDocs.layout.pages.length;
+    const z = zones(W);
+    expect(z.length).toBe(n);
+    z.forEach((p, i) => { expect(p.head).toBe('Annual report'); expect(p.foot).toBe(`Page ${i + 1} of ${n}`); });
+    click([...dlg().querySelectorAll('.sui-foot button')].find((b) => b.textContent === 'Done'));
+    await waitFor(() => !dlg());
+    expect(W.SlopDocs.file.dirty).toBe(true);
+    expect(W.SlopDocEngine.HF.hfText(W.SlopDocs.doc.footer.default).text).toBe('Page {page} of {pages}');
+  }, { timeout: 40000 });
+  it('a different first page has its own header, alignment follows the select, and Cancel puts everything back', async () => {
+    W.SlopDocs.openHF();
+    await waitFor(dlg);
+    const first = [...dlg().querySelectorAll('input[type="checkbox"]')][0];
+    first.click();
+    type(area('headerFirst'), 'Cover page');
+    const al = dlg().querySelector('select[data-hf-align="header"]');
+    al.value = 'right'; al.dispatchEvent(new W.Event('change', { bubbles: true }));
+    let z = zones(W);
+    expect(z[0].head).toBe('Cover page');
+    expect(z[1].head).toBe('Annual report');
+    const k = W.SlopDocs.R.k(), pg = W.document.querySelectorAll('#pages .page')[1], hs = [...pg.querySelectorAll('.t')].filter((s) => parseFloat(s.style.top) / k < W.SlopDocs.layout.pages[1].body.top);
+    expect(Math.max(...hs.map((s) => s.getBoundingClientRect().right - pg.getBoundingClientRect().left)) / k).toBeCloseTo(W.SlopDocs.layout.W - 72, 1.5);
+    click([...dlg().querySelectorAll('.sui-foot button')].find((b) => b.textContent === 'Cancel'));
+    await waitFor(() => !dlg());
+    z = zones(W);
+    expect([z[0].head, W.SlopDocs.doc.section.differentFirst]).toEqual(['Annual report', false]);
+  }, { timeout: 40000 });
+  it('a double-click in a page\'s bottom margin opens the panel on the footer', async () => {
+    const pg = W.document.querySelectorAll('#pages .page')[1], r = pg.getBoundingClientRect();
+    pg.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.bottom - 20 }));
+    await waitFor(dlg);
+    await waitFor(() => W.document.activeElement === area('footer'));
+    click(dlg().querySelector('.sui-x'));
+    await waitFor(() => !dlg());
+  });
+  it('Print sets the paper to the page size and keeps the header and footer on the printed pages', async () => {
+    W.dispatchEvent(new W.Event('beforeprint'));
+    const st = W.document.getElementById('docsPageSize');
+    expect(st.textContent).toContain(`size: ${W.SlopDocs.layout.W}pt ${W.SlopDocs.layout.H}pt`);
+    expect(st.textContent).toContain('margin: 0');
+    W.dispatchEvent(new W.Event('afterprint'));
+    expect(zones(W).every((p) => p.head === 'Annual report')).toBe(true);
+    const rules = [...W.document.styleSheets].flatMap((s) => { try { return [...s.cssRules]; } catch (e) { return []; } }).filter((r) => r.media && /print/.test(r.media.mediaText)).map((r) => r.cssText).join(' ');
+    expect(rules).toContain('.outline');
+    expect(rules).toContain('.topbar');
+  });
+});
+
+describe('saved with the document', () => {
+  it('DOCX: header and footer parts with PAGE and NUMPAGES fields, and back', async () => {
+    const E = W.SlopDocEngine;
+    W.SlopDocs.doc = E.HF.applyHF(W.SlopDocs.doc, { differentFirst: true, headerFirst: { text: 'Cover page', align: 'left' } });
+    const blob = await W.SlopDocs.exportBlob('docx'), files = await readZip(blob);
+    const doc = readText(files, 'word/document.xml'), foot = readText(files, 'word/footer1.xml');
+    expect(readText(files, 'word/header1.xml')).toContain('Annual report');
+    expect(readText(files, 'word/header2.xml')).toContain('Cover page');
+    expect(foot).toContain('w:instr=" PAGE "');
+    expect(foot).toContain('w:instr=" NUMPAGES "');
+    expect(doc).toContain('<w:headerReference w:type="default"');
+    expect(doc).toContain('<w:footerReference w:type="first"');
+    expect(doc).toContain('<w:titlePg/>');
+    expect(readText(files, '[Content_Types].xml')).toContain('/word/footer1.xml');
+    expect(readText(files, 'word/_rels/document.xml.rels')).toContain('relationships/header');
+    const back = await E.DX.importDocx(blob);
+    expect([E.HF.hfText(back.header.default).text, E.HF.hfText(back.footer.default).text, E.HF.hfText(back.header.first).text, back.section.differentFirst])
+      .toEqual(['Annual report', 'Page {page} of {pages}', 'Cover page', true]);
+    const L = E.layoutDoc(back);
+    expect(L.pages.length).toBe(W.SlopDocs.layout.pages.length);
+  });
+  it('DOCX import reads Word\'s complex fields (fldChar and instrText) in a footer', async () => {
+    const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main', R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const fld = (instr, shown) => `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr} \\* MERGEFORMAT </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>${shown}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`;
+    const zip = await writeZip([
+      { path: 'word/document.xml', data: `<?xml version="1.0"?><w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}"><w:body><w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr><w:footerReference w:type="default" r:id="rF"/><w:pgSz w:w="12240" w:h="15840"/></w:sectPr></w:body></w:document>` },
+      { path: 'word/_rels/document.xml.rels', data: `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rF" Type="${R_NS}/footer" Target="footer7.xml"/></Relationships>` },
+      { path: 'word/footer7.xml', data: `<?xml version="1.0"?><w:ftr xmlns:w="${W_NS}"><w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:t xml:space="preserve">Page </w:t></w:r>${fld('PAGE', '4')}<w:r><w:t xml:space="preserve"> / </w:t></w:r>${fld('NUMPAGES', '9')}<w:r><w:t xml:space="preserve"> · </w:t></w:r>${fld('DATE', '1 May')}</w:p></w:ftr>` },
+    ]);
+    const d = await W.SlopDocEngine.DX.importDocx(zip);
+    expect(W.SlopDocEngine.HF.hfText(d.footer.default)).toEqual({ text: 'Page {page} / {pages} · 1 May', align: 'right' });
+  });
+  it('.sdoc keeps the header, the footer and the first-page setting', async () => {
+    const E = W.SlopDocEngine, blob = await W.SlopDocs.exportBlob('sdoc');
+    const back = E.SD.readSdoc(await blob.text());
+    expect([E.HF.hfText(back.header.default).text, E.HF.hfText(back.footer.default).text, back.section.differentFirst]).toEqual(['Annual report', 'Page {page} of {pages}', true]);
+    await T.closeAll();
+  });
+});
+SlopTest.run({ name: 'Slop Docs headers and footers' });
+</script>
+</body>
+</html>

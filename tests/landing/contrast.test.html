@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="seoIndex=true"><!-- the comparison pages: a site that is not indexed has none -->
+  <title>Comparison pages are readable in the light and dark themes: the ours badge and every mark in the tables</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/landing/landing.css
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const rgb = (s) => { const n = (s.match(/[\d.]+/g) || []).map(Number); return s.startsWith('color(') ? n.slice(0, 3).map((v) => v * 255) : n; };
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  function low(W) {
+    const bgOf = (el) => { for (let n = el; n; n = n.parentElement) { const c = rgb(W.getComputedStyle(n).backgroundColor); const a = (W.getComputedStyle(n).backgroundColor.match(/[\d.]+/g) || []).length > 3 ? Number(W.getComputedStyle(n).backgroundColor.match(/[\d.]+/g)[3]) : 1; if (c.length >= 3 && a > 0.5) return c; } return [255, 255, 255]; };
+    const bad = [];
+    for (const el of W.document.querySelectorAll('.l-badge, table.cmp td[class^="m-"], .l-doc .eyebrow, .l-doc .note')) {
+      const L1 = lum(rgb(W.getComputedStyle(el).color)), L2 = lum(bgOf(el)), cr = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      if (cr < 4.5) bad.push(`${el.className || el.tagName} "${el.textContent.trim().slice(0, 20)}" ${cr.toFixed(2)}`);
+    }
+    return [...new Set(bad)];
+  }
+  describe('Comparison pages in both themes', () => {
+    for (const mode of ['light', 'dark']) {
+      it(`${mode}: the ours badge and the table marks are readable (contrast 4.5 or more)`, async () => {
+        try { localStorage.setItem('slop-profile', JSON.stringify({ theme: { mode } })); } catch (e) { /* none */ }
+        const f = document.getElementById('app');
+        f.src = '../../best/free-online-photo-editors/?' + mode;
+        await waitFor(() => f.contentWindow && f.contentWindow.document.querySelector('table.matrix .l-badge'), { timeout: 20000 });
+        await sleep(300);
+        expect(low(f.contentWindow)).toEqual([]);
+      }, { timeout: 40000 });
+    }
+  });
+  SlopTest.run({ name: 'Comparison contrast' });
+  </script>
+</body>
+</html>

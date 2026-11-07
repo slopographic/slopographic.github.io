@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared · SlopTour (PhotoSlop)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Drives the real PhotoSlop page in an iframe: the Tour button, the spotlight on the first target, Next,
+  // the queue jump to step 4, the keys, closing and resuming, and Restart.
+  const { describe, it, expect, waitFor, sleep, run, beforeEach, afterEach } = SlopTest;
+  const APP = 'photoslop';
+  let frame = null;
+  const doc = () => frame.contentDocument;
+  const win = () => frame.contentWindow;
+  const q = (s) => doc().querySelector(s);
+  const panel = () => { const p = q('.stour-panel'); return p && !p.hidden ? p : null; };
+  const counter = () => q('.stour-count').textContent;
+  const words = (tour) => win().SlopTour.logic.words(tour);   // the step words from the app tables (shared/tour/core.js)
+  const stored = () => { try { return JSON.parse(win().localStorage.getItem('slop.tour.' + APP)); } catch (e) { return null; } };
+  const press = (key) => doc().body.dispatchEvent(new (win().KeyboardEvent)('keydown', { key, bubbles: true }));
+  const sleepBlink = () => sleep(320); // the spotlight eases to its new place over .18s
+
+  describe('PhotoSlop tour', () => {
+    beforeEach(async () => {
+      document.querySelectorAll('iframe.tour-frame').forEach((f) => f.remove());
+      frame = document.createElement('iframe');
+      frame.className = 'tour-frame';
+      frame.style.cssText = 'display:block;width:1280px;height:520px;border:0;background:#000';
+      frame.src = '../../' + APP + '/index.html';
+      document.body.prepend(frame);
+      await waitFor(() => frame.contentDocument && frame.contentDocument.readyState === 'complete' && q('.stour-btn'), { timeout: 30000 });
+      win().localStorage.removeItem('slop.tour.' + APP);
+    });
+    afterEach(() => {
+      try { if (win().SlopTour && win().SlopTour.isOpen()) win().SlopTour.close(); win().localStorage.removeItem('slop.tour.' + APP); } catch (e) { /* frame gone */ }
+      frame.remove();
+    });
+    it('adds a Tour button and a palette command', () => {
+      expect(q('.stour-btn').textContent).toBe('Tour');
+      const cmd = win().SlopCmd.get('tour.start.' + APP);
+      expect(cmd).toBeTruthy();
+      expect(cmd.title).toBe('Start tour: PhotoSlop');
+    }, { timeout: 30000 });
+
+    it('starting the tour spotlights the first target', async () => {
+      q('.stour-btn').click();
+      await waitFor(panel, { timeout: 20000 });
+      const tour = await win().SlopTour.load(APP);
+      const first = tour.steps[0];
+      expect(q('.stour-name').textContent).toBe('PhotoSlop tour');
+      expect(tour.steps.length).toBeGreaterThanOrEqual(4);
+      expect(counter()).toBe('1 of ' + tour.steps.length);
+      await sleepBlink();
+      const target = q(first.target), hole = q('.stour-hole');
+      expect(hole.hidden).toBeFalsy();
+      const tr = target.getBoundingClientRect(), hr = hole.getBoundingClientRect();
+      expect(Math.abs(hr.left - (tr.left - 6))).toBeLessThanOrEqual(3);
+      expect(Math.abs(hr.width - (tr.width + 12))).toBeLessThanOrEqual(3);
+      expect(q('.stour-dim').hidden).toBeTruthy();
+      expect(q('.stour-tip b').textContent).toBe(words(tour).steps[0].title);
+      expect(q('.stour-tip b').textContent).toBe('Start a file');
+      expect(getComputedStyle(hole).pointerEvents).toBe('none');
+    }, { timeout: 60000 });
+
+    it('Next moves to step 2', async () => {
+      q('.stour-btn').click();
+      await waitFor(panel, { timeout: 20000 });
+      const tour = await win().SlopTour.load(APP);
+      q('.stour-next').click();
+      await waitFor(() => counter() === '2 of ' + tour.steps.length);
+      expect(q('.stour-title').textContent).toBe(words(tour).steps[1].title);
+      expect(q('.stour-q.is-current').dataset.i).toBe('1');
+      expect(stored().data.index).toBe(1);
+    }, { timeout: 60000 });
+
+    it('the queue jump goes to step 4', async () => {
+      q('.stour-btn').click();
+      await waitFor(panel, { timeout: 20000 });
+      const tour = await win().SlopTour.load(APP);
+      q('.stour-q[data-i="3"]').click();
+      await waitFor(() => counter() === '4 of ' + tour.steps.length);
+      expect(q('.stour-title').textContent).toBe(words(tour).steps[3].title);
+      expect(q('.stour-q[data-i="0"]').classList.contains('is-done')).toBeFalsy();
+      expect(stored().v).toBe(1);
+      expect(stored().data.index).toBe(3);
+    }, { timeout: 60000 });
+
+    it('arrow keys move, Escape closes, and closing keeps the place', async () => {
+      q('.stour-btn').click();
+      await waitFor(panel, { timeout: 20000 });
+      const tour = await win().SlopTour.load(APP);
+      doc().activeElement && doc().activeElement.blur();
+      press('ArrowRight');
+      await waitFor(() => counter() === '2 of ' + tour.steps.length);
+      press('ArrowRight');
+      await waitFor(() => counter() === '3 of ' + tour.steps.length);
+      press('Escape');
+      await waitFor(() => !panel());
+      expect(win().SlopTour.isOpen()).toBeFalsy();
+      expect(q('.stour-hole').hidden).toBeTruthy();
+      q('.stour-btn').click();
+      await waitFor(() => panel() && counter() === '3 of ' + tour.steps.length);
+    }, { timeout: 60000 });
+
+    it('Restart goes back to step 1', async () => {
+      q('.stour-btn').click();
+      await waitFor(panel, { timeout: 20000 });
+      const tour = await win().SlopTour.load(APP);
+      q('.stour-q[data-i="5"]').click();
+      await waitFor(() => counter() === '6 of ' + tour.steps.length);
+      q('.stour-restart').click();
+      await waitFor(() => counter() === '1 of ' + tour.steps.length);
+      expect(stored().data.index).toBe(0);
+    }, { timeout: 60000 });
+  });
+
+  run({ name: 'Shared · SlopTour (PhotoSlop)' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+/* SlopNav: navigation preset dialog and try-it pad. Colours come from the app's own tokens. */
+.nav-dlg { width: min(640px, calc(100vw - 32px)); }
+.nav-body { display: grid; gap: 12px; }
+.nav-tabs { display: flex; gap: 6px; }
+.nav-tab[aria-selected="true"] { background: var(--accent, #d4ff3a); color: #111; }
+.nav-pane { display: grid; gap: 10px; }
+.nav-pane[hidden] { display: none; }
+.nav-cards { display: grid; gap: 6px; }
+.nav-card { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid currentColor; border-radius: 6px; cursor: pointer; opacity: 0.92; }
+.nav-card input { margin-top: 3px; }
+.nav-card-body { display: grid; gap: 2px; }
+.nav-what { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 13px; }
+.nav-rows { display: grid; gap: 10px; }
+.nav-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; }
+.nav-row-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; grid-column: 1 / -1; }
+.nav-row-head select { min-width: 180px; }
+.nav-row .sui-btn { justify-self: end; }
+.nav-hint { margin: 0; font-size: 12px; opacity: 0.75; }
+.nav-clash { color: #c2410c; font-size: 12px; grid-column: 1 / -1; margin: 0; }
+.nav-clash-box p { margin: 0; color: #c2410c; font-size: 12px; }
+.nav-err { margin: 0; color: #dc2626; font-size: 13px; min-height: 1em; }
+.nav-try { display: grid; gap: 6px; }
+.nav-try-title { font-size: 13px; }
+.nav-pad-wrap { height: 200px; }
+.nav-pad { position: relative; width: 100%; height: 100%; overflow: hidden; border: 1px dashed currentColor; border-radius: 6px; cursor: default; touch-action: none; background: rgba(127, 127, 127, 0.08); }
+.nav-pad.space, .nav-pad.space * { cursor: grab; }
+.nav-pad.panning, .nav-pad.panning * { cursor: grabbing; }
+.nav-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; background-color: #fff; background-image: linear-gradient(rgba(0, 0, 0, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.12) 1px, transparent 1px); background-size: 24px 24px; color: #111; }
+.nav-world-tag { position: absolute; left: 16px; top: 14px; font: 600 12px ui-monospace, Menlo, monospace; }
+.nav-readout { min-height: 1.2em; }
+@media (max-width: 560px) { .nav-row { grid-template-columns: 1fr; } .nav-row .sui-btn { justify-self: start; } .nav-row-head select { min-width: 0; flex: 1; } }

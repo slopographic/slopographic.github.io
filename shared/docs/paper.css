@@ -1,0 +1,101 @@
+/* The paper view (shared/docs/paper.js): one document as a white A4 page on the screen, in the template's layout. The paper
+   is white in both themes, as the printed page is. --accent is set per document (the seed's colour, or ink). */
+.paper { --accent: #1a1a1a; box-sizing: border-box; background: #fff; color: #111; max-width: 794px; margin: 0 auto; padding: 48px 52px 40px;
+  border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .25), 0 8px 24px rgba(0, 0, 0, .14); font-size: 13px; line-height: 1.4; }
+.paper.f-sans { font-family: Helvetica, Arial, sans-serif; }
+.paper.f-serif { font-family: 'Times New Roman', Times, serif; }
+.paper h1, .paper h2, .paper h3, .paper p, .paper dl, .paper dd { margin: 0; }
+.paper h1 { font-size: 17px; font-weight: 700; }
+.paper h2.pp-doctitle { font-size: 24px; font-weight: 700; letter-spacing: .04em; }
+.paper .pp-addr { color: #555; font-size: 12px; white-space: pre-line; margin-top: 2px; }
+.paper .pp-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #777; margin-bottom: 4px; font-weight: 700; }
+.paper .pp-name { font-weight: 700; font-size: 14px; }
+.paper .pp-status { font-size: 10px; letter-spacing: .08em; color: #666; margin-top: 4px; }
+.paper .pp-meta { margin-top: 6px; font-size: 12px; }
+.paper .pp-meta div { display: flex; justify-content: flex-end; gap: 6px; }
+.paper .pp-meta dt { color: #555; }
+.paper .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.paper .pp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+.paper .pp-title { text-align: right; }
+.paper .pp-bill { margin: 26px 0 0; }
+.paper .pp-side .pp-bill { margin: 16px 0 0; }
+.paper .pp-table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+.paper .pp-table th { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #555; text-align: left; padding: 6px 4px; border-bottom: 1px solid #111; font-weight: 700; }
+.paper .pp-table td { padding: 7px 4px; vertical-align: top; }
+.paper .pp-table .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.paper .pp-table .pp-desc { width: 100%; }
+.paper .pp-table tr.bad td:first-child { box-shadow: inset 3px 0 0 #b3261e; }
+.paper .t-rules td { border-bottom: 1px solid #dcdcdc; }
+.paper .t-zebra tbody tr:nth-child(even) td { background: #f4f5f7; }
+.paper .t-plain th { border-bottom: 0; color: #888; }
+.paper .pp-sums { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; width: 300px; max-width: 100%; margin: 14px 0 0 auto; box-sizing: border-box; }
+.paper .pp-sums dt { color: #444; }
+.paper .pp-sums dd { text-align: right; font-variant-numeric: tabular-nums; }
+.paper .pp-sums .grand { font-weight: 700; color: #111; }
+.paper .pp-sums.tb-box { background: #f4f5f7; padding: 10px 12px; border-radius: 4px; }
+.paper .pp-sums.tb-rule .grand { border-top: 1px solid #111; padding-top: 4px; }
+.paper .pp-note { grid-column: 1 / -1; color: #777; font-size: 12px; }
+.paper .pp-notes { margin-top: 22px; }
+.paper .pp-notes p { white-space: pre-line; color: #333; }
+.paper .pp-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 30px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 10px; color: #777; }
+
+/* The templates (shared/docs/pdf-layouts.js) */
+.paper.l-classic { font-family: 'Times New Roman', Times, serif; }
+.paper.l-classic .pp-head { border-bottom: 1px solid #111; padding-bottom: 14px; }
+.paper.l-classic h2.pp-doctitle { letter-spacing: .08em; font-weight: 400; }
+.paper.l-modern .pp-doctitle, .paper.l-modern .pp-coname { color: var(--accent); }
+.paper.l-minimal h2.pp-doctitle { font-weight: 300; font-size: 26px; color: #333; }
+.paper.l-minimal h1 { font-weight: 600; font-size: 13px; color: #333; }
+.paper.l-minimal .pp-table td { padding: 9px 4px; }
+.paper.l-minimal.ta-left .pp-head { justify-content: space-between; }
+.paper.l-minimal.ta-left .pp-title { order: -1; text-align: left; }
+.paper.l-minimal.ta-left .pp-co { text-align: right; }
+.paper.l-bold.hd-band .pp-head { background: var(--accent); color: #fff; margin: -48px -52px 24px; padding: 26px 52px 24px; border-radius: 2px 2px 0 0; }
+.paper.l-bold.hd-band .pp-addr, .paper.l-bold.hd-band .pp-status, .paper.l-bold.hd-band .pp-meta dt, .paper.l-bold.hd-band .pp-meta dd,
+.paper.l-bold.hd-band .pp-coname, .paper.l-bold.hd-band .pp-head .pe, .paper.l-bold.hd-band h2 { color: #fff; }
+.paper.l-bold.hd-band .pp-title { text-align: left; }
+.paper.l-bold.hd-band .pp-meta div { justify-content: flex-start; }
+.paper.l-bold .pp-table th { color: var(--accent); }
+.paper.l-sidebar .pp-grid { display: grid; grid-template-columns: 170px 1fr; gap: 28px; }
+.paper.l-sidebar .pp-side { background: #f3f5f8; border-left: 3px solid var(--accent); padding: 14px 12px; border-radius: 2px; }
+.paper.l-sidebar .pp-side h1 { color: var(--accent); font-size: 15px; }
+.paper.l-sidebar .pp-title { text-align: left; }
+.paper.l-sidebar .pp-doctitle { color: var(--accent); }
+.paper.l-sidebar .pp-meta div { justify-content: flex-start; flex-wrap: wrap; }
+
+/* Editable fields: buttons that look like text until hovered or focused */
+.paper .pe { font: inherit; color: inherit; background: none; border: 1px dashed transparent; border-radius: 3px; padding: 0 3px; margin: 0 -3px;
+  text-align: inherit; cursor: text; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Numbers, money and dates never break onto two lines ("£1,200.0 / 0"): their cells keep one line and the description
+   column takes the squeeze. The editable button's own wrapping is for text fields only. */
+.paper .pp-table .n .pe, .paper .pp-meta dd, .paper .pp-meta dd .pe, .paper .pp-sums dd { white-space: nowrap; overflow-wrap: normal; font-variant-numeric: tabular-nums; }
+.paper .pe:hover, .paper .pe:focus-visible { border-color: #aab4c0; background: rgba(51, 69, 92, .06); outline: none; }
+.paper .pe-input { font: inherit; color: #111; background: #fff; width: 100%; box-sizing: border-box; padding: 3px 5px; border: 1px solid #6b7785; border-radius: 3px; }
+.paper textarea.pe-input { resize: vertical; min-height: 56px; }
+.paper .pp-table .pe-input { text-align: inherit; }
+.paper .pp-table .n .pe-input { text-align: right; }
+/* A narrow page (the centre of the workspace, a phone): the side bar stacks above the table, the cells pad less, and a table
+   that is still too wide scrolls inside the page instead of running off it. */
+.paper { container-type: inline-size; }
+.paper .pp-main { min-width: 0; overflow-x: auto; }
+@container (max-width: 660px) {
+  .paper.l-sidebar .pp-grid { grid-template-columns: 1fr; gap: 18px; }
+  .paper .pp-table th, .paper .pp-table td { padding-left: 3px; padding-right: 3px; }
+}
+
+@media (max-width: 560px) {
+  .paper { padding: 26px 16px 24px; }
+  .paper.l-bold.hd-band .pp-head { margin: -26px -16px 18px; padding: 20px 16px; }
+  .paper.l-sidebar .pp-grid { grid-template-columns: 1fr; gap: 18px; }
+  .paper .pp-main { overflow-x: auto; }
+  .paper .pp-table { min-width: 460px; }
+}
+@media print {
+  @page { size: A4; margin: 14mm; }
+  .paper { box-shadow: none; border-radius: 0; padding: 0; max-width: none; background: #fff; color: #000; }
+  .paper .pe { border-color: transparent !important; background: none !important; }
+  .paper.l-bold.hd-band .pp-head { margin: 0 0 20px; padding: 18px 0 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .paper.l-sidebar .pp-side { background: none; border-left: 0; padding: 0; }
+  .paper .pp-table tr { break-inside: avoid; }
+  .paper .t-zebra tbody tr:nth-child(even) td, .paper .pp-sums.tb-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

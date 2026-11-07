@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · list rows show each app's icon</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Covers: home/browse.js -->
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  describe('homepage finder: list rows', () => {
+    it('every list row has its app icon, first in the row', async () => {
+      const win = await HomeTest.openHome();
+      const doc = win.document;
+      const btn = doc.querySelector('#app-finder .fd-view[data-fd-view="list"]');
+      btn.click();
+      await new Promise((r) => setTimeout(r, 150));
+      const rows = [...doc.querySelectorAll('#app-finder .fd-list > .fd-row')];
+      expect(rows.length > 40).toBeTruthy();
+      const missing = rows.filter((r) => !(r.firstElementChild && r.firstElementChild.classList.contains('fd-row-icon'))).map((r) => r.dataset.id);
+      expect(missing).toEqual([]);
+      const pdf = doc.querySelector('#app-finder .fd-row[data-id="pdf"] .fd-row-icon');
+      expect(!!pdf && pdf.querySelector('rect') !== null).toBeTruthy();
+    });
+  });
+  run({ name: 'Homepage: list rows show each app icon' });
+  </script>
+</body>
+</html>

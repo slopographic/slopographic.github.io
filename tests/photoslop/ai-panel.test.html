@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop: the Slop AI panel drives real edits (fake engine)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  // Covers: shell/header.js, shared/ai/panel.js, shared/ai/panel-run.js, shared/ai/picker.js, shared/ai/cmdtools.js,
+  //   shared/ai/apptools.js, shared/ai/tools.js, shared/commands/commands.js, shared/commands/args.js,
+  //   photoslop/js/app/commands.js, photoslop/js/app/ai-ops.js, photoslop/js/app/ai-tools.js, photoslop/js/app/ai-commands.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const call = (name, args) => `<tool_call>{"name": "${name}", "arguments": ${JSON.stringify(args)}}</tool_call>`;
+  let app, win, W;
+
+  /** A 400 × 300 white picture with a red disc in the middle (the "subject"); the subject model is stubbed to it. */
+  function picture() {
+    W.newDocument(400, 300, '#ffffff', 'Test');
+    const L = W.activeLayer(), g = L.canvas.getContext('2d');
+    g.fillStyle = '#ff0000'; g.beginPath(); g.arc(200, 150, 60, 0, Math.PI * 2); g.fill();
+    // stripes in the background, so a blur shows
+    g.fillStyle = '#000000'; for (let x = 0; x < 400; x += 8) if (Math.abs(x - 200) > 80) g.fillRect(x, 0, 4, 300);
+    W.commit('Paint');
+    win.SlopCutout.removeBackground = async (src) => {
+      const mask = new Uint8ClampedArray(src.width * src.height);
+      for (let y = 0; y < src.height; y++) for (let x = 0; x < src.width; x++) if (Math.hypot(x - 200, y - 150) <= 60) mask[y * src.width + x] = 255;
+      return { mask, width: src.width, height: src.height };
+    };
+  }
+  const px = (x, y) => { const L = W.activeLayer(); return [...L.canvas.getContext('2d').getImageData(x - L.x, y - L.y, 1, 1).data]; };
+  const steps = () => [...win.document.querySelectorAll('.sap-step')].map((s) => [...s.childNodes].filter((n) => !n.classList || !n.classList.contains('sap-step-r')).map((n) => n.textContent).join(''));   // the call, without its result line
+
+  describe('the header AI button', () => {
+    it('loads nothing of the AI until it is clicked, then opens the panel beside the app with the model choice', async () => {
+      app = await freshApp(); win = app.win; W = app.W;
+      const btn = await waitFor(() => win.document.querySelector('.sh-ai'));
+      expect(!!win.SlopAIPanel).toBe(false);
+      expect([...win.document.scripts].some((s) => /shared\/ai\//.test(s.src))).toBe(false);
+      expect(win.performance.getEntriesByType('resource').some((r) => /shared\/ai\//.test(r.name))).toBe(false);
+      expect(btn.className).toContain('slop-hbtn');
+      btn.click();
+      await waitFor(() => win.SlopAIPanel && win.SlopAIPanel.isOpen, { timeout: 10000 });
+      await win.SlopAIPanel.ready;
+      await waitFor(() => win.document.querySelector('.sap-pick') && win.document.querySelector('.sap-pick').textContent, { timeout: 10000 });
+      const pick = win.document.querySelector('.sap-pick').textContent;
+      if (!/Pick a model|WebGPU/.test(pick)) throw new Error('picker: ' + pick);
+      expect(win.document.documentElement.classList.contains('sap-beside')).toBe(true, `beside: mm=${win.matchMedia('(min-width: 901px)').matches} w=${win.innerWidth} cls=${win.document.documentElement.className}`);
+      const panel = win.document.querySelector('.sap').getBoundingClientRect(), appBox = win.document.getElementById('app').getBoundingClientRect();
+      if (appBox.right > panel.left + 1) throw new Error(`app ends at ${appBox.right}, panel starts at ${panel.left}`);
+    }, { timeout: 40000 });
+  });
+
+  describe('“blur the background” with a scripted model', () => {
+    it('selects the subject, inverts, blurs with the radius it chose: three steps, one undo step each, Undo all', async () => {
+      picture();
+      const eng = new win.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0, replies: [
+        call('select_subject', {}) + '\n' + call('invert_selection', {}) + '\n' + call('gaussian_blur', { radius: 8 }),
+        'Blurred the background.'] });
+      await eng.load('fake');
+      await win.SlopAIPanel.use(eng);
+      const before = W.Hist.idx, centre = px(200, 150), edge = px(30, 150);
+      await win.SlopAIPanel.send('blur the background');
+      expect(steps()).toEqual(['✓Select subject (done)', '✓Invert selection (done)', '✓Gaussian blur, radius 8 (done)']);
+      expect(W.Hist.idx - before).toBe(3);
+      expect(W.Hist.states.slice(before + 1).map((s) => s.label)).toEqual(['Select Subject', 'Select Inverse', 'Gaussian Blur']);
+      expect(px(200, 150)).toEqual(centre);
+      expect(px(30, 150)).not.toEqual(edge);
+      expect(win.document.querySelector('.sap-list').textContent).toContain('Blurred the background.');
+      // the model was told the tool is there (deferred: find_tools loads it, shared/ai/toolbox.js); loaded, it reads the
+      // clamped, validated description
+      const sys = eng.calls[0].messages[0].content, K = win.SlopAIKit;
+      expect(sys).toMatch(/More tools here.*gaussian_blur/);
+      expect(K.tools.describe(K.appTools.build({ cmd: win.SlopCmd }).filter((t) => t.name === 'gaussian_blur'))).toMatch(/gaussian_blur\(radius\?: number 0\.1–250, default 4\)/);
+      // one undo reverts the blur only
+      W.undo();
+      expect(px(30, 150)).toEqual(edge); expect(!!W.D.sel).toBe(true);
+      W.redo();
+      const undoAll = win.document.querySelector('.sap-undo');
+      expect(undoAll.hidden).toBe(false); expect(undoAll.textContent).toContain('(3)');
+      undoAll.click();
+      expect(W.Hist.idx).toBe(before); expect(W.D.sel).toBe(null); expect(px(30, 150)).toEqual(edge);
+      expect(undoAll.hidden).toBe(true);
+    }, { timeout: 30000 });
+
+    it('clamps arguments, reads app_state, and asks before a destructive command', async () => {
+      let asked = 0; win.SlopAIPermissions.prompt = async () => { asked++; return 'deny'; };
+      const eng = new win.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0, replies: [
+        call('app_state', {}) + call('set_layer', { opacity: 250 }) + call('delete_layer', {}), 'ok'] });
+      await eng.load('fake'); await win.SlopAIPanel.use(eng);
+      const n = W.D.layers.length;
+      await win.SlopAIPanel.send('make it fully opaque then delete it');
+      expect(W.activeLayer().opacity).toBe(1);
+      expect(asked).toBe(1); expect(W.D.layers.length).toBe(n);
+      const s = steps();
+      expect(s[s.length - 3]).toContain('Read the app state');
+      expect(s[s.length - 2]).toContain('Layer settings, opacity 100');
+      expect(s[s.length - 1]).toMatch(/✗Delete layer.*said no/);
+      const st = win.SlopCmd.state();
+      expect(st.document).toEqual({ name: 'Test', width: 400, height: 300, openDocuments: W.DOCS.length });
+      expect(st.layers[0].opacity).toBe(100);
+    }, { timeout: 30000 });
+
+    it('adds a text layer, sizes the image and exports as one step each (an export changes nothing)', async () => {
+      const got = []; win.SlopUI.download = (b, name) => got.push([b.type, name]);
+      const eng = new win.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0, replies: [
+        call('add_text', { text: 'SALE', size: 40, color: 'red', position: 'top' }) + call('image_size', { width: 200 }) + call('export', { format: 'jpeg', quality: 80 }), 'done'] });
+      await eng.load('fake'); await win.SlopAIPanel.use(eng);
+      const before = W.Hist.idx;
+      await win.SlopAIPanel.send('add SALE at the top, make it 200 wide and save a jpeg');
+      expect(W.Hist.idx - before).toBe(2);
+      expect(W.D.w).toBe(200); expect(W.D.h).toBe(150);
+      const T = W.D.layers.find((l) => l.text);
+      expect(T.text.str).toBe('SALE'); expect(T.text.color).toBe('#ff0000');
+      expect(got).toEqual([['image/jpeg', 'Test.jpg']]);
+    }, { timeout: 30000 });
+  });
+
+  describe('phones', () => {
+    it('at 390 px the panel is a full-height bottom sheet (SlopSheet) across the width', async () => {
+      app.frame.style.width = '390px'; app.frame.style.height = '800px';
+      await sleep(300);
+      win.SlopAIPanel.close(); await sleep(50);
+      await win.SlopHeader.openAI();
+      const host = win.document.querySelector('.sap-host'), panel = win.document.querySelector('.sap');
+      await waitFor(() => host.classList.contains('ssh-phone') && panel.classList.contains('ssh-on'));
+      await sleep(400);
+      const r = panel.getBoundingClientRect();
+      expect(Math.round(r.width)).toBe(390); expect(Math.abs(r.bottom - 800)).toBeLessThan(2);
+      expect(r.height > 800 * 0.9 && r.top >= 0).toBe(true);   // full height (the chat scrolls; the keyboard: shared/input/keyboard.js)
+      expect(win.document.documentElement.classList.contains('sap-beside')).toBe(false);
+      expect(win.document.documentElement.scrollWidth).toBeLessThan(392);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'PhotoSlop: the Slop AI panel' });
+  </script>
+</body>
+</html>

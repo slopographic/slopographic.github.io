@@ -1,0 +1,61 @@
+/* Slop Workflows: the step cards (js/ui/steps.js) and their inline options (File convert's option fields,
+ * convert/js/ui/options.js, styled here for this page). Colours: the tool's --wf-* tokens (tool.css). Every rule is under .wf-tool. */
+.wf-tool .wf-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: step; }
+.wf-tool .wf-step { position: relative; padding: 12px 14px; border: 1px solid var(--wf-line); border-radius: 12px; background: var(--wf-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.wf-tool .wf-step + .wf-step { margin-top: 26px; }
+.wf-tool .wf-step + .wf-step::before { content: ""; position: absolute; left: 36px; top: -27px; height: 26px; border-left: 2px dashed var(--wf-line); }
+.wf-tool .wf-step + .wf-step::after { content: ""; position: absolute; left: 31px; top: -9px; border: 6px solid transparent; border-top-color: var(--wf-line); }
+.wf-tool .wf-step.wf-bad { border-color: var(--wf-bad); }
+.wf-tool .wf-step.wf-dragging { opacity: .45; }
+.wf-tool .wf-step.wf-drop { box-shadow: 0 -3px 0 var(--wf-accent); }
+.wf-tool .wf-step-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wf-tool .wf-grip { flex: none; width: 26px; height: 34px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--wf-dim);
+  font: 700 14px/1 ui-monospace, monospace; letter-spacing: -2px; cursor: grab; touch-action: none; }
+.wf-tool .wf-grip:hover { background: var(--wf-soft); color: var(--wf-text); }
+.wf-tool .wf-grip:focus-visible { outline: 2px solid var(--wf-accent); outline-offset: 1px; }
+.wf-tool .wf-num { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--wf-text); color: var(--wf-surface);
+  font: 800 12px/1 system-ui, sans-serif; }
+.wf-tool .wf-step-name { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; }
+.wf-tool .wf-step-t { margin: 0; font-size: 15px; font-weight: 750; overflow-wrap: anywhere; color: var(--wf-text); }
+.wf-tool .wf-app { font-size: 12px; color: var(--wf-dim); }
+.wf-tool .wf-keep { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--wf-dim); white-space: nowrap; cursor: pointer; }
+.wf-tool .wf-keep input { accent-color: var(--wf-accent); }
+.wf-tool .wf-keep:has(input:disabled) { opacity: .5; cursor: default; }
+.wf-tool .wf-x { flex: none; width: 32px; padding: 0 !important; font-size: 17px; }
+.wf-tool .wf-desc { margin: 6px 0 0 72px; font-size: 12.5px; color: var(--wf-dim); }
+.wf-tool .wf-problem { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; font-size: 13px; color: var(--wf-text);
+  background: color-mix(in srgb, var(--wf-bad) 14%, transparent); border: 1px solid color-mix(in srgb, var(--wf-bad) 55%, transparent); }
+.wf-tool .wf-opts { margin: 8px 0 0 72px; }
+.wf-tool .wf-opt-sum { cursor: pointer; width: max-content; font-size: 12.5px; font-weight: 650; color: color-mix(in srgb, var(--wf-text) 82%, transparent); border-radius: 6px; padding: 2px 4px; }
+.wf-tool .wf-opt-sum:focus-visible { outline: 2px solid var(--wf-accent); }
+.wf-tool .wf-opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 14px; margin-top: 8px; }
+.wf-tool .wf-opt-grid .cv-opt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wf-tool .wf-opt-grid .cv-opt > label { font-size: 12px; color: color-mix(in srgb, var(--wf-text) 78%, transparent); }
+.wf-tool .wf-opt-grid .cv-check > label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--wf-text); cursor: pointer; }
+.wf-tool .wf-opt-grid input[type=text], .wf-tool .wf-opt-grid input[type=number], .wf-tool .wf-opt-grid input[type=password], .wf-tool .wf-opt-grid select {
+  height: 32px; box-sizing: border-box; min-width: 0; width: 100%; padding: 0 8px; border: 1px solid var(--wf-line); border-radius: 7px;
+  background: var(--wf-bg); color: var(--wf-text); font: inherit; font-size: 13px; }
+.wf-tool .wf-opt-grid input[type=color] { width: 54px; height: 32px; padding: 2px; border: 1px solid var(--wf-line); border-radius: 7px; background: var(--wf-bg); }
+.wf-tool .wf-opt-grid input[type=range], .wf-tool .wf-opt-grid input[type=checkbox] { accent-color: var(--wf-accent); }
+.wf-tool .wf-opt-grid input:focus-visible, .wf-tool .wf-opt-grid select:focus-visible { outline: 2px solid var(--wf-accent); outline-offset: 0; border-color: var(--wf-accent); }
+.wf-tool .wf-opt-grid .cv-hint { margin: 0; font-size: 11.5px; color: var(--wf-dim); }
+.wf-tool .wf-opt-grid .cv-image { grid-column: span 2; }
+.wf-tool .cv-img-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wf-tool .cv-img-row input[type=file] { flex: 1 1 160px; min-width: 0; font-size: 12px; }
+.wf-tool .cv-img-thumb { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; border: 1px solid var(--wf-line);
+  background: repeating-conic-gradient(color-mix(in srgb, var(--wf-text) 12%, transparent) 0 25%, transparent 0 50%) 0 0 / 10px 10px; }
+.wf-tool .cv-img-clear { min-height: 28px; padding: 0 10px; border: 1px solid var(--wf-line); border-radius: 7px; background: none; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+
+@media (max-width: 900px) {
+  .wf-tool .wf-step { padding: 10px 46px 10px 10px; }
+  .wf-tool .wf-step-top { gap: 6px; }
+  .wf-tool .wf-step-name { flex: 1 1 90px; }
+  .wf-tool .wf-x { position: absolute; top: 8px; right: 8px; }
+  .wf-tool .wf-desc, .wf-tool .wf-opts { margin-left: 0; }
+  .wf-tool .wf-opt-grid { grid-template-columns: minmax(0, 1fr); }
+  .wf-tool .wf-opt-grid .cv-image { grid-column: auto; }
+  .wf-tool .wf-keep { order: 5; flex-basis: 100%; }
+  .wf-tool .wf-step + .wf-step::before { left: 26px; }
+  .wf-tool .wf-step + .wf-step::after { left: 21px; }
+}

@@ -1,0 +1,50 @@
+/* Slop Code: the CodeMirror theme (scoped under .cd-editor so it wins over the runtime styles) and the preview pane. */
+.cd-editor .cm-editor { height: 100%; background: var(--cd-bg); color: var(--cd-fg); font: 14px/1.55 var(--cd-mono); }
+.cd-editor .cm-scroller { font-family: inherit; overflow: auto; }
+.cd-editor .cm-content { caret-color: var(--cd-accent); padding: 8px 0 40px; }
+.cd-editor .cm-cursor, .cd-editor .cm-dropCursor { border-left-color: var(--cd-accent); }
+.cd-editor .cm-focused .cm-selectionBackground, .cd-editor .cm-selectionBackground, .cd-editor ::selection { background: color-mix(in srgb, var(--cd-accent) 28%, transparent) !important; }
+.cd-editor .cm-activeLine { background: color-mix(in srgb, var(--cd-accent) 6%, transparent); }
+.cd-editor .cm-gutters { background: var(--cd-panel); color: var(--cd-faint); border-right: 1px solid var(--cd-line); }
+.cd-editor .cm-activeLineGutter { background: transparent; color: var(--cd-fg); }
+.cd-editor .cm-foldGutter span { cursor: pointer; color: var(--cd-faint); }
+.cd-editor .cm-matchingBracket, .cd-editor .cm-nonmatchingBracket { background: color-mix(in srgb, var(--cd-accent) 22%, transparent); outline: 1px solid color-mix(in srgb, var(--cd-accent) 50%, transparent); color: inherit !important; }
+.cd-editor .cm-selectionMatch { background: color-mix(in srgb, var(--cd-accent) 14%, transparent); }
+.cd-editor .cm-tooltip { background: var(--cd-panel); border: 1px solid var(--cd-line); color: var(--cd-fg); border-radius: 6px; }
+.cd-editor .cm-tooltip-autocomplete > ul { font: 13px/1.5 var(--cd-mono); max-height: 240px; }
+.cd-editor .cm-tooltip-autocomplete > ul > li { padding: 2px 8px; }
+.cd-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--cd-accent); color: var(--cd-ink); }
+.cd-editor .cm-completionDetail { color: var(--cd-faint); font-style: normal; margin-left: 8px; }
+.cd-editor .cm-completionMatchedText { text-decoration: none; font-weight: 700; color: var(--cd-accent); }
+.cd-editor .cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText { color: var(--cd-ink); }
+.cd-editor .cm-panels { background: var(--cd-panel); color: var(--cd-fg); border-color: var(--cd-line); font: 13px/1.4 var(--cd-sans); }
+.cd-editor .cm-panels-top { border-bottom: 1px solid var(--cd-line); padding: 6px 8px; }
+.cd-editor .cm-search { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cd-editor .cm-search input, .cd-editor .cm-search button { font: inherit; }
+.cd-editor .cm-search input[type=text] { background: var(--cd-bg); color: var(--cd-fg); border: 1px solid var(--cd-line); border-radius: 5px; padding: 4px 7px; min-width: 0; width: min(220px, 60vw); }
+.cd-editor .cm-search button { background: var(--cd-bg); color: var(--cd-fg); border: 1px solid var(--cd-line); border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+.cd-editor .cm-search button:hover { border-color: var(--cd-accent); }
+.cd-editor .cm-search label { color: var(--cd-dim); font-size: 12px; }
+.cd-editor .cm-search button[name=close] { margin-left: auto; }
+.cd-editor .cm-searchMatch { background: color-mix(in srgb, var(--cd-num) 35%, transparent); }
+.cd-editor .cm-searchMatch-selected { background: color-mix(in srgb, var(--cd-accent) 45%, transparent); }
+
+/* preview pane */
+.cd-preview { grid-column: 3; grid-row: 2; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(90px, 30%); min-width: 0; min-height: 0; border-left: 1px solid var(--cd-line); background: var(--cd-bg); }
+.cd-app.cd-tree-hidden .cd-preview { grid-column: 2; }
+.cd-pv-head { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--cd-panel); border-bottom: 1px solid var(--cd-line); }
+.cd-pv-note { color: var(--cd-faint); font-size: 12px; margin-right: auto; }
+.cd-frame { width: 100%; height: 100%; min-height: 0; border: 0; background: #fff; color-scheme: normal; }
+.cd-console-head { padding: 5px 10px; font: 600 11px/1.4 var(--cd-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--cd-dim); background: var(--cd-panel); border-top: 1px solid var(--cd-line); }
+.cd-console { margin: 0; padding: 4px 0; overflow: auto; list-style: none; font: 12px/1.5 var(--cd-mono); min-height: 0; }
+.cd-cl { padding: 2px 10px; white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid var(--cd-line); color: var(--cd-fg); }
+.cd-cl-error { color: var(--cd-err); }
+.cd-cl-warn { color: var(--cd-num); }
+@media (max-width: 719px) {
+  .cd-preview { position: fixed; inset: 0; z-index: 60; grid-column: auto; grid-row: auto; border-left: 0; }
+  .cd-app.cd-tree-hidden .cd-preview { grid-column: auto; }
+  .cd-pv-head { padding: 10px 12px; }
+}
+@media (min-width: 720px) and (max-width: 979px) {
+  .cd-app.cd-pv-open { grid-template-columns: var(--cd-tree-w) minmax(0, 1fr) minmax(260px, 46%); }
+}

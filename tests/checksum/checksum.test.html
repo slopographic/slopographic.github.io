@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Checksum: hashes and checks</title></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+const { describe, it, expect } = SlopTest;
+describe('Checksum: hashes a file on this device', () => {
+  it('SHA-256 of "abc" is the published test vector', async () => {
+    const page = document.createElement('iframe');
+    page.src = '../../checksum/index.html';
+    page.style.cssText = 'width:900px;height:700px';
+    document.body.append(page);
+    await new Promise((r) => (page.onload = r));
+    const w = page.contentWindow;
+    const hash = await w.SlopChecksum.hashOf('SHA-256', new w.File(['abc'], 'abc.txt'));
+    expect(hash).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    page.remove();
+  });
+  it('SHA-1 of "abc" is the published test vector', async () => {
+    const page = document.querySelector('iframe') || document.createElement('iframe');
+    if (!page.isConnected) { page.src = '../../checksum/index.html'; document.body.append(page); await new Promise((r) => (page.onload = r)); }
+    const w = page.contentWindow;
+    const hash = await w.SlopChecksum.hashOf('SHA-1', new w.File(['abc'], 'abc.txt'));
+    expect(hash).toBe('a9993e364706816aba3e25717850c26c9cd0d89d');
+    page.remove();
+  });
+  it('a pasted hash is cleaned: spaces, case and an algorithm prefix are ignored', async () => {
+    const page = document.createElement('iframe');
+    page.src = '../../checksum/index.html';
+    document.body.append(page);
+    await new Promise((r) => (page.onload = r));
+    expect(page.contentWindow.SlopChecksum.clean('SHA256: BA78 16BF')).toBe('ba7816bf');
+    page.remove();
+  });
+});
+SlopTest.run({ name: 'Checksum: hashes and checks' });
+</script>
+</body>
+</html>

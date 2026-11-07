@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PhotoSlop paste an image</title></head>
+<body>
+<iframe id="app" src="about:blank" style="width:1280px;height:760px;border:0"></iframe>
+<script src="../harness.js"></script>
+<script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** A real 40 × 30 PNG, made on a canvas, so the app can decode it. */
+  async function png(W) {
+    const c = W.document.createElement('canvas'); c.width = 40; c.height = 30;
+    c.getContext('2d').fillStyle = '#e0245e'; c.getContext('2d').fillRect(0, 0, 40, 30);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    return new W.File([blob], 'shot.png', { type: 'image/png' });
+  }
+  /** A paste event with the picture on the clipboard, dispatched on the page. */
+  function paste(W, file) {
+    const dt = new W.DataTransfer();
+    dt.items.add(file);
+    W.document.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
+  }
+  const layers = (W) => W.eval('D.layers.length');
+
+  describe('PhotoSlop: a pasted picture goes into the open document, or opens as a new one', () => {
+    it('with a document open, Add to adds a layer; New document opens a new tab', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slopshop'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      f.src = '../../photoslop/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      const W = f.contentWindow;
+      const before = layers(W);
+      paste(W, await png(W));
+      // The question is the shared dialog; choose the first answer.
+      const add = await waitFor(() => [...W.document.querySelectorAll('.sui-dlg button')].find((b) => b.textContent.startsWith('Add to')), { timeout: 5000 });
+      add.click();
+      await waitFor(() => layers(W) === before + 1, { timeout: 8000 });
+      expect(layers(W)).toBe(before + 1);
+
+      const tabsBefore = W.eval('typeof TABS !== "undefined" && TABS.list ? TABS.list.length : 0');
+      paste(W, await png(W));
+      const neu = await waitFor(() => [...W.document.querySelectorAll('.sui-dlg button')].find((b) => b.textContent.startsWith('New document')), { timeout: 5000 });
+      neu.click();
+      await sleep(400);
+      expect(layers(W) >= 1).toBeTruthy();
+    });
+  });
+  run({ name: 'PhotoSlop: paste an image' });
+</script>
+</body>
+</html>

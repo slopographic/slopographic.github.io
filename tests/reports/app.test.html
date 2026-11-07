@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Reports · the page: empty note, the built-in list and the profit report, at 390 px</title>
+  <!-- Covers: reports/js/app.js, reports/index.html, reports/css/reports.css, shared/finder/finder.js, reports/js/layout.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../reports/index.html';
+  document.body.append(frame);
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const ready = () => doc() && $('report') && $('report').options.length > 0;
+
+  describe('Slop Reports page', () => {
+    it('lists the profit and expense reports among the built-ins', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      const names = [...$('report').options].map((o) => o.textContent);
+      expect(names.includes('Profit by month')).toBe(true);
+      expect(names.includes('Expenses by category')).toBe(true);
+    });
+    it('with no records, the note names every app that feeds the reports, Expenses included', async () => {
+      await waitFor(() => !$('data-note').hidden, { timeout: 10000 });
+      expect($('data-note').textContent.includes('Slop Expenses')).toBe(true);
+    });
+    it('choosing Profit by month shows its note, and the page has no sideways scroll', async () => {
+      const sel = $('report');
+      sel.value = 'profit-by-month';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitFor(() => $('report-note').textContent.includes('revenue accounts'), { timeout: 10000 });
+      expect(doc().documentElement.scrollWidth <= 391).toBe(true);
+    });
+    it('Profit by month opens as a table, counts "1 row", and its cards label each value', async () => {
+      // Seed the shared database with one expense entry (this page's origin only), then load the page again.
+      await new Promise((ok, no) => {
+        const q = indexedDB.open('slop-data');
+        q.onupgradeneeded = () => { q.result.createObjectStore('accounts', { keyPath: 'code' }); q.result.createObjectStore('journal', { keyPath: 'id' }); q.result.createObjectStore('settings', { keyPath: 'id' }); };
+        q.onsuccess = () => {
+          const tx = q.result.transaction(['accounts', 'journal'], 'readwrite');
+          tx.objectStore('accounts').put({ code: '5000', name: 'Office', type: 'expense' });
+          tx.objectStore('accounts').put({ code: '1010', name: 'Bank', type: 'asset' });
+          tx.objectStore('journal').put({ id: 'j1', date: '2026-10-20', source: 'expense:1', lines: [{ account: '5000', debit: 10000, credit: 0 }, { account: '1010', debit: 0, credit: 10000 }] });
+          tx.oncomplete = () => { q.result.close(); ok(); };
+        };
+        q.onerror = () => no(q.error);
+      });
+      frame.src = '../../reports/index.html?seeded';
+      await waitFor(() => frame.contentWindow.location.search === '?seeded' && doc().readyState === 'complete' && $('report') && $('report').options.length > 0, { timeout: 20000 });
+      const sel = $('report');
+      sel.value = 'profit-by-month';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitFor(() => doc().querySelector('.fd-count') && doc().querySelector('.fd-count').textContent === '1 row', { timeout: 10000 });
+      expect(doc().querySelector('[data-fd-view="table"]').getAttribute('aria-pressed')).toBe('true');
+      expect(doc().querySelector('#results').textContent.includes('$100.00')).toBe(true);
+      doc().querySelector('[data-fd-view="cards"]').click();
+      const card = doc().querySelector('.rp-card');
+      expect(card.querySelector('.rp-card-title').textContent).toBe('2026-10');
+      expect([...card.querySelectorAll('.rp-kv')].map((n) => n.textContent)).toEqual(['Income: $0.00', 'Expenses: $100.00', 'Profit: -$100.00']);
+      expect(doc().documentElement.scrollWidth <= 391).toBe(true);
+      // the count is a plural key (reports.app.rows_n), so it follows a language switch: it was English words glued by hand
+      const I = frame.contentWindow.SlopI18n;
+      I.set('sv');
+      await waitFor(() => doc().querySelector('.fd-count').textContent === '1 rad', { timeout: 10000 });
+      I.set('en');
+      await waitFor(() => doc().querySelector('.fd-count').textContent === '1 row', { timeout: 10000 });
+    });
+    it('at 1280 px the report keeps one width and position whatever report is chosen (it jumped between reports)', async () => {
+      frame.style.width = '1280px';
+      await waitFor(() => frame.contentWindow.innerWidth === 1280);
+      const sel = $('report'), seen = new Set();
+      for (const o of [...sel.options]) {
+        sel.value = o.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 150));
+        const m = doc().getElementById('rpView').getBoundingClientRect();
+        seen.add(`${Math.round(m.left)}/${Math.round(m.width)}`);
+      }
+      expect(seen.size).toBe(1);
+      // the report fills the room left of the panel (shared/frame), not shrunk to the report's content
+      expect(doc().getElementById("rpView").getBoundingClientRect().right).toBeLessThanOrEqual(doc().getElementById("rpPanel").getBoundingClientRect().left + 1);
+      expect(doc().getElementById("rpView").getBoundingClientRect().width).toBeGreaterThan(800);
+    });
+    it('at 1280 px the picker and Export CSV are in the panel on the right, Export CSV at its foot and working', async () => {
+      const panel = $('rpPanel'), csv = $('csv'), W = frame.contentWindow;
+      expect(panel.getBoundingClientRect().left).toBeGreaterThan(640);
+      expect(panel.contains($('report'))).toBe(true);
+      expect(csv.closest('.sf-p-foot').parentNode).toBe(panel);
+      expect(csv.getBoundingClientRect().bottom).toBeLessThanOrEqual(W.innerHeight);
+      let made = 0;
+      const was = W.URL.createObjectURL;
+      W.URL.createObjectURL = (b) => { made++; return was.call(W.URL, b); };
+      csv.click();
+      W.URL.createObjectURL = was;
+      expect(made).toBe(1);
+    });
+    it('at 390 px the panel is a bottom sheet whose footer (Report, Export CSV) stays on screen; no sideways scroll', async () => {
+      frame.style.width = '390px';
+      const W = frame.contentWindow;
+      await waitFor(() => W.innerWidth === 390);
+      await new Promise((r) => setTimeout(r, 200));
+      const foot = doc().querySelector('#rpPanel .sf-p-foot');
+      expect(Math.round(foot.getBoundingClientRect().bottom)).toBe(W.innerHeight);
+      expect([...foot.querySelectorAll('button')].filter((b) => b.getClientRects().length).map((b) => b.textContent.trim())).toEqual(['Report', 'Export CSV']);
+      expect(doc().documentElement.scrollWidth <= 390).toBe(true);
+      $('new').click();   // New report opens the sheet with the definition
+      await waitFor(() => $('rpPanel').classList.contains('ssh-on'));
+      expect($('json').getClientRects().length > 0).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

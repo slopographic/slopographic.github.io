@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop watermark</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  // Covers: photoslop/js/watermark/state.js, photoslop/js/watermark/apply.js, photoslop/js/watermark/psd.js, photoslop/js/watermark/panel.js, photoslop/js/io/save.js
+  const { describe, it, expect, sleep, run } = SlopTest;
+  /** Counts the pixels that differ between two canvases inside the rectangle [x0, x1) x [y0, y1). */
+  function diff(a, b, x0, y0, x1, y1) {
+    const da = a.getContext('2d').getImageData(0, 0, a.width, a.height).data, db = b.getContext('2d').getImageData(0, 0, b.width, b.height).data;
+    let n = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const i = (y * a.width + x) * 4;
+      if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2] || da[i + 3] !== db[i + 3]) n++;
+    }
+    return n;
+  }
+  /** A flattened PNG export of the document, as Export As and Quick Export make it. */
+  const exportPNG = (W) => W.eval("renderExport('image/png', 1, null)");
+  async function setup() {
+    const { W } = await freshApp();
+    W.eval("newDocument(800, 500, '#202020', 'Watermark test')");
+    W.eval("setPanelCollapsed(document.getElementById('panel-watermark'), false)");
+    return { W };
+  }
+  /** Sets a text field or a checkbox in the watermark panel, as the person does. */
+  function field(W, selector, value) {
+    const el = W.document.querySelector('#panel-watermark ' + selector);
+    if (el.type === 'checkbox') el.checked = value; else el.value = String(value);
+    el.dispatchEvent(new W.Event(el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input'));
+  }
+
+  describe('PhotoSlop watermark', () => {
+    it('is off for a new document, and the export is the same as before the module', async () => {
+      const { W } = await setup();
+      expect(W.eval('wmOn()')).toBe(false);
+      const a = await exportPNG(W), b = await exportPNG(W);
+      expect(diff(a, b, 0, 0, a.width, a.height)).toBe(0);
+    }, { timeout: 60000 });
+
+    it('the switch adds a text watermark to the export, in its corner only', async () => {
+      const { W } = await setup();
+      const off = await exportPNG(W);
+      field(W, 'input[type=checkbox]', true);
+      expect(W.eval('wmOn()')).toBe(true);
+      field(W, 'input[aria-label="Watermark text"]', 'Test watermark');
+      field(W, 'input[data-f="size"]', 6);
+      await sleep(30);
+      const on = await exportPNG(W);
+      // Bottom right (the default position): the export differs there and nowhere else.
+      expect(diff(off, on, 400, 250, 800, 500)).toBeGreaterThan(50);
+      expect(diff(off, on, 0, 0, 400, 250)).toBe(0);
+      // Moving it to the top left is a position change in the same export path.
+      W.document.querySelector('#panel-watermark [aria-label="Top left"]').click();
+      await sleep(30);
+      const tl = await exportPNG(W);
+      expect(diff(off, tl, 0, 0, 400, 250)).toBeGreaterThan(50);
+      expect(diff(off, tl, 400, 250, 800, 500)).toBe(0);
+    }, { timeout: 60000 });
+
+    it('the page preview shows the watermark while on, and nothing when off', async () => {
+      const { W } = await setup();
+      expect(W.eval('wmView.s === null || wmView.s.on !== true')).toBe(true);
+      field(W, 'input[type=checkbox]', true);
+      field(W, 'input[aria-label="Watermark text"]', 'Preview');
+      W.eval('draw()'); await sleep(30);
+      expect(W.eval('wmView.s.on')).toBe(true);
+      const pv = W.eval('wmView.c');
+      const px = pv.getContext('2d').getImageData(0, 0, pv.width, pv.height).data;
+      let lit = 0; for (let i = 3; i < px.length; i += 4) if (px[i]) lit++;
+      expect(lit).toBeGreaterThan(20);
+      field(W, 'input[type=checkbox]', false);
+      expect(W.eval('wmOn()')).toBe(false);
+    }, { timeout: 60000 });
+
+    it('the settings survive a PSD save and reopen, and the export is clean again when off', async () => {
+      const { W } = await setup();
+      const off = await exportPNG(W);
+      field(W, 'input[type=checkbox]', true);
+      field(W, 'input[aria-label="Watermark text"]', 'Kept in the file');
+      W.document.querySelector('#panel-watermark [aria-label="Top left"]').click();
+      await sleep(30);
+      const back = await W.eval('readPSD')(W.eval('writePSD().slice().buffer'));
+      expect(back.wm.on).toBe(true);
+      expect(back.wm.spec.layers[0].text).toBe('Kept in the file');
+      expect(back.wm.spec.layers[0].position).toBe('tl');
+      field(W, 'input[type=checkbox]', false);
+      const again = await exportPNG(W);
+      expect(diff(off, again, 0, 0, again.width, again.height)).toBe(0);
+    }, { timeout: 60000 });
+
+    it('a saved device default starts new documents with that style, never switched on', async () => {
+      const { W } = await setup();
+      field(W, 'input[aria-label="Watermark text"]', 'Default text');
+      W.document.querySelector('#panel-watermark .swp-actions button').click();
+      await sleep(30);
+      W.eval("newDocument(300, 200, '#000000', 'Second')");
+      expect(W.eval('wmOn()')).toBe(false);
+      expect(W.eval('wmState().spec.layers[0].text')).toBe('Default text');
+    }, { timeout: 60000 });
+
+    it('a logo file becomes the watermark image, and the export shows it', async () => {
+      const { W } = await setup();
+      const off = await exportPNG(W);
+      // A 40 x 20 red PNG, made in the app's own realm (a File from the page).
+      const file = await W.eval("(async () => { const c = document.createElement('canvas'); c.width = 40; c.height = 20; const g = c.getContext('2d'); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 40, 20); return new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'logo.png', { type: 'image/png' }); })()");
+      const logo = await W.eval('SlopWatermark.readLogo')(file);
+      W.eval('wmSetSpec')({ layers: [Object.assign({ kind: 'logo' }, logo)] });
+      await W.eval('SlopWatermark.ready(wmState().spec)');
+      expect(W.eval('wmState().spec.layers[0].kind')).toBe('logo');
+      expect(W.eval('wmState().spec.layers[0].logoW')).toBe(40);
+      field(W, 'input[type=checkbox]', true);
+      const on = await exportPNG(W);
+      expect(diff(off, on, 400, 250, 800, 500)).toBeGreaterThan(50);
+      expect(diff(off, on, 0, 0, 400, 250)).toBe(0);
+    }, { timeout: 60000 });
+
+    it('the panel follows the switch and the spec, and is not redrawn for edits of the picture', async () => {
+      const { W } = await setup();
+      const sw = () => W.document.querySelector('#panel-watermark input[type=checkbox]');
+      W.eval('wmToggle()');
+      expect(sw().checked).toBe(true);
+      const list = W.document.querySelector('#panel-watermark .swp-row');
+      expect(!!list).toBe(true);   // the default watermark has a text layer
+      W.eval("emit('doc')");
+      expect(W.document.querySelector('#panel-watermark .swp-row')).toBe(list);   // the same rows: nothing rebuilt
+      W.eval('wmToggle()');
+      expect(sw().checked).toBe(false);
+      W.eval('wmSetSpec')(Object.assign({}, W.eval('wmState().spec'), { layers: [] }));
+      expect(W.document.querySelector('#panel-watermark .swp-row')).toBe(null);
+    }, { timeout: 60000 });
+
+    it('a PSD saved before the spec ({ on, cfg }) opens with its watermark', async () => {
+      const { W } = await setup();
+      W.eval('adoptWatermark')({ on: true, cfg: { kind: 'text', text: 'Old file', position: 'tc', size: 0.05, opacity: 0.9 } });
+      expect(W.eval('wmOn()')).toBe(true);
+      expect(W.eval('wmState().spec.layers[0].text')).toBe('Old file');
+      expect(W.eval('wmState().spec.layers[0].position')).toBe('tc');
+      expect(W.document.querySelector('#panel-watermark input[aria-label="Watermark text"]').value).toBe('Old file');
+    }, { timeout: 60000 });
+
+    it('the watermark is kept by the autosave and comes back with the document', async () => {
+      const { W } = await setup();
+      field(W, 'input[type=checkbox]', true);
+      field(W, 'input[aria-label="Watermark text"]', 'Autosaved');
+      await W.eval('autosave()');
+      W.eval('D.dirty = false');
+      const again = await freshApp({ keep: true });
+      await SlopTest.waitFor(() => again.W.eval('wmOn()') === true, { timeout: 20000 });
+      expect(again.W.eval('wmState().spec.layers[0].text')).toBe('Autosaved');
+    }, { timeout: 60000 });
+  });
+  run({ name: 'PhotoSlop watermark' });
+  </script>
+</body>
+</html>

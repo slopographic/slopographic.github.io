@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: playlists</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const F = window.MusicFixtures;
+  let W, ids = [], pl;
+  const reopen = (ready) => { if (W && W.__frame) W.__frame.remove(); return DT.frame('../../music/', ready); };
+
+  describe('Slop Music playlists', () => {
+    it('saves a playlist to IndexedDB and reloads it with its order', async () => {
+      const H = window.SlopHub;
+      await H.clear();
+      for (const n of ['one', 'two', 'three']) ids.push(await H.put(F.wav(2), { name: n + '.wav', from: 'test' }));
+      W = await DT.frame('../../music/', (w) => w.SlopMusic && w.SlopMusic.lib.list().length === 3);
+      pl = await W.SlopMusic.playlists.create('Road mix', [ids[2], ids[0], ids[1]]);
+      expect(pl.trackIds).toEqual([ids[2], ids[0], ids[1]]);
+      W = await reopen((w) => w.SlopMusic && w.SlopMusic.playlists.all().some((p) => p.name === 'Road mix'));
+      const back = W.SlopMusic.playlists.get(pl.id);
+      expect(back.name).toBe('Road mix');
+      expect(back.trackIds).toEqual([ids[2], ids[0], ids[1]]);
+    });
+
+    it('reorders and removes tracks, and the new order survives a reload', async () => {
+      const P = W.SlopMusic.playlists;
+      await P.setTracks(pl.id, [ids[1], ids[2], ids[0]]);
+      W = await reopen((w) => w.SlopMusic && w.SlopMusic.playlists.get(pl.id)?.trackIds[0] === ids[1]);
+      expect(W.SlopMusic.playlists.get(pl.id).trackIds).toEqual([ids[1], ids[2], ids[0]]);
+      await W.SlopMusic.playlists.setTracks(pl.id, [ids[1], ids[0]]);
+      W = await reopen((w) => w.SlopMusic && w.SlopMusic.playlists.get(pl.id)?.trackIds.length === 2);
+      expect(W.SlopMusic.playlists.get(pl.id).trackIds).toEqual([ids[1], ids[0]]);
+    });
+
+    it('writes a .splaylist file with Drive ids and reads it back', async () => {
+      const H = window.SlopHub, M = W.SlopMusic;
+      // the page was just reopened: the playlists are back, the library may still be loading its tracks
+      await waitFor(() => [ids[1], ids[0]].every((id) => M.lib.track(id)), { timeout: 15000 });
+      const tracks = [ids[1], ids[0]].map((id) => M.lib.track(id));
+      const blob = M.plfile.build('Road mix', tracks.map((t) => ({ id: t.id, title: M.lib.display(t), artist: '', album: '', duration: t.duration })));
+      const id = await H.put(blob, { name: M.plfile.fileName('Road mix'), from: 'music' });
+      const rec = await H.get(id);
+      expect(rec.name).toBe('Road mix.splaylist');
+      const parsed = M.plfile.parse(await rec.blob.text());
+      expect(parsed.name).toBe('Road mix');
+      expect(parsed.trackIds).toEqual([ids[1], ids[0]]);
+      expect(() => M.plfile.parse('{"format":"other"}')).toThrow(/not a Slop playlist/);
+    });
+
+    it('deleting a playlist removes it from storage', async () => {
+      await W.SlopMusic.playlists.remove(pl.id);
+      W = await reopen((w) => w.SlopMusic && w.SlopMusic.playlists.all().length === 0);
+      expect(W.SlopMusic.playlists.all().length).toBe(0);
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: playlists' });
+  </script>
+</body>
+</html>

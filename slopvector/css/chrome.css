@@ -1,0 +1,102 @@
+/* SlopVector — icons, app grid, menubar, control bar, form atoms */
+/* ---------- icons ---------- */
+.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.ic .f { fill: currentColor; stroke: none; }
+.ic .thin { stroke-width: 1; opacity: .5; }
+.ic-fill { width: 18px; height: 18px; fill: currentColor; stroke: none; display: block; }
+.ic-mix { width: 18px; height: 18px; display: block; }
+.ic-mix .f { fill: currentColor; }
+.ic-mix .o { fill: none; stroke: currentColor; stroke-width: 1.3; }
+.ic .thick { stroke-width: 7; }
+
+/* ---------- app grid ---------- */
+.app { display: grid; grid-template-rows: var(--menubar-h) var(--cb-h) minmax(0, 1fr) var(--sb-h); height: 100vh; height: 100dvh; }
+.main { display: grid; grid-template-columns: var(--toolbar-w) minmax(0, 1fr) var(--dock-w); min-height: 0; }
+.app.no-dock .main { grid-template-columns: var(--toolbar-w) minmax(0, 1fr) 0; }
+.app.no-dock .dock { display: none; }
+
+/* ---------- menubar ---------- */
+.menubar { display: flex; align-items: center; gap: 6px; padding: 0 8px 0 6px; background: var(--bg-app); border-bottom: 1px solid var(--border-dark); min-width: 0; position: relative; z-index: 20; }
+/* A long name (a white-label build's) gives way with an ellipsis before the bar overflows. */
+.brand { display: inline-flex; align-items: center; gap: 7px; color: var(--text); text-decoration: none; padding: 0 8px 0 4px; height: 100%; flex: 0 1 auto; min-width: 0; }
+.brand-mark { width: 18px; height: 18px; fill: var(--slop); stroke: var(--ink); stroke-width: 1.6; }
+.brand-mark .shine { fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
+.brand-name { font-family: var(--font-display); font-weight: 800; font-size: 13px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The menus keep their width, so a full bar overflows and the shared buttons go icon-only (shared/ui/hbtn.js); on a
+   phone they scroll instead (responsive.css). */
+.menus { display: flex; align-items: stretch; height: 100%; flex: none; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.menus::-webkit-scrollbar { display: none; }
+.menu-btn { background: none; border: 0; padding: 0 9px; height: 100%; color: var(--text); white-space: nowrap; border-radius: 0; }
+.menu-btn:hover, .menu-btn.open { background: var(--bg-hover); }
+/* The shared header buttons (Drive, Tour, View, Theme, Apps: shared/ui/hbtn.css) wear the look of .iconbtn. */
+.menubar { --slop-hbtn-h: 24px; --slop-hbtn-radius: var(--radius-s); --slop-hbtn-bg: transparent; --slop-hbtn-line: var(--border); --slop-hbtn-hover: var(--bg-hover); --slop-hbtn-fs: var(--fs); }
+/* The free space goes before .menubar-right, so the View button (shared/viewmode) sits beside the other shared buttons. */
+.menubar .slopvm-bar { margin-left: 0; }
+.menubar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto; min-width: 0; }
+.docname { color: var(--text-dim); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iconbtn { display: inline-grid; place-items: center; width: 26px; height: 24px; border: 0; background: none; color: var(--text-dim); border-radius: var(--radius-s); }
+.iconbtn:hover { background: var(--bg-hover); color: var(--text); }
+.home-link { color: var(--ink); background: var(--slop); text-decoration: none; font-family: var(--mono); font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
+.home-link:hover { filter: brightness(1.06); }
+
+/* ---------- control bar ---------- */
+.controlbar { display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--bg-panel); border-bottom: 1px solid var(--border-dark); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; white-space: nowrap; min-width: 0; }
+.controlbar::-webkit-scrollbar { display: none; }
+.cb-label { font-weight: 600; color: var(--text); min-width: 78px; }
+.cb-sep { width: 1px; height: 20px; background: var(--sep); flex: 0 0 auto; }
+.cb-hint { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; }
+.cb-align { display: flex; gap: 1px; }
+.controlbar .fld { gap: 5px; }
+.controlbar > * { flex: 0 0 auto; }
+
+/* ---------- form atoms ---------- */
+.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); min-width: 0; }
+.fld.col { flex-direction: column; align-items: stretch; gap: 3px; }
+.fl { white-space: nowrap; color: var(--text-dim); }
+.fu { color: var(--text-faint); font-size: var(--fs-s); }
+.num, .sel, .txt, .lrename, .zin {
+  height: 22px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-s); padding: 0 5px; min-width: 0; box-shadow: var(--bevel-in);
+}
+.num { width: 62px; font-family: var(--mono); font-size: 11px; -moz-appearance: textfield; appearance: textfield; }
+.num::-webkit-outer-spin-button, .num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num.w44 { width: 44px; } .num.w52 { width: 52px; }
+.num:focus, .sel:focus, .txt:focus { border-color: var(--accent-line); outline: none; }
+.num:disabled { opacity: .45; }
+.sel { padding: 0 3px; max-width: 150px; }
+.txt { width: 100%; }
+.btn {
+  height: 24px; padding: 0 10px; border-radius: var(--radius-s); border: 1px solid var(--btn-border);
+  background: var(--btn-bg); color: var(--text); white-space: nowrap; box-shadow: var(--bevel-btn); display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+}
+.btn:hover:not(:disabled) { background: var(--btn-hover); }
+.btn:active:not(:disabled) { box-shadow: var(--bevel-btn-down); }
+.btn.small { height: 22px; padding: 0 8px; font-size: var(--fs-s); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.05); background: var(--accent); }
+.btn.slop { background: var(--slop); color: var(--ink); border-color: rgba(0, 0, 0, .35); font-weight: 700; }
+.btn.slop:hover { background: #e2ff70; }
+.btn.slop .ic { width: 16px; height: 16px; fill: rgba(0, 0, 0, .12); }
+.btn.wide { width: 100%; margin-top: 8px; height: 28px; }
+.ibtn { display: inline-grid; place-items: center; width: 26px; height: 24px; border: 1px solid transparent; background: transparent; color: var(--text-dim); border-radius: var(--radius-s); padding: 0; }
+.ibtn:hover { background: var(--bg-hover); color: var(--text); }
+.ibtn.on { color: var(--accent-line); background: var(--accent-soft); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-s); overflow: hidden; background: var(--bg-input); box-shadow: var(--bevel-in); }
+.segb { border: 0; background: transparent; color: var(--text-dim); height: 22px; min-width: 26px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 0; font-size: var(--fs-s); }
+.segb + .segb { border-left: 1px solid var(--border); }
+.segb:hover { color: var(--text); background: var(--bg-hover); }
+.segb.on { background: var(--accent); color: var(--accent-ink); }
+.segb .ic { width: 16px; height: 16px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; color: var(--text); cursor: pointer; }
+.chk input { accent-color: var(--accent-line); margin: 0; }
+.range { width: 100%; accent-color: var(--accent-line); min-width: 60px; }
+
+/* paint chips */
+.chip { position: relative; width: 30px; height: 22px; padding: 2px; border: 1px solid var(--border); background: var(--bg-input); border-radius: var(--radius-s); display: inline-block; flex: 0 0 auto; box-shadow: var(--bevel-in); }
+.chip.small { width: 26px; height: 20px; }
+.chip.stroke .chip-in::after { content: ''; position: absolute; inset: 4px; background: var(--bg-input); border-radius: 1px; }
+.chip-in { position: absolute; inset: 2px; border-radius: 2px; background: #fff; overflow: hidden; }
+.chip-in.none, .sw .chip-in.none { background: #fff !important; }
+.chip-in.none::before, .fs .chip-in.none::before { content: ''; position: absolute; left: -20%; right: -20%; top: 50%; height: 2px; background: #ff2b2b; transform: rotate(-35deg); }
+.chip:hover { border-color: var(--text-faint); }
+.iconbtn[hidden] { display: none; }

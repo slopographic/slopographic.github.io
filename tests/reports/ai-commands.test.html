@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Reports · the assistant's commands: create, change, show, export and delete reports</title>
+  <!-- Covers: reports/js/ai-commands.js, reports/js/commands.js, reports/js/app.js, reports/index.html -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1100px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const frame = document.createElement('iframe');
+  document.body.append(frame);
+  let W, C, downloads = [];
+  const run = async (id, args) => { const r = await C.exec('reports.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  function seed() {
+    return new Promise((ok, no) => {
+      const q = indexedDB.open('slop-data');
+      q.onupgradeneeded = () => { q.result.createObjectStore('customers', { keyPath: 'id' }); q.result.createObjectStore('settings', { keyPath: 'id' }); };
+      q.onsuccess = () => {
+        const tx = q.result.transaction(['customers'], 'readwrite');
+        for (const [id, name, stage] of [['c1', 'Ada', 'lead'], ['c2', 'Bea', 'customer'], ['c3', 'Cy', 'customer']]) tx.objectStore('customers').put({ id, name, stage, email: name.toLowerCase() + '@example.com' });
+        tx.oncomplete = () => { q.result.close(); ok(); };
+      };
+      q.onerror = () => no(q.error);
+    });
+  }
+
+  describe('Slop Reports: assistant commands', () => {
+    it('the page registers its commands; prepare() loads the assistant\'s; only delete_report is destructive', async () => {
+      await seed();
+      frame.src = '../../reports/index.html';
+      await waitFor(() => frame.contentWindow && frame.contentWindow.SlopCmd && frame.contentWindow.SlopReports && frame.contentWindow.SlopReports.app, { timeout: 20000 });
+      W = frame.contentWindow; C = W.SlopCmd;
+      W.HTMLAnchorElement.prototype.click = function () { downloads.push({ name: this.download, href: this.href }); };
+      expect(!!C.get('reports.csv')).toBe(true);
+      await C.prepare();
+      for (const t of ['list-reports', 'describe-sources', 'create-report', 'add-column', 'set-filter', 'set-grouping', 'open-report', 'delete-report', 'export-report']) expect(!!C.get('reports.ai.' + t)).toBe(true);
+      expect(C.list().filter((c) => /^reports\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['reports.ai.delete-report']);
+      const src = (await run('describe-sources', { from: 'customers' })).value;
+      expect(src[0].fields).toContain('stage');
+    }, { timeout: 30000 });
+
+    it('create_report shows the rows; add_column, set_filter and set_grouping change it', async () => {
+      const r = await run('create-report', { title: 'Everyone', from: 'customers', columns: [{ field: 'name', label: 'Name' }] });
+      expect(r.value.rows).toBe(3);
+      expect(r.value.first.map((x) => x.Name).sort()).toEqual(['Ada', 'Bea', 'Cy']);
+      const id = r.value.id;
+      expect(W.SlopReports.saved.list().map((d) => d.id)).toContain(id);
+      const c = await run('add-column', { report: id, field: 'email', label: 'E-mail' });
+      expect(c.value.columns).toEqual(['Name', 'E-mail']);
+      const f = await run('set-filter', { report: 'Everyone', where: [['stage', '=', 'customer']] });
+      expect(f.value.rows).toBe(2);
+      const g = await run('set-grouping', { report: id, by: ['stage'], count: true });
+      expect(g.value.rows).toBe(1);
+      const bad = await C.exec('reports.ai.create-report', { title: 'Bad', from: 'customers', columns: [] });
+      expect(bad.ok).toBe(false);
+      const o = await run('open-report', { report: 'CRM leads by stage' });
+      expect(o.value.rows).toBe(2);
+    }, { timeout: 20000 });
+
+    it('export_report: CSV to Slop Drive and as a download; JSON of the report; the rollback and delete_report', async () => {
+      const back = C.checkpoint();
+      const made = await run('create-report', { title: 'Names', from: 'customers', columns: [{ field: 'name', label: 'Name' }], order_by: 'name' });
+      const e = await run('export-report', { report: 'Names', format: 'csv', to: 'both' });
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(e.value)[1]);
+      const text = await rec.blob.text();
+      expect(text.replace(/^﻿/, '').split(/\r?\n/).slice(0, 4)).toEqual(['Name', 'Ada', 'Bea', 'Cy']);
+      expect(downloads.at(-1).name).toBe(made.value.id + '.csv');
+      const j = await run('export-report', { report: 'Names', format: 'json', to: 'drive' });
+      const jr = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(j.value)[1]);
+      expect(JSON.parse(await jr.blob.text()).title).toBe('Names');
+      expect(back()).toBe(true);
+      expect(W.SlopReports.saved.list().some((d) => d.title === 'Names')).toBe(false);
+      const ev = W.SlopReports.saved.list()[0];
+      await run('delete-report', { report: ev.id });
+      expect(W.SlopReports.saved.list().length).toBe(0);
+      expect((await C.exec('reports.ai.delete-report', { report: 'Profit by month' })).ok).toBe(false);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

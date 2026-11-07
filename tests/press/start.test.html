@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · what it opens with</title>
+<!-- What Slop Press opens with: the last session, or with ?new a new document, in the page it loaded (no reload). It used
+     ?fresh for that, but ?fresh on every page loads the newest release and reloads without it (shared/pwa.js): the
+     session came back in the reloaded page, and a test that had taken the first page worked on one that was gone (the
+     WebKit touch run logged the brand.json fetch the reload cancelled). Covers: press/js/ui/main.js -->
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const f = document.getElementById('app');
+  /** Loads Slop Press in the frame with this query and waits until its document is open: the frame's window. */
+  async function open(query) {
+    try { if (f.contentWindow) f.contentWindow.__stale = true; } catch (e) { /* not loaded yet */ }
+    f.src = '../../press/index.html' + query;
+    await waitFor(() => { try { const w = f.contentWindow; return !w.__stale && w.PR && w.PR.state.doc && w.document.querySelector('#app.ready'); } catch (e) { return false; } }, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const KEPT = 'Kept session';
+
+  describe('Slop Press: what it opens with', () => {
+    it('without ?new it opens the last session', async () => {
+      let w = await open('?new');
+      w.PR.setDoc(w.PR.model.create({ pages: 1, facing: false, name: KEPT }));
+      expect(await w.PR.store.autosave()).toBe(true);
+      w = await open('?from=test');
+      await waitFor(() => w.PR.state.doc.name === KEPT, { timeout: 5000 });
+    }, { timeout: 70000 });
+
+    it('?new opens a new document in the page it loaded (no reload), and the session stays saved', async () => {
+      const w = await open('?new');
+      w.__mark = 'first page';
+      expect(w.PR.state.doc.name).not.toBe(KEPT);
+      await sleep(1500);   // ?fresh reloaded the page within this time
+      expect(f.contentWindow.__mark).toBe('first page');
+      expect(f.contentWindow.location.search).toBe('?new');
+      expect(f.contentWindow.PR.state.doc.name).not.toBe(KEPT);
+      expect((await w.PR.store.restore()).doc.name).toBe(KEPT);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Press · what it opens with' });
+  </script>
+</body>
+</html>

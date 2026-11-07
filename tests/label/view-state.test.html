@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel saved view</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for SlopLabel, wait until boot has finished (body.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('label');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || f.contentWindow.document.body.classList.contains('ready')), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('SlopLabel saved view', () => {
+    it('keeps the tool, zoom and pan of the tab after leaving for Slop Drive and coming back', async () => {
+      let W = await open('../../label/index.html');
+      W.eval("setTool('hand'); App.zoom = 2.5; App.panX = 33; App.panY = 21; tabChanged();");
+      await W.eval('flushTabs()'); // the tab (its view included) is written to this browser
+      await sleep(200);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../label/index.html');
+      expect(W.eval('App.tool')).toBe('hand');
+      expect(W.eval('App.zoom')).toBeCloseTo(2.5, 1e-6);
+      expect(W.eval('App.panX')).toBe(33);
+      expect(W.eval('App.panY')).toBe(21);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'SlopLabel · saved view' });
+  </script>
+</body>
+</html>

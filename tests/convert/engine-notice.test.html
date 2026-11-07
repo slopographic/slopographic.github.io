@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: the video engine notice shows only for a video conversion; other files convert without asking</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; height: 860px; width: 1280px; }</style>
+</head>
+<body>
+  <script>try { localStorage.removeItem('slop-firstrun:convert'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: convert/js/ui/tool.js, convert/js/core/catalog.js
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  let W, D, T;
+  const $ = (sel) => D.querySelector(sel);
+  const dialog = () => [...D.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  async function boot() {
+    const f = document.createElement('iframe');
+    f.src = '../../convert/index.html';
+    document.body.append(f);
+    await waitFor(() => { const w = f.contentWindow; return w && w.document.querySelector('[data-convert-root]') && w.document.querySelector('[data-convert-root]').convertTool; }, { timeout: 30000 });
+    W = f.contentWindow; D = W.document; T = $('[data-convert-root]').convertTool;
+  }
+  const pick = async (id) => { T.setTarget(id); await sleep(50); };
+
+  describe('File convert: the video engine notice', () => {
+    it('a CSV is added and converted without any notice', async () => {
+      await boot();
+      await T.addFiles([new W.File(['Name,Price\nGoo,4\n'], 'list.csv', { type: 'text/csv' })]);
+      expect([T.items.length, dialog()]).toEqual([1, null]);
+      await pick('csv-to-xlsx');
+      await T.run();
+      expect(dialog()).toBe(null);
+      expect(T.outputs.length).toBe(1);
+    }, { timeout: 40000 });
+    it('a video conversion asks before the engine is downloaded; Cancel downloads and converts nothing', async () => {
+      T.items = []; T.clearOutputs(); T.render();
+      const webm = new W.Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01]);
+      await T.addFiles([new W.File([webm], 'clip.webm', { type: 'video/webm' })]);
+      expect(dialog()).toBe(null);   // adding the video does not ask
+      await pick('to-mp4');
+      const running = T.run();
+      await waitFor(dialog);
+      expect(dialog().textContent).toContain('Download the video engine?');
+      expect(dialog().textContent).toContain('Video engine (ffmpeg.wasm)');
+      [...dialog().querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      await running;
+      expect([T.busy, T.outputs.length]).toEqual([false, 0]);
+    }, { timeout: 40000 });
+  });
+  run();
+  </script>
+</body>
+</html>

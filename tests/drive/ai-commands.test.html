@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: the assistant's commands</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: drive/js/ui/ai-commands.js, drive/js/ui/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, C, downloads = [];
+  const run = async (id, args) => { const r = await C.exec('drive.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const byName = async (name) => (await H.list({ trashed: 'any' })).find((r) => r.name === name);
+
+  describe('Slop Drive: assistant commands', () => {
+    it('prepare() loads the commands; only delete_item is destructive', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body && w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub; C = W.SlopCmd;
+      await H.clear(); await DR.refresh(); DR.render();
+      W.SlopUI.download = (blob, name) => downloads.push({ blob, name });
+      expect(C.get('drive.ai.new-folder')).toBe(null);
+      await C.prepare();
+      for (const t of ['list-items', 'new-folder', 'add-file', 'new-document', 'move-item', 'rename-item', 'star-item', 'delete-item', 'download-items']) expect(!!C.get('drive.ai.' + t)).toBe(true);
+      expect(C.list().filter((c) => /^drive\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['drive.ai.delete-item']);
+      expect(C.get('drive.ai.new-document').args[0].options.map((o) => o[0])).toContain('docs');
+    }, { timeout: 30000 });
+
+    it('new_folder, create_file with content, new_document of an app; list_items finds them', async () => {
+      await run('new-folder', { name: 'Work', folder: '/' });
+      await run('new-folder', { name: '2026', folder: 'Work' });
+      const r = await run('add-file', { name: 'notes.md', content: '# Hello\nBees.', folder: 'Work/2026' });
+      expect(r.value).toMatch(/notes\.md/);
+      const rec = await byName('notes.md');
+      expect(await rec.blob.text()).toBe('# Hello\nBees.');
+      expect(rec.type).toBe('text/markdown');
+      expect(rec.folderId).toBe(DR.liveFolders().find((f) => f.name === '2026').id);
+      await run('add-file', { name: 'notes.md', content: 'again', folder: 'Work/2026' });
+      expect(!!(await byName('notes (2).md'))).toBe(true);
+      await run('new-document', { kind: 'slides', folder: 'Work', name: 'Pitch' });
+      const deck = await byName('Pitch.sslide');
+      expect(deck.size).toBe(0);
+      const l = (await run('list-items', { search: 'notes' })).value;
+      expect(l.map((x) => x.path)).toContain('Work/2026/notes.md');
+      const top = (await run('list-items', { folder: '/' })).value;
+      expect(top.map((x) => x.path)).toEqual(['Work']);
+    });
+
+    it('move, rename, star and delete; the checkpoint puts everything back', async () => {
+      const back = C.checkpoint();
+      await run('move-item', { item: 'Work/2026/notes.md', to: '/' });
+      expect((await byName('notes.md')).folderId).toBe(null);
+      await run('rename-item', { item: 'notes.md', name: 'bees.md' });
+      expect(!!(await byName('bees.md'))).toBe(true);
+      await run('star-item', { item: 'bees.md' });
+      expect((await byName('bees.md')).starred).toBe(true);
+      await run('delete-item', { item: 'Work/Pitch.sslide' });
+      expect(!!(await byName('Pitch.sslide')).trashedAt).toBe(true);
+      await run('add-file', { name: 'temp.txt', content: 'x', folder: '/' });
+      const bad = await C.exec('drive.ai.rename-item', { item: 'nothing-here.txt', name: 'x' });
+      expect(bad.ok).toBe(false);
+      expect(back()).toBe(true);
+      for (let i = 0; i < 60; i++) {
+        const n = await byName('notes.md'), p = await byName('Pitch.sslide'), t = await byName('temp.txt');
+        if (n && n.folderId && !n.starred && p && !p.trashedAt && t && t.trashedAt) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const n = await byName('notes.md');
+      expect(!!n && !!n.folderId && !n.starred).toBe(true);
+      expect(!(await byName('Pitch.sslide')).trashedAt).toBe(true);
+      expect(!!(await byName('temp.txt')).trashedAt).toBe(true);
+    }, { timeout: 20000 });
+
+    it('download_items: one file as it is, a folder as a ZIP with its files', async () => {
+      await DR.refresh();
+      await run('download-items', { items: ['Work/2026/notes.md'] });
+      expect(downloads.at(-1).name).toBe('notes.md');
+      await run('download-items', { items: ['Work'] });
+      const z = downloads.at(-1);
+      expect(z.name).toBe('Work.zip');
+      const Z = await import('../../shared/office/zip.js'), map = await Z.readZip(z.blob);
+      expect([...map.keys()]).toContain('Work/2026/notes.md');
+      expect(Z.readText(map, 'Work/2026/notes.md')).toBe('# Hello\nBees.');
+    }, { timeout: 20000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

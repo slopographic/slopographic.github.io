@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery in Swedish</title>
+  <!-- Covers: gallery/i18n/index.js, gallery/index.html, gallery/js/ui/main.js, gallery/js/ui/panel.js, gallery/js/ui/sidebar.js,
+       gallery/js/ui/timeline.js, gallery/js/ui/menus.js, gallery/js/ui/commands.js, gallery/js/ui/actions.js, gallery/js/ui/albums.js,
+       gallery/js/ui/dupes.js, gallery/js/ui/viewer.js, gallery/js/ui/people.js, gallery/js/ui/people-faces.js, gallery/js/ui/reel.js,
+       gallery/js/ui/drive-open.js, gallery/js/ui/drive-view.js, gallery/js/ui/drive-viewer.js, gallery/js/ui/drive-bar.js,
+       gallery/js/ui/ai-commands.js, gallery/js/core/reel.js, gallery/js/core/people.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop Gallery in a same-origin iframe, so it shares this page's localStorage (the language choice); its own test database.
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../gallery/index.html?db=slop-gallery-i18n-test';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentWindow.SlopGallery && f.contentWindow.SlopGallery.ready, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(gallery|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const txt = (doc, sel) => (doc.querySelector(sel) || {}).textContent.trim();
+  const navNames = (doc) => [...doc.querySelectorAll('#sideNav .nav-l')].map((x) => x.textContent.trim());
+  const gridMenu = (W) => W.SlopGallery.menus.resolve(W.document.querySelector('main.grid-area')).filter((x) => x !== '-').map((x) => x.label);
+
+  describe('Slop Gallery in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish views, filters, panel, menus and commands, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(navNames(doc)).toEqual(['Foton', 'Favoriter', 'Dubbletter', 'Personer']);
+      expect(txt(doc, '#btnSelectMode')).toBe('Markera');
+      expect(txt(doc, '#topImport')).toBe('Importera foton');
+      expect(txt(doc, '#btnClearFilters')).toBe('Rensa filter');
+      expect(doc.getElementById('fText').placeholder).toBe('Sök på filnamn');
+      expect(doc.querySelector('#fMonth option').textContent).toBe('Alla månader');
+      expect(doc.querySelector('#empty [data-empty-text]').textContent).toBe('Biblioteket är tomt. Importera foton för att börja.');
+      expect(gridMenu(W)).toContain('Markera alla');
+      expect(W.SlopCmd.get('gallery.import').title).toBe('Importera foton…');
+      expect(W.SlopCmd.get('gallery.import').group).toBe('Arkiv');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('the viewer and the Make reel dialog read Swedish', async () => {
+      const f = await open('sv');
+      const W = f.contentWindow, doc = f.contentDocument;
+      W.SlopGallery.reel.open([]);
+      const opts = await waitFor(() => doc.querySelector('.reel-form select'), { timeout: 10000 });
+      expect([...opts.options].map((o) => o.textContent)).toContain('Slumpad klippning');
+      expect(doc.querySelector('.reel-err').textContent).toContain('Markera minst 2 foton');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow, I = W.SlopI18n;
+      I.set('en');
+      await waitFor(() => navNames(doc)[1] === 'Favourites' && txt(doc, '#topImport') === 'Import photos', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(txt(doc, '#btnSelectMode')).toBe('Select');
+      expect(doc.querySelector('#fMonth option').textContent).toBe('Any month');
+      expect(W.SlopCmd.get('gallery.import').title).toBe('Import photos…');
+      expect(gridMenu(W)).toContain('Select all');
+      I.set('sv');
+      await waitFor(() => navNames(doc)[1] === 'Favoriter' && txt(doc, '#topImport') === 'Importera foton', { timeout: 20000 });
+      expect(W.SlopCmd.get('gallery.import').title).toBe('Importera foton…');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the top bar fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      const bar = doc.querySelector('.topbar');
+      expect(bar.scrollWidth <= bar.clientWidth + 1).toBe(true);
+      expect(txt(doc, '#btnFilters')).toBe('Filter');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Gallery in Swedish' });
+  </script>
+</body>
+</html>

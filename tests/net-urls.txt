@@ -1,0 +1,15 @@
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/kb-whisper-base/added_tokens.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/kb-whisper-base/config.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/kb-whisper-base/decoder_model_merged_quantized.onnx
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/kb-whisper-base/encoder_model_quantized.onnx
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/kb-whisper-base/generation_config.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/kb-whisper-base/vocab.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/whisper-tiny/added_tokens.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/whisper-tiny/config.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/whisper-tiny/decoder_model_merged_quantized.onnx
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/whisper-tiny/encoder_model_quantized.onnx
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/whisper-tiny/generation_config.json
+tests/aitools/whisper-real.test.html https://raw.githubusercontent.com/slopographic/cdn/82fd438d0a49e7a144a037f71f8d20fdab630285/models/whisper/whisper-tiny/vocab.json
+tests/ocr/tesseract.test.html https://cdn.jsdelivr.net/gh/slopographic/cdn@v2026.10.27/models/ocr/tesseract-4.0.0-best-int/swe.traineddata.gz
+tests/resize/raw.test.html https://raw.githubusercontent.com/slopographic/cdn/0cd1e199373a327108ba91702e597d767fbfc3f9/engines/libraw/libraw-wasm-1.6.0/libraw.js
+tests/resize/raw.test.html https://raw.githubusercontent.com/slopographic/cdn/0cd1e199373a327108ba91702e597d767fbfc3f9/engines/libraw/libraw-wasm-1.6.0/libraw.wasm

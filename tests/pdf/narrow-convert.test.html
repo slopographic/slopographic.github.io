@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: Convert at narrow widths</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in these same-origin frames, at phone (390 px) and tablet (768 px) widths. -->
+  <iframe id="app" style="width:390px;height:760px"></iframe>
+  <iframe id="app2" style="width:768px;height:760px"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const { describe, it, expect, waitFor } = SlopTest;
+
+    /** Opens the More menu of a booted frame, picks Convert this document…, and returns the dialog that opens. */
+    async function convertFromMore(win) {
+      const more = win.document.getElementById('btnMore');
+      expect(getComputedStyle(more).display).not.toBe('none');
+      more.click();
+      const row = await waitFor(() => [...win.document.querySelectorAll('.sui-menu [role="menuitem"]')]
+        .find((b) => b.querySelector('.sui-lbl') && b.querySelector('.sui-lbl').textContent.trim() === 'Convert this document…'));
+      expect(row.disabled).toBe(false);
+      row.click();
+      return waitFor(() => win.document.querySelector('.sl-cvt-dlg'), { timeout: 15000 });
+    }
+    /** Opens one PDF in a frame through its own app code (the same path as dropping a file). */
+    async function openIn(win, bytes) {
+      await win.SP.app.addFiles([new win.File([bytes], 'narrow.pdf', { type: 'application/pdf' })], {});
+      await waitFor(() => win.SP.engine.state.pages.length > 0, { timeout: 20000 });
+    }
+
+    describe('Convert at narrow widths', () => {
+      it('at 390 px the toolbar button is hidden, and Convert opens from the More menu', async () => {
+        const win = await PT.boot('', 'app');
+        expect(win.innerWidth).toBe(390);
+        expect(win.document.getElementById('btnConvert')).toBe(null); // one Convert entry: the rail's
+        PT.reset();
+        await PT.open(await PT.makePdf([{ text: 'Narrow phone' }]), 'narrow.pdf');
+        const dlg = await convertFromMore(win);
+        expect(dlg.getAttribute('role')).toBe('dialog');
+        await waitFor(() => dlg.querySelector('.cv-tool') && dlg.querySelector('.cv-tool').convertTool.targets().includes('pdf-to-html'));
+        expect(dlg.querySelector('.cv-tool').convertTool.targets()).toContain('pdf-to-images');
+        expect(dlg.offsetWidth).toBe(390); // the whole screen on a phone
+        win.document.querySelector('.sl-cvt-dlg .sui-x').click();
+        await waitFor(() => !win.document.querySelector('.sl-cvt-dlg'));
+      }, { timeout: 60000 });
+
+      it('at 768 px the same dialog opens from the More menu', async () => {
+        const win = await PT.boot('', 'app2');
+        expect(win.innerWidth).toBe(768);
+        await openIn(win, await PT.makePdf([{ text: 'Tablet' }]));
+        const dlg = await convertFromMore(win);
+        await waitFor(() => dlg.querySelector('.cv-tool') && dlg.querySelector('.cv-tool').convertTool.targets().includes('pdf-to-text'));
+        win.document.querySelector('.sl-cvt-dlg .sui-x').click();
+        await waitFor(() => !win.document.querySelector('.sl-cvt-dlg'));
+      }, { timeout: 60000 });
+    });
+
+    SlopTest.run({ name: 'Slop PDF narrow Convert' });
+  })();
+  </script>
+</body>
+</html>

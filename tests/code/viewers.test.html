@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: file views</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, doc, typeText, tabNames, waitFor, sleep } = CT;
+  // A 1×1 PNG, so the picture really loads.
+  const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+  let w, ids = {};
+  const mdText = '# Title\n\nSome **bold**, an *italic* word and `code`.\n\n- one\n- two\n\n[site](https://example.com/) and <b>raw</b>\n';
+  const tabBtn = () => w.document.getElementById('cd-md');
+  const viewer = () => w.document.getElementById('cd-viewer');
+  const editorShown = () => !w.document.getElementById('cd-editor').hidden;
+
+  describe('Slop Code: file views', () => {
+    it('seeds a picture, audio, video, a PDF, Markdown and a binary file, and boots the app', async () => {
+      ids.pic = (await H().put(new Blob([PNG], { type: 'image/png' }), { name: 'pic.png', from: 'test', folderId: null }));
+      ids.tone = (await H().put(new Blob([new Uint8Array(64)], { type: 'audio/mpeg' }), { name: 'tone.mp3', from: 'test', folderId: null }));
+      ids.clip = (await H().put(new Blob([new Uint8Array(64)], { type: 'video/mp4' }), { name: 'clip.mp4', from: 'test', folderId: null }));
+      ids.paper = (await H().put(new Blob(['%PDF-1.4\n%%EOF\n'], { type: 'application/pdf' }), { name: 'paper.pdf', from: 'test', folderId: null }));
+      ids.notes = (await H().put(text(mdText, 'text/markdown'), { name: 'notes.md', from: 'test', folderId: null }));
+      ids.blob = (await H().put(new Blob([Uint8Array.from([0, 1, 2, 255, 0, 7])], { type: 'application/octet-stream' }), { name: 'data.bin', from: 'test', folderId: null }));
+      w = await frame('../../code/');
+      expect(w.document.getElementById('cd-app')).toBeTruthy();
+    });
+
+    it('a picture opens in the shared viewer, and Save and Run stay off', async () => {
+      await w.SlopCode.openRecord(await H().get(ids.pic));
+      await waitFor(() => viewer().querySelector('.spv img'), { timeout: 5000 });
+      expect(viewer().hidden).toBe(false);
+      expect(editorShown()).toBe(false);
+      expect(w.document.getElementById('cd-save').disabled).toBe(true);
+      expect(w.document.getElementById('cd-run').disabled).toBe(true);
+      expect(tabNames(w)).toEqual(['pic.png']);
+    });
+
+    it('audio and video open with the native controls', async () => {
+      await w.SlopCode.openRecord(await H().get(ids.tone));
+      await waitFor(() => viewer().querySelector('audio[controls]'), { timeout: 5000 });
+      await w.SlopCode.openRecord(await H().get(ids.clip));
+      await waitFor(() => viewer().querySelector('video[controls]'), { timeout: 5000 });
+      expect(tabNames(w)).toEqual(['pic.png', 'tone.mp3', 'clip.mp4']);
+    });
+
+    it('a PDF opens in the browser PDF view at page 1', async () => {
+      await w.SlopCode.openRecord(await H().get(ids.paper));
+      await waitFor(() => viewer().querySelector('iframe.cd-pdf'), { timeout: 5000 });
+      const src = viewer().querySelector('iframe.cd-pdf').getAttribute('src');
+      expect(src.startsWith('blob:')).toBe(true);
+      expect(src.includes('#page=1')).toBe(true);
+    });
+
+    it('a file that is not text says so, and offers Open in an app', async () => {
+      await w.SlopCode.openRecord(await H().get(ids.blob));
+      await waitFor(() => viewer().querySelector('.cd-bin'), { timeout: 5000 });
+      expect(viewer().textContent.includes('not a text file')).toBe(true);
+      expect(w.document.getElementById('cd-status').textContent.includes('Read only here')).toBe(true);
+      expect(editorShown()).toBe(false);
+      viewer().querySelector('#cd-bin-open').click();
+      await waitFor(() => viewer().querySelector('.cd-bin-apps .cd-hint'), { timeout: 3000 });
+    });
+
+    it('Markdown renders on Preview, and Edit returns to the text', async () => {
+      await w.SlopCode.openRecord(await H().get(ids.notes));
+      await waitFor(() => doc(w) && doc(w).id === ids.notes, { timeout: 5000 });
+      expect(tabBtn().hidden).toBe(false);
+      await typeText(w, ' Edited.');
+      tabBtn().click();
+      await waitFor(() => viewer().querySelector('.cd-md h1'), { timeout: 3000 });
+      expect(viewer().querySelector('.cd-md h1').textContent).toBe('Title');
+      expect(viewer().querySelector('.cd-md strong').textContent).toBe('bold');
+      expect(viewer().querySelector('.cd-md em').textContent).toBe('italic');
+      expect(viewer().querySelector('.cd-md code').textContent).toBe('code');
+      expect(viewer().querySelectorAll('.cd-md li').length).toBe(2);
+      expect(viewer().querySelector('.cd-md a').getAttribute('href')).toBe('https://example.com/');
+      expect(viewer().querySelector('.cd-md b')).toBe(null);
+      expect(editorShown()).toBe(false);
+      expect(tabBtn().textContent).toBe('Edit');
+      tabBtn().click();
+      await waitFor(() => editorShown(), { timeout: 3000 });
+      expect(viewer().hidden).toBe(true);
+      expect(w.SlopCode.view().state.doc.toString().includes('Edited.')).toBe(true);
+      expect(doc(w).dirty).toBe(true);
+    });
+
+    it('a view tab does not edit or save, and switching back to text restores the editor', async () => {
+      await w.SlopCode.openRecord(await H().get(ids.pic));
+      await waitFor(() => viewer().querySelector('.spv img'), { timeout: 5000 });
+      expect(await w.SlopCode.saveDoc(doc(w))).toBe(false);
+      expect(await w.SlopCode.saveDoc(w.SlopCode.docs.find(ids.notes))).toBe(true);
+      await w.SlopCode.openRecord(await H().get(ids.notes));
+      await waitFor(() => editorShown(), { timeout: 3000 });
+      expect(viewer().hidden).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: file views' });
+  </script>
+</body>
+</html>

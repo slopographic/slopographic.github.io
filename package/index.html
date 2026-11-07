@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Document package generator, one seed for a document, a table and slides | Slopographic</title>
+  <meta name="description" content="Make a matching set of business files from one seed: a document, a table and a slide outline. The seed is in the link, so the same link always gives the same files.">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="color-scheme" content="dark light">
+  <link rel="icon" href="../favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../shared/fonts/fonts.css">
+  <link rel="stylesheet" href="css/package.css">
+  <script src="../shared/theme/theme.js" data-app="package" data-src="shared/theme/theme.js"></script>
+  <link rel="expect" href="#slop-built" blocking="render">
+  <script type="module" blocking="render" src="js/main.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <p class="lead"><a href="../">Slopographic</a> · Package generator</p>
+    <h1>Document package from one seed</h1>
+    <p class="lead">One seed makes a document, a table and a slide outline that share names, figures and a title. The seed is in the link: open the same link and you get the same three files.</p>
+
+    <div class="seedbar">
+      <label for="seed">Seed</label>
+      <input id="seed" type="text" spellcheck="false" autocomplete="off" aria-describedby="summary">
+      <button id="regen" class="primary" type="button">Regenerate</button>
+      <button id="copy" type="button">Copy link</button>
+    </div>
+    <p id="summary" role="status" aria-live="polite"></p>
+
+    <section class="files" aria-label="The package">
+      <article class="file" aria-labelledby="h-doc">
+        <header><h2 id="h-doc">Document</h2><button id="dl-doc" type="button">Download .sdoc</button></header>
+        <p class="note">Opens in Docs (File, Open). Its layout, fonts, colours and text come from the seed.</p>
+      </article>
+
+      <article class="file" aria-labelledby="h-table">
+        <header><h2 id="h-table">Table</h2><button id="dl-csv" type="button">Download .csv</button></header>
+        <div class="wrap-x"><table><tbody id="table-preview"></tbody></table></div>
+        <p class="note">A CSV file: it opens in Tables or any spreadsheet.</p>
+      </article>
+
+      <article class="file" aria-labelledby="h-slides">
+        <header><h2 id="h-slides">Slide outline</h2><button id="dl-outline" type="button">Download .md</button></header>
+        <pre id="outline"></pre>
+        <p class="note">One slide for each line of three dashes. Paste it into Slides, or use it as the plan for a deck.</p>
+      </article>
+    </section>
+  </main>
+  <script src="../shell/shell.js"></script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

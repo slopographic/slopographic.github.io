@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables layout tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #app { width: 1280px; height: 760px; } #app2 { width: 390px; height: 760px; }</style>
+</head>
+<body>
+  <!-- The real app runs in same-origin iframes: a desktop frame and a 390 px phone frame. -->
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="tables.helpers.js"></script>
+  <script src="tables.spec-layout.js"></script>
+  <script>SlopTest.run({ name: 'Slop Tables layout' });</script>
+</body>
+</html>

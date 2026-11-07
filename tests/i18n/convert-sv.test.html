@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert in Swedish</title>
+  <!-- Covers: convert/i18n/index.js, convert/js/core/i18n.js, shared/i18n/i18n.js -->
+  <!-- Covers (strings): convert/js/core/audio.js convert/js/core/catalog.js convert/js/core/chain-run.js convert/js/core/chain.js
+        convert/js/core/csv.js convert/js/core/cut.js convert/js/core/data-more.js convert/js/core/deck-text.js
+        convert/js/core/detect.js convert/js/core/doc-out.js convert/js/core/encoding.js convert/js/core/epub.js
+        convert/js/core/favicon.js convert/js/core/ffmpeg-engine.js convert/js/core/finance.js
+        convert/js/core/geo-read.js convert/js/core/geo-write.js convert/js/core/heic.js convert/js/core/html-md.js
+        convert/js/core/i18n.js convert/js/core/image.js convert/js/core/jsonl.js convert/js/core/keywords.js
+        convert/js/core/lib.js convert/js/core/mail.js convert/js/core/markdown.js convert/js/core/media-geo.js
+        convert/js/core/media-more.js convert/js/core/office.js convert/js/core/pdf-extra.js
+        convert/js/core/pdf-html.js convert/js/core/pdf-images.js convert/js/core/pdf-lock.js
+        convert/js/core/pdf-ops.js convert/js/core/pdf-raster.js convert/js/core/range.js convert/js/core/raw.js
+        convert/js/core/sheet-json.js convert/js/core/slides-out.js convert/js/core/structured.js
+        convert/js/core/subs-more.js convert/js/core/subtitles.js convert/js/core/table-out.js
+        convert/js/core/text-more.js convert/js/core/text.js convert/js/core/threed.js convert/js/core/vcf-map.js
+        convert/js/core/vcf.js convert/js/core/xlsx.js convert/js/preview/chain.js convert/js/preview/controller.js
+        convert/js/preview/model.js convert/js/preview/model3d.js convert/js/preview/view.js
+        convert/js/ui/ai-commands.js convert/js/ui/bulk.js convert/js/ui/cards.js convert/js/ui/chain-opts.js
+        convert/js/ui/chain-row.js convert/js/ui/file-opts.js convert/js/ui/file-row.js convert/js/ui/frame.js
+        convert/js/ui/list-view.js convert/js/ui/markup.js convert/js/ui/options.js convert/js/ui/targets.js
+        convert/js/ui/tool-chain.js convert/js/ui/tool.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // File convert in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, page = 'convert/index.html', width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../' + page;
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('#cv-run'), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(convert|ui|menu|shell|nav)\.[a-z0-9_]+\.[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const runText = (doc) => doc.querySelector('#cv-run').textContent.trim();
+
+  describe('File convert in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('the hub shows Swedish words and no key', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      await waitFor(() => runText(doc) === 'Konvertera', { timeout: 20000 });
+      expect(doc.querySelector('#all-h').textContent).toBe('Alla konverteringar');
+      expect(doc.querySelector('#cv-search').getAttribute('placeholder')).toBe('Prova PDF, WebP eller CSV');
+      await waitFor(() => doc.querySelector('[data-convert-cards] a, [data-convert-cards] li'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      await waitFor(() => runText(doc) === 'Konvertera', { timeout: 20000 });
+      I.set('en');
+      await waitFor(() => runText(doc) === 'Convert' && doc.querySelector('#all-h').textContent === 'All conversions', { timeout: 20000 });
+      I.set('sv');
+      await waitFor(() => runText(doc) === 'Konvertera', { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('a converter page at 390 px: the tool is Swedish, nothing scrolls sideways, no key shows', async () => {
+      const f = await open('sv', 'convert/png-to-jpg/index.html', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => runText(doc) === 'Konvertera', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'File convert in Swedish' });
+  </script>
+</body>
+</html>

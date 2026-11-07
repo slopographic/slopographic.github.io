@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Models: the Language and model chooser (speech family) (search, ranking, download with progress and cancel, remove, use) with a fake installer</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/models/chooser.css">
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/speech-models.js"></script>
+  <script type="module">
+  // Covers: shared/models/chooser.js, shared/models/chooser.css, shared/models/catalog.js, shared/speech/family.js, shared/speech/languages.js
+  import { openModelChooser, badgeText, meter } from '../../shared/models/chooser.js';
+  import { speechFamily } from '../../shared/speech/family.js';
+  const openModelDialog = (o) => openModelChooser({ family: speechFamily(), ...o });
+  const { describe, it, expect, waitFor, run, topDialog, sleep } = SlopTest;
+  const C = window.SlopSpeechModels;
+  /** A fake installer: downloads advance in steps the test releases, so the progress and Cancel can be seen. */
+  function fakeInstaller() {
+    const st = new Map([['whisper-tiny', 'installed']]), log = [];
+    let release = null;
+    return {
+      st, log, step: () => release && release(),
+      status: async (id) => st.get(id) || 'needs-download',
+      usage: async () => [...st.entries()].filter(([, s]) => s === 'installed').reduce((n, [id]) => n + C.bytesOf(C.byId(id)), 0),
+      remove: async (id) => { log.push(['remove', id]); st.delete(id); },
+      install: async (id, onProgress, { signal }) => {
+        log.push(['install', id]);
+        const total = C.bytesOf(C.byId(id));
+        for (const k of [1, 2, 3, 4]) {
+          await new Promise((res, rej) => { release = res; signal.addEventListener('abort', () => rej(Object.assign(new Error('cancelled'), { name: 'AbortError' })), { once: true }); });
+          onProgress({ file: 'x', index: 1, count: 1, loaded: (total * k) / 4, total });
+        }
+        st.set(id, 'installed');
+      },
+    };
+  }
+  const rows = (box) => [...box.querySelectorAll('.spm-model')];
+  const btn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent === text);
+
+  describe('Language and model dialog', () => {
+    it('badges and meters read as words', () => {
+      expect(badgeText('recommended', 'Swedish')).toBe('Recommended for Swedish');
+      expect(badgeText('made-for', 'Norwegian')).toBe('Made for Norwegian');
+      expect(badgeText('only', '', 'English')).toBe('English only');
+      expect(badgeText('recommended', '')).toBe('Recommended');
+      expect(meter(2)).toEqual({ label: '2 of 5', dots: '●●○○○' });
+    });
+    it('starts on Detect automatically; the search narrows the languages; choosing Swedish ranks KB-Whisper first', async () => {
+      const I = fakeInstaller();
+      const d = openModelDialog({ installer: I, onChoose: () => {} });
+      const box = d.box;
+      await waitFor(() => rows(box).length === 3);
+      expect(box.querySelector('.spm-lang.is-on').textContent).toBe('Detect automatically');
+      expect(rows(box).map((r) => r.dataset.id)).toEqual(['whisper-small', 'whisper-base', 'whisper-tiny']);
+      const search = box.querySelector('.spm-search');
+      search.value = 'swe'; search.dispatchEvent(new Event('input'));
+      expect([...box.querySelectorAll('.spm-lang')].map((l) => l.textContent)).toEqual(['Swedish']);
+      box.querySelector('.spm-lang').click();
+      await waitFor(() => rows(box).length === 5);
+      expect(rows(box).map((r) => r.dataset.id)).toEqual(C.rank('sv').map((r) => r.model.id));
+      expect(rows(box)[0].querySelector('.spm-badge').textContent).toBe('Recommended for Swedish');
+      expect(rows(box)[0].querySelector('.spm-by').textContent).toBe('KBLab, National Library of Sweden · 248 MB · Apache 2.0 licence');
+      expect(rows(box).at(-1).dataset.state).toBe('installed');   // tiny, already here
+      expect(box.querySelector('.spm-pin').hidden).toBe(false);
+      d.close();
+    });
+    it('Download shows n% with Cancel; Cancel stores nothing; a finished download can be used, and removed', async () => {
+      const I = fakeInstaller(), chosen = [];
+      const d = openModelDialog({ language: 'sv', installer: I, onChoose: (c) => chosen.push(c) });
+      const box = d.box, kb = () => box.querySelector('[data-id="kb-whisper-small"]');
+      await waitFor(() => kb());
+      expect(btn(kb(), 'Download 248 MB')).toBeTruthy();
+      btn(kb(), 'Download 248 MB').click();
+      await waitFor(() => kb() && kb().dataset.state === 'downloading');
+      I.step(); await waitFor(() => kb().querySelector('.spm-pct').textContent === 'Downloading 25%');
+      expect(kb().querySelector('progress').value).toBe(25);
+      btn(kb(), 'Cancel').click();
+      await waitFor(() => kb() && kb().dataset.state === 'download');
+      expect(box.querySelector('.spm-status').textContent).toBe('KB-Whisper small: download cancelled. Nothing was stored.');
+      expect(I.st.has('kb-whisper-small')).toBe(false);
+      btn(kb(), 'Download 248 MB').click();
+      for (let k = 0; k < 4; k++) { await sleep(20); I.step(); }
+      await waitFor(() => kb() && kb().dataset.state === 'installed');
+      expect(kb().classList.contains('is-on')).toBe(true);   // the new model is the selection
+      await waitFor(() => /Speech models use 290 MB on this device/.test(box.querySelector('.spm-usage').textContent));
+      const use = box.querySelector('.sui-foot .sui-primary');
+      expect([use.textContent, use.disabled]).toEqual(['Use KB-Whisper small', false]);
+      btn(kb(), 'Remove').click();
+      await waitFor(() => kb() && kb().dataset.state === 'download');
+      expect(I.log.at(-1)).toEqual(['remove', 'kb-whisper-small']);
+      await waitFor(() => use.textContent === 'Use Whisper tiny');
+      expect(btn(box.querySelector('[data-id="whisper-tiny"]'), 'Remove')).toBeFalsy();   // the quick model stays
+      d.close();
+    });
+    it('Use hands back the language, the model and whether to keep the language', async () => {
+      const I = fakeInstaller(), chosen = [];
+      I.st.set('kb-whisper-base', 'installed');
+      openModelDialog({ language: 'sv', model: 'kb-whisper-base', installer: I, onChoose: (c) => chosen.push(c) });
+      const box = topDialog();
+      await waitFor(() => box.querySelector('[data-id="kb-whisper-base"] [aria-pressed="true"]'));
+      box.querySelector('.spm-pin-box').click();
+      box.querySelector('.sui-foot .sui-primary').click();
+      expect(chosen).toEqual([{ language: 'sv', model: 'kb-whisper-base', pin: true }]);
+    });
+    it('keyboard: arrow keys move through the languages from the search box', async () => {
+      const d = openModelDialog({ installer: fakeInstaller() });
+      const search = d.box.querySelector('.spm-search');
+      search.value = 'nor'; search.dispatchEvent(new Event('input'));
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(d.language).toBe('no');
+      await waitFor(() => rows(d.box)[0] && rows(d.box)[0].dataset.id === 'nb-whisper-small');
+      d.close();
+    });
+    it('in Swedish: the dialog, its badges, sizes and buttons (shared/i18n/ui/sv/models.js), then English again', async () => {
+      const I18 = window.SlopI18n, swapped = new Promise((res) => { const off = I18.on(() => { off(); res(); }); });
+      I18.set('sv'); await swapped;
+      try {
+        expect(badgeText('recommended', 'svenska')).toBe('Rekommenderas för svenska');
+        expect(meter(2).label).toBe('2 av 5');
+        const d = openModelDialog({ installer: fakeInstaller() });
+        await waitFor(() => rows(d.box).length === 3);
+        expect(d.box.textContent).toContain('Språk och modell');
+        expect(d.box.querySelector('.spm-lang.is-on').textContent).toBe('Identifiera automatiskt');
+        expect(d.box.querySelector('.spm-search').placeholder).toBe('Sök språk');
+        expect(btn(d.box, 'Använd') || btn(d.box, 'Vald')).toBeTruthy();
+        expect(d.box.querySelector('.sui-foot .sui-btn').textContent).toBe('Avbryt');
+        expect(/\bui\.[a-z_]+\./.test(d.box.textContent)).toBe(false);
+        d.close();
+      } finally {
+        const back = new Promise((res) => { const off = I18.on(() => { off(); res(); }); });
+        I18.set('en'); await back;
+        try { localStorage.removeItem('slop-profile'); SlopTest.english(); } catch (e) { /* private window */ }
+      }
+      expect(badgeText('recommended', 'Swedish')).toBe('Recommended for Swedish');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

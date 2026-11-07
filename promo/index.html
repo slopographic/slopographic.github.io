@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+  <script src="../shared/profile/profile.js" data-src="shared/profile/profile.js"></script>
+  <script src="../shared/theme/theme.js" data-app="promo" data-src="shared/theme/theme.js"></script>
+  <link rel="expect" href="#slop-built" blocking="render">
+<script src="../shared/consent/config.js"></script>
+<script src="../shared/consent/state.js"></script>
+<script src="../shared/consent/consent-mode.js"></script>
+<script src="../shared/consent/banner.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slopographic Promo</title>
+  <meta name="description" content="A 90-second motion piece: every Slopographic app, game and experiment, set to a synthesized beat. Runs live in your browser.">
+  <link rel="icon" href="../favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../shared/fonts/fonts.css">
+  <link rel="stylesheet" href="css/promo.css">
+  <link rel="stylesheet" href="css/scenes.css">
+  <script type="module" blocking="render" src="js/main.js"></script>
+</head>
+<body>
+  <div class="stage" id="stage" aria-label="Slopographic promo video"></div>
+  <button class="cover" id="cover" type="button"><span class="cover-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg></span><span>Play the promo <small>90 s · sound on</small></span></button>
+  <div class="ui" id="ui">
+    <button class="play" id="playBtn" type="button" aria-label="Play with sound">
+      <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>
+      <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+    </button>
+    <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0" aria-label="Seek">
+    <a class="vlink" id="vLink" href="./?v=1">9:16</a>
+    <a class="home" href="../">slopographic.com</a>
+  </div>
+  <script src="../shared/apps.js"></script>
+  <script src="../shell/shell.js"></script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

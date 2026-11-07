@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows with app macros: PhotoSlop's macros in + Add step, Add to a workflow… with a macro, a run in a hidden PhotoSlop</title>
+  <style>body { margin: 0; background: #111; } iframe#app { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="helpers.js"></script>
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../shared/macros/core.js"></script>
+  <script src="../../shared/macros/store.js"></script>
+  <script src="../../shared/ops/flowdoc.js"></script>
+  <script>
+  // Covers: shared/ops/macros.js, shared/ops/all.js, shared/macros/frame.js, shared/macros/store.js, workflows/js/ui/mount.js, workflows/js/ui/addmenu.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const M = SlopMacrosCore, ST = SlopMacroStore;
+  const $ = (id) => WFT.D.getElementById(id);
+  const A = () => WFT.A;
+  let macro;
+
+  describe('PhotoSlop macros in Slop Workflows', () => {
+    it('a saved PhotoSlop macro is under PhotoSlop in + Add step, and a new one shows up at once', async () => {
+      await new Promise((res) => { const r = indexedDB.deleteDatabase('slop-macros'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+      macro = await ST.save(M.normalize({ app: 'photoslop', name: 'Auto levels + square + sharpen', steps: [
+        { cmd: 'ps.ai.filter', args: { filter: 'autocontrast', params: '{}' }, title: 'Auto Contrast' },
+        { cmd: 'ps.ai.crop', args: { ratio: '1:1' }, title: 'Crop to a ratio' },
+        { cmd: 'ps.ai.sharpen', args: { amount: 120, radius: 2, threshold: 2 }, title: 'Sharpen' }] }).macro);
+      await WFT.boot('', { fresh: true });
+      $('wf-add').click();
+      const menu = await waitFor(() => WFT.D.querySelector('.smb-menu[role="menu"]'));
+      expect([...menu.querySelectorAll('.smb-h')].map((h) => h.textContent)).toContain('PhotoSlop');
+      const row = [...menu.querySelectorAll('.smb-row')].find((b) => b.textContent.includes('Auto levels + square + sharpen'));
+      expect(!!row).toBe(true);
+      row.click();
+      const s = A().S.doc.steps[0];
+      expect([s.kind, s.app, s.macroId, s.id]).toEqual(['macro', 'photoslop', macro.id, 'macro:photoslop:' + macro.id]);
+      expect(WFT.D.querySelector('.wf-step').textContent).toContain('PhotoSlop · macro');
+      // saved in another page (here: this test page) → the Workflows page lists it without a reload
+      const other = await ST.save(M.normalize({ app: 'photoslop', name: 'Just flip', steps: [{ cmd: 'ps.ai.flip', args: { direction: 'horizontal', target: 'image' }, title: 'Flip' }] }).macro);
+      await waitFor(() => A().R.byId('macro:photoslop:' + other.id), { timeout: 5000 });
+    }, { timeout: 40000 });
+
+    it('runs two pictures through the macro and a resize: square JPGs made in a hidden PhotoSlop', async () => {
+      A().addStep('resize.image', { width: 200, height: 200, fit: 'within', format: 'jpg' });
+      A().edit('Save as JPG', (d) => { d.steps[0].options = { format: 'jpg', quality: 80 }; });
+      await A().addFiles([await WFT.picture('a.png', 400, 300), await WFT.picture('b.png', 300, 500, '#e0a020')]);
+      const r = await A().run();
+      expect(r.ok).toBe(true);
+      const outs = A().S.run.result.outputs;
+      expect(outs.length).toBe(2);
+      for (const o of outs) {
+        const p = await WFT.pixels(o.blob);
+        expect([p.w, p.h]).toEqual([200, 200]);
+      }
+      expect(!!WFT.D.querySelector('iframe[data-macro-host="photoslop"]')).toBe(true);
+    }, { timeout: 120000 });
+
+    it('Add to a workflow… with a macro (PhotoSlop\'s panel) opens Workflows with that step', async () => {
+      const url = await SlopFlowDoc.addToWorkflow({ kind: 'macro', id: M.opId('photoslop', macro.id), app: 'photoslop', macroId: macro.id, options: {} }, { name: macro.name, open: false });
+      await WFT.boot('?' + new URL(url).searchParams.toString(), { fresh: true });
+      await waitFor(() => A().S && A().S.doc.steps.length === 1, { timeout: 10000 });
+      expect(A().S.doc.steps[0].macroId).toBe(macro.id);
+      expect(A().S.doc.steps[0].kind).toBe('macro');
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Slop Workflows with app macros' });
+  </script>
+</body>
+</html>

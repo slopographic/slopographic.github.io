@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Slides, wait until the deck has opened (body.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('slides');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || f.contentWindow.document.body.classList.contains('ready')), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop Slides saved place', () => {
+    it('comes back to the same slide after leaving for Slop Drive and coming back', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slop-slides'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../slides/index.html');
+      const A = W.SS.app;
+      A.change('Add slide', function () { W.SS.model.addSlide(A.deck, A.deck.slides[0].layout || undefined, A.deck.slides.length); }); // through the change pipeline, so the draft has it
+      await sleep(1600);
+      A.go(1);
+      await sleep(200);
+      W.document.body.click(); // a user gesture: the place is saved on input
+      await sleep(700);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../slides/index.html');
+      expect(W.SS.app.idx).toBe(1);
+      expect(W.SS.app.deck.slides.length).toBe(2);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Slides · saved place' });
+  </script>
+</body>
+</html>

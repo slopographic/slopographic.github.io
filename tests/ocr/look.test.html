@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop OCR: the look (header, hidden parts, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: ocr/index.html, ocr/css/ocr.css, ocr/js/app.js, ocr/js/sample.js, ocr/js/frame.js, assets/shots/ocr.jpg -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The page in a fresh iframe of this width, once the gate has decided and the shell's buttons are in. */
+  async function open(width, height = 800) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px'; f.style.height = height + 'px';
+    f.src = '../../ocr/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('.smb-bar .slop-hbtn') && (D.getElementById('gate').children.length || !D.getElementById('ui').hidden); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const shown = (n) => n.getBoundingClientRect().height > 0;
+
+  describe('Slop OCR: the look', () => {
+    it('one header, with the 100% local badge in place of a tagline above the page', async () => {
+      const D = await open(1440);
+      expect([...D.querySelectorAll('header')].filter(shown).length).toBe(1);
+      expect(D.querySelector('.smb-bar .local-badge').title).toContain('Nothing is uploaded');
+      expect(D.querySelector('.ocr-tag')).toBe(null);
+    }, { timeout: 40000 });
+
+    it('a part marked hidden is not drawn: the tool behind the model prompt, the pages before a file', async () => {
+      const D = await open(1440);
+      const ui = D.getElementById('ui');
+      if (D.getElementById('gate').children.length) expect(shown(ui)).toBe(false);
+      ui.hidden = false;
+      expect(D.getElementById('work').hidden).toBe(true);
+      expect(shown(D.getElementById('work'))).toBe(false);
+    }, { timeout: 40000 });
+
+    it('the empty page shows what it makes and how, above the model prompt or in the drop zone, never both', async () => {
+      const D = await open(1280);
+      const where = D.getElementById('ui').hidden ? '#intro' : '#drop';
+      expect(D.querySelectorAll(where + ' .sd-steps li').length).toBe(3);
+      SlopTest.shot(D.querySelector(where + ' .sd-pic img'), '../assets/shots/ocr.jpg');
+      expect([...D.querySelectorAll('.sd-preview')].filter(shown).length).toBe(1);
+    }, { timeout: 40000 });
+
+    it('Try it with a sample receipt opens a drawn receipt as page 1, and the zone drops its preview', async () => {
+      const D = await open(1280);
+      D.getElementById('ui').hidden = false; // without the model the tool waits behind the prompt; opening a file needs no model
+      D.querySelector('#drop .sd-sample').click();
+      await waitFor(() => D.getElementById('pages').options.length === 1, { timeout: 20000 });
+      expect(D.getElementById('pages').options[0].textContent).toBe('1. Sample receipt.png (not read yet)');
+      expect(D.getElementById('work').hidden).toBe(false);
+      expect(D.getElementById('read').disabled).toBe(false);
+      expect(shown(D.querySelector('#drop .sd-preview'))).toBe(false);
+    }, { timeout: 40000 });
+
+    it('at 390px nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390); // the preview above the model prompt fits
+      D.getElementById('ui').hidden = false;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+
+    it('at 1280px the tool is a view and a panel on the right: Language, Save, and Read text at its foot', async () => {
+      const D = await open(1280);
+      D.getElementById('ui').hidden = false; D.getElementById('intro').hidden = true; D.getElementById('gate').hidden = true;
+      D.querySelector('#drop .sd-sample').click();
+      await waitFor(() => !D.getElementById('read').disabled, { timeout: 20000 });
+      const side = D.getElementById('ocrSide'), read = D.getElementById('read');
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('ocrView').getBoundingClientRect().right - 1);
+      expect(Math.round(side.getBoundingClientRect().right)).toBe(1280);
+      expect([...side.querySelectorAll('.sf-h')].map((n) => n.textContent)).toEqual(['Language', 'Save']);
+      for (const id of ['lang', 'dlTxt', 'dlPdf', 'copy', 'clear']) expect(side.contains(D.getElementById(id))).toBe(true);
+      expect(read.closest('.sf-p-foot').parentNode).toBe(side);
+      expect(read.getBoundingClientRect().bottom).toBeLessThanOrEqual(800);
+      expect(D.getElementById('text').getBoundingClientRect().width).toBeGreaterThan(200);   // the text stays in the view
+    }, { timeout: 40000 });
+
+    it('at 390px Read text stays at the bottom of the screen; Options opens the sheet', async () => {
+      const D = await open(390, 844);
+      D.getElementById('ui').hidden = false; D.getElementById('intro').hidden = true; D.getElementById('gate').hidden = true;
+      await new Promise((r) => setTimeout(r, 100));
+      const read = D.getElementById('read');
+      expect(read.getBoundingClientRect().top).toBeGreaterThan(700);
+      expect(read.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      D.querySelector('#ocrSide .sf-foot-more').click();
+      await waitFor(() => D.getElementById('ocrSide').classList.contains('ssh-on'));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(shown(D.getElementById('lang'))).toBe(true);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop OCR: the look' });
+  </script>
+</body>
+</html>

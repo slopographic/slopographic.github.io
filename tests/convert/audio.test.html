@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: audio out of video</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import { decodeAudio, channelsOf, encodeWav, encodeMp3, loadLame } from '../../convert/js/core/audio.js';
+import { detectKind } from '../../convert/js/core/detect.js';
+import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+import { PAGES } from '../../convert/js/core/pages.js';
+const { describe, it, expect } = SlopTest;
+
+/** One second of a tone in each channel: left 440 Hz, right 660 Hz. */
+function tone(rate = 44100, seconds = 1) {
+  const n = rate * seconds;
+  const l = new Float32Array(n), r = new Float32Array(n);
+  for (let i = 0; i < n; i++) { l[i] = 0.5 * Math.sin((2 * Math.PI * 440 * i) / rate); r[i] = 0.5 * Math.sin((2 * Math.PI * 660 * i) / rate); }
+  return [l, r];
+}
+const ascii = (b, at, len) => String.fromCharCode(...b.subarray(at, at + len));
+
+describe('WAV: the encoder writes a valid 16-bit stereo file', () => {
+  it('has the RIFF, fmt and data headers with the right sizes', () => {
+    const [l, r] = tone(44100, 1);
+    const wav = encodeWav([l, r], 44100);
+    expect(ascii(wav, 0, 4)).toBe('RIFF');
+    expect(ascii(wav, 8, 4)).toBe('WAVE');
+    const v = new DataView(wav.buffer);
+    expect(v.getUint16(20, true)).toBe(1);          // PCM
+    expect(v.getUint16(22, true)).toBe(2);          // channels
+    expect(v.getUint32(24, true)).toBe(44100);      // sample rate
+    expect(v.getUint16(34, true)).toBe(16);         // bits
+    expect(v.getUint32(40, true)).toBe(44100 * 2 * 2);
+    expect(wav.length).toBe(44 + 44100 * 2 * 2);
+    expect(v.getUint32(4, true)).toBe(wav.length - 8);
+  });
+  it('round-trips through the browser decoder with the same length and channels', async () => {
+    const [l, r] = tone(44100, 1);
+    const buf = await decodeAudio(encodeWav([l, r], 44100));
+    expect(buf.numberOfChannels).toBe(2);
+    expect(Math.abs(buf.duration - 1)).toBeLessThan(0.01);
+    const back = channelsOf(buf);
+    // The left channel stays the 440 Hz tone: the sample at a quarter period is near the peak.
+    const peak = Math.max(...back[0].subarray(0, 300).map(Math.abs));
+    expect(peak).toBeGreaterThan(0.4);
+  });
+});
+
+describe('MP3: lamejs encodes a stream the decoder can read back', () => {
+  it('starts with an MPEG frame and keeps the length within a fraction of a second', async () => {
+    const lame = await loadLame();
+    const [l, r] = tone(44100, 2);
+    const mp3 = encodeMp3(lame, [l, r], 44100, 128);
+    const head = new Uint8Array(await mp3.slice(0, 3).arrayBuffer());
+    const framed = (head[0] === 0xff && (head[1] & 0xe0) === 0xe0) || (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33);
+    expect(framed).toBe(true);
+    expect(detectKind('out.mp3', 'audio/mpeg', new Uint8Array(await mp3.slice(0, 512).arrayBuffer()))).toBe('mp3');
+    const buf = await decodeAudio(new Uint8Array(await mp3.arrayBuffer()));
+    expect(Math.abs(buf.duration - 2)).toBeLessThan(0.1);
+  });
+  it('a mono source gives a mono file', async () => {
+    const lame = await loadLame();
+    const [l] = tone(44100, 1);
+    const buf = await decodeAudio(new Uint8Array(await encodeMp3(lame, [l], 44100, 128).arrayBuffer()));
+    expect(buf.numberOfChannels).toBe(1);
+  });
+});
+
+describe('the conversions and pages are registered', () => {
+  it('to-wav and to-mp3 take video and audio files', () => {
+    const wav = CONVERSIONS.find((c) => c.id === 'to-wav');
+    const mp3 = CONVERSIONS.find((c) => c.id === 'to-mp3');
+    expect(wav.from).toContain('mp4');
+    expect(wav.from).toContain('webm');
+    expect(wav.from).toContain('mov');
+    expect(mp3.from).toContain('wav');
+    expect(mp3.options.map((o) => o.key)).toEqual(['bitrate']);
+    expect(conversionsFor(['mp4']).map((c) => c.id)).toContain('to-mp3');
+  });
+  it('both pages are listed under Audio and video', () => {
+    const slugs = PAGES.filter((p) => p.cat === 'Audio and video').map((p) => p.slug).sort();
+    expect(slugs.includes('video-to-mp3') && slugs.includes('video-to-wav')).toBe(true);
+  });
+  it('a file with no sound says so instead of writing an empty file', async () => {
+    let msg = '';
+    try { await decodeAudio(new TextEncoder().encode('just some text, not sound at all')); } catch (e) { msg = e.message; }
+    expect(msg).toMatch(/sound/);
+  });
+});
+
+describe('real video files through the converters', () => {
+  const fixture = async (name, type) => new File([await (await fetch('fixtures/' + name)).arrayBuffer()], name, { type });
+  const run = (id, file, kind, o = {}) => CONVERSIONS.find((c) => c.id === id).run([{ file, name: file.name, kind }], { bitrate: '128', ...o });
+
+  it('an MP4 with sound becomes a WAV of the same length', async () => {
+    // Open-source Chromium builds cannot decode AAC, the sound in most MP4 files: skip there, and run it in Chrome.
+    if (!document.createElement('audio').canPlayType('audio/mp4; codecs="mp4a.40.2"')) { console.warn('skipped: this browser cannot decode AAC'); return; }
+    const [out] = await run('to-wav', await fixture('tone.mp4', 'video/mp4'), 'mp4');
+    expect(out.name).toBe('tone.wav');
+    expect(out.blob.type).toBe('audio/wav');
+    const buf = await decodeAudio(new Uint8Array(await out.blob.arrayBuffer()));
+    expect(buf.numberOfChannels).toBe(2);
+    expect(Math.abs(buf.duration - 2)).toBeLessThan(0.1);
+  });
+  it('a WebM with Opus sound becomes an MP3 of the same length', async () => {
+    const [out] = await run('to-mp3', await fixture('tone.webm', 'video/webm'), 'webm', { bitrate: '192' });
+    expect(out.name).toBe('tone.mp3');
+    expect(out.blob.type).toBe('audio/mpeg');
+    const buf = await decodeAudio(new Uint8Array(await out.blob.arrayBuffer()));
+    expect(Math.abs(buf.duration - 2)).toBeLessThan(0.1);
+  });
+  it('a silent video says it has no sound track', async () => {
+    let msg = '';
+    try { await run('to-mp3', await fixture('silent.mp4', 'video/mp4'), 'mp4'); } catch (e) { msg = e.message; }
+    expect(msg).toMatch(/sound track/);
+  });
+});
+
+SlopTest.run({ name: 'File convert: audio out of video' });
+</script>
+</body>
+</html>

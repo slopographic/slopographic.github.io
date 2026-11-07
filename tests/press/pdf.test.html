@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · PDF export tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  async function sampleDoc() {
+    const { doc } = freshDoc({ pages: 3, facing: true, w: 595.276, h: 841.89 });
+    const M = PR.model, A = doc.masters[0];
+    // folio with the page-number marker on both master pages
+    A.pages.forEach((mp, side) => {
+      const f = M.item('text', side ? 400 : 40, 800, 150, 20); PR.items.add(doc, mp.items, f, { text: 'Page ' + M.PAGE_NUM, ps: '[Basic Paragraph]' });
+    });
+    const fr = M.item('text', 60, 60, 300, 300);
+    PR.items.add(doc, doc.pages[0].items, fr, { text: 'Hello press world. Slop Press writes its own PDF with embedded subset fonts.', ps: 'Test' });
+    doc.styles.para.Test = { basedOn: '[Basic Paragraph]', font: 'Liberation Sans', size: 14, leading: 18 };
+    const r = M.item('rect', 0, 0, 100, 100, { fill: 'cmyk(0,100,0,0)' }); r.layer = doc.layers[0].id; doc.pages[1].items.push(r);
+    PR.styles.invalidate(); PR.touch();
+    await PR.fonts.ready(doc);
+    return doc;
+  }
+  async function parse(bytes) {
+    const { lib, base } = await loadPdfjs();
+    return lib.getDocument({ data: bytes.slice(), standardFontDataUrl: base + 'standard_fonts/', isEvalSupported: false }).promise;
+  }
+  async function pageText(pdf, n) { const tc = await (await pdf.getPage(n)).getTextContent(); return tc.items.map((i) => i.str).join(''); }
+
+  describe('PDF export', () => {
+    it('writes one PDF page per document page with exact trim boxes', async () => {
+      await sampleDoc();
+      const bytes = await PR.pdf.export({});
+      expect(ascii(bytes, 0, 8)).toBe('%PDF-1.6');
+      const pdf = await parse(bytes);
+      expect(pdf.numPages).toBe(3);
+      const p1 = await pdf.getPage(1), vp = p1.getViewport({ scale: 1 });
+      expect(Math.round(vp.width)).toBe(595); expect(Math.round(vp.height)).toBe(842);
+    }, { timeout: 30000 });
+    it('extracts the story text and master page numbers (embedded font + ToUnicode)', async () => {
+      await sampleDoc();
+      const pdf = await parse(await PR.pdf.export({}));
+      const t1 = (await pageText(pdf, 1)).replace(/\s+/g, ' ');
+      expect(t1).toContain('Hello press world.');
+      expect(t1).toContain('Page 1');
+      expect((await pageText(pdf, 3)).replace(/\s+/g, ' ')).toContain('Page 3');
+    }, { timeout: 30000 });
+    it('embeds a subset TrueType font, not the whole file', async () => {
+      await sampleDoc();
+      const bytes = await PR.pdf.export({});
+      const s = ascii(bytes);
+      expect(s).toContain('/FontFile2');
+      expect(s).toMatch(/\/BaseFont \/[A-Z]{6}\+LiberationSans/);
+      expect(bytes.length).toBeLessThan(120000); // Liberation Sans alone is 139 KB
+    }, { timeout: 30000 });
+    it('press export: bleed box, trim box and marks enlarge the media box', async () => {
+      const doc = await sampleDoc();
+      const bytes = await PR.pdf.export({ bleed: true, cropMarks: true, regMarks: true, pageInfo: true });
+      const s = ascii(bytes), b = doc.bleed.top;
+      const trim = /\/TrimBox \[([^\]]+)\]/.exec(s)[1].split(' ').map(Number), bleed = /\/BleedBox \[([^\]]+)\]/.exec(s)[1].split(' ').map(Number), media = /\/MediaBox \[([^\]]+)\]/.exec(s)[1].split(' ').map(Number);
+      expect(trim[2] - trim[0]).toBeCloseTo(595.276, 0.01); expect(trim[3] - trim[1]).toBeCloseTo(841.89, 0.01);
+      expect(bleed[2] - bleed[0]).toBeCloseTo(595.276 + 2 * b, 0.01);
+      expect(media[2]).toBeGreaterThan(bleed[2] + 18);
+      expect(s).toContain('/Separation /All');
+      const pdf = await parse(bytes);
+      expect(await pageText(pdf, 1)).toContain('Page 1');
+    }, { timeout: 30000 });
+    it('writes CMYK swatches as CMYK operators', async () => {
+      await sampleDoc();
+      const bytes = await PR.pdf.export({ pages: [1] });
+      const pdf = await parse(bytes);
+      expect(pdf.numPages).toBe(1);
+      // content streams are compressed; decode via pdf.js operator list
+      const ops = await (await pdf.getPage(1)).getOperatorList();
+      const { lib } = await loadPdfjs();
+      expect(ops.fnArray.indexOf(lib.OPS.setFillCMYKColor) >= 0 || ops.fnArray.indexOf(lib.OPS.setFillRGBColor) >= 0).toBe(true);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

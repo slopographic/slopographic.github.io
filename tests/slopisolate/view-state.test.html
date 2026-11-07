@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Cutout saved session</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+    <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Cutout, wait until its modules are up (CO.state). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('cutout');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.CO && f.contentWindow.CO.state && f.contentWindow.CO.viewState)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  async function png(w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = '#d4ff3a'; g.fillRect(0, 0, w, h); g.fillStyle = '#222'; g.fillRect(w / 4, h / 4, w / 2, h / 2);
+    return new Promise((r) => c.toBlob(r, 'image/png'));
+  }
+
+  describe('Slop Cutout saved session', () => {
+    it('brings back the image, tool, view and split after leaving for Slop Drive', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slop-session'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../slopisolate/index.html');
+      W.CO.process.add([new W.File([await png(40, 30)], 'place.png', { type: 'image/png' })]);
+      W.CO.state.setTool('keep');
+      W.CO.state.setView('mask');
+      W.CO.state.split = 0.3;
+      await waitFor(() => W.CO.state.items.length === 1, { timeout: 5000 });
+      // only finished images are kept (an unfinished one is not restarted on return), so wait for the cut-out
+      await waitFor(() => W.CO.state.items[0].status === 'done', { timeout: 150000, polling: 200 });
+      await sleep(900);
+      W.SlopGuard && W.SlopGuard.setUnsaved('cutout', false); // the leave-page prompt would hold the navigation
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../slopisolate/index.html');
+      await waitFor(() => W.CO.state.items.length === 1, { timeout: 10000 });
+      expect(W.CO.state.items[0].name).toBe('place.png');
+      expect(W.CO.state.tool).toBe('keep');
+      expect(W.CO.state.view).toBe('mask');
+      expect(W.CO.state.split).toBeCloseTo(0.3, 1e-6);
+    }, { timeout: 200000 });
+  });
+  run({ name: 'Slop Cutout · saved session' });
+  </script>
+</body>
+</html>

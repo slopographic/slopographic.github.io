@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop 3D outliner multi-select</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: 3d/js/app/outliner.js — rows pick like Photoshop's layers: a click selects one, Shift the rows from the anchor
+  // to the clicked one (as shown), Ctrl/Cmd adds or takes one away, Ctrl/Cmd+Shift adds a range. Delete acts on them all.
+  // No WebGL needed: the outliner and the actions run without a viewport.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame, W, S3;
+  const rows = () => [...frame.contentDocument.querySelectorAll('.outl-row')];
+  const ids = () => rows().map((r) => r.dataset.id);
+  const click = (i, mods = {}) => rows()[i].querySelector('.outl-name').dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, mods)));
+  const sel = () => S3.state.s.sel.slice().sort();
+  const at = (...ix) => { const all = ids(); return ix.map((i) => all[i]).sort(); };
+
+  describe('Slop 3D outliner: Shift range and Ctrl/Cmd toggle', () => {
+    it('boots with five objects listed', async () => {
+      frame = document.createElement('iframe');
+      frame.src = '../../3d/index.html';
+      document.getElementById('stage').append(frame);
+      await waitFor(() => { const d = frame.contentDocument; return d && d.body && d.body.dataset.ready === '1' && frame.contentWindow.Slop3D; }, { timeout: 45000, step: 100 });
+      W = frame.contentWindow; S3 = W.Slop3D;
+      for (let k = 0; k < 5; k++) S3.actions.add('cube');
+      await waitFor(() => rows().length >= 5);
+    }, { timeout: 60000 });
+    it('a click selects one; Shift selects the range from the anchor, both ways', () => {
+      click(1); click(3);
+      expect(sel()).toEqual(at(3));
+      click(0, { shiftKey: true });
+      expect(sel()).toEqual(at(0, 1, 2, 3));
+      expect(S3.state.primary()).toBe(ids()[0]);
+      click(4, { shiftKey: true }); // the anchor stays on row 3
+      expect(sel()).toEqual(at(3, 4));
+      expect(rows()[4].getAttribute('aria-selected')).toBe('true');
+      expect(rows()[2].getAttribute('aria-selected')).toBe('false');
+    });
+    it('Ctrl or Cmd adds or takes one away and moves the anchor; Ctrl+Shift adds a range', () => {
+      click(0); click(2, { ctrlKey: true }); click(4, { metaKey: true });
+      expect(sel()).toEqual(at(0, 2, 4));
+      click(2, { ctrlKey: true });
+      expect(sel()).toEqual(at(0, 4));
+      click(4); click(1, { ctrlKey: true }); click(0, { ctrlKey: true, shiftKey: true });
+      expect(sel()).toEqual(at(0, 1, 4));
+    });
+    it('a pick in the viewport is the anchor; Shift+Arrow extends from it; Delete removes every row picked', async () => {
+      const all = ids();
+      S3.state.select([all[2]]);
+      click(4, { shiftKey: true });
+      expect(sel()).toEqual(at(2, 3, 4));
+      click(1, { shiftKey: true }); // the viewport's pick stays the anchor
+      expect(sel()).toEqual(at(1, 2));
+      click(3, { shiftKey: true });
+      expect(sel()).toEqual(at(2, 3));
+      click(1); click(3, { shiftKey: true });
+      expect(sel()).toEqual(at(1, 2, 3));
+      rows()[3].focus();
+      rows()[3].dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true }));
+      expect(sel()).toEqual(at(1, 2, 3, 4));
+      S3.actions.remove();
+      await waitFor(() => rows().length === all.length - 4);
+      expect(ids()).toEqual([all[0]].concat(all.slice(5)));
+    });
+  });
+  SlopTest.run({ name: 'Slop 3D outliner multi-select' });
+  </script>
+</body>
+</html>

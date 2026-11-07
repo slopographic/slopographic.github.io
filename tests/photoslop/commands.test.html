@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop commands tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win, C;
+  const key = (code, k, mods = {}) => { const e = new win.KeyboardEvent('keydown', Object.assign({ code, key: k, bubbles: true, cancelable: true }, mods)); win.document.body.dispatchEvent(e); return e; };
+  const leaves = () => { const out = []; const walk = (items) => { for (const it of items) { if (!it || it === '-') continue; if (it.sub) walk(it.sub); else if (it.act) out.push(it); } }; W.MENUS.forEach(([, items]) => { if (Array.isArray(items)) walk(items); }); return out; };
+
+  describe('SlopCmd in PhotoSlop', () => {
+    it('registers every menu action and every tool', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      C = win.SlopCmd; C.resetKeys();
+      expect(W.CMD_ON).toBe(true);
+      const ids = new Set(C.list().map((c) => c.id));
+      const items = leaves();
+      expect(items.length).toBeGreaterThan(80);
+      for (const it of items) expect(ids.has(it.cmdId)).toBe(true);
+      for (const t of W.TOOLS) expect(ids.has('ps.tool.' + t.id)).toBe(true);
+      expect(ids.has('ps.view-new-guide-layout')).toBe(true);
+      expect(ids.has('ps.view-snap')).toBe(true);
+      expect(C.get('ps.file-save').keys).toEqual(['Mod+S']);
+    }, { timeout: 40000 });
+
+    it('runs shortcuts through SlopCmd: tools, cycling, menus, canvas keys', () => {
+      W.newDocTab(400, 300, '#ffffff', 'Keys');
+      key('KeyB', 'b'); expect(W.UI.tool).toBe('brush');
+      key('KeyM', 'm'); expect(['marquee', 'ellipse']).toContain(W.UI.tool);
+      const before = W.UI.tool; key('KeyM', 'M', { shiftKey: true }); expect(W.UI.tool).not.toBe(before);
+      const n = W.D.layers.length; key('KeyN', 'N', { ctrlKey: true, shiftKey: true }); expect(W.D.layers.length).toBe(n + 1);
+      key('KeyZ', 'z', { ctrlKey: true }); expect(W.D.layers.length).toBe(n);
+      key('KeyY', 'y', { ctrlKey: true }); expect(W.D.layers.length).toBe(n + 1);
+      const fg = W.C.fg, bg = W.C.bg; key('KeyX', 'x'); expect(W.C.fg).toBe(bg); key('KeyX', 'x'); expect(W.C.fg).toBe(fg);
+      W.selectTool('brush'); const s = W.T.brush.size; key('BracketRight', ']'); expect(W.T.brush.size).toBeGreaterThan(s);
+      key('BracketLeft', '['); expect(W.T.brush.size).toBe(s);
+      const g = W.GUIDE_PREFS.show; key('Semicolon', ';', { ctrlKey: true }); expect(W.GUIDE_PREFS.show).toBe(!g); key('Semicolon', ';', { ctrlKey: true });
+    });
+
+    it('tool keys (Enter/Backspace in the polygonal lasso) and Space still win over shortcuts', () => {
+      W.selectTool('polylasso');
+      W.TOOL.polylasso.s = { mode: 'replace', pts: [{ x: 1, y: 1 }, { x: 50, y: 1 }, { x: 50, y: 50 }], cur: { x: 50, y: 50 } };
+      key('Backspace', 'Backspace');
+      expect(W.TOOL.polylasso.s.pts.length).toBe(2);
+      W.TOOL.polylasso.s = null;
+      key('Space', ' '); expect(W.V.space).toBe(true);
+      win.dispatchEvent(new win.KeyboardEvent('keyup', { code: 'Space', key: ' ' })); expect(W.V.space).toBe(false);
+    });
+
+    it('shortcuts are customizable and the menus show the new keys', () => {
+      const id = 'ps.view-show-guides';
+      expect(W.menuKey(W.MENUS.find(([n]) => n === 'View')[1].find((x) => x.cmdId === id))).toBe('Ctrl+;');
+      C.setKeys(id, ['Alt+G']);
+      const g = W.GUIDE_PREFS.show;
+      key('Semicolon', ';', { ctrlKey: true }); expect(W.GUIDE_PREFS.show).toBe(g);
+      key('KeyG', 'g', { altKey: true }); expect(W.GUIDE_PREFS.show).toBe(!g);
+      key('KeyG', 'g', { altKey: true });
+      expect(W.menuKey(W.MENUS.find(([n]) => n === 'View')[1].find((x) => x.cmdId === id))).toBe('Alt+G');
+      C.resetKeys(id);
+      expect(C.keyFor(id)).toBe('Ctrl+;');
+    });
+
+    it('Ctrl+K opens the palette; it finds and runs guide commands', async () => {
+      key('KeyK', 'k', { ctrlKey: true });
+      await waitFor(() => win.document.querySelector('.scmd-input'));
+      expect(C.isOpen).toBe(true);
+      const hits = C.search('guide layout').map((c) => c.id);
+      expect(hits).toContain('ps.view-new-guide-layout');
+      C.close(); await waitFor(() => !C.isOpen);
+      C.run('ps.view-new-guide-layout');
+      expect(!!win.SlopGuides.panel).toBe(true);
+      win.SlopGuides.panel.close();
+    });
+
+    it('Help has Search Commands and Keyboard Shortcuts; the toolbar has a search button', async () => {
+      const help = W.MENUS.find(([n]) => n === 'Help')[1];
+      expect(W.menuKey(help.find((x) => x.label === 'Search Commands…'))).toBe('Ctrl+K');
+      expect(win.document.getElementById('cmdBtn').hidden).toBe(false);
+      help.find((x) => x.label === 'Keyboard Shortcuts…').act();
+      await waitFor(() => win.document.querySelector('.sui-dlg'));
+      expect(win.document.querySelector('.sui-dlg').textContent).toMatch(/Show Guides/);
+      win.document.querySelector('.sui-dlg .sui-x').click();
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop commands' });
+  </script>
+</body>
+</html>

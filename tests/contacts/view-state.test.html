@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Contacts saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Contacts, wait until the list has loaded (SlopContacts.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('contacts');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.SlopContacts && f.contentWindow.SlopContacts.ready)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop Contacts saved place', () => {
+    it('comes back to the same group and search after leaving for Slop Drive', async () => {
+      let W = await open('../../contacts/index.html');
+      const S = W.SlopContacts.state;
+      S.group = 'stage:lead';
+      const search = W.document.getElementById('search');
+      search.value = 'smi';
+      search.dispatchEvent(new W.Event('input', { bubbles: true }));
+      await sleep(600);
+      W.SlopGuard && W.SlopGuard.setUnsaved('contacts', false); // the leave-page prompt would hold the navigation
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../contacts/index.html');
+      expect(W.SlopContacts.state.group).toBe('stage:lead');
+      expect(W.SlopContacts.state.query).toBe('smi');
+      expect(W.document.getElementById('search').value).toBe('smi');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Contacts · saved place' });
+  </script>
+</body>
+</html>

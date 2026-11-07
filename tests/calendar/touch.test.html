@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Calendar · touch: a finger drags an event to another day</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  // Covers: calendar/js/ui/chip.js (events a finger can drag: touch-action none, calendar/css/calendar.css)
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const cal = document.createElement('iframe');
+  cal.src = '../../calendar/index.html#month';
+  document.body.append(cal);
+  const cw = () => cal.contentWindow, cd = () => cal.contentDocument;
+  const booted = () => cw() && cw().SlopCal && cw().SlopCal.state && cw().SlopTouch && cw().SlopTouch.ready && cd().getElementById('cBoot') && cd().getElementById('cBoot').hidden;
+  const T = () => cw().SlopTime, zone = () => cw().SlopCal.state.zone, today = () => T().todayIn(zone());
+  const cellOf = (day) => cd().querySelector(`.mo-cell[data-day="${day}"]`);
+  const chipOf = (day, id) => cd().querySelector(`.mo-cell[data-day="${day}"] .chip[data-id="${id}"]`);
+  const stored = async (id) => (await cw().SlopEvents.list()).value.find((e) => e.id === id);
+
+  describe('Calendar on touch', () => {
+    let rec;
+    it('an event chip takes the drag from the browser (no scrolling, no text selection)', async () => {
+      await waitFor(booted, { timeout: 20000 });
+      const r = await cw().SlopEvents.save({ title: 'Touch me', allDay: false, start: T().dayTimeToUtc(today(), '10:00', zone()), end: T().dayTimeToUtc(today(), '11:00', zone()), tz: zone(), color: 'blue', kind: 'event', freq: 'none' });
+      expect(r.ok).toBe(true);
+      rec = (await cw().SlopEvents.list()).value.find((e) => e.title === 'Touch me');
+      await cw().SlopCal.app.setView('month', today());
+      const chip = await waitFor(() => chipOf(today(), rec.id), { timeout: 8000 });
+      expect(cw().getComputedStyle(chip).touchAction).toBe('none');
+    });
+    it('a finger drag moves the event to the day it is dropped on', async () => {
+      await sleep(800); // the month view settles (it renders again once the new event is listed)
+      // the next day in the same week row when there is one, so the drag stays on screen
+      const day = today(), next = T().addDays(day, 1), prev = T().addDays(day, -1);
+      const target = cellOf(next) && cellOf(next).getBoundingClientRect().top === cellOf(day).getBoundingClientRect().top ? next : prev;
+      const chip = chipOf(day, rec.id), a = chip.getBoundingClientRect(), b = cellOf(target).getBoundingClientRect();
+      await TouchKit.drag(chip, b.left + b.width / 2 - (a.left + a.width / 2), b.top + b.height / 2 - (a.top + a.height / 2), 10);
+      const moved = await waitFor(async () => { const x = await stored(rec.id); return x && T().parts(x.start, zone()).day === target ? x : null; }, { timeout: 8000 });
+      expect(T().parts(moved.start, zone()).h).toBe(10);
+    });
+  });
+  SlopTest.run({ name: 'Calendar touch' });
+  </script>
+</body>
+</html>

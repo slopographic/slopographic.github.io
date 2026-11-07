@@ -1,0 +1,98 @@
+/* Slop Drive — tokens for the three themes (Pro, Light, Classic 98), base and the app layout. */
+:root {
+  --font-ui: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --fs: 13px; --fs-s: 11.5px; --top-h: 52px; --side-w: 236px; --info-w: 300px; --radius: 8px; --radius-s: 6px;
+  --bg: #0e0e10; --panel: #151518; --panel-2: #1d1d22; --surface: #0b0b0d; --line: #24242a; --line-2: #33333b;
+  --fg: #ececef; --dim: #a3a3ad; --faint: #6c6c76; --accent: #d4ff3a; --accent-ink: #0a0a0a; --accent-line: #d4ff3a;
+  --accent-soft: rgba(212, 255, 58, .12); --hover: #202027; --active: #2a2a33; --input: #0f0f12; --sel-bg: rgba(212, 255, 58, .1); --sel-line: rgba(212, 255, 58, .55);
+  --danger: #ff5a6e; --ok: #9fe03a; --checker: #26262c; --checker-2: #1c1c21;
+  --shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .35); --bevel: none; --bevel-in: none;
+  --sui-bg: var(--panel); --sui-bg2: var(--panel-2); --sui-input: var(--input); --sui-line: var(--line-2); --sui-fg: var(--fg); --sui-dim: var(--dim); --sui-faint: var(--faint);
+  --sui-hover: var(--hover); --sui-sel: var(--active); --sui-accent: var(--accent); --sui-accent-ink: var(--accent-ink); --sui-radius: 6px; --sui-shadow: var(--shadow); --sui-font: var(--font-ui); --sui-mono: var(--mono);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #ebe7de; --panel: #f8f6f1; --panel-2: #efebe3; --surface: #f3f0e9; --line: #dcd6c9; --line-2: #c9c2b3;
+  --fg: #0a0a0a; --dim: #55514a; --faint: #8f897d; --accent: #d4ff3a; --accent-ink: #0a0a0a; --accent-line: #5f7d00;
+  --accent-soft: rgba(140, 180, 0, .16); --hover: #ebe6db; --active: #e0dacb; --input: #fff; --sel-bg: rgba(150, 200, 0, .18); --sel-line: #6f9000;
+  --danger: #d0263f; --ok: #4d7a00; --checker: #e4e0d6; --checker-2: #f2efe8;
+  --shadow: 0 16px 44px rgba(40, 30, 10, .2), 0 2px 6px rgba(40, 30, 10, .12);
+  color-scheme: light;
+}
+:root[data-theme="classic"] {
+  --font-ui: Tahoma, 'MS Sans Serif', 'Microsoft Sans Serif', 'Segoe UI', Geneva, Verdana, sans-serif; --mono: 'Lucida Console', 'Courier New', monospace;
+  --fs: 11px; --fs-s: 11px; --radius: 0; --radius-s: 0; --top-h: 40px;
+  --bg: #c0c0c0; --panel: #c0c0c0; --panel-2: #c0c0c0; --surface: #fff; --line: #808080; --line-2: #808080;
+  --fg: #000; --dim: #222; --faint: #6d6d6d; --accent: #000080; --accent-ink: #fff; --accent-line: #000080;
+  --accent-soft: rgba(0, 0, 128, .12); --hover: #d4d0c8; --active: #000080; --input: #fff; --sel-bg: #000080; --sel-line: #000080;
+  --danger: #a00000; --ok: #006000; --checker: #d4d0c8; --checker-2: #fff;
+  --shadow: 2px 2px 0 rgba(0, 0, 0, .55);
+  --bevel: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+  --bevel-in: inset -1px -1px #fff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+  --sui-radius: 0; color-scheme: light;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--bg); color: var(--fg); font: var(--fs)/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .4; }
+[hidden] { display: none !important; }
+.ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+
+.app { display: grid; height: 100%; grid-template-columns: var(--side-w) minmax(0, 1fr) auto; grid-template-rows: var(--top-h) minmax(0, 1fr); grid-template-areas: 'top top top' 'side main info'; }
+.topbar { grid-area: top; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
+/* One height in the header: the search, New, the icon buttons and the shared header buttons (shared/ui/hbtn.css). */
+.topbar { --slop-hbtn-h: 34px; --slop-hbtn-radius: var(--radius-s); --slop-hbtn-bg: var(--panel-2); --slop-hbtn-line: var(--line-2); --slop-hbtn-hover: var(--hover); --slop-hbtn-fs: 13px; }
+.topbar .btn { height: var(--slop-hbtn-h); }
+.brand { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--accent); flex: none; }
+.brand-mark { width: 17px; height: 17px; fill: var(--accent-ink); }
+.appname { display: grid; line-height: 1.1; margin-right: 8px; white-space: nowrap; }
+.appname b { font-size: 14px; letter-spacing: -.01em; }
+.home-link { color: var(--faint); font: 10.5px var(--mono); text-decoration: none; }
+.home-link:hover { color: var(--fg); }
+.search { flex: 1; max-width: 560px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; background: var(--input); border: 1px solid var(--line-2); border-radius: 999px; color: var(--faint); }
+.search:focus-within { border-color: var(--accent-line); color: var(--fg); }
+.search input { flex: 1; min-width: 0; border: 0; background: none; outline: none; height: 100%; }
+.tb-group { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.tb { display: inline-grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: var(--radius-s); background: none; color: var(--dim); }
+.tb:hover, .tb[aria-pressed="true"] { background: var(--hover); color: var(--fg); }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--radius-s); background: var(--panel-2); color: var(--fg); white-space: nowrap; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--danger); }
+.inp { height: 30px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--radius-s); background: var(--input); color: var(--fg); }
+.only-mobile { display: none; }
+
+.side { grid-area: side; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); }
+.main { grid-area: main; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); position: relative; }
+.bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); min-height: 48px; }
+.crumbs { flex: 1; display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.crumb { border: 0; background: none; padding: 4px 7px; border-radius: var(--radius-s); color: var(--dim); font-size: 14px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.crumb:last-child { color: var(--fg); font-weight: 600; }
+.crumb:hover, .crumb.drop { background: var(--hover); color: var(--fg); }
+.crumb.drop { box-shadow: inset 0 0 0 2px var(--accent-line); }
+.crumbs .sep { width: 14px; height: 14px; color: var(--faint); }
+.bar-tools { display: flex; align-items: center; gap: 6px; }
+.seg { display: flex; padding: 2px; gap: 2px; border-radius: var(--radius-s); background: var(--input); border: 1px solid var(--line-2); }
+.seg button { display: grid; place-items: center; width: 30px; height: 26px; border: 0; border-radius: 4px; background: none; color: var(--faint); }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-pressed="true"] { background: var(--active); color: var(--fg); }
+.pane { flex: 1; min-height: 0; overflow: auto; position: relative; outline: none; user-select: none; -webkit-user-select: none; }
+.status { display: flex; gap: 12px; align-items: center; height: 26px; padding: 0 12px; border-top: 1px solid var(--line); background: var(--panel); color: var(--faint); font-size: var(--fs-s); white-space: nowrap; overflow: hidden; }
+.status .msg { margin-left: auto; color: var(--dim); }
+.selbar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--sel-bg); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.selbar b { margin-right: 6px; }
+.selbar .btn { height: 28px; padding: 0 10px; }
+.dropzone { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; background: rgba(0, 0, 0, .45); pointer-events: none; }
+.dropzone > div { display: grid; gap: 4px; text-align: center; padding: 30px 40px; border: 2px dashed var(--accent-line); border-radius: 16px; background: var(--panel); color: var(--dim); }
+.dropzone b { color: var(--fg); font-size: 18px; }
+.marquee { position: absolute; z-index: 5; border: 1px solid var(--sel-line); background: var(--sel-bg); pointer-events: none; }
+
+/* Upload strip above the file pane (shared/drop, compact) */
+.drv-dropstrip { margin: 8px 12px 0; padding: 6px 10px; border: 1px dashed var(--line, #3a3a46); border-radius: 8px; }
+/* The whole pane and the folder tree take dropped files, and Upload is in the toolbar and the empty state, so the strip
+ * (the SlopDrop zone) shows only while it has something to say: files being added, or what the last drop did. */

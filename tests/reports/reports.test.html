@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Reports: built-in totals on fixture data</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../reports/js/enrich.js"></script>
+  <script src="../../reports/js/defs.js"></script>
+  <script src="../../reports/js/engine.js"></script>
+  <script src="../../reports/js/saved.js"></script>
+  <script src="../../reports/js/data.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const R = window.SlopReports;
+  const E = R.engine;
+  const DB = window.SlopDb;
+  // A test database with the same stores and key paths as the shared slop-data database. Never the real one.
+  const NAME = 'slop-data-test-reports';
+  const EMPTY = 'slop-data-test-reports-empty';
+  const SCHEMA = { version: 4, stores: {
+    settings: { keyPath: 'id' },
+    customers: { keyPath: 'id', indexes: [{ name: 'name', keyPath: 'name' }, { name: 'stage', keyPath: 'stage' }, { name: 'categories', keyPath: 'categories', multiEntry: true }] },
+    customerGroups: { keyPath: 'id' },
+    invoices: { keyPath: 'id', indexes: [{ name: 'number', keyPath: 'number', unique: true }, { name: 'customerId', keyPath: 'customerId' }, { name: 'status', keyPath: 'status' }] },
+    payments: { keyPath: 'id', indexes: [{ name: 'invoiceId', keyPath: 'invoiceId' }] },
+  } };
+
+  const day = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+  const FIXTURE = {
+    settings: [{ id: 'main', defaultCurrency: 'USD', locale: 'en-US' }],
+    customerGroups: [{ id: 'g1', name: 'Friends' }, { id: 'g2', name: 'Clients' }],
+    customers: [
+      { id: 'c1', name: 'Ada Lovelace', email: 'ada@example.com', stage: 'lead', groupIds: ['g1', 'g2'], followUp: day(3) },
+      { id: 'c2', name: 'Grace Hopper', email: 'grace@example.com', stage: 'customer', groupIds: ['g2'], followUp: day(14) },
+      { id: 'c3', name: 'Alan Turing', email: '', stage: 'lead', groupIds: [], followUp: day(15) },
+      { id: 'c4', name: 'Linus, Torvalds', stage: 'lost', groupIds: ['g1'], followUp: day(-1) },
+      { id: 'c5', name: 'Deleted Dan', stage: 'lead', groupIds: ['g1'], followUp: day(2), deletedAt: 1 },
+      { id: 'ct1', name: 'Ada L. (Contacts)', email: 'ADA@example.com', phone: '555-0101', contactId: 'x-1', stage: 'contacted', groupIds: ['g1'] },
+    ],
+    invoices: [
+      { id: 'inv1', number: 'INV-0001', customerId: 'c1', status: 'paid', currency: 'USD', total: 10000 },
+      { id: 'inv2', number: 'INV-0002', customerId: 'c1', status: 'issued', currency: 'USD', total: 5000 },
+      { id: 'inv3', number: 'INV-0003', customerId: 'c2', status: 'issued', currency: 'EUR', total: 8000, amountBase: 8800 },
+      { id: 'inv4', number: 'INV-0004', customerId: 'c2', status: 'draft', currency: 'USD', total: 999 },
+      { id: 'inv5', number: 'INV-0005', customerId: 'c4', status: 'void', currency: 'USD', total: 700 },
+      { id: 'inv6', number: 'INV-0006', customerId: 'c3', status: 'issued', currency: 'USD', total: 3000 },
+      { id: 'inv7', number: 'INV-0007', customerId: 'c2', status: 'issued', currency: 'EUR', total: 2000, amountBase: 2200 },
+      { id: 'inv8', number: 'INV-0008', customerId: 'c1', status: 'issued', currency: 'USD', total: 1234, deletedAt: 1 },
+    ],
+    payments: [
+      { id: 'p1', invoiceId: 'inv2', amount: 2000 },
+      { id: 'p3', invoiceId: 'inv1', amount: 10000 },
+      { id: 'p4', invoiceId: 'inv7', amount: 500 },
+    ],
+  };
+
+  /** Deletes a test database, then writes the fixture rows with SlopDb.open (which creates the stores). */
+  function dropDb(name) {
+    return new Promise((res) => { const r = indexedDB.deleteDatabase(name); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+  }
+  async function seed(name, fixture) {
+    await dropDb(name);
+    const db = await DB.open(name, SCHEMA);
+    expect(db).toBeTruthy();
+    for (const [store, rows] of Object.entries(fixture)) for (const row of rows) await db.put(store, row);
+    db.close();
+  }
+  const byKey = (rows, key, value) => rows.find((r) => r[key] === value);
+  const DATA = () => ({ customers: [], invoices: [], payments: [], customerGroups: [] });
+
+  async function runBuiltin(id, data, now = new Date()) {
+    const def = R.BUILTIN.find((d) => d.id === id);
+    return E.run(def, data, { now, baseCurrency: 'USD', locale: 'en-US' });
+  }
+
+  describe('SlopDb: open, query and the read-only open', () => {
+    it('open adds missing stores and indexes and keeps the records already there', async () => {
+      await dropDb('slop-db-upgrade-test');
+      const a = await DB.open('slop-db-upgrade-test', { version: 1, stores: { a: { keyPath: 'id' } } });
+      await a.put('a', { id: 'x', v: 1 });
+      a.close();
+      const b = await DB.open('slop-db-upgrade-test', { version: 2, stores: { a: { keyPath: 'id', indexes: [{ name: 'v', keyPath: 'v' }] }, b: { keyPath: 'k' } } });
+      expect(b.has('b')).toBeTruthy();
+      expect(await b.get('a', 'x')).toEqual({ id: 'x', v: 1 });
+      expect((await b.query('a', { where: [['v', '=', 1]] })).length).toBe(1);
+      b.close();
+      await dropDb('slop-db-upgrade-test');
+    });
+
+    it('query with an index on the first clause gives the same rows as a scan', async () => {
+      await seed(NAME, FIXTURE);
+      const db = await DB.open(NAME, SCHEMA);
+      const viaIndex = await DB.query(db, 'customers', { where: [['stage', '=', 'lead']], orderBy: 'name' });
+      const viaScan = (await db.getAll('customers')).filter((c) => c.stage === 'lead').sort((x, y) => (x.name < y.name ? -1 : 1));
+      expect(viaIndex.map((r) => r.id).sort()).toEqual(viaScan.map((r) => r.id).sort());
+      const multi = await db.query('customers', { where: [['categories', '=', 'x']] });
+      expect(multi.length).toBe(0);
+      const ranged = await db.query('customers', { where: [['name', '>=', 'B']] });
+      expect(ranged.map((r) => r.id).sort()).toEqual(['c2', 'c4', 'c5']);
+      db.close();
+    });
+
+    it('a missing store reads as empty, and query rejects a bad where', async () => {
+      const db = await DB.open(NAME, SCHEMA);
+      expect(await db.query('nothere', {})).toEqual([]);
+      let threw = false;
+      try { await DB.query(db, 'customers', { where: [['a', 'like', 1]] }); } catch (e) { threw = e instanceof TypeError; }
+      expect(threw).toBeTruthy();
+      db.close();
+    });
+
+    it('openExisting never creates a database and has no write methods', async () => {
+      const missing = 'slop-data-test-never-made';
+      await dropDb(missing);
+      const none = await DB.openExisting(missing);
+      expect(none).toBe(null);
+      if (indexedDB.databases) {
+        const names = (await indexedDB.databases()).map((d) => d.name);
+        expect(names.includes(missing)).toBe(false);
+      }
+      await seed(NAME, FIXTURE);
+      const ro = await DB.openExisting(NAME);
+      expect(ro.put).toBe(undefined);
+      expect(ro.remove).toBe(undefined);
+      expect((await ro.getAll('customers')).length).toBe(6);
+      ro.close();
+    });
+  });
+
+  describe('SlopDb join and aggregate on plain rows', () => {
+    it('join and aggregate agree with the built-in report totals', () => {
+      const rows = [{ c: 'a', v: 2 }, { c: 'a', v: 3 }, { c: 'b', v: 5 }];
+      const agg = DB.aggregate(rows, { by: 'c', count: true, sum: ['v'] });
+      expect(agg).toEqual([{ c: 'a', count: 2, sum_v: 5 }, { c: 'b', count: 1, sum_v: 5 }]);
+      const j = DB.join([{ k: 1 }], [{ id: 1, name: 'x' }], { on: ['k', 'id'], type: 'inner', prefix: 'p_' });
+      expect(j).toEqual([{ k: 1, p_id: 1, p_name: 'x' }]);
+    });
+  });
+
+  describe('built-in reports on fixture data', () => {
+    it('unpaid invoices: totals and balance per customer and currency; drafts, voids and deleted rows left out', async () => {
+      await seed(NAME, FIXTURE);
+      const loaded = await R.loadData(NAME);
+      expect(loaded.found).toBe(true);
+      const res = await runBuiltin('unpaid-invoices', loaded.data);
+      expect(res.ok).toBe(true);
+      const rows = res.rows.map((r) => ({ name: r.customer_name, cur: r.currency, n: r.count, total: r.sum_total, due: r.sum_balance }));
+      expect(rows).toEqual([
+        { name: 'Grace Hopper', cur: 'EUR', n: 2, total: 10000, due: 9500 },
+        { name: 'Ada Lovelace', cur: 'USD', n: 1, total: 5000, due: 3000 },
+        { name: 'Alan Turing', cur: 'USD', n: 1, total: 3000, due: 3000 },
+      ]);
+    });
+
+    it('contacts by group: a contact in two groups counts in both, and no group reads as (none)', async () => {
+      await seed(NAME, FIXTURE);
+      const loaded = await R.loadData(NAME);
+      const res = await runBuiltin('contacts-by-group', loaded.data);
+      const count = (name) => (byKey(res.rows, 'group_name', name) || {}).count;
+      expect(count('Friends')).toBe(3);
+      expect(count('Clients')).toBe(2);
+      expect(count(undefined)).toBe(1);
+      expect(res.rows[0].group_name).toBe('Friends');
+    });
+
+    it('CRM leads by stage: counts, and the value per stage in the base currency (amountBase where kept)', async () => {
+      await seed(NAME, FIXTURE);
+      const loaded = await R.loadData(NAME);
+      const res = await runBuiltin('crm-by-stage', loaded.data);
+      const got = res.rows.map((r) => [r.stage, r.count, r.sum_value]);
+      expect(got).toEqual([['contacted', 1, 0], ['customer', 1, 11000], ['lead', 2, 18000], ['lost', 1, 0]]);
+      const money = res.columns.find((c) => c.field === 'sum_value');
+      expect(money.currency).toBe('base');
+      expect(E.cellText(res.rows[2], money, { baseCurrency: 'USD', locale: 'en-US' })).toBe('$180.00');
+    });
+
+    it('follow-ups: customers due from today to 14 days ahead, joined to a Contacts record by email', async () => {
+      await seed(NAME, FIXTURE);
+      const loaded = await R.loadData(NAME);
+      const res = await runBuiltin('follow-ups-14', loaded.data);
+      expect(res.rows.map((r) => r.name)).toEqual(['Ada Lovelace', 'Grace Hopper']);
+      expect(res.rows[0].contact_name).toBe('Ada L. (Contacts)');
+      expect(res.rows[0].contact_phone).toBe('555-0101');
+      expect(res.rows[1].contact_name).toBe(undefined);
+    });
+
+    it('the loader leaves out soft-deleted records and counts what is left', async () => {
+      await seed(NAME, FIXTURE);
+      const loaded = await R.loadData(NAME);
+      expect(loaded.counts.customers).toBe(5);
+      expect(loaded.counts.invoices).toBe(7);
+      expect(loaded.baseCurrency).toBe('USD');
+    });
+
+    it('running every report changes nothing in the database', async () => {
+      await seed(NAME, FIXTURE);
+      const before = await DB.openExisting(NAME);
+      const snap = JSON.stringify(await before.readAll(['customers', 'invoices', 'payments', 'customerGroups', 'settings']));
+      before.close();
+      for (const d of R.BUILTIN) await runBuiltin(d.id, (await R.loadData(NAME)).data);
+      const after = await DB.openExisting(NAME);
+      expect(JSON.stringify(await after.readAll(['customers', 'invoices', 'payments', 'customerGroups', 'settings']))).toBe(snap);
+      after.close();
+    });
+
+    it('an empty database gives an empty report and no data', async () => {
+      await seed(EMPTY, { settings: [], customers: [], invoices: [] });
+      const loaded = await R.loadData(EMPTY);
+      expect(loaded.found).toBe(true);
+      expect(R.hasData(loaded.counts)).toBe(false);
+      const res = await runBuiltin('unpaid-invoices', loaded.data);
+      expect(res.ok).toBe(true);
+      expect(res.rows.length).toBe(0);
+    });
+
+    it('a database that was never made reads as not found', async () => {
+      await dropDb('slop-data-test-absent');
+      const loaded = await R.loadData('slop-data-test-absent');
+      expect(loaded.found).toBe(false);
+      expect(R.hasData(loaded.counts)).toBe(false);
+    });
+  });
+
+  describe('engine: definitions, tokens and CSV', () => {
+    it('validate names each problem and accepts every built-in report', () => {
+      for (const d of R.BUILTIN) expect(E.validate(d)).toEqual([]);
+      const bad = E.validate({ id: '', title: 'x', from: 'nothing', where: [['a', 'like', 1]], columns: [] });
+      expect(bad.length >= 4).toBe(true);
+      expect(E.validate({ id: 'x', title: 'x', from: 'customers', columns: [{ field: 'a', label: 'A', type: 'bogus' }] }).length).toBe(1);
+    });
+
+    it('$today tokens resolve to local days', () => {
+      const now = new Date(2026, 9, 12, 9, 30);
+      expect(E.resolveToken('$today', now)).toBe('2026-10-12');
+      expect(E.resolveToken('$today+14', now)).toBe('2026-10-26');
+      expect(E.resolveToken('$today-3', now)).toBe('2026-10-09');
+      expect(E.resolveToken('2026-01-01', now)).toBe('2026-01-01');
+    });
+
+    it('CSV: a header of labels, money as a plain decimal with the currency digits, and quoted commas', () => {
+      const columns = [{ field: 'name', label: 'Name', type: 'text' }, { field: 'amount', label: 'Amount', type: 'money' }, { field: 'yen', label: 'Yen', type: 'money' }];
+      const rows = [{ name: 'Linus, Torvalds', amount: 1234, currency: 'USD' }, { name: 'Grace', amount: 5, currency: 'JPY' }];
+      expect(E.toCsv(columns, rows, { baseCurrency: 'USD' })).toBe('Name,Amount,Yen\r\n"Linus, Torvalds",12.34,\r\nGrace,5,\r\n');
+    });
+
+    it('customer value leaves out a foreign invoice that has no amountBase, since it cannot be converted', () => {
+      const data = { settings: [{ id: 'main', defaultCurrency: 'USD' }], invoices: [
+        { customerId: 'z', status: 'issued', currency: 'JPY', total: 1500 },
+        { customerId: 'z', status: 'paid', currency: 'USD', total: 200 },
+        { customerId: 'z', status: 'draft', currency: 'USD', total: 900 },
+      ] };
+      expect(R.enrich.customerValue([{ id: 'z' }], data)[0].value).toBe(200);
+    });
+
+    it('enrichers keep every field and add derived ones', () => {
+      const out = R.enrich.invoiceBalance([{ id: 'i', status: 'issued', total: 100 }, { id: 'j', status: 'paid', total: 50 }], { payments: [{ invoiceId: 'i', amount: 30 }] });
+      expect(out[0]).toEqual({ id: 'i', status: 'issued', total: 100, paid: 30, balance: 70 });
+      expect(out[1].balance).toBe(0);
+    });
+  });
+
+  describe('saved reports', () => {
+    it('save, list and remove keep one versioned envelope; built-in ids are refused; a damaged envelope reads as empty', () => {
+      const S = R.saved;
+      try {
+        localStorage.removeItem(S.KEY);
+        expect(S.list()).toEqual([]);
+        const def = { id: 'mine', title: 'Mine', from: 'customers', columns: [{ field: 'name', label: 'Name' }] };
+        expect(S.save(def).ok).toBe(true);
+        expect(S.list().map((d) => d.id)).toEqual(['mine']);
+        expect(JSON.parse(localStorage.getItem(S.KEY)).v).toBe(1);
+        expect(S.save({ ...def, id: 'unpaid-invoices' }).ok).toBe(false);
+        S.remove('mine');
+        expect(S.list()).toEqual([]);
+        localStorage.setItem(S.KEY, '{"v":99,"reports":[{"id":"x"}]}');
+        expect(S.list()).toEqual([]);
+        localStorage.setItem(S.KEY, 'not json');
+        expect(S.list()).toEqual([]);
+      } finally {
+        localStorage.removeItem(S.KEY);
+      }
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

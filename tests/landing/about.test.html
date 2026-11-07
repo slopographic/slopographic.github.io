@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Landing · about pages</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../shared/consent/config.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+
+  /* The owner's denylist: competitor product names that must never appear on a landing page
+   * (the page says "typical desktop label software" instead). This list is the owner's list.
+   * Add names here when the owner asks; do not remove one without the owner's say-so.
+   * "Zebra" alone is not listed: the apps support Zebra printers, and the names here are software products. */
+  const DENYLIST = ['BarTender', 'Bartender', 'NiceLabel', 'Loftware', 'ZebraDesigner', 'Zebra Designer', 'CodeSoft', 'Seagull'];
+
+  /* One entry per app's about page. The app link is the hero's primary button ("Open ..." in English;
+   * a build whose root language is another shows it translated, so it is found by its place, not its text). */
+  const PAGES = [
+    { app: 'label', path: 'label/about/', column: 'Slop Label' },
+    { app: 'photoslop', path: 'photoslop/about/', column: 'PhotoSlop' },
+    { app: 'vector', path: 'slopvector/about/', column: 'SlopVector' },
+    { app: 'pdf', path: 'pdf/about/', column: 'Slop PDF' },
+    { app: 'cutout', path: 'slopisolate/about/', column: 'SlopIsolate' },
+  ];
+
+  const ROOT = new URL('../../', location.href);
+  const cache = new Map();
+  /** Fetches a page once and parses it. Returns the URL, the raw HTML and the parsed document. */
+  function load(p) {
+    if (!cache.has(p.path)) cache.set(p.path, (async () => {
+      const url = new URL(p.path, ROOT).href;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`${url} answered HTTP ${res.status}`);
+      const html = await res.text();
+      return { url, html, doc: new DOMParser().parseFromString(html, 'text/html') };
+    })());
+    return cache.get(p.path);
+  }
+  /** True when a URL answers 200 (directories resolve to index.html). */
+  async function resolves(href, base) {
+    const res = await fetch(new URL(href, base), { cache: 'no-store' });
+    return { ok: res.ok, url: new URL(href, base) };
+  }
+  /** Identity metadata (canonical link, hreflang alternates, og and twitter tags) names the public address; the browser never fetches it. */
+  const isIdentityTag = (el) => el.tagName === 'META' || (el.tagName === 'LINK'
+    && (el.getAttribute('rel') === 'canonical' || (el.getAttribute('rel') === 'alternate' && el.hasAttribute('hreflang'))));
+  const ATTRS = ['href', 'src', 'action', 'poster', 'data', 'srcset'];
+
+  for (const p of PAGES) {
+    describe(`${p.app} about page`, () => {
+      it('loads with HTTP 200', async () => {
+        const { url } = await load(p);
+        expect(url).toMatch(/\/about\/$/);
+      });
+
+      it('has exactly one h1 with a name', async () => {
+        const { doc } = await load(p);
+        const h1s = doc.querySelectorAll('h1');
+        expect(h1s.length).toBe(1);
+        expect(h1s[0].textContent.trim().length).toBeGreaterThan(0);
+      });
+
+      it('has a feature matrix table with a caption and a header row', async () => {
+        const { doc } = await load(p);
+        const table = doc.querySelector('table.l-matrix');
+        expect(table).toBeTruthy();
+        const caption = table.querySelector('caption');
+        expect(caption).toBeTruthy();
+        expect(caption.textContent.trim().length).toBeGreaterThan(20);
+        const headers = table.querySelectorAll('thead th');
+        expect(headers.length).toBe(3);
+        expect(headers[1].textContent.trim()).toBe(p.column);
+      });
+
+      it('every matrix row has a feature name and two value cells', async () => {
+        const { doc } = await load(p);
+        const rows = doc.querySelectorAll('table.l-matrix tbody tr');
+        expect(rows.length).toBeGreaterThanOrEqual(8);
+        for (const r of rows) {
+          expect(r.querySelectorAll('th[scope="row"]').length).toBe(1);
+          expect(r.querySelectorAll('td').length).toBe(2);
+        }
+      });
+
+      it('names no competitor product (owner denylist, raw HTML and text)', async () => {
+        const { html, doc } = await load(p);
+        const text = doc.body.textContent;
+        const hits = DENYLIST.filter((n) => html.toLowerCase().includes(n.toLowerCase()) || text.toLowerCase().includes(n.toLowerCase()));
+        expect(hits).toEqual([]);
+      });
+
+      it('the "Open" app link resolves to the app', async () => {
+        const { url, doc } = await load(p);
+        const link = doc.querySelector('.l-cta a.l-btn.primary[href]');
+        expect(link).toBeTruthy();
+        const r = await resolves(link.getAttribute('href'), url);
+        expect(r.ok).toBe(true);
+        expect(r.url.pathname).toBe(new URL(p.path.replace(/about\/$/, ''), ROOT).pathname);
+      });
+
+      it('the homepage and Settings links in the footer resolve', async () => {
+        const { url, doc } = await load(p);
+        const footer = doc.querySelector('footer');
+        expect(footer).toBeTruthy();
+        const hrefs = [...footer.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+        expect(hrefs).toContain('../../');
+        expect(hrefs).toContain('../../settings/');
+        for (const h of ['../../', '../../settings/']) expect((await resolves(h, url)).ok).toBe(true);
+      });
+
+      it('every image has alt text (may be empty only if decorative)', async () => {
+        const { doc } = await load(p);
+        for (const img of doc.querySelectorAll('img')) expect(img.hasAttribute('alt')).toBe(true);
+      });
+
+      it('has no external URL except Settings and the owner\'s Patreon link (if set)', async () => {
+        const { url, doc } = await load(p);
+        const own = new URL(url).origin;
+        const patreon = (window.SLOP_CONSENT_CONFIG && window.SLOP_CONSENT_CONFIG.patreonUrl) || '';
+        const bad = [];
+        for (const el of doc.querySelectorAll('*')) {
+          if (isIdentityTag(el)) continue;
+          for (const a of ATTRS) {
+            const v = el.getAttribute(a);
+            if (!v) continue;
+            for (const part of (a === 'srcset' ? v.split(',').map((s) => s.trim().split(/\s+/)[0]) : [v])) {
+              if (!part || part.startsWith('#') || part.startsWith('data:')) continue;
+              const abs = new URL(part, url);
+              if (abs.origin !== own && !(patreon && abs.href === new URL(patreon).href)) bad.push(`${el.tagName.toLowerCase()}[${a}]=${part}`);
+            }
+          }
+          const style = el.getAttribute('style') || '';
+          if (/url\(\s*['"]?https?:/i.test(style)) bad.push(`${el.tagName.toLowerCase()}[style] has an external url()`);
+        }
+        for (const s of doc.querySelectorAll('style')) if (/https?:\/\//.test(s.textContent)) bad.push('<style> has an absolute URL');
+        const bodyUrls = doc.body.textContent.match(/https?:\/\/\S+/g) || [];
+        if (bodyUrls.length) bad.push(`visible text has URLs: ${bodyUrls.join(' ')}`);
+        expect(bad).toEqual([]);
+      });
+    });
+  }
+
+  run({ name: 'Landing · about pages' });
+  </script>
+</body>
+</html>

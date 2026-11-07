@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: the drop zone stays put as a strip, the flow tile opens a file's menu, each card has its own Options</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/ui/file-opts.js, convert/js/ui/options.js, convert/js/ui/file-row.js, convert/js/ui/list-view.js, convert/js/ui/bulk.js
+  // Covers: convert/js/ui/tool.js, convert/js/ui/markup.js, convert/js/ui/run.js, convert/js/ui/focus.js, convert/css/convert.css, shared/ui/flow.js
+  import { pngOf } from './fixtures.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D, T;
+  const $ = (s) => D.querySelector(s);
+  const idOf = (n) => T.items.find((i) => i.name === n).id;
+  const png = async (name) => new W.File([await (await pngOf(40, 20)).arrayBuffer()], name, { type: 'image/png' });
+  async function open(src, width = 1280, theme = '') {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = src; document.body.append(F);
+    await waitFor(() => F.contentWindow && F.contentWindow.document.querySelector('[data-convert-root]') && F.contentWindow.document.querySelector('[data-convert-root]').convertTool, { timeout: 30000 });
+    W = F.contentWindow; D = W.document; T = $('[data-convert-root]').convertTool;
+    if (theme) D.documentElement.setAttribute('data-theme', theme);
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+  }
+  const top = (el) => el.getBoundingClientRect().top + W.scrollY;
+
+  describe('the drop zone stays the upload area', () => {
+    it('with files it is a strip of one fixed height above the list, and adding more moves nothing', async () => {
+      await open('../../convert/index.html');
+      expect(!!$('#cv-picker') || !!$('#cv-target') || !!$('fieldset.cv-opts')).toBe(false);
+      await T.addFiles([await png('a.png')]);
+      await sleep(30);
+      const drop = $('#cv-drop'), list = $('#cv-list');
+      expect(drop.classList.contains('cv-drop-has')).toBe(true);
+      expect(Math.round(drop.getBoundingClientRect().height)).toBe(76);
+      expect($('#cv-drop .sd-msg').textContent).toContain('Add more files');
+      expect(top(list) > top(drop)).toBe(true);
+      const at = [top(drop), top(list), top($('#cv-bulk'))];
+      await T.addFiles([await png('b.png'), new W.File(['a,b\n1,2\n'], 'c.csv', { type: 'text/csv' })]);
+      await sleep(30);
+      expect([top(drop), top(list), top($('#cv-bulk'))]).toEqual(at);
+      expect(Math.round(drop.getBoundingClientRect().height)).toBe(76);
+      T.clear();
+      expect(drop.classList.contains('cv-drop-has')).toBe(false);
+    }, { timeout: 40000 });
+    it('the flow tile opens the first file\'s menu', async () => {
+      await T.addFiles([await png('a.png')]);
+      $('.cv-flow .sflow-to').click();
+      expect($('.smb-menu').getAttribute('aria-label')).toBe('Convert a.png to');
+      W.SlopMenuButton.close();
+    });
+  });
+
+  describe('each card has its own Options', () => {
+    it('values are per file, and the run uses each file\'s own', async () => {
+      T.clear();
+      await T.addFiles([await png('one.png'), await png('two.png')]);
+      const a = idOf('one.png'), b = idOf('two.png');
+      const box = $(`li[data-id="${a}"] details.cv-file-opts`);
+      expect(box.open).toBe(false);
+      box.querySelector('summary').click();
+      await sleep(20);
+      expect(box.open).toBe(true);
+      const w = $(`#cv-o-${a}-width`);
+      w.value = '20'; w.dispatchEvent(new W.Event('input', { bubbles: true })); w.dispatchEvent(new W.Event('change', { bubbles: true }));
+      expect($(`#cv-o-${b}-width`).value).toBe('');
+      expect(box.querySelector('.cv-file-opts-sum').textContent).toContain('Width 20');
+      T.render();   // a redraw keeps the card open and its value
+      expect([$(`li[data-id="${a}"] details.cv-file-opts`).open, $(`#cv-o-${a}-width`).value]).toEqual([true, '20']);
+      await T.run();
+      const sizes = [];
+      for (const o of T.outputs) { const bmp = await W.createImageBitmap(o.blob); sizes.push(bmp.width); }
+      expect(sizes).toEqual([20, 40]);
+    }, { timeout: 30000 });
+    it('a combine conversion (Images to PDF) gives every card the same values', async () => {
+      T.setTarget('images-to-pdf');
+      const a = idOf('one.png'), b = idOf('two.png');
+      const s = $(`#cv-o-${a}-page`);
+      s.value = 'letter'; s.dispatchEvent(new W.Event('change', { bubbles: true }));
+      expect($(`#cv-o-${b}-page`).value).toBe('letter');
+    });
+  });
+
+  describe('a phone, light theme: 390 px', () => {
+    it('the strip, the cards and their options fit with no sideways scroll', async () => {
+      await open('../../convert/index.html', 390, 'light');
+      await T.addFiles([await png('a photo with a long name.png'), new W.File(['x'], 'notes.txt', { type: 'text/plain' })]);
+      const d = $(`li[data-id="${idOf('a photo with a long name.png')}"] details.cv-file-opts`);
+      d.open = true; await sleep(30);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+      const r = $('#cv-drop').getBoundingClientRect();
+      expect(Math.round(r.height) === 76 && r.right <= 390).toBe(true);
+      expect(W.getComputedStyle(D.body).backgroundColor).toBe('rgb(246, 243, 236)');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'File convert: drop strip and card options' });
+  </script>
+</body>
+</html>

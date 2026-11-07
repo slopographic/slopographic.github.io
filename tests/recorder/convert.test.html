@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="slop-test-limit" content="240">
+<title>Slop Recorder: a trimmed recording saved as MP4 and GIF with the video engine</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 1280px; height: 800px; }</style></head>
+<body>
+  <!-- Covers: recorder/js/output.js, recorder/js/core/plan.js, convert/js/core/ffmpeg-engine.js -->
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="fake.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const ascii = (b, from, len) => String.fromCharCode(...b.subarray(from, from + len));
+  describe('Slop Recorder: MP4 and GIF through ffmpeg.wasm', () => {
+    it('records 1.5 s, keeps 1 s, and makes an MP4 and a GIF of it', async () => {
+      const f = document.createElement('iframe');
+      f.src = '../../recorder/index.html';
+      document.body.replaceChildren(f);   // on screen: a frame scrolled out of view paints no canvas, so it would record nothing
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopRec && f.contentWindow.SlopRec.app && f.contentDocument.body.classList.contains('ready'), { timeout: 30000 });
+      const W = f.contentWindow, R = W.SlopRec;
+      RecFake.install(W);
+      R.settings.set({ source: 'screen', countdown: 0, mic: false, systemAudio: true, format: 'mp4' });
+      await R.app.record();
+      await sleep(1500);
+      const rec = await R.app.stop();
+      expect(rec.blob.size).toBeGreaterThan(1000);
+      R.view.setTrim(0.3, 1.3);
+      const mp4 = await R.save.file();
+      const m = new Uint8Array(await mp4.blob.arrayBuffer());
+      expect([mp4.name.slice(-4), mp4.type, ascii(m, 4, 4)]).toEqual(['.mp4', 'video/mp4', 'ftyp']);
+      R.settings.set({ format: 'gif', gifWidth: 320, gifFps: 10 });
+      const gif = await R.save.file();
+      const gb = new Uint8Array(await gif.blob.arrayBuffer());
+      expect([gif.name.slice(-4), gif.type, ascii(gb, 0, 6)]).toEqual(['.gif', 'image/gif', 'GIF89a']);
+      expect(gb[6] | (gb[7] << 8)).toBe(320);   // the logical screen width
+      const img = new W.Image(), url = W.URL.createObjectURL(gif.blob);
+      img.src = url; await img.decode();
+      expect([img.naturalWidth, img.naturalHeight]).toEqual([320, 180]);
+    }, { timeout: 240000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

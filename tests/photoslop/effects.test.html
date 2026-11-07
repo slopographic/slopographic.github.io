@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop layer effects tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sig = (c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = c.width * 7 + c.height; for (let i = 0; i < d.length; i += 4) s = (s * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11) % 1e9; return s; };
+  const rows = () => [...win.document.querySelectorAll('.layers li.fx')];
+  const rowText = (r) => r.querySelector('.fx-name').textContent;
+  const fire = (el, type, init = {}) => el.dispatchEvent(new win.MouseEvent(type, Object.assign({ bubbles: true, cancelable: true, view: win }, init)));
+  const dblclick = (el) => fire(el, 'dblclick');
+  const key = (el, k, init = {}) => el.dispatchEvent(new win.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, init)));
+  const ctxAt = (el) => { const r = el.getBoundingClientRect(); const ev = new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }); el.dispatchEvent(ev); return ev.defaultPrevented; };
+  const menuLabels = () => [...win.document.querySelectorAll('.sui-menu .sui-lbl')].map((x) => x.textContent);
+  const clickItem = (label) => { const row = [...win.document.querySelectorAll('.sui-menu .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === label); expect(!!row).toBe(true); row.click(); };
+  const closeAll = () => W.SlopUI.closeMenu();
+  /** The Layer Style dialog that is open (not one that is closing). */
+  const openDlg = () => win.document.querySelector('.sui-back:not(.sui-out) .sui-dlg.fx-dialog');
+  const dlgButton = (label) => [...openDlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+  const setRange = (label, v) => { const r = openDlg().querySelector(`input[type=range][aria-label="${label}"]`); r.value = String(v); r.dispatchEvent(new win.Event('input', { bubbles: true })); };
+  const rangeValue = (label) => +openDlg().querySelector(`input[type=range][aria-label="${label}"]`).value;
+  /** Adds an effect through the Layer Style dialog, with its defaults, and OK. */
+  async function addEffect(type) {
+    W.openFxDialog(W.activeLayer().id, null, type); await sleep(10);
+    dlgButton('OK').click(); await sleep(10);
+  }
+  /** A document with a black square on a white page, one layer of its own. */
+  async function makeSquare() {
+    W.newDocTab(300, 200, '#ffffff', 'Fx'); W.selectTool('move'); W.setColor('fg', '#000000');
+    const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#000'; g.fillRect(60, 40, 180, 120);
+    W.addLayer({ name: 'Square', canvas: c }, 'Add Square');
+    return W.activeLayer();
+  }
+  const whole = () => W.flattenCanvas('#ffffff');
+
+  describe('Layer effects: the stack, editing, reordering', () => {
+    it('boots', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.openFxDialog).toBe('function');
+    }, { timeout: 40000 });
+
+    it('the effect stack lists effects in order, numbered, with eye toggles', async () => {
+      await makeSquare(); const n = W.Hist.idx;
+      await addEffect('shadow'); await addEffect('stroke');
+      expect(W.activeLayer().fx.map((e) => e.type)).toEqual(['shadow', 'stroke']);
+      const r = rows();
+      expect(r.length).toBe(2);
+      expect(rowText(r[0])).toBe('Drop Shadow, 60%');
+      expect(rowText(r[1])).toBe('Stroke, 4px');
+      expect(r.map((x) => x.querySelector('.fx-n').textContent)).toEqual(['1', '2']);
+      expect(r.every((x) => x.querySelector('.fx-eye') && x.querySelector('.fx-eye').classList.contains('on'))).toBe(true);
+      expect(W.Hist.idx).toBe(n + 2);
+      // the eye hides one effect (one step) and undo shows it again
+      r[0].querySelector('.fx-eye').click(); await sleep(10);
+      expect(W.activeLayer().fx[0].on).toBe(false);
+      expect(rows()[0].querySelector('.fx-eye').classList.contains('on')).toBe(false);
+      W.undo(); expect(W.activeLayer().fx[0].on).toBe(true);
+    });
+
+    it('double-clicking an effect row opens Layer Style with its current values', async () => {
+      await makeSquare(); await addEffect('shadow'); await addEffect('glow');
+      await sleep(10);
+      dblclick(rows()[0]); await sleep(10);
+      expect(!!openDlg()).toBe(true);
+      expect(openDlg().querySelector('.sui-title').textContent).toBe('Layer Style · Drop Shadow');
+      expect(rangeValue('Opacity')).toBe(60);
+      dlgButton('Cancel').click(); await sleep(10);
+    });
+
+    it('the edit button and the right-click menu also open the dialog on that effect', async () => {
+      await makeSquare(); await addEffect('shadow'); await addEffect('overlay');
+      rows()[1].querySelector('.fx-edit').click(); await sleep(10);
+      expect(openDlg().querySelector('.sui-title').textContent).toBe('Layer Style · Color Overlay');
+      dlgButton('Cancel').click(); await sleep(10);
+      closeAll();
+      expect(ctxAt(rows()[0])).toBe(true);
+      expect(menuLabels()).toContain('Edit effect…');
+      clickItem('Edit effect…'); await sleep(10);
+      expect(rangeValue('Opacity')).toBe(60);
+      dlgButton('Cancel').click(); await sleep(10);
+    });
+
+    it('an edit applies live, changes the render, and undoes in one step', async () => {
+      await makeSquare(); await addEffect('shadow');
+      const before = sig(whole()), n = W.Hist.idx;
+      dblclick(rows()[0]); await sleep(10);
+      setRange('Opacity', 35); await sleep(10);
+      expect(W.activeLayer().fx[0].p.op).toBe(35);
+      expect(rowText(rows()[0])).toBe('Drop Shadow, 35%');
+      expect(sig(whole())).not.toBe(before);
+      expect(W.Hist.idx).toBe(n);
+      dlgButton('OK').click(); await sleep(10);
+      expect(W.Hist.idx).toBe(n + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Edit Drop Shadow');
+      W.undo(); expect(W.activeLayer().fx[0].p.op).toBe(60); expect(sig(whole())).toBe(before);
+      W.redo(); expect(W.activeLayer().fx[0].p.op).toBe(35);
+    });
+
+    it('Cancel restores the stack with no history step', async () => {
+      await makeSquare(); await addEffect('shadow');
+      const n = W.Hist.idx, stack = W.activeLayer().fx;
+      dblclick(rows()[0]); await sleep(10);
+      setRange('Opacity', 10); await sleep(10);
+      dlgButton('Cancel').click(); await sleep(10);
+      expect(W.activeLayer().fx[0].p.op).toBe(60);
+      expect(W.Hist.idx).toBe(n);
+      expect(W.activeLayer().fx).toEqual(stack);
+    });
+
+    it('Move Up changes the order and the render, Move Down restores both', async () => {
+      await makeSquare();
+      W.setColor('fg', '#0000ff');
+      await addEffect('stroke');
+      W.setColor('fg', '#000000');
+      await addEffect('overlay');
+      const types = () => W.activeLayer().fx.map((e) => e.type);
+      expect(types()).toEqual(['stroke', 'overlay']);
+      const first = sig(whole()), n = W.Hist.idx;
+      expect(ctxAt(rows()[1])).toBe(true);
+      clickItem('Move Up'); await sleep(10);
+      expect(types()).toEqual(['overlay', 'stroke']);
+      expect(rows().map(rowText)).toEqual(['Color Overlay, 100%', 'Stroke, 4px']);
+      expect(W.Hist.idx).toBe(n + 1);
+      const moved = sig(whole());
+      expect(moved).not.toBe(first);
+      expect(ctxAt(rows()[0])).toBe(true);
+      clickItem('Move Down'); await sleep(10);
+      expect(types()).toEqual(['stroke', 'overlay']);
+      expect(sig(whole())).toBe(first);
+      W.undo(); expect(types()).toEqual(['overlay', 'stroke']); W.redo();
+    });
+
+    it('Delete removes the effect, from the menu and with the Delete key', async () => {
+      await makeSquare(); await addEffect('shadow'); await addEffect('glow'); await addEffect('bevel');
+      expect(W.activeLayer().fx.length).toBe(3);
+      expect(ctxAt(rows()[1])).toBe(true);
+      clickItem('Delete Effect'); await sleep(10);
+      expect(W.activeLayer().fx.map((e) => e.type)).toEqual(['shadow', 'bevel']);
+      expect(rows().length).toBe(2);
+      rows()[0].focus(); key(rows()[0], 'Delete'); await sleep(10);
+      expect(W.activeLayer().fx.map((e) => e.type)).toEqual(['bevel']);
+      expect(rows().length).toBe(1);
+    });
+
+    it('with an effect row focused, Enter edits, Alt+Down and Alt+Up move', async () => {
+      await makeSquare(); await addEffect('shadow'); await addEffect('glow');
+      const types = () => W.activeLayer().fx.map((e) => e.type);
+      rows()[0].focus();
+      key(rows()[0], 'ArrowDown', { altKey: true }); await sleep(10);
+      expect(types()).toEqual(['glow', 'shadow']);
+      key(rows()[1], 'ArrowUp', { altKey: true }); await sleep(10);
+      expect(types()).toEqual(['shadow', 'glow']);
+      rows()[0].focus();
+      key(rows()[0], 'Enter'); await sleep(10);
+      expect(openDlg().querySelector('.sui-title').textContent).toBe('Layer Style · Drop Shadow');
+      dlgButton('Cancel').click(); await sleep(10);
+    });
+
+    it('the stack survives autosave', async () => {
+      const L = await makeSquare(); await addEffect('glow'); await addEffect('shadow');
+      const i = W.layerIndex(L.id);
+      await W.autosave();
+      const saved = await W.docFromSaved(await W.idbDo('readonly', (st) => st.get('doc:' + W.CUR.id)));
+      expect(saved[i].fx).toEqual(W.activeLayer().fx);
+    });
+  });
+
+  describe('Layer effects: inner shadow, inner glow, gradient overlay, blend modes', () => {
+    const pixel = (c, x, y) => [...c.getContext('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data];
+    const at = (x, y) => pixel(whole(), x, y);
+    /** A white page with a red square at 60..240 × 40..160 on one layer named 'Red'. */
+    async function makeRed() {
+      W.newDocTab(300, 200, '#ffffff', 'Fx2'); W.selectTool('move'); W.setColor('fg', '#000000'); W.setColor('bg', '#ffffff');
+      const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#f00'; g.fillRect(60, 40, 180, 120);
+      W.addLayer({ name: 'Red', canvas: c }, 'Add Red');
+      return W.activeLayer();
+    }
+    it('the new styles are in Layer ▸ Layer Style and their rows name them', async () => {
+      const labels = W.filterMenu('style').map((x) => x.label);
+      expect(labels).toContain('Inner Shadow…');
+      expect(labels).toContain('Inner Glow…');
+      expect(labels).toContain('Gradient Overlay…');
+      await makeRed();
+      await addEffect('inner-shadow'); await addEffect('inner-glow'); await addEffect('gradient');
+      expect(rows().map(rowText)).toEqual(['Inner Shadow, 75%', 'Inner Glow, 75%', 'Gradient Overlay, 100%']);
+    });
+
+    it('Inner Shadow darkens the inside of the top-left edge only', async () => {
+      await makeRed(); await addEffect('inner-shadow');
+      expect(at(62, 42)[0]).toBeLessThan(200);
+      expect(at(150, 100)[0]).toBe(255);
+      expect(at(30, 100)[0]).toBe(255);
+    });
+
+    it('Inner Glow brightens the inside edge, and the centre and outside keep their colour', async () => {
+      await makeRed(); await addEffect('inner-glow');
+      expect(at(61, 100)[1]).toBeGreaterThan(40);
+      expect(at(150, 100)).toEqual([255, 0, 0, 255]);
+      expect(at(30, 100)).toEqual([255, 255, 255, 255]);
+    });
+
+    it('Gradient Overlay runs from the start colour to the end colour, and is one undo step', async () => {
+      await makeRed(); const n = W.Hist.idx;
+      await addEffect('gradient');
+      expect(W.Hist.idx).toBe(n + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Add Gradient Overlay');
+      expect(at(150, 50)[0]).toBeLessThan(100);
+      expect(at(150, 150)[0]).toBeGreaterThan(150);
+      W.undo(); expect(at(150, 50)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('a new style can be hidden with its eye and deleted from the menu, each one step', async () => {
+      await makeRed(); await addEffect('inner-glow');
+      const n = W.Hist.idx;
+      rows()[0].querySelector('.fx-eye').click(); await sleep(10);
+      expect(W.activeLayer().fx[0].on).toBe(false);
+      expect(W.Hist.idx).toBe(n + 1);
+      W.undo(); expect(W.activeLayer().fx[0].on).toBe(true);
+      closeAll(); expect(ctxAt(rows()[0])).toBe(true);
+      clickItem('Delete Effect'); await sleep(10);
+      expect(W.activeLayer().fx).toBe(null);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Delete Effect');
+    });
+
+    it('a layer blend mode changes the composite over what is below', async () => {
+      W.newDocTab(300, 200, '#ffffff', 'Blend'); W.selectTool('move');
+      const gc = W.mkCanvas(300, 200), gg = W.cx(gc); gg.fillStyle = '#808080'; gg.fillRect(0, 0, 300, 200);
+      W.addLayer({ name: 'Grey', canvas: gc }, 'Add Grey');
+      const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#f00'; g.fillRect(60, 40, 180, 120);
+      W.addLayer({ name: 'Red', canvas: c }, 'Add Red');
+      expect(at(150, 100)[0]).toBe(255);
+      W.setLayerProps(W.activeLayer().id, { blend: 'multiply' }, 'Blending Change');
+      expect(Math.abs(at(150, 100)[0] - 128)).toBeLessThan(4);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop layer effects' });
+  </script>
+</body>
+</html>

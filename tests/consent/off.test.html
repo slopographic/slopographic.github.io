@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=false">
+  <title>Consent · a build without third parties asks nothing and loads none</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <!-- The other side of the analytics switch (brand profile "analytics": false): no IDs, no consent strip, no analytics or
+       ad script, no tip jar link. With third parties: tests/consent/banner.test.html, tests/ads/tipjar.test.html. -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  function open(src) {
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.append(f);
+    return new Promise((r) => f.addEventListener('load', () => r(f), { once: true }));
+  }
+  describe('third parties off', () => {
+    for (const page of ['../../index.html', '../../pdf/index.html', '../../settings/index.html']) {
+      it(`${page.replace('../../', '')}: no consent strip, no third-party script, no IDs`, async () => {
+        expect(BRAND_FACTS.analytics).toBe(false);
+        localStorage.clear();
+        const f = await open(page), w = f.contentWindow;
+        await waitFor(() => w.SLOP_CONSENT_CONFIG && w.document.readyState === 'complete', { timeout: 20000 });
+        await sleep(1500);
+        const c = w.SLOP_CONSENT_CONFIG;
+        expect([c.thirdParty, c.ga4MeasurementId, c.adsensePublisherId, c.patreonUrl]).toEqual([false, '', '', '']);
+        expect(w.document.getElementById('slopc-banner')).toBe(null);
+        const third = [...w.document.querySelectorAll('script[src]')].map((s) => s.src).filter((s) => /googletagmanager|googlesyndication|google-analytics|doubleclick/.test(s));
+        expect(third).toEqual([]);
+        // no line about analytics and ads that "stay off unless you switch them on" (the footer's)
+        expect([...w.document.querySelectorAll('[data-third-party]')].filter((e) => !e.hidden).length).toBe(0);
+        f.remove();
+      }, { timeout: 40000 });
+    }
+  });
+  run();
+  </script>
+</body>
+</html>

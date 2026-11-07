@@ -1,0 +1,55 @@
+/* SlopTour: spotlight, tip, step panel, header button and the homepage Tours menu. Themed through the same
+ * --s-* tokens as SlopUI (shared/slopui.css). */
+.stour-panel, .stour-hole, .stour-tip {
+  /* SlopUI's tokens (shared/slopui.css sets --s-* on these too, from the app's --sui-* map), else the page theme (--sl-*). */
+  --c-bg: var(--s-bg, var(--sl-surface, #232323));
+  --c-bg2: var(--s-bg2, var(--sl-surface, #2c2c2c));
+  --c-line: var(--s-line, var(--sl-border, #3d3d3d));
+  --c-fg: var(--s-fg, var(--sl-text, #e6e6e6));
+  --c-dim: var(--s-dim, color-mix(in srgb, var(--sl-text, #e6e6e6) 72%, transparent));
+  --c-hover: var(--s-hover, color-mix(in srgb, var(--sl-text, #e6e6e6) 12%, var(--sl-surface, #2c2c2c)));
+  --c-sel: var(--s-sel, color-mix(in srgb, var(--sl-accent, #1f4a7a) 28%, var(--sl-surface, #1c1c1c)));
+  --c-accent: var(--s-accent, var(--sl-accent, #d4ff3a));
+  --c-accent-ink: var(--s-accent-ink, var(--sl-on-accent, #10180a));
+  --c-radius: var(--sui-radius, var(--radius, 8px));
+  --c-shadow: var(--s-shadow, 0 18px 50px rgba(0, 0, 0, .55));
+  --c-font: var(--s-font, "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif);
+}
+.stour-dim[hidden], .stour-hole[hidden], .stour-tip[hidden], .stour-panel[hidden] { display: none !important; }
+.stour-dim { position: fixed; inset: 0; z-index: 99990; background: rgba(0, 0, 0, .58); pointer-events: none; }
+.stour-hole { position: fixed; z-index: 99991; border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .58), 0 0 0 2px var(--c-accent); pointer-events: none; transition: left .18s, top .18s, width .18s, height .18s; }
+.stour-tip { position: fixed; z-index: 99992; max-width: 300px; pointer-events: none; display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--c-radius); background: var(--c-bg); color: var(--c-fg); border: 1px solid var(--c-line); box-shadow: var(--c-shadow); font: 13px/1.45 var(--c-font); }
+.stour-tip b { font-weight: 650; color: var(--c-accent); }
+.stour-tip span { color: var(--c-fg); }
+.stour-panel { position: fixed; z-index: 99993; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(640px, calc(100vw - 32px)); max-height: min(70vh, 560px); display: flex; flex-direction: column; overflow: hidden; background: var(--c-bg); color: var(--c-fg); border: 1px solid var(--c-line); border-radius: var(--c-radius); box-shadow: var(--c-shadow); font: 13px/1.45 var(--c-font); }
+.stour-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px 6px; }
+.stour-name { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stour-count { color: var(--c-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stour-x { width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--c-dim); font-size: 20px; line-height: 1; cursor: pointer; }
+.stour-bar { height: 3px; margin: 0 12px; background: var(--c-line); border-radius: 2px; overflow: hidden; }
+.stour-bar i { display: block; height: 100%; background: var(--c-accent); transition: width .2s; }
+.stour-body { min-height: 0; padding: 10px 12px; overflow: auto; }
+.stour-title { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
+.stour-text { margin: 0; color: var(--c-dim); }
+.stour-hint { margin: 8px 0 0; color: #ffb84d; }
+.stour-queue { min-height: 0; max-height: 24vh; padding: 4px 12px; border-top: 1px solid var(--c-line); overflow: auto; }
+.stour-queue summary { padding: 4px 0; color: var(--c-dim); font-size: 12px; cursor: pointer; }
+.stour-list { display: grid; gap: 2px; margin: 0; padding: 0 0 6px; list-style: none; }
+.stour-q { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 5px 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.stour-q:hover { background: var(--c-hover); }
+.stour-q.is-current { background: var(--c-sel); }
+.stour-qt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stour-mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border: 1px solid var(--c-line); border-radius: 50%; font-size: 11px; font-variant-numeric: tabular-nums; }
+.stour-q.is-done .stour-mark { background: var(--c-accent); border-color: transparent; color: var(--c-accent-ink); }
+.stour-foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px 12px; border-top: 1px solid var(--c-line); }
+.stour-spacer { flex: 1; }
+.stour-foot button { font: inherit; }
+.stour-foot button { min-height: 36px; padding: 7px 12px; border: 1px solid var(--c-line); border-radius: 6px; background: var(--c-bg2); color: var(--c-fg); cursor: pointer; }
+.stour-foot button:disabled { opacity: .4; cursor: default; }
+.stour-next { border-color: transparent !important; background: var(--c-accent) !important; color: var(--c-accent-ink) !important; font-weight: 650 !important; }
+.stour-restart { border-color: transparent !important; background: transparent !important; color: var(--c-dim) !important; }
+.stour-x:focus-visible, .stour-q:focus-visible, .stour-foot button:focus-visible, .stour-queue summary:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+/* The Tour and Tours header buttons are .slop-hbtn (shared/ui/hbtn.css). */
+@media (max-width: 640px) {
+  .stour-panel { left: 0; right: 0; bottom: 0; width: 100%; max-height: 62vh; transform: none; border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom, 0); }
+}

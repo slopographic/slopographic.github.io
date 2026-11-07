@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · Layers panel multi-select</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  // Covers: press/js/ui/layers-panel.js, press/css/panels.css — several layers picked as in InDesign: a click picks one,
+  // Shift the range from the anchor, Ctrl/Cmd adds or takes one away; hide, lock and delete act on every picked layer.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const doc = () => W.document;
+  const row = (id) => doc().querySelector('.lrow[data-id="' + id + '"]');
+  const click = (id, mods = {}) => row(id).querySelector('.lname').dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, mods)));
+  const picked = () => [...doc().querySelectorAll('.lrow.on, .lrow.picked')].map((r) => r.dataset.id).sort();
+  /** The panel's Delete layer button (its footer). */
+  const trash = () => doc().querySelector('.lrow[data-id]').closest('.dgroup').querySelector('.pfoot .ibtn[aria-label="Delete layer"]');
+  const names = (...ls) => ls.map((l) => l.id).sort();
+  let d, Ls;
+  async function setup() {
+    await bootPress();
+    ({ doc: d } = freshDoc());
+    while (d.layers.length < 5) PR.layers.add(d);
+    Ls = d.layers.slice(); // Layer 1 .. Layer 5; shown top first: 5 4 3 2 1
+    const M = PR.model;
+    Ls.forEach((l, i) => { const it = M.item('rect', 20 + i * 30, 20, 20, 20, { layer: l.id }); PR.items.add(d, d.pages[0].items, it); });
+    PR.history.commit('setup');
+    PR.layers.active = Ls[4].id; PR.layers.picked = null; PR.layers.anchor = null;
+    PR.ui.showPanel('layers'); PR.ui.refreshPanels('layers');
+    await waitFor(() => doc().querySelectorAll('.lrow[data-id]').length === 5);
+  }
+
+  describe('Layers panel: picking several layers', () => {
+    it('a click picks one and makes it the active layer', async () => {
+      await setup();
+      click(Ls[2].id);
+      expect(picked()).toEqual(names(Ls[2]));
+      expect(PR.layers.active).toBe(Ls[2].id);
+      expect(row(Ls[2].id).classList.contains('on')).toBe(true);
+    });
+    it('Shift picks the range from the anchor in the order shown, Ctrl/Cmd adds or takes one away', async () => {
+      await setup();
+      click(Ls[4].id); click(Ls[1].id, { shiftKey: true });
+      expect(picked()).toEqual(names(Ls[1], Ls[2], Ls[3], Ls[4]));
+      expect(row(Ls[3].id).classList.contains('picked')).toBe(true);
+      click(Ls[3].id, { shiftKey: true }); // the anchor stays on Layer 5
+      expect(picked()).toEqual(names(Ls[3], Ls[4]));
+      click(Ls[0].id, { ctrlKey: true });
+      expect(picked()).toEqual(names(Ls[0], Ls[3], Ls[4]));
+      click(Ls[3].id, { metaKey: true });
+      expect(picked()).toEqual(names(Ls[0], Ls[4]));
+      click(Ls[2].id, { ctrlKey: true, shiftKey: true }); // adds the range from the anchor (Layer 4) to Layer 3
+      expect(picked()).toEqual(names(Ls[0], Ls[2], Ls[3], Ls[4]));
+    });
+    it('the eye and the lock of a picked row act on every picked layer; an unpicked row only on itself', async () => {
+      await setup();
+      click(Ls[1].id); click(Ls[3].id, { shiftKey: true });
+      row(Ls[2].id).querySelector('button').click();
+      expect(d.layers.map((l) => l.visible)).toEqual([true, false, false, false, true]);
+      await waitFor(() => row(Ls[2].id) && row(Ls[2].id).classList.contains('picked'));
+      row(Ls[2].id).querySelectorAll('button')[1].click();
+      expect(d.layers.map((l) => l.locked)).toEqual([false, true, true, true, false]);
+      await waitFor(() => row(Ls[0].id));
+      row(Ls[0].id).querySelector('button').click();
+      expect(d.layers.map((l) => l.visible)).toEqual([false, false, false, false, true]);
+    });
+    it('Delete removes every picked layer and its items, after asking; the last layer always stays', async () => {
+      await setup();
+      const ask = W.SlopUI.confirm; let asked = '';
+      W.SlopUI.confirm = (title, body) => { asked = body; return Promise.resolve(true); };
+      try {
+        click(Ls[0].id); click(Ls[2].id, { ctrlKey: true });
+        trash().click();
+        await waitFor(() => d.layers.length === 3);
+        expect(d.layers.map((l) => l.name)).toEqual([Ls[1].name, Ls[3].name, Ls[4].name]);
+        expect(asked).toContain(Ls[0].name); expect(asked).toContain(Ls[2].name);
+        expect(d.pages[0].items.length).toBe(3);
+        await waitFor(() => doc().querySelectorAll('.lrow[data-id]').length === 3);
+        click(Ls[4].id); click(Ls[1].id, { shiftKey: true }); // every layer picked: nothing to delete
+        trash().click();
+        expect(d.layers.length).toBe(3);
+      } finally { W.SlopUI.confirm = ask; }
+    });
+  });
+  SlopTest.run({ name: 'Slop Press layers multi-select' });
+  </script>
+</body>
+</html>

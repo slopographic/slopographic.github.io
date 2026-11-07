@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>First-visit previews in the dark and light themes: readable steps and prompts, and one place to drop files</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/drop/panel.js, shared/drop/drop.js
+  // Each app with a first-visit preview, in the dark and the light theme: every preview line, prompt and sample button is
+  // readable on what is behind it (contrast 3 or more), and at most one drop prompt shows.
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const APPS = ['sorter', 'resize', 'upscale', 'watermark', 'gallery', 'slopisolate', 'photoslop', 'ocr', 'pdf', 'convert', 'sheetview', 'eml', 'hex', 'music', 'remix', 'slopcut', 'transcribe', 'drive'];
+  const rgb = (s) => { const n = (s.match(/[\d.]+/g) || []).map(Number); return s.startsWith('color(') ? [n[0] * 255, n[1] * 255, n[2] * 255, n.length > 3 ? n[3] : 1] : n; };
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  /** The lines that read badly on what is behind them, in the app in the frame. */
+  function lowContrast(W) {
+    const D = W.document, cs = (el, p) => W.getComputedStyle(el, p);
+    const bgOf = (el) => { for (let n = el; n; n = n.parentElement) { const c = rgb(cs(n).backgroundColor); if (c.length >= 3 && (c.length < 4 || c[3] > 0.5)) return c; } return [255, 255, 255]; };
+    const bad = [];
+    for (const el of D.querySelectorAll('.sd-steps li, .sd-zone p, .sd-sample, .sd-choose, .sd-private')) {
+      if (!el.getBoundingClientRect().width) continue;
+      const bg = bgOf(el), f0 = rgb(cs(el).color), a = f0.length > 3 ? f0[3] : 1, fg = [0, 1, 2].map((i) => f0[i] * a + bg[i] * (1 - a));
+      const L1 = lum(fg), L2 = lum(bg), cr = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      if (cr < 3) bad.push(`${el.textContent.trim().slice(0, 30)} (${cr.toFixed(1)})`);
+    }
+    for (const li of D.querySelectorAll('.sd-steps li')) if (li.getBoundingClientRect().width && rgb(cs(li, '::before').backgroundColor)[3] === 0) bad.push('step number without its circle');
+    return bad;
+  }
+  async function open(app, mode) {
+    try { localStorage.setItem('slop-profile', JSON.stringify({ theme: { mode } })); localStorage.setItem('slop.consent', JSON.stringify({ v: 1, analytics: false, ads: false, t: 1 })); } catch (e) { /* none */ }
+    const old = document.getElementById('app'), f = document.createElement('iframe');
+    f.id = 'app'; f.style.cssText = 'width:1280px;height:860px';
+    old.replaceWith(f);
+    f.src = `../../${app}/index.html`;
+    await waitFor(() => f.contentWindow && f.contentWindow.document.querySelector('.sd-steps li, .sd-zone'), { timeout: 30000 });
+    await sleep(600);
+    return f.contentWindow;
+  }
+  for (const mode of ['dark', 'light']) {
+    describe(`First visit in the ${mode} theme`, () => {
+      for (const app of APPS) {
+        it(`${app}: readable, and one place to drop files`, async () => {
+          const W = await open(app, mode);
+          expect(lowContrast(W)).toEqual([]);
+          expect([...W.document.querySelectorAll('.sd-zone')].filter((z) => z.getBoundingClientRect().height > 0).length <= 1).toBe(true);
+        }, { timeout: 60000 });
+      }
+    });
+  }
+  SlopTest.run({ name: 'Previews in both themes' });
+  </script>
+</body>
+</html>

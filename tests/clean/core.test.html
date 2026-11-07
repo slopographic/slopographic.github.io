@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Clean core: byte-level removal</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../clean/js/core/bytes.js"></script>
+  <script src="../../clean/js/core/tags.js"></script>
+  <script src="../../clean/js/core/xmp.js"></script>
+  <script src="../../clean/js/core/tiff.js"></script>
+  <script src="../../clean/js/core/jpeg.js"></script>
+  <script src="../../clean/js/core/png.js"></script>
+  <script src="../../clean/js/core/webp.js"></script>
+  <script src="../../clean/js/core/index.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const C = window.SlopClean, F = window.CleanFixtures;
+  const ASCII = F.ASCII, cat = F.cat;
+  const exif = () => F.exifOf(F.buildTiff({ entries: F.SAMPLE_ENTRIES }));
+  const jpegWithAll = () => F.buildJpeg({
+    app1: [F.seg(0xe1, exif()), F.seg(0xe1, cat(ASCII('http://ns.adobe.com/xap/1.0/'), new TextEncoder().encode('<x:xmpmeta exif:GPSLatitude="51.5" dc:creator="Ada"/>')))],
+    middle: [F.seg(0xe2, cat(ASCII('ICC_PROFILE'), new Uint8Array(12))), F.seg(0xed, cat(ASCII('Photoshop 3.0'), new Uint8Array(8))), F.seg(0xfe, ASCII('a comment'))],
+    trailing: ASCII('MOTIONPHOTO-VIDEO-BYTES'),
+  });
+  const has = (findings, label) => findings.some((f) => f.label === label);
+  const labels = (findings) => findings.map((f) => f.label);
+  const findCat = (findings, c) => findings.filter((f) => f.cat === c);
+  const text = (u8) => new TextDecoder('latin1').decode(u8);
+  const bytesHave = (u8, s) => text(u8).includes(s);
+  /** Walk the PNG chunks and check each CRC. */
+  function pngCrcOk(u8) {
+    let p = 8;
+    while (p < u8.length) {
+      const n = new DataView(u8.buffer, u8.byteOffset).getUint32(p);
+      const body = u8.subarray(p + 4, p + 8 + n);
+      const crc = new DataView(u8.buffer, u8.byteOffset).getUint32(p + 8 + n);
+      if (C.bytes.crc32(body) !== crc) return false;
+      p += 12 + n;
+    }
+    return p === u8.length;
+  }
+
+  describe('detect and inspect', () => {
+    it('names JPEG, PNG, WebP and TIFF from their first bytes', () => {
+      expect(C.detect(jpegWithAll())).toBe('jpeg');
+      expect(C.detect(F.buildTiff({ entries: [{ tag: 0x100, type: 3, value: [1] }] }))).toBe('tiff');
+      expect(C.detect(ASCII('hello world, plain text'))).toBe(null);
+      const heic = cat(new Uint8Array([0, 0, 0, 24]), ASCII('ftyp'), ASCII('heic'), new Uint8Array(12));
+      expect(C.detect(heic)).toBe('heic');
+    });
+    it('reports HEIC as unsupported and refuses to strip it', () => {
+      const heic = cat(new Uint8Array([0, 0, 0, 24]), ASCII('ftyp'), ASCII('heic'), new Uint8Array(12));
+      expect(C.inspect(heic).supported).toBe(false);
+      expect(() => C.strip(heic)).toThrow(/not supported/);
+    });
+    it('lists GPS position, camera make and model, serial, software and dates for a JPEG', () => {
+      const f = C.inspect(jpegWithAll()).findings;
+      expect(labels(f)).toContain('GPS position');
+      expect(has(f, 'Camera make')).toBe(true);
+      expect(f.find((x) => x.label === 'Camera model').value).toBe('Acme Z9');
+      expect(f.find((x) => x.label === 'Camera serial number').value).toBe('SN-77821');
+      expect(f.find((x) => x.label === 'Date taken').value).toBe('2024:05:01 10:20:30');
+      expect(f.find((x) => x.label === 'Software').value).toBe('Acme OS 3.1');
+      expect(f.find((x) => x.label === 'Artist').value).toBe('Ada Lovelace');
+      expect(f.find((x) => x.label === 'Copyright notice').value).toBe('(c) Ada 2024');
+      expect(has(f, 'Colour profile (ICC)')).toBe(true);
+      expect(has(f, 'Data after the end of the picture')).toBe(true);
+    });
+    it('turns the GPS fields into one decimal position with the hemisphere letters', () => {
+      const gps = C.inspect(jpegWithAll()).findings.find((x) => x.label === 'GPS position');
+      expect(gps.value).toBe('51.50733, -0.13000 (N/W)');
+    });
+    it('summarises the findings per category', () => {
+      const s = C.summary(C.inspect(jpegWithAll()).findings);
+      expect(s.location).toBe(2); // the GPS position, and the GPS position named in the XMP packet
+      expect(s.camera).toBeGreaterThanOrEqual(2);
+      expect(s.thumbnail).toBe(undefined);
+    });
+  });
+
+  describe('JPEG removal', () => {
+    it('removes the EXIF, XMP, Photoshop, comment and trailing data by default, keeps the picture and the ICC profile', () => {
+      const out = C.strip(jpegWithAll());
+      const after = C.inspect(out.bytes).findings;
+      expect(out.after).toEqual(after);
+      expect(bytesHave(out.bytes, 'Exif')).toBe(false);
+      expect(bytesHave(out.bytes, 'Acme')).toBe(false);
+      expect(bytesHave(out.bytes, 'xmpmeta')).toBe(false);
+      expect(bytesHave(out.bytes, 'Photoshop')).toBe(false);
+      expect(bytesHave(out.bytes, 'a comment')).toBe(false);
+      expect(bytesHave(out.bytes, 'MOTIONPHOTO')).toBe(false);
+      expect(bytesHave(out.bytes, 'ICC_PROFILE')).toBe(true);
+      expect(bytesHave(out.bytes, 'JFIF')).toBe(true);
+      expect(findCat(after, 'location').length).toBe(0);
+      expect(findCat(after, 'camera').length).toBe(0);
+      expect(after.length).toBe(1);
+    });
+    it('keeps the date and removes the location when only location is chosen', () => {
+      const out = C.strip(jpegWithAll(), { remove: { date: false, location: true, camera: false, serial: false, software: false, author: false, copyright: false, description: false, other: false, embedded: false, thumbnail: false } });
+      const after = C.inspect(out.bytes).findings;
+      expect(has(after, 'GPS position')).toBe(false);
+      expect(has(after, 'Date taken')).toBe(true);
+      expect(has(after, 'Camera model')).toBe(true);
+    });
+    it('removes the colour profile only when asked', () => {
+      const out = C.strip(jpegWithAll(), { remove: { icc: true } });
+      expect(bytesHave(out.bytes, 'ICC_PROFILE')).toBe(false);
+    });
+    it('leaves the entropy-coded picture bytes exactly as they were', () => {
+      const src = F.buildJpeg({});
+      const out = C.strip(src);
+      const scan = [0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56, 0x78];
+      const tail = Array.from(out.bytes.subarray(out.bytes.length - 10, out.bytes.length - 2));
+      expect(tail).toEqual(scan);
+    });
+    it('drops an unreadable EXIF block and reports it', () => {
+      const bad = F.buildJpeg({ app1: [F.seg(0xe1, cat(ASCII('Exif').subarray(0, 4), Uint8Array.of(0, 0), ASCII('garbage!!!!')))] });
+      expect(labels(C.inspect(bad).findings)).toContain('Unreadable EXIF block');
+      expect(bytesHave(C.strip(bad).bytes, 'garbage')).toBe(false);
+    });
+  });
+
+  describe('PNG removal', () => {
+    const png = () => {
+      const ihdr = new Uint8Array(13); new DataView(ihdr.buffer).setUint32(0, 2); new DataView(ihdr.buffer).setUint32(4, 2); ihdr[8] = 8; ihdr[9] = 2;
+      return cat(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+        F.pngChunk('IHDR', ihdr), F.pngChunk('tEXt', cat(ASCII('Author'), ASCII('Ada').subarray(0, 3))),
+        F.pngChunk('tEXt', cat(ASCII('Software'), ASCII('Acme').subarray(0, 4))),
+        F.pngChunk('zTXt', cat(ASCII('Comment'), Uint8Array.of(0), Uint8Array.of(0), new Uint8Array(4))),
+        F.pngChunk('tIME', new Uint8Array([7, 230, 5, 1, 10, 20, 30])),
+        F.pngChunk('eXIf', F.buildTiff({ entries: F.SAMPLE_ENTRIES })),
+        F.pngChunk('pHYs', new Uint8Array(9)), F.pngChunk('IDAT', new Uint8Array([1, 2, 3, 4])), F.pngChunk('IEND', new Uint8Array(0)));
+    };
+    it('removes tEXt, zTXt, tIME and eXIf and keeps IHDR, pHYs, IDAT and IEND', () => {
+      const out = C.strip(png());
+      expect(out.format).toBe('png');
+      const names = C.png.chunks(out.bytes).map((c) => c.type);
+      expect(names).toEqual(['IHDR', 'pHYs', 'IDAT', 'IEND']);
+      expect(bytesHave(out.bytes, 'Ada')).toBe(false);
+      expect(pngCrcOk(out.bytes)).toBe(true);
+    });
+    it('reports the tEXt author and the GPS and camera fields from eXIf before removing them', () => {
+      const f = C.inspect(png()).findings;
+      expect(has(f, 'Text: Author')).toBe(true);
+      expect(f.find((x) => x.label === 'Camera model').value).toBe('Acme Z9');
+      expect(labels(f)).toContain('GPS position');
+    });
+    it('keeps the physical size when asked to keep it, and drops it when asked to remove it', () => {
+      expect(C.png.chunks(C.strip(png(), { remove: { physical: true } }).bytes).some((c) => c.type === 'pHYs')).toBe(false);
+    });
+  });
+
+  describe('WebP removal', () => {
+    const webp = () => {
+      const vp8x = new Uint8Array(10); vp8x[0] = 0x08 | 0x04 | 0x20 | 0x10;
+      return F.riffWebp([F.webpChunk('VP8X', vp8x), F.webpChunk('ICCP', new Uint8Array(9)),
+        F.webpChunk('VP8 ', new Uint8Array([1, 2, 3, 4, 5])), F.webpChunk('EXIF', exif()),
+        F.webpChunk('XMP ', new TextEncoder().encode('<x:xmpmeta dc:creator="Ada"/>'))]);
+    };
+    it('removes EXIF and XMP, clears their feature flags and fixes the RIFF size field', () => {
+      const src = webp(), out = C.strip(src).bytes;
+      const dv = new DataView(out.buffer, out.byteOffset, out.byteLength);
+      expect(dv.getUint32(4, true)).toBe(out.length - 8);
+      expect(bytesHave(out, 'EXIF')).toBe(false);
+      expect(bytesHave(out, 'XMP ')).toBe(false);
+      expect(bytesHave(out, 'ICCP')).toBe(true);
+      expect(out[20 + 0] & 0x08).toBe(0);
+      expect(out[20] & 0x04).toBe(0);
+      expect(out[20] & 0x20).toBe(0x20);
+      expect(C.webp.chunks(out).map((c) => c.type)).toEqual(['VP8X', 'ICCP', 'VP8 ']);
+    });
+    it('reports the EXIF and XMP content of a WebP file', () => {
+      const f = C.inspect(webp()).findings;
+      expect(f.find((x) => x.label === 'Camera model').value).toBe('Acme Z9');
+      expect(has(f, 'XMP metadata chunk')).toBe(true);
+    });
+  });
+
+  describe('TIFF removal', () => {
+    it('removes GPS and camera tags, keeps the picture strip byte for byte, and re-reads cleanly', () => {
+      const strip = Uint8Array.from({ length: 33 }, (_, i) => (i * 7) & 255);
+      const src = F.buildTiff({ entries: [{ tag: 0x100, type: 3, value: [4] }, { tag: 0x101, type: 3, value: [4] }, { tag: 0x112, type: 3, value: [6] }, ...F.SAMPLE_ENTRIES], strip });
+      const out = C.strip(src).bytes;
+      const f = C.inspect(out).findings;
+      expect(labels(f)).not.toContain('GPS position');
+      expect(has(f, 'Camera model')).toBe(false);
+      const tree = C.tiff.parse(out);
+      const off = tree.root.entries.find((e) => e.tag === 0x111);
+      const at = C.tiff.nums(off, tree.le)[0];
+      expect(Array.from(out.subarray(at, at + 33))).toEqual(Array.from(strip));
+      expect(C.tiff.nums(tree.root.entries.find((e) => e.tag === 0x112), tree.le)[0]).toBe(6);
+    });
+  });
+
+  describe('JPEG thumbnail', () => {
+    const thumbJpeg = () => {
+      const thumb = cat(ASCII('THUMBNAIL-PIXELS'), new Uint8Array(20));
+      const tiff = F.buildTiff({ entries: [{ tag: 0x010f, type: 2, value: 'Acme' }], thumb });
+      return F.buildJpeg({ app1: [F.seg(0xe1, F.exifOf(tiff))] });
+    };
+    it('reports the embedded thumbnail picture with its size', () => {
+      const t = C.inspect(thumbJpeg()).findings.find((x) => x.label === 'Embedded thumbnail picture');
+      expect(t.value).toBe('37 bytes'); // the marker text, its NUL, and 20 padding bytes
+    });
+    it('removes the thumbnail with the EXIF block by default, and keeps it when that category is kept', () => {
+      expect(bytesHave(C.strip(thumbJpeg()).bytes, 'THUMBNAIL-PIXELS')).toBe(false);
+      const kept = C.strip(thumbJpeg(), { remove: { thumbnail: false } }).bytes;
+      expect(bytesHave(kept, 'THUMBNAIL-PIXELS')).toBe(true);
+      expect(C.inspect(kept).findings.some((x) => x.label === 'Embedded thumbnail picture')).toBe(true);
+    });
+  });
+
+  describe('damage and limits', () => {
+    it('refuses a file that is none of the supported formats', () => {
+      expect(() => C.strip(ASCII('plain text file, not an image'))).toThrow(/not a JPEG/);
+    });
+    it('the stripped output is always readable again', () => {
+      expect(C.inspect(C.strip(jpegWithAll()).bytes).format).toBe('jpeg');
+    });
+  });
+  SlopTest.run({ name: 'Slop Clean core' });
+  </script>
+</body>
+</html>

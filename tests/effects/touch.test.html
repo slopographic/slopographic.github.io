@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Effects · touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; overflow: hidden; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Slop Effects with a finger (tests/run.mjs --touch: an iPad in WebKit, an Android tablet in Chromium).
+       Covers: effects/js/ui/timeline.js, effects/js/ui/graph.js, effects/css/effects.css -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  let W, D, A, id;
+  const coarse = () => W.matchMedia('(pointer: coarse)').matches;
+
+  describe('Slop Effects · touch', () => {
+    it('boots with the touch layer and a keyed solid layer', async () => {
+      f.src = '../../effects/index.html';
+      await waitFor(() => f.contentWindow.SlopEffects && f.contentWindow.SlopEffects.app && f.contentWindow.SlopTouch && f.contentWindow.SlopTouch.ready, { timeout: 40000 });
+      W = f.contentWindow; D = f.contentDocument; A = W.SlopEffects.app;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));
+      id = A.act.addLayer('solid', { color: '#ff0000' });
+      A.act.toggleKeyed('rotation', id);
+      await sleep(300);
+      expect(D.querySelectorAll('.fx-diamond').length).toBeGreaterThan(0);
+    }, { timeout: 60000 });
+    it('a finger drag on the ruler scrubs (it does not scroll the timeline)', async () => {
+      const track = D.querySelector('.fx-ruler-track');
+      expect(W.getComputedStyle(track).touchAction).toBe('none');
+      if (A.tr.playing) A.tr.pause();
+      A.tr.seekTo(0); await sleep(100);
+      await TouchKit.drag({ el: track, x: 40, y: 15 }, 120, 0, 10);
+      expect(A.S.playhead).toBeGreaterThan(0);
+    });
+    it('a key diamond is 44 px to a finger and stays small for a mouse', () => {
+      const after = W.getComputedStyle(D.querySelector('.fx-diamond'), '::after');
+      if (coarse()) expect(parseFloat(after.width)).toBeGreaterThanOrEqual(44);
+      else expect(parseFloat(after.width) || 0).toBe(0);
+    });
+    it('a finger 16 px off a bezier handle in the graph editor still drags it', async () => {
+      A.S.edit('Set ease', (d) => W.SlopEffects.keys.setEase(d, id, 'rotation', 0, [0.3, 0.2, 0.7, 0.8]));
+      A.S.select({ keys: [{ layer: id, prop: 'rotation', t: 0 }] });
+      const tab = D.querySelector('[data-view="graph"]');
+      tab.click();
+      await waitFor(() => D.querySelector('canvas.fx-curve') && D.querySelector('canvas.fx-curve').getBoundingClientRect().width > 0, { timeout: 5000 });
+      if (W.SlopBanner) W.SlopBanner.remove(); // the consent card floats over the bottom of the panel
+      D.querySelector('canvas.fx-curve').scrollIntoView({ block: 'center' });
+      await sleep(100);
+      const cv = D.querySelector('canvas.fx-curve'), r = cv.getBoundingClientRect(), k = r.width / 320;
+      const PAD = 22, toX = (x) => PAD + x * (320 - 2 * PAD), toY = (y) => 320 - PAD - ((y + 0.5) / 2) * (320 - 2 * PAD);
+      const hx = toX(0.3) * k, hy = toY(0.2) * k;
+      await TouchKit.drag({ el: cv, x: hx + 16, y: hy }, 40, 0, 10);
+      await sleep(200);
+      const keys = W.SlopEffects.app.S.doc.tl.tracks[id].rotation;
+      const ease = keys.find((x) => Math.abs(x.t) < 1e-6).ease;
+      expect(Array.isArray(ease)).toBe(true);
+      expect(ease[0]).toBeGreaterThan(0.3);
+    });
+  });
+  run({ name: 'Slop Effects · touch' });
+  </script>
+</body>
+</html>

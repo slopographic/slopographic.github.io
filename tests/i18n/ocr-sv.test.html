@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop OCR in Swedish</title>
+  <!-- Covers: ocr/i18n/index.js, ocr/js/app.js, ocr/js/frame.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop OCR', path: '../../ocr/index.html', ns: 'ocr',
+    ready: (doc) => doc.querySelector('#ocrSide .sf-h') && doc.querySelector('#gate .ai-panel, #ui:not([hidden])') && doc.querySelector('#intro .sd-steps li, #drop .sd-msg'),
+    checks: [
+      ['#read', 'Läs text', 'Read text'],
+      ['#dlPdf', 'Sökbar PDF', 'Searchable PDF'],
+      ['#ocrSide .sf-h', 'Språk', 'Language'],
+      ['#intro .sd-steps li', 'Släpp foton', 'Drop photos'],
+      ['.ocr-help summary', 'Språk, modellerna', 'Languages, the models'],
+      ['#text', 'Läs texten för att fylla', 'Read the text to fill', 'placeholder'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop OCR in Swedish' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PWA · mount without service workers</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <button id="pwa-install" class="pwa-install" hidden>Install Slopographic</button>
+  <script src="../../shared/pwa.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const btn = document.getElementById('pwa-install');
+
+  describe('SlopPWA.mount without service worker support', () => {
+    it('exposes the API', () => {
+      for (const k of ['mount', 'requestPersist', 'persistAnswer', 'persistMessage', 'onPersist', 'isStandalone', 'canInstall']) {
+        expect(typeof window.SlopPWA[k]).toBe('function');
+      }
+    });
+    it('is a no-op: returns false and leaves the install button hidden', () => {
+      Object.defineProperty(navigator, 'serviceWorker', { value: undefined, configurable: true });
+      try {
+        expect(window.SlopPWA.mount({ install: '#pwa-install' })).toBe(false);
+        window.dispatchEvent(Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'accepted' }) }));
+        expect(btn.hidden).toBe(true);
+        expect(window.SlopPWA.canInstall()).toBe(false);
+      } finally {
+        delete navigator.serviceWorker;
+      }
+    });
+    it('a no-op mount does not register anything', () => {
+      expect(window.SlopPWA.persistAnswer()).toBe(null);
+    });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

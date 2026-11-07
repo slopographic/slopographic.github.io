@@ -1,0 +1,40 @@
+/* SlopVector — Classic 98 theme specifics */
+/* ---------- Classic 98 specifics ---------- */
+:root[data-theme="classic"] .menubar, :root[data-theme="classic"] .controlbar, :root[data-theme="classic"] .statusbar { border-color: #808080; }
+:root[data-theme="classic"] .menu-btn:hover, :root[data-theme="classic"] .menu-btn.open { background: #000080; color: #fff; }
+:root[data-theme="classic"] .brand-name { font-family: var(--font-ui); font-weight: 700; font-size: 11px; }
+:root[data-theme="classic"] .home-link { border-radius: 0; box-shadow: var(--bevel-btn); background: #c0c0c0; color: #000; font-family: var(--font-ui); font-size: 11px; font-weight: 400; }
+:root[data-theme="classic"] .controlbar { box-shadow: inset 0 1px #fff; }
+:root[data-theme="classic"] .toolbar, :root[data-theme="classic"] .dock { box-shadow: var(--bevel-out); border: 0; }
+:root[data-theme="classic"] .tool { box-shadow: none; }
+:root[data-theme="classic"] .tool:hover { background: transparent; box-shadow: var(--bevel-btn); color: #000; }
+:root[data-theme="classic"] .tool.on { background: #dcdcdc; box-shadow: var(--bevel-btn-down); color: #000; }
+:root[data-theme="classic"] .tool { color: #000; }
+:root[data-theme="classic"] .ibtn:hover { box-shadow: var(--bevel-btn); background: transparent; color: #000; }
+:root[data-theme="classic"] .ibtn { color: #000; }
+:root[data-theme="classic"] .dock-tabs { background: linear-gradient(90deg, #000080, #0a5ea8); border: 0; margin: 3px 3px 0; }
+:root[data-theme="classic"] .dock-tab { color: #e0e0e0; border-right: 0; font-weight: 700; }
+:root[data-theme="classic"] .dock-tab.on { background: transparent; color: #fff; box-shadow: none; }
+:root[data-theme="classic"] .dock-collapse { color: #fff; }
+:root[data-theme="classic"] .dock-group { border-bottom: 0; }
+:root[data-theme="classic"] .layers { background: #fff; box-shadow: var(--bevel-in); margin: 3px; }
+:root[data-theme="classic"] .lrow.layer { background: #e4e4e4; }
+:root[data-theme="classic"] .layers-foot { background: #c0c0c0; border-top: 0; }
+:root[data-theme="classic"] .doctab { border-radius: 0; font-weight: 700; }
+:root[data-theme="classic"] .doctabs { background: #c0c0c0; }
+:root[data-theme="classic"] .stage { box-shadow: var(--bevel-in); }
+:root[data-theme="classic"] .segb.on { background: #000080; color: #fff; }
+:root[data-theme="classic"] .seg { border: 0; }
+:root[data-theme="classic"] .statusbar .sb-item { box-shadow: var(--bevel-in); padding: 1px 6px; }
+:root[data-theme="classic"] .picker-head { margin-left: -7px; margin-right: -7px; }
+:root[data-theme="classic"] .chip, :root[data-theme="classic"] .fs { border: 0; }
+:root[data-theme="classic"] .tool.on .ic, :root[data-theme="classic"] .tool.on .ic-fill { color: #000; }
+:root[data-theme="classic"] .fs.front { box-shadow: var(--bevel-in), 0 0 0 1px #000080; }
+:root[data-theme="classic"] .ruler-corner { box-shadow: var(--bevel-out); border: 0; }
+:root[data-theme="classic"] .psec-title { color: #000080; }
+:root[data-theme="classic"] .sc-col h4 { color: #000080; }
+:root[data-theme="classic"] .pfbtn { border: 0; }
+:root[data-theme="classic"] .btn.slop { box-shadow: var(--bevel-btn); border: 0; }
+:root[data-theme="light"] .tool.on { box-shadow: inset 0 0 0 1px #9cc400; background: rgba(212, 255, 58, .55); color: #0a0a0a; }
+:root[data-theme="light"] .dock-tab.on { box-shadow: inset 0 2px 0 #9cc400; }
+:root[data-theme="classic"] .doctab .dt-meta { opacity: .9; }

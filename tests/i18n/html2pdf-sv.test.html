@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop HTML to PDF in Swedish</title>
+  <!-- Covers: html2pdf/index.html, html2pdf/i18n/index.js, html2pdf/js/layout.js, html2pdf/js/app.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop HTML to PDF', path: '../../html2pdf/index.html', ns: 'html2pdf',
+    ready: (doc) => doc.querySelector('#h2p-side .sf-h') && doc.getElementById('h2p-status').textContent,
+    checks: [
+      ['#h2p-print', 'Skriv ut eller spara PDF…', 'Print or save as PDF…'],
+      ['#h2p-side .sf-h', 'Källa', 'Source'],
+      ['#h2p-paste', 'Klistra in HTML här', 'Paste HTML here', 'placeholder'],
+      ['#h2p-status', 'Öppna en HTML-fil', 'Open an HTML file'],
+      ['#h2p-image-list', 'Inga lokala bilder', 'No local images'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop HTML to PDF in Swedish' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+/* Slop AI — the workspace panel beside the chat (ui/workspace.js). The chat views sit in .views-main; the panel is the
+ * second column of .views while it is open. On a phone the panel covers the chat instead. */
+.views { display: grid; grid-template-columns: minmax(0, 1fr); }
+.views-main { position: relative; min-width: 0; min-height: 0; }
+.views.ws-on { grid-template-columns: minmax(0, 1fr) minmax(340px, 46%); }
+
+.ws { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--panel); border-left: 1px solid var(--line); box-shadow: var(--bevel); }
+.ws[hidden] { display: none; }
+.ws-head { display: flex; align-items: center; gap: 4px; padding: 6px 6px 0; min-width: 0; border-bottom: 1px solid var(--line); }
+.ws-tabs { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; }
+.ws-tab { display: inline-flex; align-items: center; flex: none; height: 30px; border-radius: var(--radius-s) var(--radius-s) 0 0; color: var(--dim); white-space: nowrap; }
+.ws-tab:hover { background: var(--hover); color: var(--fg); }
+.ws-tab[aria-selected="true"] { background: var(--active); color: var(--fg); }
+.ws-tab-name, .ws-tab-x, .ws-btn { height: 30px; border: 0; background: none; color: inherit; font: inherit; border-radius: var(--radius-s); }
+.ws-tab-name { padding: 0 6px 0 9px; cursor: pointer; }
+.ws-tab-x { width: 22px; padding: 0; cursor: pointer; opacity: .7; }
+.ws-tab-x:hover { opacity: 1; }
+.ws-btn { display: inline-flex; align-items: center; padding: 0 9px; text-decoration: none; cursor: pointer; flex: none; }
+.ws-btn:hover { background: var(--hover); color: var(--fg); }
+.ws-bar { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 8px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.ws-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
+.ws-frames { position: relative; min-width: 0; min-height: 0; }
+.ws-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg, #0e0e10); }
+.ws-frame[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .views.ws-on { grid-template-columns: minmax(0, 1fr); }
+  .views.ws-on > .ws { position: absolute; inset: 0; z-index: 300; }
+}

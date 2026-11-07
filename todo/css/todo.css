@@ -1,0 +1,95 @@
+/* Slop To-do: colours come from the shared Slop theme (--sl-* set by shared/theme/theme.js); the fallbacks are the Dark look.
+ * Then the sidebar of views and lists, the task list with subtasks, the editor. At 390 px the
+ * sidebar sits above the list as a row of buttons, so nothing scrolls sideways. */
+:root {
+  --bg: var(--sl-background, #0e0e10); --panel: var(--sl-surface, #17171b);
+  --panel-2: color-mix(in srgb, var(--sl-text, #f1ede4) 6%, var(--sl-surface, #1f1f25));
+  --ink: var(--sl-text, #f1ede4); --mute: color-mix(in srgb, var(--sl-text, #f1ede4) 70%, transparent);
+  --line: var(--sl-border, #2b2b33);
+  --accent: var(--sl-accent, #d4ff3a); --accent-ink: var(--sl-on-accent, #0e0e10);
+  --danger: #ff4f6e; --warn: #ffb547;
+  --chip: color-mix(in srgb, var(--sl-text, #f1ede4) 10%, var(--sl-surface, #26262e));
+  --focus: var(--sl-accent, #d4ff3a);
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"], :root[data-slop-theme="classic"] {
+  --danger: #c81e44; --warn: #a25b00;
+  color-scheme: light;
+}
+/* SlopUI dialogs, menus and toasts follow these tokens (the shared --s-* fallbacks are fixed greys) */
+:root {
+  --sui-bg: var(--panel); --sui-bg2: var(--panel-2); --sui-input: var(--panel-2); --sui-line: var(--line);
+  --sui-fg: var(--ink); --sui-dim: var(--mute); --sui-faint: var(--mute); --sui-hover: var(--chip);
+  --sui-sel: color-mix(in srgb, var(--accent) 14%, transparent); --sui-accent: var(--accent); --sui-accent-ink: var(--accent-ink);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, sans-serif; }
+body { min-height: 100vh; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.note { color: var(--mute); font-size: 13px; margin: 4px 0 10px; }
+.empty { color: var(--mute); padding: 24px 0; text-align: center; }
+.msg { color: var(--danger); }
+.btn, .tb-btn { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; font: inherit; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.small { padding: 4px 8px; font-size: 13px; }
+.brand-mark { width: 26px; height: 26px; fill: var(--accent); }
+.appname b { font-size: 16px; margin-right: 8px; }
+.home-link { color: var(--mute); font-size: 13px; }
+.local-badge { font-size: 12px; color: var(--mute); border: 1px solid var(--line); border-radius: 99px; padding: 2px 8px; }
+/* The app fills the window under the menu bar (the body is a column: shared/menubar/menubar.css). */
+.app { flex: 1 0 auto; display: flex; flex-direction: column; }
+.layout { flex: 1 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.side { border-right: 1px solid var(--line); padding: 12px; background: var(--panel); }
+.side-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.side-btn { width: 100%; display: flex; justify-content: space-between; gap: 8px; background: none; border: none; color: var(--ink); padding: 7px 8px; border-radius: 8px; cursor: pointer; font: inherit; text-align: left; overflow-wrap: anywhere; }
+.side-btn[aria-pressed="true"] { background: var(--chip); font-weight: 700; }
+.side-n { color: var(--mute); font-size: 13px; }
+.side-h { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 6px; }
+.main { padding: 16px 20px 40px; min-width: 0; }
+.head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.h2 { font-size: 22px; margin: 0; flex: 1 1 200px; }
+.head-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.head-tools label, .check { font-size: 13px; color: var(--mute); display: inline-flex; gap: 6px; align-items: center; }
+.search input, .add input, .task-form input, .task-form select, .task-form textarea, .sub-list input { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; max-width: 100%; }
+.add { display: flex; gap: 8px; margin: 14px 0 6px; flex-wrap: wrap; }
+.add input { flex: 1 1 220px; }
+/* The buttons and fields of the list's head are as tall as the shared header buttons (shared/ui/hbtn.css, 32 px). */
+.head .btn, .add .btn, .search input, .add input { height: 32px; padding-top: 0; padding-bottom: 0; font-size: 14px; }
+.t-list { list-style: none; padding: 0; margin: 0; }
+.t-row { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); margin-bottom: 6px; }
+.t-row.is-sub { margin-left: 28px; background: var(--panel-2); }
+.t-row.p-high { border-left: 4px solid var(--danger); }
+.t-row.p-low { border-left: 4px solid var(--warn); }
+.t-row.is-done .t-title { text-decoration: line-through; color: var(--mute); }
+.t-check { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--accent); }
+.t-main { background: none; border: none; color: inherit; text-align: left; padding: 0; cursor: pointer; font: inherit; min-width: 0; }
+.t-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.t-facts { display: block; font-size: 12.5px; color: var(--mute); overflow-wrap: anywhere; margin-top: 2px; }
+.task-dlg .sui-body, .task-form { min-width: 0; }
+.task-form { display: grid; gap: 10px; width: min(460px, 86vw); }
+.task-form .field { display: grid; gap: 4px; font-size: 13px; color: var(--mute); }
+.task-form textarea { width: 100%; resize: vertical; }
+.ev-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.sub-sec { border-top: 1px solid var(--line); padding-top: 10px; }
+.sub-t { font-size: 13px; margin: 0 0 6px; }
+.sub-list { list-style: none; padding: 0; margin: 0 0 8px; }
+.sub-row { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+.sub-row.is-done span { text-decoration: line-through; color: var(--mute); }
+.inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .side { border-right: none; border-bottom: 1px solid var(--line); padding: 8px 10px; }
+  .side-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .side-list li { list-style: none; }
+  .side-btn { width: auto; }
+  .side-h { display: none; }
+  .main { padding: 12px 10px 30px; }
+  .head-tools { flex: 1 1 100%; flex-wrap: nowrap; }
+  .head-tools .search { flex: 1 1 0; min-width: 0; }
+  .search input { width: 100%; }
+  .add { flex-wrap: nowrap; }
+  .add input { flex: 1 1 0; min-width: 0; }
+  .t-row.is-sub { margin-left: 14px; }
+  .task-form { width: min(92vw, 420px); }
+}

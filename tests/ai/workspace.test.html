@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI: workspace</title>
+  <link rel="stylesheet" href="../../ai/css/base.css">
+  <link rel="stylesheet" href="../../ai/css/workspace.css">
+  <style>.views { height: 100vh; }</style>
+</head>
+<body>
+  <main class="views" id="views"><div class="views-main"></div></main>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/ai/tools.js"></script>
+  <script src="../../shared/ai/apptools.js"></script>
+  <script src="../../ai/js/ui/workspace.js"></script>
+  <script>SlopWorkspace.mount(document.getElementById('views'));</script>
+  <script src="workspace.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop AI: workspace' });</script>
+</body>
+</html>

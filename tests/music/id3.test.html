@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: ID3 and WAV headers</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../music/js/core/id3.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const F = window.MusicFixtures, id3 = () => window.SlopMusic.id3;
+  const bytes = (arr) => new Blob([new Uint8Array(arr)], { type: 'audio/mpeg' });
+
+  describe('ID3v2 tags', () => {
+    it('reads title, artist and album from a v2.3 tag written in the test (UTF-16 with BOM)', async () => {
+      const t = await id3().readTags(F.mp3({ title: 'Tiny ID3 Title', artist: 'Slop Tester', album: 'Test Album', major: 3, enc: 1 }));
+      expect(t.version).toBe(3);
+      expect(t.title).toBe('Tiny ID3 Title');
+      expect(t.artist).toBe('Slop Tester');
+      expect(t.album).toBe('Test Album');
+    });
+    it('reads a v2.4 tag with UTF-8 text and syncsafe frame sizes', async () => {
+      const t = await id3().readTags(F.mp3({ title: 'Ünïcode ✓', artist: 'Café', major: 4, enc: 3 }));
+      expect(t.version).toBe(4);
+      expect(t.title).toBe('Ünïcode ✓');
+      expect(t.artist).toBe('Café');
+    });
+    it('reads Latin-1 text from a v2.3 tag', async () => {
+      const t = await id3().readTags(F.mp3({ title: 'Plain', major: 3, enc: 0 }));
+      expect(t.title).toBe('Plain');
+    });
+    it('returns the APIC picture as a PNG blob', async () => {
+      const t = await id3().readTags(F.mp3({ title: 'With cover', cover: true }));
+      expect(t.cover).toBeTruthy();
+      expect(t.cover.type).toBe('image/png');
+      expect(t.cover.size).toBe(F.PNG.length);
+    });
+    it('a file with no ID3 tag gives empty fields', async () => {
+      const t = await id3().readTags(bytes([0xff, 0xfb, 0x90, 0x64, 0, 0, 0, 0, 0, 0, 0, 0]));
+      expect(t.title).toBe('');
+      expect(t.version).toBe(0);
+    });
+    it('a truncated tag keeps what could be read', async () => {
+      const full = await new Response(F.mp3({ title: 'Kept', artist: 'Lost to truncation', major: 3, enc: 0 })).arrayBuffer();
+      const t = await id3().readTags(new Blob([full.slice(0, 40)]));
+      expect(t.title).toBe('Kept');
+    });
+  });
+
+  describe('WAV headers and names', () => {
+    it('reads the duration of a WAV from its header', async () => {
+      const w = await id3().wavInfo(F.wav(3, 8000));
+      expect(w.duration).toBeCloseTo(3, 0.001);
+      expect(w.rate).toBe(8000);
+      expect(w.channels).toBe(1);
+    });
+    it('a non-WAV blob gives null', async () => {
+      expect(await id3().wavInfo(bytes([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]))).toBe(null);
+    });
+    it('the title falls back to the file name without its extension', () => {
+      expect(id3().titleFromName('Sunrise.wav')).toBe('Sunrise');
+      expect(id3().titleFromName('a.b.mp3')).toBe('a.b');
+    });
+    it('the MIME type comes from the extension when the browser gives none', () => {
+      expect(id3().typeOf('x.flac', '')).toBe('audio/flac');
+      expect(id3().typeOf('x.bin', 'audio/ogg')).toBe('audio/ogg');
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: ID3 and WAV headers' });
+  </script>
+</body>
+</html>

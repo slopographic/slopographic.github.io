@@ -1,0 +1,20 @@
+/* PhotoSlop, Japanese: the guided tour. Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'photoslop.tour.title': 'PhotoSlop ツアー',
+  'photoslop.tour.new_title': 'ファイルを作成',
+  'photoslop.tour.new_text': '新規では、ドキュメントのサイズ、プリセット、背景を設定します（狭い画面では「その他 ▾」にあります）。開くでは PSD、ORA、画像を読み込みます。ファイルごとにタブが開きます。',
+  'photoslop.tour.menus_title': 'メニュー バー',
+  'photoslop.tour.menus_text': 'ファイル、編集、イメージ、レイヤー、選択、フィルターがここにあります。各メニューにはコマンドが並んでいます。',
+  'photoslop.tour.tools_title': 'ツール',
+  'photoslop.tour.tools_text': 'ブラシ、選択、文字、トリミングはツール ボックスにあります。1 つ選んでから、オプション バーで設定します。',
+  'photoslop.tour.options_title': 'ツール オプション',
+  'photoslop.tour.options_text': 'オプション バーは、選択中のツールに応じて変わります。サイズ、不透明度、描画モードなどを設定できます。',
+  'photoslop.tour.canvas_title': 'キャンバス',
+  'photoslop.tour.canvas_text': 'キャンバス上で描画、選択、変形ができます。ステータス バーには拡大率とサイズが表示されます。',
+  'photoslop.tour.panels_title': 'レイヤーとパネル',
+  'photoslop.tour.panels_text': 'レイヤー、履歴、プロパティはこの列にあります。スマートフォンでは「レイヤー」ボタンで表示できます。',
+  'photoslop.tour.export_title': '書き出し',
+  'photoslop.tour.export_text': 'PNG、JPEG、WebP、PSD を書き出せます。ファイルはお使いのデバイス上で作成され、アップロードされることはありません。',
+  'photoslop.tour.theme_title': 'テーマ',
+  'photoslop.tour.theme_text': 'Pro、Light、Paint ’98 を切り替えられます。',
+});

@@ -1,0 +1,27 @@
+/* Slop Press, Brazilian Portuguese: abrir, posicionar, salvar, Slop Drive e a cópia offline (io/).
+ * Same keys as press/i18n/en/io.js. Terms: shared/i18n/glossary-pt-BR.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'press.io.saved_drive': '{name} salvo no Slop Drive',
+  'press.io.send_pdf_to': 'Enviar PDF para {app}',
+  'press.io.send_png_to': 'Enviar PNG da página para {app}',
+  'press.io.open_drive_title': 'Abrir do Slop Drive',
+  'press.io.place_drive_title': 'Posicionar do Slop Drive',
+  'press.io.intake_noun': 'uma imagem, texto, PDF, fonte ou arquivo .slpress',
+  'press.io.placed_text': 'Texto posicionado: {n} páginas adicionadas',
+  'press.io.placed_text#one': 'Texto posicionado: {n} página adicionada',
+  'press.io.rendering_pdf': 'Renderizando páginas do PDF…',
+  'press.io.placed_pdf': '{n} páginas de PDF posicionadas',
+  'press.io.placed_pdf#one': '{n} página de PDF posicionada',
+  'press.io.pdf_failed': 'Não foi possível ler o PDF: {error}',
+  'press.io.font_loaded': 'Fonte carregada: {name}',
+  'press.io.cannot_place': 'Não é possível posicionar {name}',
+  'press.io.saved': '{name} salvo',
+  'press.io.save_as_title': 'Salvar como',
+  'press.io.file_name': 'Nome do arquivo',
+  'press.io.opened': '{name} aberto',
+  'press.io.cannot_open': 'O Slop Press não consegue abrir {name}',
+  'press.io.page_alt': 'Página {page}',
+  'press.io.building_offline': 'Criando cópia offline…',
+  'press.io.offline_done': '{name} baixado — abra-o do disco, ele funciona offline',
+  'press.io.offline_failed': 'Não foi possível criar a cópia offline: {error}',
+});

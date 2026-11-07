@@ -1,0 +1,70 @@
+/* Slop Reports. Colours come from the --sl-* theme tokens (shared/theme/theme.js), with plain fallbacks. */
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--sl-background, #f6f4ee);
+  color: var(--sl-text, #1d1d1b);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+/* The page keeps one width whatever the report: the body is a flex column (the shared bar), where an auto-margin item
+   shrinks to its content, so main takes the full width up to its cap; and the scrollbar's gutter is kept, so a long
+   report that scrolls does not narrow the page. */
+html { scrollbar-gutter: stable; }
+.rp-main { width: 100%; max-width: 1100px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+/* View · Panel (js/layout.js, shared/frame): the window holds the menu bar and the row; the report scrolls in the view */
+body:has(> .rp-main.sf-root) { height: 100vh; overflow: hidden; }
+html:has(.rp-main.sf-root) { scrollbar-gutter: auto; }   /* the window does not scroll: the view does */
+.rp-main.sf-root { flex: 1 1 0; max-width: none; padding: 0; min-height: 0; }
+.rp-main > .rp-view.sf-view { padding: 16px; box-sizing: border-box; min-height: 0; }
+.rp-panel .rp-bar { margin: 0; }
+.rp-panel .rp-pick select { flex: 1 1 100%; }
+.rp-panel .rp-pick button { flex: 1 1 auto; }
+.rp-panel .sf-sec.rp-def:has(#editor[hidden]) { display: none; }
+.rp-panel #json { min-height: 240px; }
+.rp-home { color: var(--sl-text-muted, #5c584e); text-decoration: none; font-size: 13px; }
+.rp-lead, .rp-sub { color: var(--sl-text-muted, #5c584e); margin: 4px 0 12px; }
+.rp-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.rp-bar label { font-weight: 600; }
+select, textarea, button { font: inherit; }
+select, textarea {
+  background: var(--sl-surface, #fff);
+  color: var(--sl-text, #1d1d1b);
+  border: 1px solid var(--sl-border, #cfcac0);
+  border-radius: 6px;
+  padding: 6px 8px;
+  max-width: 100%;
+}
+button {
+  background: var(--sl-surface, #fff);
+  color: var(--sl-text, #1d1d1b);
+  border: 1px solid var(--sl-border, #cfcac0);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--sl-accent, #6b8f00); }
+button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--sl-accent, #6b8f00); outline-offset: 2px; }
+.rp-note {
+  background: var(--sl-surface-2, color-mix(in srgb, var(--sl-text, #0a0a0a) 6%, var(--sl-surface, #f6f3ec)));
+  border-left: 4px solid var(--sl-accent, #6b8f00);
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+.rp-editor { margin: 8px 0 12px; display: grid; gap: 6px; }
+#json { width: 100%; box-sizing: border-box; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+.rp-err { color: var(--sl-danger, #b3261e); margin: 0; min-height: 1em; }
+.rp-empty { color: var(--sl-text-muted, #5c584e); }
+.rp-tablewrap { overflow-x: auto; }
+.rp-table { border-collapse: collapse; width: 100%; background: var(--sl-surface, #fff); }
+.rp-table th, .rp-table td { padding: 6px 10px; border-bottom: 1px solid var(--sl-border, #cfcac0); text-align: left; vertical-align: top; }
+.rp-table th { font-weight: 600; background: var(--sl-surface-2, color-mix(in srgb, var(--sl-text, #0a0a0a) 6%, var(--sl-surface, #f6f3ec))); }
+.rp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-line { padding: 4px 0; }
+.rp-card { display: grid; gap: 2px; min-width: 0; }
+.rp-card-title { font-weight: 600; overflow-wrap: anywhere; }
+.rp-kv { color: inherit; opacity: .85; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .rp-main { padding: 16px; }
+  .rp-bar button, .rp-bar select { flex: 1 1 auto; }
+}

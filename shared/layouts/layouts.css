@@ -1,0 +1,3 @@
+/* Workspace layouts: a laid-out app is a grid (the layout sets its columns and rows inline) and drops any max-width its
+   page sets, so the panels can use the window. Removed again when the layout steps aside. */
+[data-slop-layout] { display: grid; max-width: none !important; }

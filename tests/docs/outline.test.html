@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs outline</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1100px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let frame, win, doc, E, S;
+  const $ = (sel) => doc.querySelector(sel);
+  const rows = () => [...doc.querySelectorAll('.ol-row')];
+  const labelRow = (text) => rows().find((r) => r.querySelector('.ol-label').textContent === text);
+  const texts = () => S.doc.blocks.map((b) => E.M.paraText(b));
+  const isOpen = () => !doc.querySelector('.app').classList.contains('ol-shut');
+  const ensureOpen = () => { if (!isOpen()) $('.ol-show').click(); };
+  const keyOn = (el, key, init = {}) => { const ev = new win.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }); el.dispatchEvent(ev); return ev; };
+  const H = (text, style) => E.M.para(text, style);
+  const setDoc = (blocks, name = 'Outline.sdoc') => { const d = E.M.newDoc(); d.blocks = blocks; S.setDoc(d, { file: { name } }); };
+  /** The outline is rebuilt after a short debounce, so wait for the row count to settle. */
+  const rowsAre = (n) => waitFor(() => rows().length === n, { timeout: 5000 });
+  /** Blocks: Intro, Alpha (H1) with body, Alpha one (H2) with body, Deep point (H3) with body, Beta (H1) with body. */
+  const sample = () => [
+    H('Intro'), H('Alpha', 'H1'), H('alpha body'), H('Alpha one', 'H2'), H('one body'),
+    H('Deep point', 'H3'), H('deep body'), H('Beta', 'H1'), H('beta body'),
+  ];
+
+  describe('Slop Docs outline', () => {
+    it('loads docs/index.html and the outline with a document that has H1, H2 and H3', async () => {
+      frame = document.createElement('iframe');
+      const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+      frame.src = '../../docs/index.html';
+      document.body.append(frame);
+      await loaded;
+      win = frame.contentWindow; doc = frame.contentDocument;
+      await waitFor(() => win.SlopDocs && win.SlopDocs.ready && win.SlopDocEngine && $('.ol-show'), { timeout: 15000 });
+      E = win.SlopDocEngine; S = win.SlopDocs;
+      setDoc(sample());
+      await rowsAre(4);
+      expect(rows().map((r) => r.dataset.level)).toEqual(['1', '2', '3', '1']);
+      expect(labelRow('Deep point').getAttribute('aria-level')).toBe('3');
+      expect(labelRow('Alpha one').getAttribute('aria-level')).toBe('2');
+    });
+
+    it('a collapse arrow hides the children of its heading and the arrow expands them again', async () => {
+      labelRow('Alpha').querySelector('.ol-twist').click();
+      await rowsAre(2);
+      expect(labelRow('Alpha').getAttribute('aria-expanded')).toBe('false');
+      expect(labelRow('Alpha one')).toBe(undefined);
+      labelRow('Alpha').querySelector('.ol-twist').click();
+      await rowsAre(4);
+      expect(labelRow('Alpha').getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('clicking an H2 in the outline moves the caret to that heading and scrolls to it', async () => {
+      labelRow('Alpha one').querySelector('.ol-label').click();
+      const b = S.doc.blocks.findIndex((x) => E.M.paraText(x) === 'Alpha one');
+      expect(S.sel.f.b).toBe(b);
+      expect(S.sel.a.b).toBe(b);
+      expect(labelRow('Alpha one').classList.contains('ol-active')).toBe(true);
+    });
+
+    it('collapsing the sidebar leaves a rail, and the rail button shows it again', async () => {
+      ensureOpen();
+      $('.ol-hide').click();
+      expect(isOpen()).toBe(false);
+      const outline = $('.outline');
+      expect(outline.getBoundingClientRect().width).toBeLessThan(40);
+      expect($('.ol-show').getBoundingClientRect().width).toBeGreaterThan(0);
+      expect($('.ol-panel').getBoundingClientRect().width).toBe(0);
+      $('.ol-show').click();
+      expect(isOpen()).toBe(true);
+      expect($('.ol-panel').getBoundingClientRect().width).toBeGreaterThan(150);
+    });
+
+    it('Alt+Down moves the section below the next section', async () => {
+      setDoc([H('Alpha', 'H1'), H('a'), H('Beta', 'H1'), H('b')]);
+      await rowsAre(2);
+      S.select({ b: 0, o: 0 }, { b: 0, o: 0 });
+      keyOn($('#ime'), 'ArrowDown', { altKey: true });
+      expect(texts()).toEqual(['Beta', 'b', 'Alpha', 'a']);
+      expect(S.sel.f.b).toBe(2);
+      await waitFor(() => rows()[0] && rows()[0].querySelector('.ol-label').textContent === 'Beta', { timeout: 3000 });
+      expect(rows()[1].querySelector('.ol-label').textContent).toBe('Alpha');
+    });
+
+    it('Ctrl+Shift+O toggles the outline', async () => {
+      ensureOpen();
+      keyOn($('#ime'), 'O', { ctrlKey: true, shiftKey: true });
+      expect(isOpen()).toBe(false);
+      keyOn($('#ime'), 'O', { ctrlKey: true, shiftKey: true });
+      expect(isOpen()).toBe(true);
+    });
+
+    it('Add section inserts a Heading 1 at the caret, with its text selected', async () => {
+      setDoc([H('Intro'), H('Second')]);
+      await rowsAre(0);
+      S.select({ b: 1, o: 0 }, { b: 1, o: 0 });
+      $('.ol-add').click();
+      expect(S.doc.blocks[2].style).toBe('H1');
+      expect(texts()[2]).toBe('New section');
+      expect(S.sel.f.o).toBe(11);
+      await rowsAre(1);
+    });
+
+    it('Delete section asks before it deletes content, and Heading only keeps the body', async () => {
+      setDoc([H('Gone', 'H1'), H('body text'), H('after')]);
+      await waitFor(() => labelRow('Gone') && rows().length === 1, { timeout: 3000 });
+      labelRow('Gone').querySelector('.ol-label').dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200 }));
+      const item = [...doc.querySelectorAll('.sui-menu .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === 'Delete section');
+      expect(item).toBeTruthy();
+      item.click();
+      await waitFor(() => [...doc.querySelectorAll('.sui-dlg .sui-btn')].some((b) => b.textContent === 'Heading only'), { timeout: 3000 });
+      [...doc.querySelectorAll('.sui-dlg .sui-btn')].find((b) => b.textContent === 'Heading only').click();
+      await waitFor(() => texts().join('|') === 'body text|after', { timeout: 3000 });
+      expect(texts()).toEqual(['body text', 'after']);
+    });
+  });
+  SlopTest.run({ name: 'Slop Docs outline' });
+  </script>
+</body>
+</html>

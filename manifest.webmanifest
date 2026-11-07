@@ -1,0 +1,33 @@
+{
+  "name": "Slopographic",
+  "short_name": "Slop",
+  "description": "Free office and creative apps that run right in your browser: no installs, no accounts, nothing uploaded. Works offline too.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "lang": "en",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    { "action": "/pdf/", "accept": { "application/pdf": [".pdf"] } },
+    { "action": "/photoslop/", "accept": { "image/vnd.adobe.photoshop": [".psd"], "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"], "image/webp": [".webp"] } },
+    { "action": "/resize/", "accept": { "image/avif": [".avif"], "image/gif": [".gif"], "video/mp4": [".mp4"], "video/webm": [".webm"], "video/quicktime": [".mov"] } },
+    { "action": "/gallery/", "accept": { "image/heic": [".heic", ".heif"] } },
+    { "action": "/convert/", "accept": { "text/csv": [".csv"], "application/json": [".json"], "text/vcard": [".vcf"] } }
+  ],
+  "shortcuts": [
+    {
+      "name": "Slop Drive",
+      "short_name": "Drive",
+      "url": "/drive/",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

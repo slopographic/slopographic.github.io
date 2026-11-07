@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>shared/ui/sheet.js: the phone bottom sheet every app's side panel becomes</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; }</style></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+// Covers: shared/ui/sheet.js, shared/commands/commands.js
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+/** An app in a frame of the given width: a rail of three tools, a panel, a Panel toggle, and a plain page button. */
+async function app(width, opts = '') {
+  const f = document.createElement('iframe');
+  f.style.width = width + 'px'; f.style.height = '700px';
+  f.srcdoc = `<!doctype html><html><body style="margin:0">
+    <div id="app"><button id="toggle">Panel</button><button id="page">Page</button>
+      <aside id="panel"><div class="title"><h2 id="h">Organize</h2></div><p>Settings</p><input id="field"></aside>
+      <nav id="rail"><button data-t="organize" class="on">Organize</button><button data-t="sign">Sign</button><button data-t="redact">Redact</button></nav>
+    </div>
+    <script src="../../shared/ui/sheet.js"><\/script>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      window.changes = []; window.pageClicks = 0;
+      $('page').addEventListener('click', () => window.pageClicks++);
+      // the app's own tool switch, as in Slop PDF: the clicked tool becomes the active one
+      $('rail').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return;
+        for (const x of $('rail').children) x.classList.toggle('on', x === b); $('h').textContent = b.textContent; });
+      window.sheet = SlopSheet.attach({ root: $('app'), panel: $('panel'), phone: '(max-width: 900px)', triggers: $('rail'),
+        toggles: [$('toggle')], label: 'Tool panel', onChange: (open, why) => window.changes.push(open + ':' + why) ${opts} });
+    <\/script></body></html>`;
+  document.body.append(f);
+  await waitFor(() => f.contentWindow && f.contentWindow.sheet, { timeout: 5000 });
+  // on a busy machine the frame can lay out at another width first: wait until it has its own and the sheet has followed
+  await waitFor(() => f.contentWindow.innerWidth === width && f.contentDocument.getElementById('app').classList.contains('ssh-phone') === (width <= 900), { timeout: 5000 });
+  // no slide: a busy machine starts a transition late, and the test reads where the sheet ends up
+  f.contentDocument.head.append(Object.assign(f.contentDocument.createElement('style'), { textContent: '* { transition: none !important; }' }));
+  return f;
+}
+const tap = (w, el) => { el.dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); el.click(); };
+const settle = () => sleep(20);
+
+describe('SlopSheet on a phone', () => {
+  it('a tool opens the sheet; the same tool again closes it; another tool keeps it open on that tool', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument, root = D.getElementById('app');
+    expect(root.classList.contains('ssh-phone')).toBe(true);
+    const [org, sign] = D.querySelectorAll('#rail button');
+    tap(w, sign); await settle();
+    expect(w.sheet.isOpen()).toBe(true);
+    tap(w, org); await settle();
+    expect([w.sheet.isOpen(), D.getElementById('h').textContent]).toEqual([true, 'Organize']);
+    tap(w, org); await settle();
+    expect(w.sheet.isOpen()).toBe(false);
+    tap(w, org); await settle();
+    expect(w.sheet.isOpen()).toBe(true);   // tapping it once more opens it again
+    f.remove();
+  });
+  it('the × closes it and gives focus back to the tool that opened it; it says what it closes', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument;
+    const sign = D.querySelectorAll('#rail button')[1];
+    sign.focus(); tap(w, sign); await settle();
+    const x = D.querySelector('#panel > .ssh-x');
+    expect([x.getAttribute('aria-label'), w.getComputedStyle(x).display !== 'none']).toEqual(['Close tool panel', true]);
+    expect(x.getBoundingClientRect().width >= 44 && x.getBoundingClientRect().height >= 44).toBe(true);
+    x.focus(); x.click();
+    expect([w.sheet.isOpen(), D.activeElement]).toEqual([false, sign]);
+    f.remove();
+  });
+  it('Escape and a tap outside close it; the outside tap still reaches what was tapped; a tap inside does not', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument;
+    w.sheet.open(); D.getElementById('field').focus();
+    D.getElementById('field').dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
+    expect(w.sheet.isOpen()).toBe(true);
+    D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(w.sheet.isOpen()).toBe(false);
+    w.sheet.open(); tap(w, D.getElementById('page'));
+    expect([w.sheet.isOpen(), w.pageClicks]).toEqual([false, 1]);
+    f.remove();
+  });
+  it('a toggle opens and closes it with aria-expanded; a swipe down from its top closes it', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument, t = D.getElementById('toggle'), panel = D.getElementById('panel');
+    t.click(); expect([w.sheet.isOpen(), t.getAttribute('aria-expanded')]).toEqual([true, 'true']);
+    t.click(); expect([w.sheet.isOpen(), t.getAttribute('aria-expanded')]).toEqual([false, 'false']);
+    w.sheet.open(); await sleep(260);   // the slide-in
+    const top = panel.getBoundingClientRect().top + 10, ev = (type, y) => new w.PointerEvent(type, { bubbles: true, pointerId: 7, clientX: 100, clientY: y });
+    panel.querySelector('h2').dispatchEvent(ev('pointerdown', top));
+    w.dispatchEvent(ev('pointermove', top + 50));
+    expect(panel.style.transform).toBe('translateY(50px)');
+    w.dispatchEvent(ev('pointerup', top + 120));
+    expect([w.sheet.isOpen(), panel.style.transform]).toEqual([false, '']);
+    expect(w.changes.slice(-1)).toEqual(['false:close']);
+    f.remove();
+  });
+  it('the shared look: without openClass the panel slides up from the bottom and the × stays when the app redraws it', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument, panel = D.getElementById('panel');
+    expect(panel.classList.contains('ssh-panel')).toBe(true);
+    expect(w.getComputedStyle(panel).position).toBe('fixed');
+    panel.replaceChildren(D.createElement('p'));   // an app that redraws its panel
+    w.sheet.open();
+    expect(!!panel.querySelector(':scope > .ssh-x')).toBe(true);
+    f.remove();
+  });
+  it("with the app's own class (openClass) the app's CSS decides the look; the class follows the state", async () => {
+    const f = await app(390, ", openClass: 'sheet-open'"), w = f.contentWindow, D = f.contentDocument, root = D.getElementById('app');
+    expect(D.getElementById('panel').classList.contains('ssh-panel')).toBe(false);
+    w.sheet.open(); expect(root.classList.contains('sheet-open')).toBe(true);
+    w.sheet.close(); expect(root.classList.contains('sheet-open')).toBe(false);
+    f.remove();
+  });
+});
+
+describe('SlopSheet drawers (side: start | end)', () => {
+  it('side start: a drawer from the left, with the same ×, Escape, outside tap and toggle; a swipe left closes it', async () => {
+    const f = await app(390, ", side: 'start'"), w = f.contentWindow, D = f.contentDocument, panel = D.getElementById('panel'), t = D.getElementById('toggle');
+    expect(panel.classList.contains('ssh-start')).toBe(true);
+    t.focus(); t.click(); await sleep(260);
+    const r = panel.getBoundingClientRect();
+    expect([w.sheet.isOpen(), Math.round(r.left), Math.round(r.top), r.width <= 320]).toEqual([true, 0, 0, true]);
+    D.querySelector('#panel > .ssh-x').click();
+    expect([w.sheet.isOpen(), D.activeElement]).toEqual([false, t]);
+    t.click(); D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(w.sheet.isOpen()).toBe(false);
+    t.click(); tap(w, D.getElementById('page')); expect(w.sheet.isOpen()).toBe(false);
+    w.sheet.open(); await sleep(260);
+    const ev = (type, x, y = 200) => new w.PointerEvent(type, { bubbles: true, pointerId: 9, clientX: x, clientY: y });
+    panel.querySelector('p').dispatchEvent(ev('pointerdown', 200));
+    w.dispatchEvent(ev('pointermove', 150));
+    expect(panel.style.transform).toBe('translateX(-50px)');
+    w.dispatchEvent(ev('pointermove', 260));   // back past the start: it stays put
+    expect(panel.style.transform).toBe('');
+    w.dispatchEvent(ev('pointerup', 100));
+    expect([w.sheet.isOpen(), panel.style.transform]).toEqual([false, '']);
+    f.remove();
+  });
+  it('side end: a drawer from the right; a swipe right closes it, a vertical scroll does not', async () => {
+    const f = await app(390, ", side: 'end'"), w = f.contentWindow, D = f.contentDocument, panel = D.getElementById('panel');
+    w.sheet.open(); await sleep(260);
+    expect(Math.round(panel.getBoundingClientRect().right)).toBe(390);
+    const ev = (type, x, y) => new w.PointerEvent(type, { bubbles: true, pointerId: 3, clientX: x, clientY: y });
+    panel.querySelector('p').dispatchEvent(ev('pointerdown', 200, 200));
+    w.dispatchEvent(ev('pointermove', 200, 260));   // a scroll
+    w.dispatchEvent(ev('pointerup', 300, 260));
+    expect(w.sheet.isOpen()).toBe(true);
+    panel.querySelector('p').dispatchEvent(ev('pointerdown', 200, 200));
+    w.dispatchEvent(ev('pointermove', 260, 200));
+    expect(panel.style.transform).toBe('translateX(60px)');
+    w.dispatchEvent(ev('pointerup', 300, 200));
+    expect(w.sheet.isOpen()).toBe(false);
+    f.remove();
+  });
+});
+
+describe('SlopSheet: more than one, redraws, menus', () => {
+  it('two sheets on one root: opening one closes the other (only one open at a time); Escape closes it', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument;
+    const side = D.createElement('nav'); side.id = 'side'; side.textContent = 'Folders'; D.getElementById('app').append(side);
+    const drawer = w.SlopSheet.attach({ root: D.getElementById('app'), panel: side, side: 'start', label: 'Folders' });
+    drawer.open();
+    expect([drawer.isOpen(), w.sheet.isOpen(), D.getElementById('panel').classList.contains('ssh-on')]).toEqual([true, false, false]);
+    w.sheet.open();
+    expect([w.sheet.isOpen(), drawer.isOpen(), side.classList.contains('ssh-on')]).toEqual([true, false, false]);
+    drawer.open();
+    expect([w.sheet.isOpen(), drawer.isOpen(), w.changes.slice(-1)[0]]).toEqual([false, true, 'false:other']);
+    expect(D.getElementById('app').classList.contains('ssh-open')).toBe(true);   // the shared root keeps the open drawer's class
+    D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect([w.sheet.isOpen(), drawer.isOpen()]).toEqual([false, false]);
+    f.remove();
+  });
+  it('the × comes back at once when the app redraws the open panel; Escape is left to an open menu', async () => {
+    const f = await app(390), w = f.contentWindow, D = f.contentDocument, panel = D.getElementById('panel');
+    w.sheet.open();
+    panel.replaceChildren(D.createElement('p'));
+    await sleep(0);
+    expect(panel.firstElementChild.classList.contains('ssh-x')).toBe(true);
+    const menu = D.createElement('div'); menu.className = 'sui-menu'; D.body.append(menu);
+    D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(w.sheet.isOpen()).toBe(true);
+    menu.remove();
+    D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(w.sheet.isOpen()).toBe(false);
+    f.remove();
+  });
+});
+
+describe('SlopSheet and Escape in a real app', () => {
+  it("a menubar on the page does not stop Escape; an app command bound to Escape waits until the sheet is closed", async () => {
+    const f = document.createElement('iframe');
+    f.style.width = '390px'; f.style.height = '700px';
+    f.srcdoc = `<!doctype html><html><body style="margin:0">
+      <div id="app"><div class="smb-menu"><button class="smb-menu-b">File</button><div class="smb-pop" role="menu" hidden></div></div>
+        <aside id="panel"><p>Settings</p></aside><nav id="rail"><button class="on">Tool</button></nav></div>
+      <script src="../../shared/input/typing.js"><\/script><script src="../../shared/commands/commands.js"><\/script>
+      <script src="../../shared/ui/sheet.js"><\/script>
+      <script>
+        window.deselects = 0;
+        SlopCmd.init({ app: 'sheet-test' });
+        SlopCmd.register([{ id: 't.deselect', title: 'Deselect', group: 'Edit', keys: ['Escape'], run: () => window.deselects++ }]);
+        window.sheet = SlopSheet.attach({ root: document.getElementById('app'), panel: document.getElementById('panel'), triggers: document.getElementById('rail') });
+      <\/script></body></html>`;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.sheet, { timeout: 5000 });
+    const w = f.contentWindow, D = f.contentDocument, esc = () => D.body.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    w.sheet.open();
+    expect(D.getElementById('app').getAttribute('data-slop-escape')).toBe('sheet');
+    esc();
+    expect([w.sheet.isOpen(), w.deselects]).toEqual([false, 0]);   // the sheet closed; Deselect did not run
+    expect(D.getElementById('app').hasAttribute('data-slop-escape')).toBe(false);
+    esc();
+    expect(w.deselects).toBe(1);   // with the sheet closed, Escape is the app's again
+    f.remove();
+  });
+});
+
+describe('SlopSheet on a wide screen', () => {
+  it('nothing changes: no sheet, no ×, tools only switch', async () => {
+    const f = await app(1200), w = f.contentWindow, D = f.contentDocument;
+    expect(D.getElementById('app').classList.contains('ssh-phone')).toBe(false);
+    tap(w, D.querySelectorAll('#rail button')[1]); await settle();
+    w.sheet.open();
+    expect([w.sheet.isOpen(), w.getComputedStyle(D.querySelector('.ssh-x')).display, w.getComputedStyle(D.getElementById('panel')).position]).toEqual([false, 'none', 'static']);
+    f.remove();
+  });
+});
+describe('SlopSheet closeWide', () => {
+  it('with closeWide the × shows on a wide screen too and calls it there; on a phone it closes the sheet', async () => {
+    const f = await app(1200, ", closeWide: () => { window.wideClosed = (window.wideClosed || 0) + 1; }"), w = f.contentWindow, D = f.contentDocument;
+    const x = D.querySelector('#panel > .ssh-x');
+    expect(w.getComputedStyle(x).display !== 'none').toBe(true);
+    x.click();
+    expect(w.wideClosed).toBe(1);
+    f.style.width = '390px'; await sleep(60);
+    w.sheet.open(); x.click();
+    expect([w.sheet.isOpen(), w.wideClosed]).toEqual([false, 1]);
+    f.remove();
+  });
+});
+SlopTest.run({ name: 'shared/ui sheet' });
+</script>
+</body>
+</html>

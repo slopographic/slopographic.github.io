@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=true; support.ads=true">
+  <title>Ads · slots hidden until accepted</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, waitFor, run } = SlopTest;
+  const UNIT = '123456789';
+  const SLOTS = [
+    { id: 'home-footer', name: 'Home footer', unit: UNIT, width: 728, height: 90 },
+    { id: 'empty-slot', name: 'Empty', unit: '', width: 300, height: 250 }
+  ];
+  let frame = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function reset() {
+    try { localStorage.clear(); } catch (e) { /* ignore */ }
+    if (frame) frame.remove();
+    frame = null;
+  }
+  /** Opens the fixture in a fresh same-origin iframe. Resolves with its window once the scripts ran. */
+  function open(stored) {
+    reset();
+    if (stored) localStorage.setItem('slop-consent', JSON.stringify(stored));
+    window.__adsLoads = [];
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:420px;height:300px;border:0';
+    f.src = 'fixture.html?slots=' + encodeURIComponent(JSON.stringify(SLOTS));
+    document.body.prepend(f);
+    frame = f;
+    return new Promise((r) => f.addEventListener('load', () => r(f.contentWindow), { once: true }));
+  }
+  const adsScripts = () => window.__adsLoads.filter((s) => /googlesyndication/.test(s));
+  const slot = (w, id) => w.document.querySelector(`[data-slop-ad="${id}"]`);
+  const ins = (w, id) => slot(w, id).querySelector('ins.adsbygoogle');
+  /** Short wait so the iframe's scripts and the consent event have run. */
+  const settle = () => sleep(50);
+
+  describe('ad slots', () => {
+    beforeEach(() => { reset(); });
+
+    it('stay hidden with no unit ID, even after the visitor accepts ads', async () => {
+      const w = await open(null);
+      await settle();
+      w.SlopConsent.setChoices({ ads: true });
+      await settle();
+      expect(slot(w, 'empty-slot').hidden).toBe(true);
+      expect(ins(w, 'empty-slot')).toBe(null);
+    });
+
+    it('are hidden, with no ad element, until ads are accepted', async () => {
+      const w = await open(null);
+      await settle();
+      expect(slot(w, 'home-footer').hidden).toBe(true);
+      expect(ins(w, 'home-footer')).toBe(null);
+      expect(adsScripts().length).toBe(0);
+    });
+
+    it('show the unit once ads are accepted, with reserved size, and load AdSense through the one loader', async () => {
+      const w = await open(null);
+      await settle();
+      w.SlopConsent.setChoices({ ads: true });
+      await settle();
+      const el = slot(w, 'home-footer');
+      expect(el.hidden).toBe(false);
+      const unit = ins(w, 'home-footer');
+      expect(unit.getAttribute('data-ad-slot')).toBe(UNIT);
+      expect(unit.getAttribute('data-ad-client')).toBe(w.SLOP_CONSENT_CONFIG.adsensePublisherId);
+      expect(el.style.minHeight).toBe('90px');
+      expect(el.style.aspectRatio).toBe('728 / 90');
+      expect(adsScripts().length).toBe(1);
+    });
+
+    it('does not ask AdSense again for a repeat change that keeps ads on', async () => {
+      const w = await open(null);
+      await settle();
+      w.SlopConsent.setChoices({ ads: true });
+      await settle();
+      const first = ins(w, 'home-footer');
+      w.SlopConsent.setChoices({ analytics: true, ads: true });
+      await settle();
+      expect(ins(w, 'home-footer')).toBe(first);
+      expect(adsScripts().length).toBe(1);
+    });
+
+    it('shows on load when the visitor already accepted ads', async () => {
+      const w = await open({ version: 2, timestamp: Date.now(), categories: { necessary: true, analytics: false, ads: true, rates: false } });
+      await settle();
+      expect(slot(w, 'home-footer').hidden).toBe(false);
+      expect(ins(w, 'home-footer') !== null).toBe(true);
+    });
+
+    it('hides again when ads are turned off, without a reload', async () => {
+      const w = await open({ version: 2, timestamp: Date.now(), categories: { necessary: true, analytics: false, ads: true, rates: false } });
+      await settle();
+      w.SlopConsent.setChoices({ ads: false });
+      await settle();
+      expect(slot(w, 'home-footer').hidden).toBe(true);
+      expect(ins(w, 'home-footer')).toBe(null);
+    });
+  });
+
+  run({ name: 'Ad slots' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Sheets: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: sheetview/js/main.js
+  // Slop Sheets on the one intake: the Open buttons, a drop, a paste, ?drive=<id> (launch), the sample and the test hook
+  // reach the same reader (a tab per file) with the same events. Open in Slop Table goes out through SlopOuttake.send.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  const csv = (name) => new W.File(['a,b\r\n1,2\r\n'], name, { type: 'text/csv' });
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(source, start, n = 1) {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'sheetview' && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Sheets: one way in', () => {
+    it('Open spreadsheet…', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../sheetview/index.html';
+      await waitFor(() => { try { return fr.contentDocument.body.classList.contains('ready') && fr.contentWindow.SlopIntake.spec('sheetview'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('sheetview'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      W.SlopUI.pickFiles = async () => [csv('one.csv'), csv('two.csv')];
+      await through('picker', () => D.getElementById('sv-open').click(), 2);
+    }, { timeout: 40000 });
+    it('a drop on the page', async () => {
+      await through('drop', () => D.querySelector('.sv-app').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([csv('dropped.csv')]) })));
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([csv('pasted.csv')]) })));
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'sent.csv', type: 'text/csv', blob: csv('sent.csv') });
+      await through('launch', () => W.SlopIntake.launch({ to: 'sheetview' }));
+    });
+    it('the test hook', async () => {
+      await through('api', () => W.SlopSheetView.open([csv('api.csv')]));
+    });
+  });
+  describe('Slop Sheets: one way out', () => {
+    it('Open current sheet in Slop Table is SlopOuttake.send', async () => {
+      let sent = null;
+      W.SlopOuttake.send = async (to, o) => { sent = [to, o.from, o.type, await (await o.get()).text()]; };
+      D.getElementById('sv-hub').click();
+      await waitFor(() => sent);
+      expect(sent.slice(0, 3)).toEqual(['tables', 'sheetview', 'text/csv']);
+      expect(sent[3].startsWith('a,b')).toBe(true);
+    });
+  });
+  run({ name: 'Shared intake: Slop Sheets' });
+</script>
+</body>
+</html>

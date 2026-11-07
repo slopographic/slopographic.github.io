@@ -1,0 +1,20 @@
+/* PhotoSlop, Brazilian Portuguese: the guided tour. Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-pt-BR.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'photoslop.tour.title': 'Tour do PhotoSlop',
+  'photoslop.tour.new_title': 'Comece um arquivo',
+  'photoslop.tour.new_text': 'Novo define o tamanho, a predefinição e o fundo de um documento (em Mais ▾ numa janela estreita); Abrir carrega um PSD, ORA ou imagem. Cada arquivo ganha uma aba.',
+  'photoslop.tour.menus_title': 'Barra de menus',
+  'photoslop.tour.menus_text': 'Arquivo, Editar, Imagem, Camada, Selecionar e Filtro ficam aqui. Cada menu lista os seus comandos.',
+  'photoslop.tour.tools_title': 'Ferramentas',
+  'photoslop.tour.tools_text': 'Pincéis, seleção, texto e recorte ficam na caixa de ferramentas. Escolha uma e configure-a na barra de opções.',
+  'photoslop.tour.options_title': 'Opções da ferramenta',
+  'photoslop.tour.options_text': 'A barra de opções muda com a ferramenta ativa: tamanho, opacidade, modo de mesclagem e mais.',
+  'photoslop.tour.canvas_title': 'A tela',
+  'photoslop.tour.canvas_text': 'Pinte, selecione e transforme na tela. A barra de status mostra o zoom e o tamanho.',
+  'photoslop.tour.panels_title': 'Camadas e painéis',
+  'photoslop.tour.panels_text': 'Camadas, histórico e propriedades ficam nesta coluna. No celular, o botão Camadas os mostra.',
+  'photoslop.tour.export_title': 'Exportar',
+  'photoslop.tour.export_text': 'Exporte PNG, JPEG, WebP ou PSD. O arquivo é feito no seu dispositivo; nada é enviado.',
+  'photoslop.tour.theme_title': 'Tema',
+  'photoslop.tour.theme_text': 'Alterne entre Pro, Claro e Paint ’98.',
+});

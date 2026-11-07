@@ -1,0 +1,83 @@
+/* SlopCut — Classic 98 overrides, touch, and the simplified phone layout. */
+/* ---------------------------------------------------------------- Classic 98 */
+:root[data-slop-theme="classic"] .topbar { background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--input))); color: var(--accent-ink); box-shadow: inset 0 1px var(--input), inset 0 -1px var(--line); }
+:root[data-slop-theme="classic"] .appname b { font: 700 13px var(--font-ui); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .home-link { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .menu-b, :root[data-slop-theme="classic"] .topbar .tb { color: var(--accent-ink); border-radius: 0; }
+:root[data-slop-theme="classic"] .menu-b:hover, :root[data-slop-theme="classic"] .topbar .tb:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-ink) 20%, transparent); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .brand { border-radius: 0; box-shadow: var(--bevel); background: var(--bg); }
+:root[data-slop-theme="classic"] .local-badge { border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel); font-family: var(--font-ui); }
+:root[data-slop-theme="classic"] .btn, :root[data-slop-theme="classic"] .fx, :root[data-slop-theme="classic"] .chip, :root[data-slop-theme="classic"] .bin-tab { border: 0; border-radius: 0; background: var(--bg); color: var(--fg); box-shadow: var(--bevel); font-weight: 400; }
+:root[data-slop-theme="classic"] .btn:active:not(:disabled), :root[data-slop-theme="classic"] .chip.on, :root[data-slop-theme="classic"] .bin-tab.on { box-shadow: var(--bevel-in); background: var(--hover); color: var(--fg); }
+:root[data-slop-theme="classic"] .btn.primary { outline: 1px solid var(--fg); outline-offset: -1px; font-weight: 700; }
+:root[data-slop-theme="classic"] .inp, :root[data-slop-theme="classic"] .fname input { border: 0; border-radius: 0; box-shadow: var(--bevel-in); background: var(--input); color: var(--fg); }
+:root[data-slop-theme="classic"] .pane, :root[data-slop-theme="classic"] .timeline, :root[data-slop-theme="classic"] .transport { box-shadow: var(--bevel); }
+:root[data-slop-theme="classic"] .pane-head { background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 82%, var(--input))); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .pane-title, :root[data-slop-theme="classic"] .bin-info { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .bi-thumb, :root[data-slop-theme="classic"] .bi { border-radius: 0; }
+:root[data-slop-theme="classic"] .bi.on { background: var(--accent); }
+:root[data-slop-theme="classic"] .bi.on .bi-name { color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .monitor { background: var(--line); }
+:root[data-slop-theme="classic"] .tc, :root[data-slop-theme="classic"] .tl-tc { color: var(--accent); }
+:root[data-slop-theme="classic"] .tr-play { border-radius: 0 !important; background: var(--bg) !important; color: var(--fg) !important; box-shadow: var(--bevel); }
+:root[data-slop-theme="classic"] .tb.on { background: var(--input); color: var(--accent); box-shadow: var(--bevel-in); border-radius: 0; }
+:root[data-slop-theme="classic"] .th, :root[data-slop-theme="classic"] .th-corner { background: var(--bg); }
+:root[data-slop-theme="classic"] .th-b { border-radius: 0; color: var(--fg); }
+:root[data-slop-theme="classic"] .th-b.on { background: var(--accent); color: var(--accent-ink); }
+:root[data-slop-theme="classic"] .ins-sec > h3 { color: var(--accent); }
+:root[data-slop-theme="classic"] .exp-note { border-radius: 0; background: var(--input); box-shadow: var(--bevel-in); color: var(--fg); }
+:root[data-slop-theme="classic"] .statusbar { color: var(--fg); box-shadow: inset 0 1px var(--input); }
+:root[data-slop-theme="classic"] .st-msg { color: var(--fg); }
+:root[data-slop-theme="classic"] .mtab.on { background: var(--input); color: var(--accent); box-shadow: var(--bevel-in); }
+
+/* ---------------------------------------------------------------- responsive */
+@media (max-width: 1280px) { :root { --bin-w: 260px; --insp-w: 280px; } .local-badge span { display: none; } .local-badge { padding: 0 6px; } }
+/* Room for the shared header buttons (as icons) at 1024 px: a shorter name field and menus, and no badge (the media
+   panel says the same). */
+@media (max-width: 1180px) { .fname input { width: 120px; } .menu-b { padding: 0 6px; } .local-badge { display: none; } }
+@media (max-width: 1020px) { :root { --bin-w: 220px; --insp-w: 250px; } }
+@media (max-width: 860px) and (min-width: 761px) { .menus { display: none; } #btnMore { display: inline-flex; } }
+
+/* Phone: one panel at a time under the monitor, switched with the bottom tabs. */
+@media (max-width: 760px) {
+  :root { --top-h: 48px; --status-h: 0px; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--top-h) minmax(170px, 34vh) minmax(0, 1fr) 56px;
+    grid-template-areas: "top" "mon" "pane" "tabs"; }
+  .app .bin, .app .insp, .app .timeline { grid-area: pane; display: none; border: 0; }
+  .app[data-pane="media"] .bin, .app[data-pane="effects"] .bin, .app[data-pane="insp"] .insp { display: flex; }
+  .app[data-pane="timeline"] .timeline { display: flex; }
+  .statusbar, .tl-split, .menus, .local-badge, .fname, .appname .home-link { display: none; }
+  .tb-group { margin-left: 2px; padding-left: 4px; }
+  #btnMore { display: inline-flex; }
+  .app .insp.ssh-panel { display: flex; }   /* the Inspector is a bottom sheet (ui/layout.js); closed, it shows only Export */
+  .topbar { gap: 2px; padding: 0 6px; }
+  .appname { margin: 0 2px; }
+  /* The top bar must fit 390 px: the name goes (the logo links home) and so does the Show-panels control; the mode
+     button stays, and it returns to Full. */
+  .topbar .appname { display: none; }
+  .topbar .slopvm-reveal { display: none; }
+  .mtabs { grid-area: tabs; display: flex; background: var(--panel); border-top: 1px solid var(--line); padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); }
+  .mtab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-radius: 10px; background: none; color: var(--dim); font-size: 10.5px; font-weight: 600; }
+  .mtab .ic { width: 20px; height: 20px; }
+  .mtab.on { color: var(--fg); background: var(--accent-soft); }
+  .mtab.on .ic { color: var(--accent-line); }
+  .transport { gap: 0; padding: 4px 6px; }
+  .transport .tb { min-width: 34px; height: 34px; }
+  .tc { min-width: 0; font-size: 12px; }
+  .tc-dur, .meter, .transport [data-cmd="view.safe"], .transport [data-cmd="play.start"], .transport [data-cmd="play.end"] { display: none; }
+  .tl-body { grid-template-columns: 86px minmax(0, 1fr); }
+  .th { padding: 0 2px 0 6px; flex-wrap: wrap; align-content: center; gap: 0 2px; }
+  .th-name { flex-basis: 100%; }
+  .th-b { width: 20px; height: 20px; }
+  .tl-tc { font-size: 11px; }
+  .tl-zoom { width: 80px; }
+  .th-add { flex-direction: column; padding: 4px; }
+  .bi-grid, .fx-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  .ins-row { grid-template-columns: 76px minmax(0, 1fr) 64px; min-height: 34px; }
+  .tb, .btn { min-height: 32px; }
+  .sui-dlg { max-height: calc(100dvh - 24px); }
+}
+@media (hover: none) { .th-b { width: 26px; height: 26px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+/* The shared header buttons keep their own light face on the title bar: dark text on it. */
+:root[data-slop-theme="classic"] .topbar .slop-hbtn { color: var(--fg); --slop-hbtn-bg: var(--input); --slop-hbtn-line: var(--line); }

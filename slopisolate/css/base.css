@@ -1,0 +1,111 @@
+/* SlopIsolate — tokens for the three themes (Pro, Light, Classic 98), base, layout, top bar, buttons. */
+:root {
+  --ink: #0a0a0a; --bone: #f1ede4; --lime: #d4ff3a;
+  --font-ui: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Archivo', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --fs: 13px; --fs-s: 11.5px;
+  --top-h: 52px; --queue-w: 112px; --props-w: 304px; --status-h: 26px; --ctx-h: 46px;
+  --radius: 8px; --radius-s: 6px;
+  /* Colours follow the shared Slop theme (--sl-*, set by shared/theme/theme.js). The value after each var() is the Pro fallback. */
+  --bg: var(--sl-background, #0e0e10); --panel: var(--sl-surface, #151518); --surface: var(--bg);
+  --panel-2: color-mix(in srgb, var(--panel) 96%, var(--fg)); --dots: color-mix(in srgb, var(--fg) 5%, transparent);
+  --line: var(--sl-border, #24242a); --line-2: color-mix(in srgb, var(--line) 85%, var(--fg));
+  --fg: var(--sl-text, #ececef); --dim: color-mix(in srgb, var(--fg) 74%, transparent); --faint: color-mix(in srgb, var(--fg) 60%, transparent);
+  --accent: var(--sl-accent, #d4ff3a); --accent-ink: var(--sl-on-accent, #0a0a0a); --accent-line: var(--accent); --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --hover: color-mix(in srgb, var(--fg) 8%, var(--panel)); --active: color-mix(in srgb, var(--fg) 16%, var(--panel)); --input: var(--sl-surface, #0f0f12); --sel-bg: color-mix(in srgb, var(--accent) 16%, transparent);
+  --danger: #ff5a6e; --ok: #9fe03a; --warn: #ffc94a; --keep: #3ddc84; --remove: #ff5a6e;
+  --shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .35);
+  --bevel: none; --bevel-in: none;
+  --sui-bg: var(--panel); --sui-bg2: var(--panel-2); --sui-input: var(--input); --sui-line: var(--line-2); --sui-fg: var(--fg); --sui-dim: var(--dim); --sui-faint: var(--faint);
+  --sui-hover: var(--hover); --sui-sel: var(--active); --sui-accent: var(--accent); --sui-accent-ink: var(--accent-ink); --sui-radius: 6px; --sui-shadow: var(--shadow); --sui-font: var(--font-ui); --sui-mono: var(--mono);
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"] {
+  --accent-line: var(--sl-accent, #5f7d00);
+  --danger: #d0263f; --ok: #4d7a00; --warn: #a66b00; --keep: #13a35a; --remove: #d0263f;
+  --shadow: 0 16px 44px rgba(40, 30, 10, .2), 0 2px 6px rgba(40, 30, 10, .12);
+  color-scheme: light;
+}
+:root[data-slop-theme="classic"] {
+  --font-ui: Tahoma, 'MS Sans Serif', 'Microsoft Sans Serif', 'Segoe UI', Geneva, Verdana, sans-serif;
+  --font-display: Tahoma, 'MS Sans Serif', Verdana, sans-serif;
+  --mono: 'Lucida Console', 'Courier New', monospace;
+  --fs: 11px; --fs-s: 11px; --radius: 0; --radius-s: 0; --top-h: 40px;
+  --dots: transparent; --line-2: var(--line); --active: var(--accent); --hover: color-mix(in srgb, var(--bg) 60%, var(--input));
+  --danger: #a00000; --ok: #006000; --warn: #805000; --keep: #008000; --remove: #c00000;
+  --shadow: 2px 2px 0 rgba(0, 0, 0, .55);
+  --bevel: inset -1px -1px var(--fg), inset 1px 1px var(--input), inset -2px -2px var(--line), inset 2px 2px color-mix(in srgb, var(--bg) 45%, var(--input));
+  --bevel-in: inset -1px -1px var(--input), inset 1px 1px var(--fg), inset -2px -2px color-mix(in srgb, var(--bg) 45%, var(--input)), inset 2px 2px var(--line);
+  --sui-radius: 0;
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--bg); color: var(--fg); font: var(--fs)/1.4 var(--font-ui); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+[hidden] { display: none !important; }
+.sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+.noscript { padding: 40px; text-align: center; }
+kbd { font: 600 11px var(--mono); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line-2); background: var(--panel-2); }
+
+/* ---------------------------------------------------------------- layout */
+.app { display: grid; height: 100vh; height: 100dvh; grid-template-columns: var(--queue-w) minmax(0, 1fr) var(--props-w); grid-template-rows: var(--top-h) minmax(0, 1fr) var(--status-h);
+  grid-template-areas: "top top top" "queue work props" "status status status"; }
+.app.no-panel { grid-template-columns: var(--queue-w) minmax(0, 1fr) 0; }
+.app.no-panel .props { display: none; }
+.app[data-mode="empty"] { grid-template-columns: 0 minmax(0, 1fr) var(--props-w); }
+.app[data-mode="empty"].no-panel { grid-template-columns: 0 minmax(0, 1fr) 0; }
+.app[data-mode="empty"] .queue { display: none; }
+
+/* ---------------------------------------------------------------- top bar */
+.topbar { grid-area: top; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
+/* The shared header buttons (Slop Drive, Tour, Theme, Apps, the bell: shared/ui/hbtn.css) look like the .btn buttons. */
+.topbar { --slop-hbtn-h: 32px; --slop-hbtn-radius: var(--radius-s); --slop-hbtn-bg: var(--panel-2); --slop-hbtn-line: var(--line-2); --slop-hbtn-hover: var(--hover); --slop-hbtn-fs: var(--fs); }
+.brand { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--ink); flex: none; }
+.brand-mark { width: 22px; height: 22px; }
+.brand-mark path:first-child { fill: var(--lime); }
+.brand-mark .shine { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; opacity: .85; }
+.appname { display: flex; flex-direction: column; line-height: 1.05; margin: 0 8px 0 4px; flex: none; }
+.appname b { font: 800 16px/1.1 var(--font-display); letter-spacing: -.01em; }
+.home-link { font: 500 10.5px/1.3 var(--mono); color: var(--faint); text-decoration: none; letter-spacing: .02em; }
+.home-link:hover { color: var(--accent-line); }
+.menus { display: flex; gap: 2px; }
+.menu-b { height: 30px; padding: 0 10px; border: 0; border-radius: var(--radius-s); background: none; color: var(--dim); font-weight: 500; }
+.menu-b:hover, .menu-b:focus-visible { background: var(--hover); color: var(--fg); }
+.tb-group { display: flex; gap: 2px; margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--line); }
+.tb-flex { flex: 1; min-width: 4px; }
+.tb { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 32px; height: 32px; padding: 0 7px; border: 0; border-radius: var(--radius-s); background: none; color: var(--dim); white-space: nowrap; flex: none; }
+.tb:hover:not(:disabled) { background: var(--hover); color: var(--fg); }
+.tb.on { background: var(--accent); color: var(--accent-ink); }
+.tb.keep.on { background: var(--keep); color: var(--accent-ink); }
+.tb.remove.on { background: var(--remove); color: var(--accent-ink); }
+.tb-l span { font-weight: 500; font-size: var(--fs-s); }
+.tb-sep { width: 1px; height: 22px; background: var(--line-2); margin: 0 4px; flex: none; }
+.local-badge { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-line); font: 600 11px/1 var(--mono); letter-spacing: .01em; white-space: nowrap; flex: none; }
+.local-badge .ic { width: 14px; height: 14px; }
+#btnPanel, #btnMore { display: none; }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: var(--radius-s); border: 1px solid var(--line-2); background: var(--panel-2); color: var(--fg); font-weight: 500; white-space: nowrap; transition: background .12s, border-color .12s, transform .08s; }
+.btn:hover:not(:disabled) { background: var(--hover); border-color: var(--faint); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.07); }
+.btn.lg { height: 44px; padding: 0 20px; font-size: 14px; border-radius: 10px; }
+.btn.sm { height: 26px; padding: 0 9px; font-size: var(--fs-s); }
+.btn.ghost { background: none; border-color: transparent; color: var(--dim); }
+.btn.wide { flex: 1; }
+.btn .ic { width: 17px; height: 17px; }
+.btn.dl { padding: 0 16px; }
+
+/* ---------------------------------------------------------------- status bar */
+.statusbar { grid-area: status; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--faint); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; }
+.st-msg { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+.st-local { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-line); }
+.st-local .ic { width: 12px; height: 12px; }

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopFontJIT: a language font downloaded just in time, asked first unless automatic, then given to the app</title>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script>
+  // Covers: shared/fonts/jit.js, shared/library/install.js, shared/library/store.js, shared/fonts/scripts.js
+  // packs.json is served from memory with a "noto-hebrew" pack whose file is a real bundled font (so its hash is real);
+  // the file is only served when the pack is downloaded, counted in fetched.
+  const PACK_URL = 'https://raw.githubusercontent.com/slopographic/cdn/test/packs/noto-hebrew/v1/NotoSansHebrew-Regular.ttf';
+  const realFetch = window.fetch.bind(window);
+  let fetched = 0, bytes = null, manifest = null;
+  const hex = async (buf) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const ready = (async () => {
+    bytes = await (await realFetch('../../shared/fonts/library/lato/lato-400-normal.woff2')).arrayBuffer();
+    manifest = { note: 'test', hosts: ['raw.githubusercontent.com'], packs: [{ id: 'noto-hebrew', name: 'Hebrew (Noto Sans Hebrew)', licence: 'OFL-1.1', description: 'test', size: bytes.byteLength,
+      files: [{ name: 'NotoSansHebrew-Regular.ttf', url: PACK_URL, size: bytes.byteLength, sha256: await hex(bytes), family: 'Noto Sans Hebrew', weight: '400', style: 'normal' }] }] };
+  })();
+  window.fetch = async (input, init) => {
+    const url = String(input && input.url ? input.url : input);
+    if (/\/shared\/library\/packs\.json$/.test(url)) { await ready; return new Response(JSON.stringify(manifest), { status: 200 }); }
+    if (url === PACK_URL) { fetched++; await ready; return new Response(bytes.slice(0), { status: 200 }); }
+    return realFetch(input, init);
+  };
+  </script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/fonts/jit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const J = window.SlopFontJIT;
+  const ascii = (cp) => cp < 0x80;
+  const dialog = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  describe('SlopFontJIT', () => {
+    it('text the font can set needs nothing', async () => {
+      try { localStorage.removeItem('slop-fonts.auto'); } catch (e) { /* none */ }
+      await J.deps();
+      await window.SlopLibraryStore.removePack('noto-hebrew');
+      expect(await J.ready('Invoice 42', ascii)).toBe(true);
+      expect(fetched).toBe(0);
+    });
+    it('asks before the first download; Cancel downloads nothing', async () => {
+      const r = J.ready('שלום', ascii);
+      await waitFor(dialog);
+      expect(dialog().textContent).toContain('Hebrew (Noto Sans Hebrew)');
+      expect(dialog().textContent).toContain('SIL Open Font License 1.1');
+      [...dialog().querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      expect(await r).toBe(false);
+      expect(fetched).toBe(0);
+    });
+    it('Download with "automatically" ticked installs the font, and the next one is fetched without asking', async () => {
+      const r = J.ready('שלום', ascii);
+      await waitFor(dialog);
+      dialog().querySelector('input[type="checkbox"]').click();
+      [...dialog().querySelectorAll('button')].find((b) => /^Download/.test(b.textContent)).click();
+      expect(await r).toBe(true);
+      expect([fetched, J.auto()]).toEqual([1, true]);
+      expect(await J.family('noto-hebrew')).toBe('Noto Sans Hebrew');
+      expect((await J.bytes('noto-hebrew')).byteLength).toBe(bytes.byteLength);
+      expect(await J.ready('עולם', ascii)).toBe(true);   // installed: no second download
+      expect(fetched).toBe(1);
+      await window.SlopLibraryStore.removePack('noto-hebrew');
+      expect(await J.ready('עולם', ascii)).toBe(true);   // automatic: no dialog
+      expect([fetched, dialog()]).toEqual([2, null]);
+      J.setAuto(false);
+    });
+    it('packFor follows the text: Chinese characters next to kana take the Japanese font', async () => {
+      expect(J.packFor('東'.codePointAt(0), '東京へ')).toBe('noto-jp');
+      expect(J.packFor('東'.codePointAt(0), '東京', 'zh-TW')).toBe('noto-tc');
+      expect(J.packFor('a'.codePointAt(0), 'a')).toBe('noto-sans');
+    });
+  });
+  SlopTest.run({ name: 'SlopFontJIT' });
+  </script>
+</body>
+</html>
