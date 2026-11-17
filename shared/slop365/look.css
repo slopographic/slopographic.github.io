@@ -1,0 +1,31 @@
+/* Slop 365 look: the shared styling for the business apps (orders, contacts, inventory, CRM, ledger, reports, tables,
+ * docs, notes). Loaded last on each page, so it sets the common parts the invoices app has: the colours from the theme,
+ * the page background, the tabs, the buttons (primary and small), the empty-state panel and the inputs. Each app keeps its
+ * own layout. Values match invoices/css/invoices.css. */
+:root {
+  --s365-bg: var(--sl-background, #0e0e10); --s365-panel: var(--sl-surface, #17171b);
+  --s365-input: color-mix(in srgb, var(--s365-bg) 55%, var(--s365-panel));
+  --s365-ink: var(--sl-text, #f1ede4); --s365-mute: color-mix(in srgb, var(--s365-ink) 68%, transparent);
+  --s365-line: var(--sl-border, #2b2b33); --s365-line-strong: color-mix(in srgb, var(--s365-ink) 30%, var(--s365-line));
+  --s365-accent: var(--sl-accent, #d4ff3a); --s365-accent-ink: var(--sl-on-accent, #0e0e10);
+  --s365-accent-soft: color-mix(in srgb, var(--s365-accent) 18%, transparent);
+  --s365-hover: color-mix(in srgb, var(--s365-ink) 7%, var(--s365-panel));
+  --s365-danger: #ff4f6e;
+}
+html, body { background: var(--s365-bg); color: var(--s365-ink); }
+.empty, .note { color: var(--s365-mute); }
+.empty-state { display: grid; justify-items: start; gap: 8px; padding: 16px; border: 1px dashed var(--s365-line-strong); border-radius: 10px; color: var(--s365-mute); margin: 8px 0; }
+.empty-state p { margin: 0; }
+button.btn, a.btn, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--s365-line); background: var(--s365-panel); color: var(--s365-ink); font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+.btn:hover:not(:disabled) { background: var(--s365-hover); border-color: var(--s365-line-strong); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--s365-accent); color: var(--s365-accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.danger { color: var(--s365-danger); }
+.btn.small { min-height: 28px; padding: 0 9px; font-size: 12.5px; }
+[role="tablist"] { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--s365-line); background: var(--s365-panel); }
+[role="tab"] { flex: 0 0 auto; min-height: 40px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--s365-mute); font: inherit; font-weight: 500; cursor: pointer; }
+[role="tab"]:hover { color: var(--s365-ink); }
+[role="tab"][aria-selected="true"] { color: var(--s365-ink); font-weight: 600; border-bottom-color: var(--s365-accent); }
+input, select, textarea { background: var(--s365-input); border: 1px solid var(--s365-line); border-radius: 8px; padding: 6px 9px; min-height: 34px; box-sizing: border-box; color: var(--s365-ink); font: inherit; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--s365-accent); box-shadow: 0 0 0 3px var(--s365-accent-soft); }

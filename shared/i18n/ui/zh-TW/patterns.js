@@ -1,0 +1,23 @@
+/* Shared components, zh-TW: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'ui.patterns.ipv4': 'IPv4 位址',
+  'ui.patterns.ipv6': 'IPv6 位址',
+  'ui.patterns.mac': 'MAC 位址',
+  'ui.patterns.email': '電子郵件地址',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS 存取金鑰 ID',
+  'ui.patterns.aws_secret': 'AWS 私密金鑰',
+  'ui.patterns.github_token': 'GitHub 權杖',
+  'ui.patterns.slack_token': 'Slack 權杖',
+  'ui.patterns.stripe_key': 'Stripe 金鑰',
+  'ui.patterns.google_api_key': 'Google API 金鑰',
+  'ui.patterns.private_key': '私密金鑰',
+  'ui.patterns.bearer': 'Bearer 權杖',
+  'ui.patterns.basic_auth_url': 'URL 中的密碼',
+  'ui.patterns.secret_assignment': '機密指派',
+  'ui.patterns.hash': '雜湊（MD5、SHA-1、SHA-256）',
+  'ui.patterns.credit_card': '信用卡號碼',
+  'ui.patterns.iban': 'IBAN',
+});

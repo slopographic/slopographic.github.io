@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Inventory saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: inventory/js/ui/app.js, shared/biz/router.js, inventory/js/ui/view-state.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Inventory, wait until the store has opened (the boot cover is hidden). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('inventory');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.SlopInv && f.contentWindow.SlopInv.state && f.contentWindow.document.getElementById('boot').hidden)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop Inventory saved place', () => {
+    it('comes back to the same view and product search after leaving for Slop Drive', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slop-session'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../inventory/index.html');
+      // boot has restored its place and shown the first view (autosave starts only then). Not state.view: it is 'products'
+      // from the start, and the boot cover hides before the saved place is read, so a slow IndexedDB lost the change below.
+      await waitFor(() => W.SlopInv.app && W.SlopInv.app.booted, { timeout: 10000 });
+      W.SlopInv.app.show('reports');
+      const search = W.document.getElementById('pSearch');
+      search.value = 'widget';
+      search.dispatchEvent(new W.Event('input', { bubbles: true }));
+      await sleep(600);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../inventory/index.html');
+      await waitFor(() => W.SlopInv.state.view === 'reports', { timeout: 10000 }); // the boot cover can hide before the saved view is shown
+      expect(W.SlopInv.state.view).toBe('reports');
+      expect(W.document.getElementById('pSearch').value).toBe('widget');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Inventory · saved place' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables: import, charts and pivot tables</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; } #app2 { width: 900px; height: 600px; }</style>
+</head>
+<body>
+  <!-- Covers: tables/js/ui/main.js -->
+  <!-- Covers: tables/js/ui/state.js -->
+  <!-- Covers: tables/js/ui/commands.js -->
+  <!-- Covers: tables/js/ui/keys.js -->
+  <!-- Covers: tables/js/ui/ctxmenu.js -->
+  <!-- Covers: tables/js/ui/sheets.js -->
+  <!-- Covers: tables/js/ui/storage.js -->
+  <!-- Covers: tables/js/ui/drop.js -->
+  <!-- Covers: tables/js/ui/objects.js -->
+  <!-- Covers: tables/js/ui/charts.js -->
+  <!-- Covers: tables/js/ui/chart-dialog.js -->
+  <!-- Covers: tables/js/ui/pivot-dialog.js -->
+  <!-- Covers: tables/js/io/import.js -->
+  <!-- Covers: tables/js/io/xlsx-charts.js -->
+  <!-- Covers: tables/css/objects.css -->
+  <!-- Covers: tables/index.html -->
+  <!-- The real app runs in same-origin iframes; tests drive window.SlopTables and the dialogs inside them. -->
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/samples/samples.js"></script>
+  <script src="../../shared/samples/docs.js"></script>
+  <script src="tables.helpers.js"></script>
+  <script src="tables.objects-helpers.js"></script>
+  <script src="tables.spec-import.js"></script>
+  <script src="tables.spec-charts.js"></script>
+  <script src="tables.spec-pivot.js"></script>
+  <script>SlopTest.run({ name: 'Slop Tables objects' });</script>
+</body>
+</html>

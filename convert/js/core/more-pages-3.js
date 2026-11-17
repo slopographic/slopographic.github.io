@@ -1,0 +1,70 @@
+/* Converter pages (convert/<slug>/) for the favicon set, cutting audio and video, and GPS and map files, added to PAGES in
+ * pages.js; shared/seo/convert-copy.mjs writes their head from the same title and description. Every claim is what
+ * core/media-geo.js and the modules it names do. */
+import { withWords } from './page-words.js';
+const PRIVATE = ['Are my files uploaded?', 'No. The conversion runs in your browser, on this device. Your files are not sent to Slopographic or to any other server.'];
+const STEPS = ['Can I keep the GeoJSON made in between?', 'Yes. Open Options and tick Also keep the in-between files: it is listed with the result.'];
+const AUDIO = '.mp3,.wav,.m4a,.ogg,.oga,.opus,.flac,.mp4,.m4v,.mov,.webm,audio/*,video/*';
+const VIDEO = '.mp4,.m4v,.mov,.webm,video/*';
+const GEO = 'Maps and GPS';
+const p = (slug, conv, from, pair, cat, rest) => ({ slug, conv, from, pair, cat, ...rest, faq: [...rest.faq, PRIVATE] });
+
+export const MORE_PAGES_3 = withWords([
+  p('favicon-generator', 'favicon-pack', ['png', 'jpg', 'svg', 'webp'], ['PNG', 'ICO'], 'Images', { accept: '.png,.jpg,.jpeg,.svg,.webp,.gif,.bmp,.ico,image/*',
+    h1: 'Favicon generator: ICO, PNG and Apple icons from one picture',
+    title: 'Favicon generator: favicon.ico and Apple icons from a logo | File convert',
+    description: 'Make a favicon set from one logo in your browser: favicon.ico with 16, 32 and 48 px, PNG icons, the Apple touch icon, a web manifest and the HTML tags.',
+    lead: 'Drop your logo (SVG or a large PNG works best) and get one ZIP with every icon file and the lines to paste into your page’s <head>.',
+    how: ['The picture is fitted into a square, centred, never stretched: a wide logo gets space above and below. Add space around it if the icon looks cramped.', 'The ZIP holds favicon.ico (16, 32 and 48 px in one file), PNG icons at 16, 32, 48, 192 and 512 px, apple-touch-icon.png at 180 px, site.webmanifest and head-tags.html. Upload them to the root of your site and paste the tags.'],
+    faq: [['Why does the Apple icon have a background?', 'iPhones and iPads show transparent parts of a home screen icon as black, so that icon is always filled: white, or the colour you choose.'],
+      ['Is an SVG logo better?', 'Yes. An SVG is drawn sharp at every size; a PNG should be at least 512 px wide.']] }),
+  p('trim-audio', 'audio-trim', ['mp3', 'wav', 'm4a', 'ogg', 'flac'], ['MP3', 'WAV'], 'Audio and video', { accept: AUDIO,
+    h1: 'Cut audio: trim MP3, WAV and other sound files',
+    title: 'Cut audio online: trim MP3, WAV, M4A and FLAC with fades | File convert',
+    description: 'Trim an audio file in your browser: type the start and end, add a fade in and out, save as WAV or MP3. Works on the sound of videos too. Nothing uploaded.',
+    lead: 'Make a ringtone, cut the silence off a recording or keep only the part of an interview you need.',
+    how: ['Type the start and the end in seconds (75) or minutes and seconds (1:15). Leave the end blank to keep everything after the start.', 'Add a fade in and a fade out in seconds, then save as WAV (lossless) or MP3 at 128, 192 or 320 kbps. The status line says how much was kept.'],
+    faq: [['Which files can I cut?', 'MP3, WAV, M4A, OGG, Opus and FLAC, and the sound of MP4, MOV and WebM videos: whatever this browser can play.'], ['Is the quality kept?', 'As WAV, the piece is exactly the decoded sound. MP3 is compressed again, so choose 320 kbps for the best quality.']] }),
+  p('trim-video', 'video-trim', ['mp4', 'mov', 'webm'], ['MP4', 'MP4'], 'Audio and video', { accept: VIDEO,
+    h1: 'Cut video: trim MP4, MOV and WebM clips',
+    title: 'Cut video online: trim MP4, MOV and WebM without re-encoding | File convert',
+    description: 'Trim a video in your browser: type the start and end, and the clip is copied without re-encoding, or cut at the exact frame. MP4, MOV, WebM. No upload.',
+    lead: 'Keep only the part of a video you want to share. The clip stays in the same format as the video.',
+    how: ['Type the start and the end in seconds or minutes and seconds; a blank end keeps the rest of the video.', 'By default the picture and sound are copied as they are: fast, and nothing is lost, but the clip starts at the key frame just before the start. Tick Cut at the exact frame to re-encode instead (slower).', 'The video engine (ffmpeg.wasm) is downloaded once the first time, after the page asks; then the browser keeps it.'],
+    faq: [['What is the largest video?', '400 MB. The whole video has to fit in the browser’s memory.'], ['Why does my clip start a little early?', 'Copying can only start at a key frame. Tick Cut at the exact frame for a cut to the exact moment.']] }),
+  p('gpx-to-geojson', 'gpx-to-geojson', ['gpx'], ['GPX', 'GEOJSON'], GEO, { accept: '.gpx,application/gpx+xml',
+    h1: 'GPX to GeoJSON converter',
+    title: 'GPX to GeoJSON converter: GPS tracks for web maps, free | File convert',
+    description: 'Convert GPX files from Garmin, Strava or Komoot to GeoJSON in your browser: waypoints, routes and tracks with their times and elevation. Nothing uploaded.',
+    lead: 'Put a run, a ride or a hike on a web map (Leaflet, Mapbox, QGIS, geojson.io) with every point of the track.',
+    how: ['Waypoints become points, routes become lines, and each track a line or, with several segments, a multi-line. Coordinates are longitude, latitude and elevation, as GeoJSON wants.', 'Names, descriptions and types are kept as properties; the time of each track point is kept in coordTimes, the list map tools read.'],
+    faq: [['Where do I get a GPX file?', 'Garmin Connect, Strava, Komoot, Wikiloc and most GPS watches and apps export a ride or a run as GPX.']] }),
+  p('kml-to-geojson', 'kml-to-geojson', ['kml'], ['KML', 'GEOJSON'], GEO, { accept: '.kml,application/vnd.google-earth.kml+xml',
+    h1: 'KML to GeoJSON converter',
+    title: 'KML to GeoJSON converter: Google Earth places for web maps | File convert',
+    description: 'Convert KML from Google Earth and My Maps to GeoJSON in your browser: placemarks in every folder, lines, polygons with holes and tracks. No upload.',
+    lead: 'Move places, routes and areas drawn in Google Earth or My Maps to a web map or a GIS tool.',
+    how: ['Every placemark is read, in folders too: points, lines, polygons with their holes, multi-geometries and gx:Track tracks with their times.', 'Names, descriptions and extended data become properties. Styles and icons are not carried over. A KMZ is a zipped KML: unzip it first (Unzip is in File convert).'],
+    faq: [['Can I get a GPX instead?', 'Yes. KML to GPX is its own page, through GeoJSON.']] }),
+  p('kml-to-gpx', 'kml-to-geojson>geojson-to-gpx', ['kml'], ['KML', 'GPX'], GEO, { accept: '.kml,application/vnd.google-earth.kml+xml',
+    h1: 'KML to GPX converter',
+    title: 'KML to GPX converter: Google Earth routes for your GPS, free | File convert',
+    description: 'Convert KML to GPX in your browser: placemarks become waypoints, lines become tracks with their times, ready for Garmin, Komoot or OsmAnd. Nothing uploaded.',
+    lead: 'Plan a route in Google Earth or My Maps, then load it into a GPS watch or a hiking app.',
+    how: ['Step 1 reads every placemark of the KML into GeoJSON: points, lines, polygons and tracks, with names and descriptions.', 'Step 2 writes GPX 1.1: points become waypoints and lines become tracks. An area has no GPX form, so its outline becomes a track, and the status line counts them.'],
+    faq: [STEPS] }),
+  p('gpx-to-csv', 'gpx-to-geojson>geojson-to-csv', ['gpx'], ['GPX', 'CSV'], GEO, { accept: '.gpx,application/gpx+xml',
+    h1: 'GPX to CSV converter',
+    title: 'GPX to CSV converter: each track point with its coordinates | File convert',
+    description: 'Convert GPX tracks to CSV in your browser: one row per point with latitude, longitude, elevation and time, to open in Excel or a script. No upload.',
+    lead: 'Look at a ride or a run point by point in a spreadsheet: speed, climbs, pauses.',
+    how: ['Step 1 reads the GPX into GeoJSON: waypoints, routes and tracks with their times.', 'Step 2 writes one row per point: the feature and its name, the part and point number, latitude, longitude, elevation and time, then any other property.'],
+    faq: [STEPS, ['Can I get Excel instead?', 'Yes. Drop the GPX file on the File convert hub and pick XLSX under More formats in its Convert to menu.']] }),
+  p('geojson-to-gpx', 'geojson-to-gpx', ['geojson'], ['GEOJSON', 'GPX'], GEO, { accept: '.geojson,application/geo+json',
+    h1: 'GeoJSON to GPX converter',
+    title: 'GeoJSON to GPX converter for GPS devices and apps, free | File convert',
+    description: 'Convert GeoJSON to GPX in your browser: points become waypoints and lines become tracks, with elevation and times kept where they are. Nothing uploaded.',
+    lead: 'Load a route drawn on geojson.io or exported from QGIS into a GPS watch or a navigation app.',
+    how: ['Points and multi-points become waypoints with their name, description and time. Lines become tracks; a multi-line becomes one track with a segment per line.', 'Elevation comes from the third coordinate and point times from coordTimes. Areas have no GPX form, so their outlines are written as tracks.'],
+    faq: [['Does a .json file work?', 'Rename it to .geojson first. A file ending in .json is treated as plain JSON and offered the JSON conversions.']] }),
+]);

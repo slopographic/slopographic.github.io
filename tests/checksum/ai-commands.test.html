@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Checksum: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 700px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: checksum/js/ai-commands.js, checksum/js/checksum.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('checksum.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';   // SHA-256 of "abc"
+
+  describe('Checksum: assistant commands', () => {
+    it('hash_file hashes a Slop Drive file, checks it and the page shows it; save_hash writes abc.txt.sha256', async () => {
+      f.src = '../../checksum/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopChecksum && f.contentWindow.SlopCmd && f.contentWindow.SlopHub, { timeout: 15000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      await W.SlopHub.put(new W.Blob(['abc'], { type: 'text/plain' }), { name: 'abc.txt' });
+      let r = await run('hash-file', { file: 'abc.txt', expected: 'sha256: ' + ABC.toUpperCase() });
+      expect(r.value.hash).toBe(ABC);
+      expect(r.value.verdict).toMatch(/^Match/);
+      expect(W.document.getElementById('ck-hash').textContent).toBe(ABC);
+      r = await run('hash-file', { file: 'abc.txt', algorithm: 'SHA-1', expected: ABC });
+      expect(r.value.hash).toBe('a9993e364706816aba3e25717850c26c9cd0d89d');
+      expect(r.value.verdict).toMatch(/Length differs/);
+      await run('hash-file', { file: 'abc.txt' });
+      r = await run('save-hash', {});
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1]);
+      expect(rec.name).toBe('abc.txt.sha256');
+      expect(await rec.blob.text()).toBe(ABC + '  abc.txt\n');
+      expect((await C.exec('checksum.ai.hash-file', { file: 'nope.bin' })).ok).toBe(false);
+    }, { timeout: 30000 });
+
+    it('new_check clears the page; add_text hashes a text; paste_hash checks it; save_hash names it after the text', async () => {
+      let r = await run('new-check', { algorithm: 'SHA-256' });
+      expect(C.state().file).toBe(null);
+      expect(C.state().expected).toBe('');
+      expect(W.document.getElementById('ck-hash').textContent).toBe('');
+      r = await run('paste-hash', { hash: 'SHA256: ' + ABC });
+      expect(r.value.verdict).toMatch(/Choose a file first/);
+      r = await run('add-text', { text: 'abc', name: 'note.txt' });
+      expect(r.value.hash).toBe(ABC);
+      expect(r.value.verdict).toMatch(/^Match/);
+      expect(C.state().file).toBe('note.txt');
+      r = await run('paste-hash', { hash: ABC.replace(/^b/, 'c') });
+      expect(r.value.verdict).toMatch(/^No match/);
+      r = await run('add-text', { text: 'abc', algorithm: 'SHA-1' });
+      expect(r.value.hash).toBe('a9993e364706816aba3e25717850c26c9cd0d89d');
+      expect(C.state().algorithm).toBe('SHA-1');
+      r = await run('save-hash', { to: 'drive' });
+      expect((await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).name).toBe('text.txt.sha1');
+      await run('new-check', {});
+      expect(C.state().hash).toBe(null);
+      expect((await C.exec('checksum.ai.save-hash', {})).ok).toBe(false);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Checksum: assistant commands' });
+  </script>
+</body>
+</html>

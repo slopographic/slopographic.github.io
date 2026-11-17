@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · hero, faucet layout and featured search</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+
+  describe('homepage: hero, faucet and featured search', () => {
+    it('the hero (headline and app globe) comes first, then the capability strip, then the search', async () => {
+      const win = await HomeTest.openHome();
+      const doc = win.document;
+      const hero = doc.getElementById('hero'), finder = doc.querySelector('.finder-top');
+      expect(doc.querySelector('#view-home > *')).toBe(hero);
+      expect(!!(hero.compareDocumentPosition(finder) & win.Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+      expect(hero.nextElementSibling.classList.contains('hx-marquee')).toBeTruthy();
+      expect(hero.nextElementSibling.nextElementSibling).toBe(finder);
+    });
+
+    it('on a wide screen the facets are a column on the left and the results sit on the right', async () => {
+      const win = await HomeTest.openHome();
+      const doc = win.document, frame = document.getElementById('home-frame');
+      frame.style.width = '1280px';
+      win.dispatchEvent(new win.Event('resize'));
+      await sleep(150);
+      const facets = doc.querySelector('#app-finder .fd-faucet > .fd-facets'), results = doc.querySelector('#app-finder .fd-faucet > .fd-results');
+      expect(!!facets && !!results).toBeTruthy();
+      const fr = facets.getBoundingClientRect(), rr = results.getBoundingClientRect();
+      expect(fr.left < rr.left).toBeTruthy();
+      expect(Math.abs(fr.top - rr.top) < 400).toBeTruthy();
+    });
+
+    it('searching "pdf" puts the PDF app first; searching "eml" puts the EML app first', async () => {
+      const win = await HomeTest.openHome();
+      const doc = win.document;
+      const input = doc.querySelector('#app-finder .fd-input');
+      const first = () => {
+        const t = doc.querySelector('#app-finder .fd-results .app-title, #app-finder .fd-results .fd-row .app-title');
+        return t ? [t.textContent.trim(), t.dataset.id] : ['', ''];
+      };
+      for (const [q, want, id] of [['pdf', 'PDF', 'pdf'], ['eml', 'EML', 'eml']]) {
+        input.value = q;
+        input.dispatchEvent(new win.Event('input', { bubbles: true }));
+        await sleep(200);
+        expect(first()[1]).toBe(id);   // that app's card, whatever the build calls it
+        if (BRAND_FACTS.naming === 'brand') expect(first()[0].includes(want)).toBeTruthy();   // here: Slop PDF, Slop EML
+      }
+    });
+  });
+  SlopTest.run ? run({ name: 'Homepage: hero, faucet and featured search' }) : null;
+  </script>
+</body>
+</html>

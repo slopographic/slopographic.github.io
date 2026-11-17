@@ -1,0 +1,49 @@
+{
+  "_": "The tests that are about this repository only: its own workflows and commit identity, its own SEO copy lengths and the white-label tools, which a build does not get. A white-label build leaves these files out (tools/whitelabel/build.mjs excluded()); every other test runs in every build, adapted through tests/brand-facts.js. A path ending in * is a prefix.",
+  "files": [
+    {
+      "file": "tests/node/attribution.test.mjs",
+      "why": "this repository's commit identity and its hooks"
+    },
+    {
+      "file": "tests/node/site-workflows.test.mjs",
+      "why": "this repository's workflows (preview, speed, IndexNow, WebGPU); a build gets only its rules.yml"
+    },
+    {
+      "file": "tests/node/speed-config.test.mjs",
+      "why": "the page speed workflow, which a build does not get"
+    },
+    {
+      "file": "tests/node/webgpu-check.test.mjs",
+      "why": "the nightly WebGPU workflow, which a build does not get"
+    },
+    {
+      "file": "tests/node/indexnow.test.mjs",
+      "why": "the IndexNow workflow and this site's own URLs"
+    },
+    {
+      "file": "tests/seo/site-copy.test.mjs",
+      "why": "this site's SEO copy lengths; a build's renamed copy is longer or shorter"
+    },
+    {
+      "file": "tests/seo/langdirs.test.mjs",
+      "why": "the language folders are git-ignored here and written on publish; a build commits them (its mirror is the published site)"
+    },
+    {
+      "file": "tests/buddy/slot.test.html",
+      "why": "the mascot slot with the sample overlay (brand/profiles/overlays), which a build does not ship; a build's own mascot runs tests/buddy/overlay.test.html"
+    },
+    {
+      "file": "tests/buddy/roam.test.html",
+      "why": "the mascot slot's size and roaming with the sample overlay (brand/profiles/overlays), which a build does not ship; a build's own mascot runs tests/buddy/overlay.test.html"
+    },
+    {
+      "file": "tests/node/whitelabel-*",
+      "why": "the white-label tools (tools/whitelabel), which a build does not get"
+    },
+    {
+      "file": "tests/node/mobile-workflow.test.mjs",
+      "why": "the store apps' workflow (.github/workflows/mobile.yml), which a build does not get"
+    }
+  ]
+}

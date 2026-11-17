@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopDrop in the apps: the drop zone's words follow a language switch</title>
+  <!-- Covers: pdf/js/ui/drop.js, transcribe/js/app.js, remix/js/ui.js, projects/js/ui/files.js,
+       slides/js/ui/file-drop.js, contacts/js/app/drop-import.js -->
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 1280px; height: 800px; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // The apps gave SlopDrop.attach words they had translated once (t('pdf.app.drop_label')), so the zone kept the language
+  // it was drawn in. They give the keys now: the zone opens in Swedish and reads English after a live switch.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const APPS = [
+    ['pdf/index.html', '#pdfDrop .sd-msg', 'pdf.app.drop_label'],
+    ['transcribe/index.html', '#trDrop .sd-msg', 'transcribe.drop.label'],
+    ['slides/index.html', '#ssDrop .sd-msg', 'slides.io.drop_a_pptx_or_sslide_file_to_open_it'],
+    ['contacts/index.html', '#ctDrop .sd-msg', 'contacts.imp.drop'],
+    ['projects/index.html', '#pDrop .sd-msg', 'projects.files.drop'],
+    ['remix/index.html', '#rm-drop .sd-sample', 'remix.ui.sample'],
+  ];
+  function open(src) {
+    localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } }));
+    const f = document.createElement('iframe');
+    f.src = '../../' + src;
+    document.body.append(f);
+    return f;
+  }
+  describe('drop zone words in the apps', () => {
+    for (const [src, sel, key] of APPS) {
+      it(src + ': Swedish, then English after a live switch', async () => {
+        const f = open(src);
+        const el = await waitFor(() => { try { const w = f.contentWindow; return w.SlopI18n && w.SlopI18n.get() === 'sv' && w.SlopI18n.has(key) && f.contentDocument.querySelector(sel); } catch (e) { return null; } }, { timeout: 40000 });
+        const w = f.contentWindow;
+        await waitFor(() => el.textContent === w.SlopI18n.t(key), { timeout: 20000 });
+        const sv = el.textContent;
+        w.SlopI18n.set('en');
+        await waitFor(() => w.SlopI18n.get() === 'en' && el.textContent !== sv, { timeout: 20000 });
+        expect(el.textContent).toBe(w.SlopI18n.t(key));
+        f.remove();
+        localStorage.clear();
+      }, { timeout: 70000 });
+    }
+  });
+  run({ name: 'SlopDrop in the apps: live words' });
+  </script>
+</body>
+</html>

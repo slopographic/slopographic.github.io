@@ -1,0 +1,21 @@
+From: Hiro Tanaka <hiro@example.jp>
+To: Ann Example <ann@example.com>
+Subject: Shipping schedule
+Date: Wed, 04 Mar 2026 18:30:00 +0900
+Message-ID: <m9@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B9"
+
+--B9
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+VGhlIGNvbnRhaW5lcnMgbGVhdmUgWW9rb2hhbWEgb24gMjAgTWFyY2ggYW5kIGFycml2ZSBpbiBH
+b3RoZW5idXJnIG9uIDI0IEFwcmlsLg==
+--B9
+Content-Type: text/plain; name="schedule.txt"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="schedule.txt"
+
+MjAgTWFyICBZb2tvaGFtYQoyNCBBcHIgIEdvdGhlbmJ1cmcK
+--B9--

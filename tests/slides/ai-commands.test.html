@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <!-- The real editor (iframe). Every assistant command runs through SlopCmd.exec with arguments; the outline command's deck is
+       exported as PDF (read back with pdf.js) and PowerPoint (read back as a ZIP of XML).
+       Covers: slides/js/ui/ai-commands.js, slides/js/ui/ai-files.js, slides/js/ui/commands.js, slides/js/core/outline.js, shared/commands/sources.js -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let w, C, S, A;
+  const run = async (id, args) => { const r = await C.exec('slides.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const ph = (s, t) => s.objects.find((o) => o.placeholder === t);
+  const plain = (o) => S.objects.plain(o.text);
+  let PDFJS = null;
+  async function readPdf(blob) {
+    const base = new URL('../../vendor/pdfjs/', location.href).href;
+    PDFJS = PDFJS || await import(base + 'pdf.min.js');
+    PDFJS.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+    return PDFJS.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), standardFontDataUrl: base + 'standard_fonts/' }).promise;
+  }
+  const pageText = async (pdf, n) => (await (await pdf.getPage(n)).getTextContent()).items.map((i) => i.str).join(' ');
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+  const OUTLINE = { title: 'Honey bees', subtitle: 'A short tour', theme: 'paper', slides: [
+    { title: 'Why bees matter', bullets: ['Pollinate crops', 'Make honey'], notes: 'Start with a story' },
+    { title: 'The hive', bullets: ['Queen', 'Workers', '  Foragers'] },
+    { title: 'Threats', bullets: ['Pesticides', 'Habitat loss'] },
+    { title: 'What you can do', bullets: ['Plant flowers'] },
+    { title: 'Thank you' }] };
+
+  describe('Slop Slides assistant commands', () => {
+    it('prepare() loads the commands; schemas are valid; only delete_slide is destructive', async () => {
+      w = await ST.open('../../slides/', { width: 1100, height: 720 });
+      C = w.SlopCmd; S = w.SS; A = S.app;
+      expect(C.get('slides.ai.add-slide')).toBe(null);
+      await C.prepare();
+      const ids = ['new-presentation', 'build-presentation', 'add-slide', 'set-text', 'set-notes', 'add-text-box', 'add-shape', 'add-image', 'apply-theme', 'set-layout', 'move-slide', 'delete-slide', 'export-presentation', 'undo'];
+      for (const id of ids) expect(!!C.get('slides.ai.' + id)).toBe(true);
+      const destructive = C.list().filter((c) => /^slides\.ai\./.test(c.id) && c.destructive).map((c) => c.id);
+      expect(destructive).toEqual(['slides.ai.delete-slide']);
+      const js = SlopCmdArgs.jsonSchema(C.get('slides.ai.build-presentation').args);
+      expect(js.properties.slides.type).toBe('array');
+      expect(js.properties.slides.items.properties.bullets.type).toBe('array');
+      expect(js.required).toEqual(['title', 'slides']);
+      expect(C.get('slides.ai.add-slide').tool).toBe('add_slide');
+    }, { timeout: 30000 });
+
+    it('new_presentation opens a new tab with the size and theme', async () => {
+      const tabs0 = S.tabs.api().tabs().length;
+      await run('new-presentation', { title: 'Plan', size: '4:3', theme: 'midnight' });
+      expect(S.tabs.api().tabs().length).toBe(tabs0 + 1);
+      expect(A.deck.title).toBe('Plan');
+      expect(A.deck.size.w).toBe(720);
+      expect(A.deck.theme.id).toBe('midnight');
+      expect(A.deck.slides.length).toBe(1);
+    });
+
+    it('add_slide, set_text, set_notes, add_text_box, add_shape: each one undo step', async () => {
+      let r = await run('add-slide', { title: 'Agenda', bullets: ['One', '  Two'], notes: 'Hi', after: 1 });
+      expect(r.value).toMatch(/slide 2/);
+      const s = A.deck.slides[1];
+      expect(s.layout).toBe('title-content');
+      expect(plain(ph(s, 'title'))).toBe('Agenda');
+      expect(ph(s, 'body').text.paras.map((p) => p.level)).toEqual([0, 1]);
+      expect(s.notes).toBe('Hi');
+      await run('set-text', { slide: 1, placeholder: 'subtitle', text: 'By the team' });
+      expect(plain(ph(A.deck.slides[0], 'subtitle'))).toBe('By the team');
+      await run('set-text', { slide: 2, placeholder: 'body', text: 'A\nB\nC' });
+      expect(ph(A.deck.slides[1], 'body').text.paras.length).toBe(3);
+      await run('set-notes', { slide: 2, notes: 'Changed' });
+      r = await run('add-text-box', { slide: 2, text: 'Note', x: 10, y: 20, w: 100, h: 40, size: 18, color: 'red', bold: true });
+      const tb = A.deck.slides[1].objects.find((o) => plain(o) === 'Note');
+      expect([tb.x, tb.y, tb.style.size, tb.style.color, tb.style.bold]).toEqual([10, 20, 18, '#ff0000', true]);
+      await run('add-shape', { slide: 2, shape: 'ellipse', fill: 'accent2', text: 'Go', w: 90, h: 90 });
+      const sh = A.deck.slides[1].objects.find((o) => o.type === 'shape');
+      expect([sh.shape, sh.fill.color, plain(sh)]).toEqual(['ellipse', 'accent2', 'Go']);
+      const bad = await C.exec('slides.ai.add-shape', { slide: 9 });
+      expect(bad.ok).toBe(false);
+      expect(bad.error).toMatch(/no slide 9/);
+      expect((await C.exec('slides.ai.add-shape', { fill: 'notacolour' })).ok).toBe(false);
+      A.undo();
+      expect(A.deck.slides[1].objects.some((o) => o.type === 'shape')).toBe(false);
+      expect(A.deck.slides[1].objects.some((o) => plain(o) === 'Note')).toBe(true);
+    });
+
+    it('apply_theme, set_layout, move_slide, delete_slide, go_to_slide and undo', async () => {
+      await run('apply-theme', { theme: 'paper', accent: '#123456', heading_font: 'Caveat' });
+      expect([A.deck.theme.id, A.deck.theme.colors.accent1, A.deck.theme.fonts.heading]).toEqual(['paper', '#123456', 'Caveat']);
+      await run('add-slide', { title: 'Third', after: 2 });
+      await run('set-layout', { slide: 3, layout: 'section' });
+      expect(A.deck.slides[2].layout).toBe('section');
+      await run('move-slide', { slide: 3, to: 1 });
+      expect(plain(ph(A.deck.slides[0], 'title'))).toBe('Third');
+      await run('delete-slide', { slide: 1 });
+      expect(A.deck.slides.length).toBe(2);
+      await run('go-to-slide', { slide: 2 });
+      expect(A.idx).toBe(1);
+      const r = await run('undo', { steps: 1 });
+      expect(r.value).toMatch(/Undid 1/);
+      expect(A.deck.slides.length).toBe(3);
+      const st = C.state();
+      expect(st.slideCount).toBe(3);
+      expect(st.slides[0].title).toBe('Third');
+    });
+
+    it('add_image from Slop Drive (fills an empty picture placeholder) and from this site; other sites are refused', async () => {
+      const id = await w.SlopHub.put(await ST.png(w, '#ff00ff', 40), { name: 'dot.png' });
+      await run('add-slide', { layout: 'image-caption', title: 'Pic' });
+      await run('add-image', { file: 'dot.png' });
+      const pic = ph(A.slide(), 'pic');
+      expect(!!pic.media).toBe(true);
+      expect(A.deck.media[pic.media].mime).toBe('image/png');
+      await run('add-image', { file: id, x: 5, y: 5, w: 50 });
+      const img = A.slide().objects.filter((o) => o.type === 'image' && !o.placeholder)[0];
+      expect([img.x, img.w, Math.round(img.h)]).toEqual([5, 50, 50]);
+      await run('add-image', { url: '/og-share.png' });
+      expect(A.slide().objects.filter((o) => o.type === 'image').length).toBe(3);
+      const r = await C.exec('slides.ai.add-image', { url: 'https://example.com/x.png' });
+      expect(r.ok).toBe(false);
+      expect(r.error).toMatch(/this site/);
+    }, { timeout: 20000 });
+
+    it('build_presentation: 6 slides with the right texts; PDF and PPTX to Slop Drive read back', async () => {
+      const r = await run('build-presentation', OUTLINE);
+      expect(r.value).toMatch(/6 slides/);
+      expect(A.deck.slides.map((s) => plain(ph(s, 'title')))).toEqual(['Honey bees', 'Why bees matter', 'The hive', 'Threats', 'What you can do', 'Thank you']);
+      expect(A.deck.slides[1].notes).toBe('Start with a story');
+      const p = await run('export-presentation', { format: 'pdf', to: 'drive' });
+      expect(p.value).toMatch(/Honey bees\.pdf/);
+      const rec = await w.SlopHub.get(driveId(p));
+      const pdf = await readPdf(rec.blob);
+      expect(pdf.numPages).toBe(6);
+      expect(await pageText(pdf, 1)).toContain('Honey bees');
+      expect(await pageText(pdf, 3)).toContain('Foragers');
+      expect(await pageText(pdf, 4)).toContain('Habitat loss');
+      const x = await run('export-presentation', { format: 'pptx', name: 'Bees deck' });
+      const zrec = await w.SlopHub.get(driveId(x));
+      expect(zrec.name).toBe('Bees deck.pptx');
+      const Z = await import('../../shared/office/zip.js'), map = await Z.readZip(zrec.blob);
+      const slides = [...map.keys()].filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k));
+      expect(slides.length).toBe(6);
+      expect(Z.readText(map, 'ppt/slides/slide2.xml')).toContain('Pollinate crops');
+      expect(Z.readText(map, 'ppt/slides/slide6.xml')).toContain('Thank you');
+    }, { timeout: 60000 });
+
+    it('the checkpoint rollback closes the tabs the assistant opened and restores the deck', async () => {
+      const T = S.tabs.current(), n = S.tabs.api().tabs().length, before = JSON.stringify(A.deck.slides.length);
+      const back = C.checkpoint();
+      await run('add-slide', { title: 'Extra' });
+      await run('new-presentation', { title: 'Scratch' });
+      expect(S.tabs.api().tabs().length).toBe(n + 1);
+      expect(back()).toBe(true);
+      await waitFor(() => S.tabs.current() === T);
+      expect(S.tabs.api().tabs().length).toBe(n);
+      expect(JSON.stringify(A.deck.slides.length)).toBe(before);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

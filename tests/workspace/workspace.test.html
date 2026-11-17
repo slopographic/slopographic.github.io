@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopWorkspace</title>
+<link rel="stylesheet" href="../../shared/workspace/workspace.css">
+</head>
+<body>
+<div id="host" style="width:600px;height:300px"></div>
+<script src="../harness.js"></script>
+<script src="../../shared/workspace/workspace.js"></script>
+<script>
+  const { describe, it, expect, run } = SlopTest;
+  // A test view: records what the workspace tells it, so the tests can check the order and the count.
+  function recorder(log) {
+    return {
+      create(pane, doc) { log.push('create ' + pane.id + ' ' + doc); return { pane: pane.id, doc, el: pane.el }; },
+      load(v, doc) { log.push('load ' + v.pane + ' ' + doc); v.doc = doc; },
+      activate(v) { log.push('activate ' + v.pane); },
+      deactivate(v) { log.push('deactivate ' + v.pane); },
+      destroy(v) { log.push('destroy ' + v.pane); },
+    };
+  }
+  const host = () => document.getElementById('host');
+  describe('SlopWorkspace', () => {
+    it('mounts one pane that fills the host, and the grid follows the layout', () => {
+      const ws = SlopWorkspace.mount(host(), { panes: 1, view: recorder([]) });
+      expect(host().querySelectorAll('.sw-pane').length).toBe(1);
+      expect(host().dataset.panes).toBe('1');
+      ws.setPanes(3);
+      expect(host().querySelectorAll('.sw-pane').length).toBe(3);
+      expect(host().style.gridTemplateColumns).toBe('repeat(3, minmax(0px, 1fr))');
+      ws.setLayout('grid');
+      expect(host().style.gridTemplateColumns).toBe('repeat(2, minmax(0px, 1fr))');
+      expect(host().style.gridTemplateRows).toBe('repeat(2, minmax(0px, 1fr))');
+      ws.setLayout('rows');
+      expect(host().style.gridTemplateRows).toBe('repeat(3, minmax(0px, 1fr))');
+      ws.destroy();
+      expect(host().querySelectorAll('.sw-pane').length).toBe(0);
+    });
+
+    it('each pane opens its own document in its own view', () => {
+      const log = [];
+      const ws = SlopWorkspace.mount(host(), { panes: 2, view: recorder(log) });
+      const a = ws.open(0, 'A.pdf'), b = ws.open(1, 'B.pdf');
+      expect(a.doc).toBe('A.pdf');
+      expect(b.doc).toBe('B.pdf');
+      expect(a.el === ws.pane(0).el).toBe(true);
+      expect(b.el === ws.pane(1).el).toBe(true);
+      ws.open(1, 'C.pdf');   // a second open in the same pane loads, it does not create a second view
+      expect(log.filter((l) => l.startsWith('create')).length).toBe(2);
+      expect(log.indexOf('load 1 C.pdf') > -1).toBe(true);
+      ws.destroy();
+    });
+
+    it('focus moves the tools: the old view is deactivated before the new one is activated', () => {
+      const log = [];
+      let focused = null;
+      const ws = SlopWorkspace.mount(host(), { panes: 2, view: recorder(log), onFocus: (p) => { focused = p.id; } });
+      ws.open(0, 'A'); ws.open(1, 'B');
+      log.length = 0;
+      ws.focus(1);
+      expect(log.join('|')).toBe('deactivate 0|activate 1');
+      expect(ws.active().id).toBe(1);
+      expect(focused).toBe(1);
+      expect(ws.pane(1).el.classList.contains('is-active')).toBe(true);
+      expect(ws.pane(0).el.classList.contains('is-active')).toBe(false);
+      log.length = 0;
+      ws.focus(1);
+      expect(log.length).toBe(0);   // already focused: nothing happens
+      ws.destroy();
+    });
+
+    it('a press on a pane focuses it', () => {
+      const ws = SlopWorkspace.mount(host(), { panes: 2, view: recorder([]) });
+      ws.open(0, 'A'); ws.open(1, 'B');
+      ws.pane(1).el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      expect(ws.active().id).toBe(1);
+      ws.destroy();
+    });
+
+    it('closing a pane destroys its view, and the focus goes to the first pane when the active one closes', () => {
+      const log = [];
+      const ws = SlopWorkspace.mount(host(), { panes: 3, view: recorder(log) });
+      ws.open(0, 'A'); ws.open(1, 'B'); ws.open(2, 'C');
+      ws.focus(2);
+      log.length = 0;
+      ws.setPanes(2);
+      expect(host().querySelectorAll('.sw-pane').length).toBe(2);
+      expect(log.indexOf('destroy 2') > -1).toBe(true);
+      expect(ws.active().id).toBe(0);
+      expect(log.indexOf('activate 0') > -1).toBe(true);
+      ws.destroy();
+    });
+
+    it('a pane count outside 1 to 4 is clamped', () => {
+      const ws = SlopWorkspace.mount(host(), { panes: 1, view: recorder([]) });
+      expect(ws.setPanes(9)).toBe(4);
+      expect(host().querySelectorAll('.sw-pane').length).toBe(4);
+      expect(ws.setPanes(0)).toBe(1);
+      ws.destroy();
+    });
+  });
+  run({ name: 'SlopWorkspace' });
+</script>
+</body>
+</html>

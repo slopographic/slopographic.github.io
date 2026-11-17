@@ -1,0 +1,23 @@
+/* Shared components, ar: the names of the kinds of text shared/patterns finds. Same keys as shared/i18n/ui/en/patterns.js. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'ui.patterns.ipv4': 'عنوان IPv4',
+  'ui.patterns.ipv6': 'عنوان IPv6',
+  'ui.patterns.mac': 'عنوان MAC',
+  'ui.patterns.email': 'عنوان بريد إلكتروني',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'معرّف مفتاح وصول AWS',
+  'ui.patterns.aws_secret': 'المفتاح السري لـ AWS',
+  'ui.patterns.github_token': 'رمز GitHub',
+  'ui.patterns.slack_token': 'رمز Slack',
+  'ui.patterns.stripe_key': 'مفتاح Stripe',
+  'ui.patterns.google_api_key': 'مفتاح Google API',
+  'ui.patterns.private_key': 'مفتاح خاص',
+  'ui.patterns.bearer': 'رمز Bearer',
+  'ui.patterns.basic_auth_url': 'كلمة مرور في الرابط URL',
+  'ui.patterns.secret_assignment': 'إسناد سرّ',
+  'ui.patterns.hash': 'تجزئة (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'رقم بطاقة ائتمان',
+  'ui.patterns.iban': 'IBAN',
+});

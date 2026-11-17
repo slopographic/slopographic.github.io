@@ -1,0 +1,22 @@
+/* SEO copy, ja: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'seo.task.code.open-filemaker-file.crumb': 'FileMakerファイルを開く',
+  'seo.task.code.open-filemaker-file.title': 'FileMakerファイルをオンラインで開く：.fmp12と.fp7のテーブルを表示',
+  'seo.task.code.open-filemaker-file.description': 'FileMakerのデータベース（.fmp12、.fp7、.fp5、.fp3）をブラウザで開き、FileMakerなしでテーブルとレコードを閲覧。検索やCSV・JSON書き出しも可能。アップロード不要。',
+  'seo.task.code.open-filemaker-file.h1': 'FileMakerファイルをオンラインで開く',
+  'seo.task.code.open-filemaker-file.lead': 'FileMakerファイルにはレコードのテーブルが入っており、通常は見るのにFileMakerが必要です。Slop Codeにファイルをドロップすると、テーブルがグリッドで開き、スクロール、検索、書き出しができます。インストールは不要です。',
+  'seo.task.code.open-filemaker-file.steps.0': 'Slop Codeを開き、.fmp12、.fp7、.fp5、.fp3のファイルをページにドロップするか、Slop Driveから選びます。',
+  'seo.task.code.open-filemaker-file.steps.1': 'ファイルは読み取り専用のグリッドで開きます。一覧からテーブルを選んでください。行はスクロールに合わせて読み込まれるので、大きなファイルでも快適です。',
+  'seo.task.code.open-filemaker-file.steps.2': '検索ボックスでテーブルを検索するか、テキストの種類（IPアドレス、メールアドレス、キー）を選ぶと、それを含む次の行にジャンプします。',
+  'seo.task.code.open-filemaker-file.steps.3': '「書き出し」を選ぶと、テーブルをCSVまたはJSONとして保存でき、ほかのアプリで開くこともできます。',
+  'seo.task.code.open-filemaker-file.body.0': 'このページはファイル形式を自前で読み取ります。FileMaker Pro 3〜6のファイル（.fp3、.fp5、.fmp）、Pro 7〜12のファイル（.fp7、.fmp12）、FileMakerが書き出すテーブルエクスポート（.fmpxml）に対応します。リーダーはオープンソースのfmptoolsをJavaScriptに移植したものです。',
+  'seo.task.code.open-filemaker-file.body.1': 'テーブル、列名、レコードが表示されます。コンテナフィールドの画像やファイル、レイアウト、スクリプト、リレーション、値一覧は読み込まれません。暗号化されたファイルは、先にFileMakerで開く必要があります。',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'ファイルを開くのにFileMakerは必要ですか？',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'いいえ。ページがブラウザ内でファイルを読み取り、テーブルと行を表示します。データベースやそのスクリプトは実行しません。',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'ファイルはアップロードされますか？',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'いいえ。ファイルはこの端末で読み取られ、Slopographicにも他の誰にも何も送信されません。',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'データを変更できますか？',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'いいえ。ファイルは読み取り専用で表示され、変更されることはありません。ほかのアプリでデータを扱うには、テーブルをCSVまたはJSONで書き出してください。',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'どのFileMakerファイルを開けますか？',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'FileMaker Pro 3〜12のファイル（.fp3、.fp5、.fp7、.fmp12）と、FMPXMLRESULT形式のテーブルエクスポートです。後のバージョンのFileMakerで作られた新しい.fmp12ファイルも、暗号化されていなければ同様に開けます。',
+});

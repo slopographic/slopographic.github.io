@@ -1,0 +1,22 @@
+/* SEO copy, English: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'seo.task.code.open-filemaker-file.crumb': 'Open a FileMaker file',
+  'seo.task.code.open-filemaker-file.title': 'Open a FileMaker file online: view .fmp12 and .fp7 tables',
+  'seo.task.code.open-filemaker-file.description': 'Open a FileMaker database (.fmp12, .fp7, .fp5, .fp3) in your browser and read its tables and rows without FileMaker. Search, export to CSV or JSON. No upload.',
+  'seo.task.code.open-filemaker-file.h1': 'Open a FileMaker file online',
+  'seo.task.code.open-filemaker-file.lead': 'A FileMaker file holds tables of records, and you normally need FileMaker to see them. Drop the file on Slop Code and its tables open as a grid you can scroll, search and export, without installing anything.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Open Slop Code and drop the .fmp12, .fp7, .fp5 or .fp3 file on the page, or choose it from Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'The file opens as a read-only grid. Pick a table from the list: rows load as you scroll, so a large file stays quick.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Search the table with the find box, or choose a kind of text (an IP address, an e-mail address, a key) to jump to the next row that holds one.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Choose Export to save the table as CSV or JSON, or open it in another app.',
+  'seo.task.code.open-filemaker-file.body.0': 'The page reads the file format itself: FileMaker Pro 3 to 6 files (.fp3, .fp5, .fmp), Pro 7 to 12 files (.fp7, .fmp12) and the table export FileMaker writes (.fmpxml). The reader is a JavaScript port of the open-source fmptools.',
+  'seo.task.code.open-filemaker-file.body.1': 'You see the tables, the column names and the records. Pictures and files in container fields, layouts, scripts, relationships and value lists are not read, and an encrypted file has to be opened in FileMaker first.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'Do I need FileMaker to open the file?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'No. The page reads the file in your browser and shows its tables and rows. It does not run the database or its scripts.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'Is my file uploaded?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'No. The file is read on this device and nothing is sent to Slopographic or to anyone else.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'Can I change the data?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'No. The file is shown read only and is never changed. Export a table as CSV or JSON to work on the data in another app.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'Which FileMaker files can it open?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'Files from FileMaker Pro 3 to 12 (.fp3, .fp5, .fp7, .fmp12) and table exports in the FMPXMLRESULT format. Newer .fmp12 files made by later FileMaker versions open the same way unless they are encrypted.',
+});

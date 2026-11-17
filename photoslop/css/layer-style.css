@@ -1,0 +1,41 @@
+/* PhotoSlop Layer Style dialog (js/ui/layer-style.js, layer-style-pages.js). The frame and buttons are SlopUI's;
+ * this lays out the sections list, the page and the preview. New CSS uses the shared --sl-* theme tokens. */
+.ls-dialog { width: min(820px, calc(100vw - 24px)); }
+.ls-body {
+  display: grid; grid-template-columns: 170px minmax(0, 1fr) 250px; gap: 14px; align-items: start;
+  color: var(--sl-text, #111);
+}
+.ls-list {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
+  border-right: 1px solid var(--sl-border, #888); padding-right: 10px; min-width: 0;
+}
+.ls-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;
+  font-size: 13px; line-height: 1.25; user-select: none;
+}
+.ls-item:hover { background: color-mix(in srgb, var(--sl-accent, #d4ff3a) 14%, transparent); }
+.ls-item.on { background: color-mix(in srgb, var(--sl-accent, #d4ff3a) 28%, transparent); font-weight: 600; }
+.ls-item:focus-visible { outline: 2px solid var(--sl-accent, #d4ff3a); outline-offset: -2px; }
+.ls-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--sl-border, #888); flex: 0 0 auto; }
+.ls-dot.on { background: var(--sl-accent, #d4ff3a); border-color: transparent; }
+.ls-main { min-width: 0; }
+.ls-page { display: flex; flex-direction: column; gap: 10px; }
+.ls-title { margin: 0; font-size: 15px; }
+.ls-help { margin: 0; font-size: 12px; opacity: 0.8; line-height: 1.4; }
+.ls-enable { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ls-enable input { accent-color: var(--sl-accent, #d4ff3a); }
+.ls-side { display: flex; flex-direction: column; gap: 4px; }
+.ls-prev {
+  width: 100%; height: auto; aspect-ratio: 4 / 3; border: 1px solid var(--sl-border, #888);
+  border-radius: 4px; background: var(--sl-surface, #f4f1ea);
+}
+.ls-cap { margin: 0; font-size: 11px; opacity: 0.8; }
+@media (max-width: 760px) {
+  .ls-body { grid-template-columns: minmax(0, 1fr); }
+  .ls-list {
+    flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--sl-border, #888);
+    padding: 0 0 8px; gap: 4px;
+  }
+  .ls-item { white-space: nowrap; }
+  .ls-side { order: 3; max-width: 320px; }
+}

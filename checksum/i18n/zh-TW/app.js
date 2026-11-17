@@ -1,0 +1,28 @@
+/* Checksum, Traditional Chinese (Taiwan): the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-zh-TW.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'checksum.app.home': 'Slopographic 首頁',
+  'checksum.app.lede': '計算檔案的雜湊值，或與發布者提供的雜湊值比對。檔案只會在這台裝置上讀取，不會上傳。',
+  'checksum.app.step_choose': '1. 選擇檔案',
+  'checksum.app.drop': '選擇檔案，或將檔案拖放到這裡',
+  'checksum.app.step_hash': '2. 雜湊值',
+  'checksum.app.hash_label': '檔案的雜湊值',
+  'checksum.app.settings_label': '雜湊設定',
+  'checksum.app.algorithm': '演算法',
+  'checksum.app.sha1_note': 'SHA-1 僅為了與舊的已發布雜湊值相符而保留。新的檢查請使用 SHA-256。',
+  'checksum.app.check_against': '與已發布的雜湊值比對',
+  'checksum.app.expected': '預期的雜湊值',
+  'checksum.app.expected_ph': '從下載頁面貼上雜湊值',
+  'checksum.app.copy': '複製雜湊值',
+  'checksum.app.copied': '已複製',
+  'checksum.app.copy_failed': '複製失敗',
+  'checksum.app.settings': '設定',
+  'checksum.app.a_file': '一個檔案',
+  'checksum.app.reading': '正在讀取 {name}（{mb} MB）…',
+  'checksum.app.hash_of': '{name} 的 {alg}',
+  'checksum.app.choose_first': '請先選擇檔案。',
+  'checksum.app.not_hash': '這看起來不像雜湊值（只能包含 a 到 f 的字母與數字）。',
+  'checksum.app.length_differs': '長度不符：{alg} 雜湊值為 {n} 個字元。請檢查演算法。',
+  'checksum.app.match': '相符：這個檔案就是已發布的檔案。',
+  'checksum.app.no_match': '不相符：此檔案與已發布的雜湊值不同。',
+});

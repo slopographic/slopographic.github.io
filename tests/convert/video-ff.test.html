@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: video with ffmpeg</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import { CONVERSIONS } from '../../convert/js/core/catalog.js';
+import { detectKind } from '../../convert/js/core/detect.js';
+const { describe, it, expect } = SlopTest;
+
+const fixture = async (name, type) => new File([await (await fetch('fixtures/' + name)).arrayBuffer()], name, { type });
+const run = (id, file, kind, o = {}) => CONVERSIONS.find((c) => c.id === id).run([{ file, name: file.name, kind }], o);
+const head = (b, from, len) => String.fromCharCode(...b.subarray(from, from + len));
+
+describe('video conversions with ffmpeg.wasm', () => {
+  it('MOV to MP4 copies the streams (the first try): an ftyp MP4 with the same length', async () => {
+    const [out] = await run('to-mp4', await fixture('tone.mov', 'video/quicktime'), 'mov');
+    expect(out.name).toBe('tone.mp4');
+    const b = new Uint8Array(await out.blob.arrayBuffer());
+    expect(head(b, 4, 4)).toBe('ftyp');
+    expect(detectKind('tone.mp4', 'video/mp4', b.subarray(0, 512))).toBe('mp4');
+  }, { timeout: 240000 });
+
+  it('a MOV with PCM audio cannot be copied into MP4, so it is re-encoded (the fallback)', async () => {
+    const [out] = await run('to-mp4', await fixture('pcm.mov', 'video/quicktime'), 'mov', { crf: '28' });
+    const b = new Uint8Array(await out.blob.arrayBuffer());
+    expect(head(b, 4, 4)).toBe('ftyp');
+    expect(b.length > 1000).toBe(true);
+  }, { timeout: 240000 });
+
+  it('a frame at a time becomes a WebP picture of the video size', async () => {
+    const [out] = await run('frame-to-webp', await fixture('tone.mp4', 'video/mp4'), 'mp4', { time: 0.5 });
+    expect(out.name).toBe('tone.webp');
+    const b = new Uint8Array(await out.blob.arrayBuffer());
+    expect(head(b, 0, 4)).toBe('RIFF');
+    expect(head(b, 8, 4)).toBe('WEBP');
+    const bmp = await createImageBitmap(out.blob);
+    expect(bmp.width).toBe(160);
+    expect(bmp.height).toBe(120);
+  }, { timeout: 240000 });
+
+  it('a frame becomes a PNG and a JPG', async () => {
+    const f = await fixture('tone.mp4', 'video/mp4');
+    const [png] = await run('frame-to-png', f, 'mp4', { time: 0 });
+    expect(head(new Uint8Array(await png.blob.arrayBuffer()), 1, 3)).toBe('PNG');
+    const [jpg] = await run('frame-to-jpg', f, 'mp4', { time: 0 });
+    const j = new Uint8Array(await jpg.blob.arrayBuffer());
+    expect(j[0]).toBe(0xff);
+    expect(j[1]).toBe(0xd8);
+  }, { timeout: 240000 });
+
+  it('a video becomes an animated GIF', async () => {
+    const [out] = await run('video-to-gif', await fixture('tone.mp4', 'video/mp4'), 'mp4', { width: 80, fps: 5 });
+    expect(out.name).toBe('tone.gif');
+    expect(head(new Uint8Array(await out.blob.arrayBuffer()), 0, 3)).toBe('GIF');
+  }, { timeout: 240000 });
+
+  it('a video becomes a WebM', async () => {
+    const [out] = await run('to-webm', await fixture('tone.mp4', 'video/mp4'), 'mp4');
+    const b = new Uint8Array(await out.blob.arrayBuffer());
+    expect(b[0]).toBe(0x1a);
+    expect(b[1]).toBe(0x45);
+  }, { timeout: 240000 });
+
+  it('a file that is not a video says the conversion failed, with the reason', async () => {
+    let msg = '';
+    try { await run('to-mp4', new File([new TextEncoder().encode('not a video at all')], 'notes.mov', { type: 'video/quicktime' }), 'mov'); } catch (e) { msg = e.message; }
+    expect(msg).toMatch(/conversion failed/);
+  }, { timeout: 240000 });
+});
+
+SlopTest.run({ name: 'File convert: video with ffmpeg' });
+</script>
+</body>
+</html>

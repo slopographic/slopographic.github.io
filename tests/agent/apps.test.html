@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WebMCP tools in the apps</title>
+  <style>body { margin: 0; background: #111; color: #ddd; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fake.js"></script>
+  <script>
+  // Covers: shared/ai/apptools.js, shared/ai/optools.js, shared/agent/boot.js, shared/agent/webmcp.js, shared/agent/workspace.js, shared/agent/tools.js, shared/agent/about.js, shell/shell.js
+  // Covers: shared/menubar/menubar.js, pdf/js/ui/menus.js, slopcut/js/ui/menus.js, photoslop/js/ui/menus.js
+  // With a fake document.modelContext installed before the page's agent code runs, each app registers its generated tools:
+  // the workspace and operations tools everywhere, the SlopCmd tools where the page has commands. With the setting off,
+  // nothing is registered. The Help note opens from the command palette.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const WS = ['list_files', 'read_file', 'save_to_drive', 'download', 'list_operations', 'run_operation', 'run_workflow'];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function checkTools(app) {
+    for (const t of app.mc.tools.values()) {
+      expect(/^[A-Za-z0-9_.-]{1,64}$/.test(t.name)).toBe(true);
+      expect(t.inputSchema.type).toBe('object');
+      expect(typeof t.annotations.readOnlyHint).toBe('boolean');
+    }
+    for (const n of WS) expect(app.names()).toContain(n);
+  }
+
+  describe('tools registered on each app', () => {
+    it('PhotoSlop: its AI commands as tools, app state read-only, workspace and operations', async () => {
+      const app = await AgentFake.open('../../photoslop/index.html', { ready: (w) => !!w.SlopCmd });
+      checkTools(app);
+      const names = app.names();
+      expect(names).toContain('gaussian_blur');
+      expect(names).toContain('run_command');
+      expect(names).toContain('open_file');
+      expect(app.mc.tools.get('app_state').annotations.readOnlyHint).toBe(true);
+      expect(app.mc.tools.get('list_files').annotations.readOnlyHint).toBe(true);
+      expect(names.length).toBeGreaterThan(25);
+      const blur = app.mc.tools.get('gaussian_blur');
+      expect(blur.inputSchema.properties.radius.type).toBe('number');
+      // the same schema as the Slop AI panel's
+      const panel = app.w.SlopAIKit.cmdTools.definitions(app.w.SlopCmd).find((d) => d.function.name === 'gaussian_blur');
+      expect(blur.inputSchema).toEqual(panel.function.parameters);
+      app.close();
+    }, { timeout: 60000 });
+
+    it('Slop PDF', async () => {
+      const app = await AgentFake.open('../../pdf/index.html', { ready: (w) => !!w.SlopCmd });
+      checkTools(app);
+      await waitFor(() => app.names().includes('list_commands'), { timeout: 20000 });   // Slop PDF registers its commands after the page loads
+      expect(app.names()).toContain('list_commands');
+      const cmds = await app.json('list_commands');
+      expect(cmds.length).toBeGreaterThan(20);
+      app.close();
+    }, { timeout: 60000 });
+
+    it('SlopCut', async () => {
+      const app = await AgentFake.open('../../slopcut/index.html', { ready: (w) => !!(w.SE && w.SE.app) });
+      checkTools(app);
+      expect(app.names()).toContain('run_command');
+      app.close();
+    }, { timeout: 60000 });
+
+    it('Slop Workflows', async () => {
+      const app = await AgentFake.open('../../workflows/index.html', { ready: (w) => !!w.SlopCmd });
+      checkTools(app);
+      expect(app.names().some((n) => /add_step/.test(n))).toBe(true);
+      app.close();
+    }, { timeout: 60000 });
+
+    it('File convert: its own commands, the operations and the workspace; list_operations lists the conversions with options', async () => {
+      const app = await AgentFake.open('../../convert/index.html');
+      checkTools(app);
+      for (const t of ['new_conversion', 'add_files', 'set_target', 'export_results', 'run_command']) expect(app.names()).toContain(t);   // convert/js/ui/ai-commands.js
+      const all = await app.json('list_operations');
+      expect(all.count).toBeGreaterThan(100);
+      const png = await app.json('list_operations', { query: 'resize' });
+      const r = png.operations.find((o) => o.id === 'resize.image');
+      expect(!!r).toBe(true);
+      expect(r.options.properties.width.type).toBe('number');
+      app.close();
+    }, { timeout: 60000 });
+  });
+
+  describe('the setting', () => {
+    it('off, then on from the Help note', async () => {
+      localStorage.setItem('slop.agents', 'off');
+      const fr = document.createElement('iframe'); fr.style.cssText = 'width:1000px;height:700px'; document.body.append(fr);
+      let mc = null;
+      fr.src = '../../workflows/index.html';
+      await waitFor(() => { const w = fr.contentWindow; if (!mc && w && w.location.pathname.endsWith('/workflows/index.html')) { mc = AgentFake.fake(w); Object.defineProperty(w.document, 'modelContext', { value: mc }); } return !!mc; }, { timeout: 20000, step: 1 });
+      const w = fr.contentWindow;
+      await waitFor(() => w.SlopAgents && w.SlopCmd && w.SlopCmd.get('agents.about'), { timeout: 40000 });
+      await sleep(1500);
+      expect(mc.tools.size).toBe(0);
+      expect(!!w.SlopWebMCP).toBe(false);
+      expect(w.SlopAgents.enabled()).toBe(false);
+      w.SlopCmd.run('agents.about');
+      await waitFor(() => w.document.querySelector('.sag-toggle input'), { timeout: 10000 });
+      const box = w.document.querySelector('.sag-toggle input');
+      expect(box.checked).toBe(false);
+      expect(w.document.querySelector('.sag-note').textContent).toContain('Your files stay on this device');
+      box.click();
+      await waitFor(() => mc.tools.size > 5, { timeout: 20000 });
+      expect(localStorage.getItem('slop.agents')).toBe(null);
+      await waitFor(() => /On: \d+ tools/.test(w.document.querySelector('.sag-status').textContent), { timeout: 5000 });
+      box.click();   // off again: every tool is gone at once
+      await waitFor(() => mc.tools.size === 0, { timeout: 5000 });
+      expect(localStorage.getItem('slop.agents')).toBe('off');
+      localStorage.removeItem('slop.agents');
+      fr.remove();
+    }, { timeout: 90000 });
+  });
+  SlopTest.run({ name: 'WebMCP tools in the apps' });
+  </script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

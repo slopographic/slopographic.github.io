@@ -1,0 +1,114 @@
+/* Slopographic shell: switcher, app drawer, notifications and the header buttons.
+ * Shares SlopUI's look (shared/slopui.css) and takes its colours from the brand (--brand-*). */
+.sh-back, .sh-dr, .sh-dr-folder, .sh-hdr, .sh-ghost, .sn-stack, .sn-panel {
+  --sh-bg: var(--sl-surface, var(--sui-bg, var(--panel, #1c1c1c)));
+  --sh-page: var(--sui-page, #0d0d0d);
+  --sh-fg: var(--sl-text, var(--sui-fg, var(--brand-paper, #f1ede4)));
+  --sh-dim: var(--sui-dim, rgba(241, 237, 228, .62));
+  --sh-faint: rgba(241, 237, 228, .42);
+  --sh-line: var(--sui-line, rgba(241, 237, 228, .14));
+  --sh-sel: rgba(241, 237, 228, .1);
+  --sh-accent: var(--sui-accent, var(--brand-accent, #d4ff3a));
+  --sh-ink: var(--sui-accent-ink, var(--brand-ink, #0a0a0a));
+  --sh-radius: 10px;
+  --sh-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+  font: 13px/1.4 var(--sui-font, "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif);
+  color: var(--sh-fg);
+}
+.sh-back[hidden], .sh-dr[hidden], .sh-dr-folder[hidden], .sn-panel[hidden], .sn-perm[hidden], .sn-count[hidden] { display: none !important; }
+button { font: inherit; }
+.sh-hdr { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 8px; position: relative; flex: none; }
+/* .sh-hbtn (Apps, the bell) takes its look from shared/ui/hbtn.css (.slop-hbtn), like every shared header button. */
+.sh-tile:focus-visible, .sh-opt:focus-visible, .sh-dr-close:focus-visible, .sh-dr button:focus-visible, .sn-toast button:focus-visible, .sn-panel button:focus-visible { outline: 2px solid var(--sh-accent); outline-offset: 1px; }
+.sh-fab { position: fixed; top: 10px; inset-inline-end: 10px; margin: 0; z-index: 800; }
+.sh-kbd { font: 11px var(--sui-mono, ui-monospace, monospace); color: var(--sh-dim); border: 1px solid var(--sh-line); border-radius: 5px; padding: 1px 6px; }
+.sh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sh-badge { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 7px; background: hsl(var(--h, 200) 50% 40%); color: #fff; font-weight: 700; font-size: 13px; }
+
+/* ---- switcher ---- */
+.sh-back { position: fixed; inset: 0; z-index: 800; display: grid; justify-items: center; align-items: start; padding: min(12vh, 90px) 8px 8px; background: rgba(0, 0, 0, .42); }
+.sh-sw { width: min(560px, 100%); max-height: 72vh; display: flex; flex-direction: column; background: var(--sh-bg); border: 1px solid var(--sh-line); border-radius: 12px; box-shadow: var(--sh-shadow); overflow: hidden; }
+.sh-sw-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--sh-line); }
+.sh-q { flex: 1; min-width: 0; height: 40px; padding: 0 10px; font-size: 16px; color: var(--sh-fg); background: color-mix(in srgb, var(--sh-fg) 8%, transparent); border: 1px solid var(--sh-line); border-radius: 8px; outline: none; }
+.sh-q:focus { border-color: var(--sh-accent); }
+/* the close control: a × always (a finger has no Esc key), the Esc hint beside it where there is a keyboard (slopui.css) */
+.sh-close { flex: none; display: inline-flex; align-items: center; gap: 6px; min-width: 40px; min-height: 40px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--sh-dim); cursor: pointer; font: inherit; }
+.sh-close:hover { background: color-mix(in srgb, var(--sh-fg) 8%, transparent); color: var(--sh-fg); }
+.sh-close:focus-visible { outline: 2px solid var(--sh-accent); outline-offset: 1px; }
+.sh-x { font-size: 24px; line-height: 1; }
+.sh-list { flex: 1; overflow-y: auto; padding: 6px; overscroll-behavior: contain; }
+.sh-sec { padding: 10px 8px 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--sh-dim); }
+.sh-opt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 8px; background: none; border: 0; border-radius: 8px; color: var(--sh-fg); text-align: start; cursor: pointer; }
+.sh-opt.sh-on { background: var(--sh-sel); }
+.sh-opt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sh-opt-name, .sh-opt-sub, .sh-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-opt-sub { font-size: 12px; color: var(--sh-dim); }
+.sh-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sh-dim); border: 1px solid var(--sh-line); border-radius: 4px; padding: 1px 5px; }
+.sh-empty { margin: 0; padding: 14px 10px; color: var(--sh-dim); }
+.sh-sw-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--sh-line); font-size: 12px; color: var(--sh-dim); }
+.sh-all, .sh-dr-back, .sh-dr-rename, .sh-dr-ungroup { height: 28px; padding: 0 12px; background: var(--sh-sel); color: var(--sh-fg); border: 1px solid var(--sh-line); border-radius: 7px; cursor: pointer; }
+
+/* ---- app drawer ---- */
+.sh-dr, .sh-dr-folder { position: fixed; inset: 0; z-index: 800; display: flex; flex-direction: column; gap: 16px; padding: 20px max(16px, env(safe-area-inset-left)) 24px; background: var(--sh-page); overflow-y: auto; }
+.sh-dr-folder { z-index: 810; }
+.sh-dr-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sh-dr-head > div { min-width: 0; }
+.sh-dr-h, .sh-dr-title { margin: 0; font-size: 20px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-dr-hint { margin: 2px 0 0; color: var(--sh-dim); font-size: 13px; }
+.sh-dr-close { width: 36px; height: 36px; flex: none; background: none; border: 1px solid var(--sh-line); border-radius: 8px; color: var(--sh-fg); font-size: 22px; line-height: 1; cursor: pointer; }
+.sh-dr-foot { display: flex; justify-content: flex-start; }
+.sh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 8px; align-content: start; }
+.sh-tile { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 4px; background: none; border: 0; border-radius: 12px; color: var(--sh-fg); cursor: grab; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.sh-tile:hover { background: var(--sh-sel); }
+.sh-tile .sh-badge { width: 56px; height: 56px; border-radius: 14px; font-size: 24px; }
+.sh-name { max-width: 100%; font-size: 12px; text-align: center; }
+.sh-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 56px; height: 56px; padding: 6px; border-radius: 14px; background: rgba(241, 237, 228, .08); }
+.sh-mini .sh-mini-b { width: auto; height: auto; min-height: 0; font-size: 10px; border-radius: 5px; aspect-ratio: 1; }
+.sh-src { opacity: .35; }
+.sh-drop-combine { background: var(--sh-sel); box-shadow: inset 0 0 0 2px var(--sh-accent); }
+.sh-drop-before::before, .sh-drop-after::after { content: ""; position: absolute; top: 12%; bottom: 12%; width: 3px; border-radius: 2px; background: var(--sh-accent); }
+.sh-drop-before::before { left: -5px; }
+.sh-drop-after::after { right: -5px; }
+.sh-ghost { position: fixed; left: 0; top: 0; z-index: 900; width: 104px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 4px; border-radius: 12px; background: var(--sh-bg); box-shadow: var(--sh-shadow); pointer-events: none; opacity: .92; }
+.sh-ghost .sh-badge { width: 56px; height: 56px; border-radius: 14px; font-size: 24px; }
+
+/* ---- notifications ---- */
+.sn-stack { position: fixed; right: 16px; bottom: 16px; z-index: 2147483000; width: min(360px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.sn-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 10px 8px 10px 14px; background: var(--sh-bg); border: 1px solid var(--sh-line); border-radius: 12px; box-shadow: var(--sh-shadow); opacity: 0; transform: translateY(10px); transition: opacity .18s, transform .18s; }
+.sn-toast.sn-in { opacity: 1; transform: none; }
+.sn-toast.sn-out { opacity: 0; transform: translateY(6px); }
+.sn-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sn-title { font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.sn-body { color: var(--sh-dim); font-size: 12px; overflow-wrap: anywhere; }
+.sn-act { align-self: center; height: 26px; padding: 0 10px; background: var(--sh-accent); color: var(--sh-ink); border: 0; border-radius: 7px; font-weight: 600; cursor: pointer; }
+.sn-x { width: 26px; height: 26px; flex: none; background: none; border: 0; border-radius: 6px; color: var(--sh-dim); font-size: 18px; line-height: 1; cursor: pointer; }
+.sn-x:hover { background: var(--sh-sel); color: var(--sh-fg); }
+.sn-panel { position: fixed; top: 58px; right: 12px; z-index: 850; width: min(380px, calc(100vw - 24px)); max-height: 70vh; display: flex; flex-direction: column; background: var(--sh-bg); border: 1px solid var(--sh-line); border-radius: 12px; box-shadow: var(--sh-shadow); overflow: hidden; }
+.sn-phead { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--sh-line); font-weight: 650; }
+.sn-phead button, .sn-ask { background: none; border: 1px solid var(--sh-line); border-radius: 7px; color: var(--sh-fg); height: 26px; padding: 0 10px; cursor: pointer; }
+.sn-phead button:disabled { opacity: .45; cursor: default; }
+.sn-list { overflow-y: auto; }
+.sn-row { position: relative; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--sh-line); }
+.sn-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sn-row.sn-new::before { content: ""; position: absolute; left: 6px; top: 14px; bottom: 14px; width: 3px; border-radius: 2px; background: var(--sh-accent); }
+.sn-time { color: var(--sh-faint); font-size: 11px; }
+.sn-empty { margin: 0; padding: 18px 12px; color: var(--sh-dim); text-align: center; }
+.sn-perm { padding: 12px; border-top: 1px solid var(--sh-line); }
+.sn-perm p { margin: 0 0 8px; color: var(--sh-dim); font-size: 12px; }
+.sn-ask { background: var(--sh-accent) !important; color: var(--sh-ink) !important; border-color: transparent !important; font-weight: 600; }
+
+@media (max-width: 560px) {
+  .sh-hdr { gap: 4px; margin-inline-start: 4px; }
+  .sh-back { padding-top: 8px; }
+  .sh-sw { max-height: 86vh; }
+  .sn-stack { left: 12px; right: 12px; bottom: 12px; width: auto; }
+  .sn-panel { left: 8px; right: 8px; width: auto; }
+  .sh-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+  .sh-tile .sh-badge { width: 52px; height: 52px; }
+  .sh-mini { width: 52px; height: 52px; }
+}
+@media (prefers-reduced-motion: reduce) { .sn-toast { transition: none; } }
+/* The Tutorial link (a YouTube video) gives way when the header is short of room: on phones, and when its labels have
+   already turned to icons (.slop-htight, shared/ui/hbtn.js), so the app's own controls keep their place. */
+@media (max-width: 560px) { .sh-hdr .slop-hbtn.sh-tutorial { display: none; } }
+.slop-htight .sh-hdr .slop-hbtn.sh-tutorial { display: none; }

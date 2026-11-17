@@ -1,0 +1,22 @@
+/* Slop Calendar, Italian: the palette. Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'calendar.cmd.g_cal': 'Calendario',
+  'calendar.cmd.g_goto': 'Vai a',
+  'calendar.cmd.prev': 'Calendario: periodo precedente',
+  'calendar.cmd.next': 'Calendario: periodo successivo',
+  'calendar.cmd.today': 'Calendario: vai a oggi',
+  'calendar.cmd.year': 'Calendario: vista annuale',
+  'calendar.cmd.month': 'Calendario: vista mensile',
+  'calendar.cmd.split': 'Calendario: vista divisa',
+  'calendar.cmd.undo': 'Calendario: annulla l’ultimo spostamento',
+  'calendar.cmd.week': 'Calendario: vista settimanale',
+  'calendar.cmd.day': 'Calendario: vista giornaliera',
+  'calendar.cmd.agenda': 'Calendario: agenda',
+  'calendar.cmd.new': 'Calendario: nuovo evento',
+  'calendar.cmd.tasks': 'Calendario: mostra o nascondi le attività',
+  'calendar.cmd.import': 'Calendario: importa .ics',
+  'calendar.cmd.export': 'Calendario: esporta .ics',
+  'calendar.cmd.todo': 'Vai a Slop To-do',
+  'calendar.cmd.reminders': 'Vai a Slop Reminders',
+  'calendar.cmd.crm': 'Vai a Slop CRM',
+});

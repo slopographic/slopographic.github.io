@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: more languages</title></head>
+<body>
+  <!-- Loads code/js/lang-load.js (and code/js/langs-more.js) with the app's own import map, so the vendored legacy modes are
+       resolved the way the app resolves them. -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  let load, more, EditorState, language, highlight;
+
+  /** Highlight a sample with the language of a file name. Resolves { n, classes }: how many highlighted spans, and their classes. */
+  async function highlighted(name, sample) {
+    const ext = await load.loadMore(more.moreByName(name));
+    const state = EditorState.create({ doc: sample, extensions: [ext] });
+    const tree = language.ensureSyntaxTree(state, state.doc.length, 5000);
+    const classes = new Set();
+    let n = 0;
+    if (tree) highlight.highlightTree(tree, highlight.classHighlighter, (from, to, cls) => { n++; cls.split(' ').forEach((c) => classes.add(c)); });
+    return { n, classes, tree };
+  }
+  const resourceNamed = (file) => performance.getEntriesByType('resource').some((r) => r.name.endsWith('/' + file));
+
+  // A sample for a file name, and a highlight class it must produce.
+  const SAMPLES = [
+    ['run.sh', 'if [ -f "$HOME/x" ]; then echo "hi"; fi # note\n', 'tok-comment'],
+    ['config.yml', 'name: demo\nitems:\n  - 1\n  - "two" # note\n', 'tok-comment'],
+    ['main.go', 'package main\n\nfunc main() {\n\tprintln("hi") // note\n}\n', 'tok-keyword'],
+    ['lib.rs', 'fn main() {\n    let x: u32 = 5; // note\n}\n', 'tok-keyword'],
+    ['Dockerfile', 'FROM node:20\nRUN npm install # note\n', 'tok-keyword'],
+    ['q.sql', "SELECT name FROM users WHERE id = 1; -- note\n", 'tok-keyword'],
+    ['a.cpp', '#include <vector>\nint main() { return 0; } // note\n', 'tok-keyword'],
+    ['Thing.java', 'public class Thing { String s = "x"; } // note\n', 'tok-keyword'],
+    ['app.rb', 'def hello(name)\n  puts "hi #{name}" # note\nend\n', 'tok-keyword'],
+    ['x.lua', 'local function f(a) return a + 1 end -- note\n', 'tok-keyword'],
+    ['Cargo.toml', '[package]\nname = "demo"\n# note\n', 'tok-comment'],
+    ['fix.patch', '--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n', 'tok-inserted'],
+    ['paper.tex', '\\section{Title} % note\n', 'tok-comment'],
+    ['data.xml', '<?xml version="1.0"?>\n<a b="c"><!-- note --></a>\n', 'tok-comment'],
+    ['x.hs', 'main :: IO ()\nmain = putStrLn "hi" -- note\n', 'tok-comment'],
+  ];
+
+  describe('Slop Code: more languages (lang-load.js)', () => {
+    it('loads the app import map, then lang-load.js and langs-more.js', async () => {
+      const html = await (await fetch('../../code/index.html')).text();
+      const map = document.createElement('script');
+      map.type = 'importmap';
+      // The app's map is relative to code/; this page is one folder deeper, so rebase the paths.
+      map.textContent = html.split('<script type="importmap">')[1].split('<\/script>')[0].replaceAll('"../vendor/', '"../../vendor/');
+      document.head.append(map); // before any module is loaded, so the map applies
+      load = await import('../../code/js/lang-load.js');
+      more = await import('../../code/js/langs-more.js');
+      ({ EditorState } = await import('@codemirror/state'));
+      language = await import('@codemirror/language');
+      highlight = await import('@lezer/highlight');
+      expect(typeof load.loadMore).toBe('function');
+      expect(more.MORE.length).toBeGreaterThanOrEqual(35);
+    });
+
+    it('a mode is fetched only when a file needs it', async () => {
+      expect(resourceNamed('legacy-cobol.js')).toBe(false);
+      expect(resourceNamed('legacy-shell.js')).toBe(false);
+      const ext = await load.loadMore(more.moreByName('PAYROLL.CBL'));
+      expect(Array.isArray(ext)).toBe(false);
+      expect(resourceNamed('legacy-cobol.js')).toBe(true);
+      expect(resourceNamed('legacy-shell.js')).toBe(false);
+    });
+
+    it('highlights a sample in each of ' + SAMPLES.length + ' languages (file name to mode to tokens)', async () => {
+      expect(SAMPLES.length).toBeGreaterThanOrEqual(6);
+      for (const [name, sample, want] of SAMPLES) {
+        const { n, classes, tree } = await highlighted(name, sample);
+        expect(tree && tree.length).toBe(sample.length);
+        expect(n).toBeGreaterThan(0);
+        expect([name, [...classes].includes(want)]).toEqual([name, true]);
+      }
+    });
+
+    it('the extension is a LanguageSupport, and the same one comes back the second time', async () => {
+      const a = await load.loadMore(more.moreById('go'));
+      const b = await load.loadMore(more.moreById('go'));
+      expect(a).toBe(b);
+      expect(a.language.name).toBe('go');   // not the same as a different parser from the same module
+      const c = await load.loadMore(more.moreById('cpp'));
+      const d = await load.loadMore(more.moreById('java'));
+      expect(c === d).toBe(false);   // one module (clike), two parsers
+    });
+
+    it('a bad mode, a missing parser or no entry gives plain text, and never throws', async () => {
+      const base = more.moreById('go');
+      expect(await load.loadMore({ ...base, mode: 'nope' })).toEqual([]);
+      expect(await load.loadMore({ ...base, mode: '../../evil' })).toEqual([]);
+      expect(await load.loadMore({ ...base, mode: 'constructor' })).toEqual([]);
+      expect(await load.loadMore({ ...base, exportName: 'doesNotExist' })).toEqual([]);
+      expect(await load.loadMore({ ...more.moreById('c'), exportName: 'clike' })).toEqual([]);   // a function, not a parser
+      expect(await load.loadMore(null)).toEqual([]);
+      expect(await load.loadMore(undefined)).toEqual([]);
+      expect(await load.loadMore({})).toEqual([]);
+    });
+
+    it('every language in langs-more.js loads and parses', async () => {
+      const results = await Promise.all(more.MORE.map(async (e) => [e.id, await load.loadMore(e)]));
+      for (const [id, ext] of results) expect([id, Array.isArray(ext)]).toEqual([id, false]);
+      // Each parser really tokenises its own mode: a small program line in each, as long as a token comes out of it.
+      for (const e of more.MORE) {
+        const ext = await load.loadMore(e);
+        const state = EditorState.create({ doc: 'x = 1 # a\n', extensions: [ext] });
+        const tree = language.ensureSyntaxTree(state, state.doc.length, 5000);
+        expect([e.id, !!tree && tree.length === state.doc.length]).toEqual([e.id, true]);
+      }
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: more languages' });
+  </script>
+</body>
+</html>

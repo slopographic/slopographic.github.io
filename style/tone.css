@@ -1,0 +1,81 @@
+/* The plain tone: the calm business look of a white-label build whose profile says "tone": "plain" (brand/README.md).
+ * shared/theme/theme.js sets <html data-tone="plain"> and loads this file before the first paint, only in such a build;
+ * every rule is scoped to that attribute, so a playful build never reads it. Sentence case, the sans face, normal
+ * tracking and calmer weights in place of the uppercase, letter-spaced monospace labels; neutral status labels; no
+ * wordmark-sized type, glow or emoji. Colours are the theme tokens (--bone text, --bone-dim muted, --line, --ink-2
+ * surface, --slop accent), so the contrast the sweep checks still holds. Tests: tests/home/plain-tone.test.html. */
+
+:root[data-tone="plain"] {
+  --tone-label: color-mix(in srgb, var(--bone) 80%, transparent);   /* a quiet label: muted text, still 4.5:1 */
+  --tone-chip: color-mix(in srgb, var(--bone) 8%, transparent);
+}
+
+/* ---------- header ---------- */
+:root[data-tone="plain"] .brand-name { font-family: var(--sans); font-stretch: normal; font-weight: 700; font-size: 18px; text-transform: none; letter-spacing: -.01em; }
+:root[data-tone="plain"] .tab { font-family: var(--sans); font-size: 14px; line-height: 17px; font-weight: 500;   /* the header keeps its height */ text-transform: none; letter-spacing: 0; text-decoration: none; }
+:root[data-tone="plain"] .tab[aria-current="page"] { border-bottom-color: currentColor; }
+
+/* ---------- buttons and kickers, everywhere ---------- */
+:root[data-tone="plain"] .btn { font-family: var(--sans); font-size: 15px; font-weight: 500; text-transform: none; letter-spacing: 0; border-radius: 8px; }
+:root[data-tone="plain"] .btn.primary { font-weight: 600; }
+:root[data-tone="plain"] .kicker { font-family: var(--sans); font-size: 14px; text-transform: none; letter-spacing: 0; }
+
+/* ---------- hero ---------- */
+:root[data-tone="plain"] .hx { background: radial-gradient(ellipse 42% 60% at 74% 50%, color-mix(in srgb, var(--ink-2) 55%, transparent), transparent 75%); }
+:root[data-tone="plain"] .hx-kicker { font: 600 15px/1.4 var(--sans); letter-spacing: 0; text-transform: none; color: var(--slop); }
+:root[data-tone="plain"] .hx-kicker > :first-child { display: none; }   /* the name is in the header */
+:root[data-tone="plain"] .hx-kicker > * + *::before { content: none; }
+:root[data-tone="plain"] .hx-title { font-family: var(--sans); font-weight: 700; font-size: clamp(34px, 4.2vw, 56px); line-height: 1.08; letter-spacing: -.025em; }
+:root[data-tone="plain"] .hx-sub { color: var(--bone-dim); }
+:root[data-tone="plain"] .hx-btn { border-radius: 8px; min-height: 48px; font-size: 15px; letter-spacing: 0; padding: 0 22px; }
+:root[data-tone="plain"] .hx-btn:not(.primary) { background: transparent; border-color: var(--line); }
+:root[data-tone="plain"] .hx-btn:not(.primary):hover { background: var(--ink-2); color: var(--bone); border-color: var(--bone-faint); }
+:root[data-tone="plain"] .hx-meta { font: 14px/1.6 var(--sans); letter-spacing: 0; }
+:root[data-tone="plain"] .hx-terms { display: none; }   /* the same points are in the trust row under the hero */
+:root[data-tone="plain"] .hx-meta > .hx-terms + *::before, :root[data-tone="plain"] .hx-meta > :first-child + .hx-terms::before { content: none; }
+/* the globe: no accent glow, a lighter shadow; the names in sentence case */
+:root[data-tone="plain"] .gx-i[data-depth="near"] .gx-svg { filter: drop-shadow(0 4px 8px rgb(0 0 0 / .10)); }
+:root[data-tone="plain"] .gx-i.is-hot .gx-svg { filter: drop-shadow(0 4px 10px rgb(0 0 0 / .16)); }
+:root[data-tone="plain"] .gx-name, :root[data-tone="plain"] .gx-tag, :root[data-tone="plain"] .gx-hint { font: 600 12.5px/1.2 var(--sans); letter-spacing: 0; text-transform: none; border-radius: 6px; }
+
+/* ---------- the trust row in place of the moving capability strip ---------- */
+:root[data-tone="plain"] .hx-marquee { display: none; }
+/* the hero's last row, edge to edge across its padding (it is in #hero, so the hero is still followed by the strip) */
+.hx-trust { grid-column: 1 / -1; position: relative; z-index: 2; margin: clamp(24px, 4vw, 40px) calc(-1 * var(--hx-gutter)) calc(-1 * clamp(40px, 5vw, 64px));
+  padding: 14px var(--hx-gutter); list-style: none;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 28px; border-block: 1px solid var(--line); background: var(--ink);
+  font: 500 14.5px/1.4 var(--sans); color: var(--bone-dim); }
+.hx-trust li { display: inline-flex; align-items: center; gap: 8px; }
+.hx-trust li::before { content: ""; width: 14px; height: 14px; flex: none; background: var(--slop);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3L13 4.5' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8.5l3.2 3L13 4.5' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+@media (max-width: 700px) {
+  .hx-trust { justify-content: flex-start; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-size: 14px; gap: 8px 16px; }
+}
+
+/* ---------- section headings: no "01 /" numbers, sentence case ---------- */
+:root[data-tone="plain"] .sec-num::before { content: none; display: none; }
+:root[data-tone="plain"] .ws-title, :root[data-tone="plain"] .why-title { font: 700 clamp(22px, 2.2vw, 28px)/1.2 var(--sans); letter-spacing: -.01em; text-transform: none; color: var(--bone); margin-bottom: 10px; }
+:root[data-tone="plain"] .shelf-head h2 { font-family: var(--sans); font-weight: 700; font-stretch: normal; font-size: clamp(24px, 2.6vw, 32px); letter-spacing: -.015em; }
+:root[data-tone="plain"] .shot-ph b, :root[data-tone="plain"] .app-card .shot-ph b { font-family: var(--sans); font-weight: 600; }
+:root[data-tone="plain"] .app-card:hover, :root[data-tone="plain"] .tile:hover { transform: none; }
+
+/* ---------- status labels: neutral and small; a ready app has none ---------- */
+:root[data-tone="plain"] .badge, :root[data-tone="plain"] .badge.live, :root[data-tone="plain"] .badge.beta, :root[data-tone="plain"] .badge.building {
+  font: 500 12px/1.3 var(--sans); text-transform: none; letter-spacing: 0; padding: 2px 8px; border: 0; border-radius: 6px;
+  color: var(--tone-label); background: var(--tone-chip); }
+:root[data-tone="plain"] .go { font: 600 14px var(--sans); }
+:root[data-tone="plain"] .status-row .kind, :root[data-tone="plain"] .status-row .state { font: 13.5px var(--sans); color: var(--bone-dim); }
+:root[data-tone="plain"] .dot, :root[data-tone="plain"] .dot.beta, :root[data-tone="plain"] .dot.building { box-shadow: none; }
+:root[data-tone="plain"] .dot.beta, :root[data-tone="plain"] .dot.building { background: transparent; border: 2px solid var(--bone-faint); box-sizing: border-box; }
+
+/* the mascot's corner: the page's end stays clear of it (shared/mascot/slot.js), and no ledge is drawn for it */
+:root[data-tone="plain"] .hx .stage-ledge { display: none; }
+:root[data-tone="plain"] body > .footer { padding-bottom: 112px; }
+
+/* ---------- footer: no outlined wordmark, no serif flourish, fine print in sentence case ---------- */
+:root[data-tone="plain"] .footer-mark { display: none; }
+:root[data-tone="plain"] .footer-cols p:nth-child(2) { font-family: inherit; font-style: normal; font-size: inherit; line-height: inherit; color: var(--bone-dim); }
+:root[data-tone="plain"] .footer .fine { font-family: var(--sans); font-size: 13px; letter-spacing: 0; text-transform: none; }
+:root[data-tone="plain"] .fnav summary { font: 600 14px/1.3 var(--sans); letter-spacing: 0; text-transform: none; }
+

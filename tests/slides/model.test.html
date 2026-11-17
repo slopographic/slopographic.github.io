@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides model tests</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="load.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  let SS;
+  const texts = (s) => s.objects.filter((o) => o.text).map((o) => SS.objects.plain(o.text));
+
+  describe('deck & slides', () => {
+    it('boots the core and the fonts', async () => {
+      SS = await loadSlides(['core', 'render', 'anim', 'io']);
+      expect(SS.fonts.isReady()).toBe(true);
+      expect(SS.themes.list.length).toBeGreaterThanOrEqual(6);
+      expect(SS.themes.byId('slop').colors.accent1).toBe('#d4ff3a');
+    }, { timeout: 30000 });
+    it('a new deck is 16:9 with one title slide and theme placeholders', () => {
+      const d = SS.model.newDeck({ theme: 'paper' });
+      expect(d.size).toEqual({ w: 960, h: 540, preset: '16:9' });
+      expect(d.slides.length).toBe(1);
+      const phs = d.slides[0].objects.map((o) => o.placeholder);
+      expect(phs).toEqual(['title', 'subtitle']);
+      expect(d.theme.id).toBe('paper');
+    });
+    it('every layout instantiates its placeholders inside the slide', () => {
+      const d = SS.model.newDeck({ size: '4:3' });
+      SS.layouts.list.forEach((l) => {
+        const s = SS.model.addSlide(d, l.id);
+        expect(s.objects.length).toBe(l.phs.length);
+        s.objects.forEach((o) => { expect(o.x).toBeGreaterThanOrEqual(0); expect(o.x + o.w).toBeLessThanOrEqual(720.01); expect(o.y + o.h).toBeLessThanOrEqual(540.01); });
+      });
+      expect(SS.layouts.list.map((l) => l.id)).toEqual(['title', 'title-content', 'two-content', 'section', 'title-only', 'blank', 'image-caption', 'quote', 'big-number']);
+    });
+    it('changing layout keeps placeholder content and frees orphaned content', () => {
+      const d = SS.model.newDeck();
+      const s = SS.model.addSlide(d, 'two-content');
+      SS.templates.fill(s, 'title', 'Hello'); SS.templates.fill(s, 'body2', ['Right']);
+      SS.layouts.apply(d, s, 'title-content');
+      expect(s.layout).toBe('title-content');
+      expect(texts(s)).toContain('Hello');
+      expect(texts(s)).toContain('Right');
+      const freed = s.objects.find((o) => SS.objects.plain(o.text) === 'Right');
+      expect(freed.placeholder).toBe(undefined);
+    });
+    it('duplicate, move, hide and delete slides; sections follow', () => {
+      const d = SS.model.newDeck();
+      const a = d.slides[0], b = SS.model.addSlide(d, 'title-content'), c = SS.model.addSlide(d, 'blank');
+      b.section = 'Middle';
+      const dup = SS.model.duplicateSlide(d, a.id);
+      expect(d.slides.indexOf(dup)).toBe(1);
+      expect(dup.objects[0].name).toBe(a.objects[0].name);
+      expect(dup.objects[0].id).not.toBe(a.objects[0].id);
+      SS.model.moveSlides(d, [c.id], 0);
+      expect(d.slides[0]).toBe(c);
+      SS.model.toggleHidden(d, [c.id]);
+      expect(SS.model.visibleSlides(d).length).toBe(3);
+      expect(SS.model.sections(d).map((x) => x.name)).toEqual(['', 'Middle']);
+      SS.model.deleteSlides(d, [b.id]);
+      expect(d.slides.length).toBe(3);
+      expect(SS.model.sections(d).length).toBe(1);
+      SS.model.deleteSlides(d, d.slides.map((s) => s.id));
+      expect(d.slides.length).toBe(1);
+    });
+    it('slide size change scales objects to fit', () => {
+      const d = SS.model.newDeck();
+      const t = d.slides[0].objects[0], w0 = t.w, size0 = t.style.size;
+      SS.model.setSize(d, 720, 540, '4:3');
+      expect(d.size.w).toBe(720);
+      expect(t.w).toBeCloseTo(w0 * 0.75, 0.01);
+      expect(t.style.size).toBeCloseTo(size0 * 0.75, 0.1);
+      expect(t.x + t.w).toBeLessThanOrEqual(720);
+    });
+    it('notes, media dedupe and media garbage collection', () => {
+      const d = SS.model.newDeck();
+      d.slides[0].notes = 'Say hi';
+      const url = 'data:image/png;base64,iVBORw0KGgo=';
+      const id1 = SS.model.addMedia(d, url), id2 = SS.model.addMedia(d, url);
+      expect(id1).toBe(id2);
+      SS.model.gcMedia(d);
+      expect(Object.keys(d.media)).toEqual([]);
+    });
+  });
+
+  describe('objects', () => {
+    it('makes every object type with defaults', () => {
+      ['text', 'shape', 'image', 'table', 'chart', 'media', 'group'].forEach((t) => { const o = SS.objects.make(t); expect(o.type).toBe(t); expect(o.id).toBeTruthy(); });
+      SS.objects.SHAPES.forEach((k) => { const o = SS.objects.make('shape', { shape: k }); expect(SS.shapes.path(k, 100, 60, 0.1).length).toBeGreaterThan(1); expect(o.name).toBeTruthy(); });
+      const t = SS.objects.make('table', { rowsN: 4, cols: 3, w: 300, h: 200 });
+      expect(t.cells.length).toBe(4); expect(t.colW.length).toBe(3);
+      expect(t.colW.reduce((a, b) => a + b)).toBeCloseTo(300, 0.01);
+    });
+    it('group / ungroup keeps slide positions (with group rotation)', () => {
+      const list = [SS.objects.make('shape', { x: 100, y: 100, w: 50, h: 50 }), SS.objects.make('shape', { x: 300, y: 200, w: 100, h: 40, rot: 30 })];
+      const before = list.map((o) => SS.objects.bounds(o));
+      const g = SS.objects.group(list, list.slice());
+      expect(list).toEqual([g]);
+      expect(g.x).toBeCloseTo(100, 0.01);
+      const out = SS.objects.ungroup(list, g);
+      out.forEach((o, i) => { const b = SS.objects.bounds(o); expect(b.x).toBeCloseTo(before[i].x, 0.01); expect(b.y).toBeCloseTo(before[i].y, 0.01); });
+      const g2 = SS.objects.group(list, list.slice());
+      g2.rot = 90; g2.w *= 2;
+      const r = SS.objects.ungroup(list, g2);
+      expect(r[1].rot).toBe(120);
+    });
+    it('z-order, align and distribute', () => {
+      const a = SS.objects.make('shape', { x: 0, y: 0, w: 10, h: 10 }), b = SS.objects.make('shape', { x: 50, y: 30, w: 20, h: 10 }), c = SS.objects.make('shape', { x: 200, y: 60, w: 10, h: 30 });
+      const list = [a, b, c];
+      SS.model.zorder(list, [a], 'front'); expect(list[2]).toBe(a);
+      SS.model.zorder(list, [a], 'backward'); expect(list[1]).toBe(a);
+      SS.model.zorder(list, [c], 'back'); expect(list[0]).toBe(c);
+      SS.model.align([a, b, c], 'left'); expect([a.x, b.x, c.x]).toEqual([0, 0, 0]);
+      a.x = 0; b.x = 37; c.x = 200;
+      SS.model.distribute([a, b, c], 'h');
+      expect(b.x).toBeCloseTo(10 + (210 - 40) / 2, 0.001);
+      SS.model.align([a, b, c], 'vmiddle');
+      expect(a.y + 5).toBeCloseTo(c.y + 15, 0.001);
+    });
+  });
+
+  describe('text layout', () => {
+    it('wraps, bullets and levels', () => {
+      const d = SS.model.newDeck(), th = SS.themes.of(d);
+      const o = SS.objects.make('text', { w: 300, h: 400 });
+      o.text.paras = [{ runs: [{ t: 'The quick brown fox jumps over the lazy dog again and again' }], bullet: 'disc' }, { runs: [{ t: 'Sub' }], bullet: 'disc', level: 1 }];
+      const lay = SS.textLayout.layout(o, th);
+      expect(lay.lines.length).toBeGreaterThan(2);
+      expect(lay.bullets.length).toBe(2);
+      expect(lay.bullets[1].x).toBeGreaterThan(lay.bullets[0].x);
+      lay.lines.forEach((l) => expect(l.x + l.w).toBeLessThanOrEqual(300));
+    });
+    it('autofit shrink fits overflowing text', () => {
+      const d = SS.model.newDeck(), th = SS.themes.of(d);
+      const o = SS.objects.make('text', { w: 300, h: 80 });
+      o.text.paras = Array.from({ length: 8 }, (_, i) => ({ runs: [{ t: 'Line ' + i }] }));
+      o.text.autofit = 'shrink';
+      const lay = SS.textLayout.layout(o, th);
+      expect(lay.scale).toBeLessThan(1);
+      expect(lay.height).toBeLessThanOrEqual(80);
+    });
+    it('measures with TTF metrics (no kerning) consistently with the canvas', () => {
+      const face = SS.fonts.face('Inter Tight', false, false);
+      const w = SS.fonts.measure(face, 'Hello World', 100);
+      const ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = SS.fonts.css(face, 100); ctx.fontKerning = 'none';
+      expect(Math.abs(ctx.measureText('Hello World').width - w)).toBeLessThan(1);
+    });
+  });
+
+  describe('history & templates', () => {
+    it('undo / redo restores snapshots and keeps media', () => {
+      let deck = SS.model.newDeck();
+      const h = SS.History(() => deck, (d) => { deck = d; });
+      h.push('add'); SS.model.addSlide(deck, 'blank');
+      deck.media.m1 = { mime: 'image/png', data: 'data:image/png;base64,AA' };
+      expect(deck.slides.length).toBe(2);
+      h.undo(); expect(deck.slides.length).toBe(1); expect(deck.media.m1).toBeTruthy();
+      h.redo(); expect(deck.slides.length).toBe(2);
+      h.push('a', 'k'); h.push('b', 'k'); h.undo(); expect(h.canUndo()).toBe(true);
+    });
+    it('templates use the themes', () => {
+      const ids = SS.templates.list.map((t) => t.id);
+      expect(ids).toEqual(['pitch', 'album', 'lesson', 'report']);
+      SS.templates.list.forEach((t) => { const d = t.build(); expect(d.slides.length).toBeGreaterThan(4); expect(d.theme.id).toBe(t.theme); });
+    });
+    it('every template slide renders to a canvas', () => {
+      SS.templates.list.forEach((t) => { const d = t.build(); d.slides.forEach((s) => { const cv = SS.canvasRender.slideToCanvas(d, s, 160); expect(cv.width).toBe(160); }); });
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

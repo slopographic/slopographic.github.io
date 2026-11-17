@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Store app · the app's own wording: no "browser", Chrome or Edge, or website hosting in the iPhone/iPad app</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; width: 1280px; height: 800px; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/i18n/i18n.js" data-late></script>
+  <script>
+  // Covers: shared/i18n/i18n.js, shared/native/i18n/en/wording.js, shared/native/i18n/sv/wording.js, shared/native-app.js
+  // Covers: drive/js/ui/folder-ui.js, drive/js/ui/commands.js, drive/js/ui/prov-drives.js, drive/index.html
+  // Covers: settings/storage-keep.js, shared/firstrun/notice.js, index.html
+  /* App Review: an App Store app should not talk about "the browser", Chrome or Edge, or where the website is hosted. In
+   * the iPhone/iPad app (window.SLOP_NATIVE = 'ios' before shared/native-app.js stands in for it, as the app's bundle
+   * loads the helper first) a key with app wording (native.app.<key>) reads it; Slop Drive has no local folders and no
+   * "Folders need Chrome or Edge" note; the first-use notice does not say the site is hosted on GitHub Pages. The website
+   * (the same pages without the flag) keeps its words. */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const ROOT = new URL('../../', location.href).href;
+  const shown = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[hidden]');
+  const WEB_WORDS = /browser|GitHub Pages|Chrome|\bEdge\b/i;
+
+  /** A page of the site in a frame; native: as the store app loads it (the flag and the helper first in <head>). */
+  async function open(page, native, ready) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    if (!native) {
+      f.src = ROOT + page;
+      document.body.prepend(f);
+      await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    } else {
+      document.body.prepend(f);
+      const html = await (await fetch(ROOT + page)).text();
+      const base = new URL(page, ROOT).href;
+      const head = `<head><base href="${base}"><script>window.SLOP_NATIVE = 'ios';<\/script><script src="${ROOT}shared/native-app.js"><\/script>`;
+      const doc = f.contentDocument;
+      doc.open();
+      doc.write(html.replace(/<head>/i, head));
+      doc.close();
+    }
+    const win = f.contentWindow;
+    await waitFor(() => win.document.readyState === 'complete' && win.SlopI18n && ready(win), { timeout: 30000 });
+    await win.SlopI18n.ready();
+    await sleep(100);
+    return win;
+  }
+  const text = (doc, key) => { const n = doc.querySelector(`[data-i18n="${key}"]`); return n ? n.textContent : ''; };
+
+  describe('the lookup (SlopI18n appWord)', () => {
+    const tables = (I) => {
+      I.add('en', { 'x.line': 'Runs in your browser.', 'native.app.x.line': 'Runs on your device.', 'x.other': 'Kept in this browser.' });
+      I.add('sv', { 'x.line': 'Körs i webbläsaren.', 'x.other': 'Sparas i webbläsaren.' });
+      return I;
+    };
+    const make = (storeApp, lang) => tables(SlopI18n.create({ storeApp, document: null, profile: { get: () => lang, set: () => ({ ok: true }) } }));
+    it('reads the app wording in the app, the website wording elsewhere', () => {
+      expect(make(true, 'en').t('x.line')).toBe('Runs on your device.');
+      expect(make(false, 'en').t('x.line')).toBe('Runs in your browser.');
+    });
+    it('a language without the app wording reads the English app wording, never its website wording', () => {
+      expect(make(true, 'sv').t('x.line')).toBe('Runs on your device.');
+      expect(make(true, 'sv').t('x.other')).toBe('Sparas i webbläsaren.');
+    });
+  });
+
+  describe('in the iPhone/iPad app', () => {
+    it('the homepage says the tools run on your device', async () => {
+      const win = await open('index.html', true, (w) => w.document.querySelector('[data-i18n="hero.accent"]'));
+      const doc = win.document;
+      expect(doc.documentElement.classList.contains('store-app')).toBe(true);
+      for (const k of ['hero.accent', 'plain.hero.title', 'footer.office', 'home.why_backup_d']) {
+        expect(k + ': ' + WEB_WORDS.test(text(doc, k))).toBe(k + ': false');
+      }
+      expect(text(doc, 'hero.accent')).toContain('on your device');
+    }, { timeout: 40000 });
+
+    it('Slop Drive shows no local folder or drive, no "needs Chrome or Edge", and no Connect row', async () => {
+      const win = await open('drive/index.html', true, (w) => w.DR && w.DR.noFolders && w.SlopHub && w.document.getElementById('folderBox'));
+      const doc = win.document, DR = win.DR;
+      expect(DR.noFolders()).toBe(true);
+      expect(shown(doc.getElementById('folderBox'))).toBe(false);
+      expect(shown(doc.getElementById('providers'))).toBe(false);
+      expect(DR.folderMenuRows()).toEqual([]);
+      const side = [...doc.querySelectorAll('aside *')].filter(shown).map((n) => n.textContent).join(' ');
+      expect(/Chrome or Edge|this browser/i.test(side)).toBe(false);
+      expect(win.SlopI18n.t('drive.empty.drive_p')).toContain('on this device');
+      await DR.connectFolder();   // a link to #connect-folder: nothing happens, no "needs Chrome or Edge" dialog
+      expect(doc.querySelector('.sui-dlg')).toBe(null);
+    }, { timeout: 40000 });
+
+    it('the background remover\'s first-use notice does not mention GitHub Pages or the browser', async () => {
+      const win = await open('slopisolate/index.html', true, (w) => w.SlopFirstRun && w.SlopUI);
+      const doc = win.document;
+      expect(WEB_WORDS.test(text(doc, 'cutout.app.empty_lead'))).toBe(false);
+      win.SlopFirstRun.once('wording-test-' + Date.now(), { title: 'cutout.app.notice_title', lines: ['cutout.app.notice_line1', 'cutout.app.notice_line2'], downloads: [{ name: 'Model', bytes: 44 * 1048576 }] });
+      const dlg = await waitFor(() => doc.querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(dlg.textContent).toContain('on this device');
+      expect(dlg.textContent).not.toContain('GitHub');
+      expect(WEB_WORDS.test(dlg.textContent)).toBe(false);
+    }, { timeout: 40000 });
+  });
+
+  describe('on the website', () => {
+    it('the homepage and the first-use notice keep their words', async () => {
+      let win = await open('index.html', false, (w) => w.document.querySelector('[data-i18n="hero.accent"]'));
+      expect(win.document.documentElement.classList.contains('store-app')).toBe(false);
+      expect(text(win.document, 'hero.accent')).toContain('browser');
+      win = await open('slopisolate/index.html', false, (w) => w.SlopFirstRun && w.SlopUI);
+      win.SlopFirstRun.once('wording-test-' + Date.now(), { title: 'cutout.app.notice_title', lines: ['cutout.app.notice_line1'], downloads: [] });
+      const dlg = await waitFor(() => win.document.querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(dlg.textContent).toContain('GitHub Pages');
+    }, { timeout: 60000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

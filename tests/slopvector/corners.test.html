@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · rounded corners</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const S = () => SV.state;
+  const frame = () => new Promise((r) => W.requestAnimationFrame(() => W.requestAnimationFrame(r)));
+  const cb = (label) => W.document.querySelector('#controlbar input[aria-label="' + label + '"]');
+  /** Types a value into a control-bar or Properties number field and commits it, as a user does. */
+  async function setNum(input, value) { input.value = String(value); input.dispatchEvent(new W.Event('change')); await frame(); }
+  /** A pointer event at a document point, sent the way the stage listens (down on the stage, move/up on window). */
+  function ptr(type, x, y) {
+    const r = W.document.getElementById('stage').getBoundingClientRect(), v = S().view;
+    const ev = new W.PointerEvent(type, { clientX: r.left + v.x + x * v.zoom, clientY: r.top + v.y + y * v.zoom, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 4, pointerType: 'mouse', bubbles: true, cancelable: true });
+    (type === 'pointerdown' ? W.document.getElementById('stage') : W).dispatchEvent(ev);
+  }
+
+  describe('rounded rectangle corners in SlopVector', () => {
+    it('draws a rectangle, sets the corner radius to 20 in the control bar, and exports arc commands', async () => {
+      blank(); SV.setTool('rect');
+      ptr('pointerdown', 100, 100); ptr('pointermove', 200, 160); ptr('pointermove', 300, 220); ptr('pointerup', 300, 220);
+      await frame();
+      const id = S().sel[0], rect = SV.getObj(id);
+      expect(rect.type).toBe('rect');
+      expect(SV.io.exportSVG({ ids: [id] })).not.toContain(' A');
+      await waitFor(() => cb('Corner radius'));
+      await setNum(cb('Corner radius'), 20);
+      expect(SV.getObj(id).rx).toBe(20);
+      const svg = SV.io.exportSVG({ ids: [id] });
+      expect(svg).toContain('<path d="M');
+      expect(svg).toContain('A20 20 0 0 1');
+      expect((svg.match(/A20 20 0 0 1/g) || []).length).toBe(4);
+      expect(svg).not.toContain('<rect');
+    });
+
+    it('the link toggle sets each corner separately, and every corner change is one undo step', async () => {
+      const id = S().sel[0], rect = SV.getObj(id);
+      const link = W.document.querySelector('#controlbar .corner-link');
+      expect(!!link).toBe(true);
+      link.click(); await frame();
+      expect(SV.cornerLink()).toBe(false);
+      await waitFor(() => cb('Top-left corner radius'));
+      const before = S().hIdx;
+      await setNum(cb('Top-left corner radius'), 5);
+      await setNum(cb('Top-right corner radius'), 10);
+      await setNum(cb('Bottom-right corner radius'), 15);
+      await setNum(cb('Bottom-left corner radius'), 25);
+      expect(SV.getObj(id).rc).toEqual([5, 10, 15, 25]);
+      expect(SV.getObj(id).rx).toBe(25);
+      expect(S().hIdx).toBe(before + 4);
+      const svg = SV.io.exportSVG({ ids: [id] });
+      expect((svg.match(/A[\d.]+ [\d.]+ 0 0 1 /g) || []).length).toBe(4);
+      SV.runAction('edit.undo'); await frame();
+      expect(SV.getObj(id).rc).toEqual([5, 10, 15, 20]);
+    });
+
+    it('the linked field sets all four corners at once, and the Properties panel shows the same fields', async () => {
+      const id = S().sel[0];
+      W.document.querySelector('#controlbar .corner-link').click(); await frame();
+      expect(SV.cornerLink()).toBe(true);
+      await setNum(cb('Corner radius'), 12);
+      expect(SV.getObj(id).rc).toBe(undefined);
+      expect(SV.getObj(id).rx).toBe(12);
+      const props = [...W.document.querySelectorAll('input[aria-label="Corner radius"]')];
+      expect(props.length).toBeGreaterThanOrEqual(2);
+      expect(SV.rectRadii(SV.getObj(id))).toEqual([12, 12, 12, 12]);
+    });
+  });
+  SlopTest.run({ name: 'SlopVector · rounded corners' });
+  </script>
+</body>
+</html>

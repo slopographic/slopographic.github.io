@@ -1,0 +1,28 @@
+/* Checksum, Japanese: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'checksum.app.home': 'Slopographic ホーム',
+  'checksum.app.lede': 'ファイルのハッシュを計算するか、公開元から受け取ったハッシュと照合します。ファイルはこのデバイスで読み込まれ、アップロードされることはありません。',
+  'checksum.app.step_choose': '1. ファイルを選択',
+  'checksum.app.drop': 'ファイルを選択するか、ここにドロップしてください',
+  'checksum.app.step_hash': '2. ハッシュ',
+  'checksum.app.hash_label': 'ファイルのハッシュ',
+  'checksum.app.settings_label': 'ハッシュの設定',
+  'checksum.app.algorithm': 'アルゴリズム',
+  'checksum.app.sha1_note': 'SHA-1 は、古い公開ハッシュと照合するためにのみ残しています。新しい確認には SHA-256 を使用してください。',
+  'checksum.app.check_against': '公開ハッシュと照合',
+  'checksum.app.expected': '期待されるハッシュ',
+  'checksum.app.expected_ph': 'ダウンロードページのハッシュを貼り付け',
+  'checksum.app.copy': 'ハッシュをコピー',
+  'checksum.app.copied': 'コピーしました',
+  'checksum.app.copy_failed': 'コピーに失敗しました',
+  'checksum.app.settings': '設定',
+  'checksum.app.a_file': 'ファイル',
+  'checksum.app.reading': '{name}（{mb} MB）を読み込んでいます…',
+  'checksum.app.hash_of': '{name} の {alg}',
+  'checksum.app.choose_first': '先にファイルを選択してください。',
+  'checksum.app.not_hash': 'ハッシュの形式ではありません（使用できるのは a から f までの英字と数字だけです）。',
+  'checksum.app.length_differs': '長さが異なります。{alg} ハッシュは {n} 文字です。アルゴリズムを確認してください。',
+  'checksum.app.match': '一致しました。ファイルは公開されたものと同じです。',
+  'checksum.app.no_match': '一致しません。ファイルは公開されたハッシュと異なります。',
+});

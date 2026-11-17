@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: Sign in with OpenRouter (PKCE auth URL, the callback, a wrong state, a denied consent, a used code, offline)</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // openrouter.ai is never reached: the button's navigation is caught (signin.go) and the key exchange is the fake fetch.
+  // Also a regression test for shared/ai/quick/ui.js: its app list arriving redrew the panel and lost the sign-in in progress.
+  // Covers: shared/ai/cloud/signin.js, shared/ai/cloud/connect.js, shared/ai/cloud/pick.js, shared/ai/cloud/free-guide.js,
+  //   shared/ai/cloud/catalog/main.js, shared/ai/picker.js, shared/ai/panel.js, shell/header.js, shared/sync/pkce.js,
+  //   shared/ai/cloud/keys.js, shared/i18n/ui/en/ai9.js, shared/i18n/ui/en/ai7.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const KEY = 'slop-ai.signin', CODE = 'or-code-0123456789', GOT = 'sk-or-v1-SIGNEDIN0123456789abcdef';
+  let P, F;
+  const q = (s) => P.document.querySelector(s);
+  const msg = () => (q('.sap-cloud-msg') || {}).textContent || '';
+  const record = () => JSON.parse(sessionStorage.getItem(KEY) || 'null');
+  const exchanges = () => F.requests.filter((r) => /\/api\/v1\/auth\/keys$/.test(r.url));
+  async function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.(cloud|signin)/.test(k)) sessionStorage.removeItem(k);
+    await new Promise((res) => { const r = indexedDB.deleteDatabase('slop-ai-keys'); r.onsuccess = r.onerror = r.onblocked = res; });
+  }
+  /** A sign-in started in this tab, as start() leaves it. */
+  const started = (state = 'state-' + 'x'.repeat(26)) => { sessionStorage.setItem(KEY, JSON.stringify({ provider: 'openrouter', verifier: 'v'.repeat(64), state, at: Date.now(), remember: false })); return state; };
+  async function frame(src, o = {}) {
+    if (P && P.__frame) P.__frame.remove();
+    P = await AT.frame(src, (w) => w.SlopAIPanel && w.SlopAI, { width: 900, height: 800 });
+    F = CU.install(P, 'openrouter');
+    if (o.offline) Object.defineProperty(P.navigator, 'onLine', { configurable: true, get: () => false });
+    if (o.keys) F.keys = o.keys;
+    return P;
+  }
+  async function form() {
+    P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+    const box = await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+    if (!box.open) q('.sap-cloud summary').click();
+    await waitFor(() => q('.sap-pp-btn'));
+  }
+  async function pick(id) {
+    if (q('.sap-pp').hidden) q('.sap-pp-btn').click();
+    const s = q('.sap-pp-q'); s.value = id; s.dispatchEvent(new P.Event('input'));
+    q(`.sap-pp-row[data-id="${id}"]`).click(); await sleep(60);
+  }
+  const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  describe('the button', () => {
+    it('sits beside the key for OpenRouter and builds the auth URL with an S256 challenge, a state and this page as callback', async () => {
+      await wipe(); await frame('panel-page.html'); await form();
+      q('.sap-pp-btn').click();
+      const badge = q('.sap-pp-row[data-id="openrouter"] [data-cap="signin"]');
+      expect(badge.textContent).toBe('Sign in');
+      expect(q('.sap-pp-row[data-id="anthropic"] [data-cap="signin"]')).toBe(null);
+      await pick('anthropic');
+      expect(q('.sap-cloud-signin').hidden).toBe(true);
+      await pick('openrouter');
+      const row = q('.sap-cloud-signin');
+      expect(row.hidden).toBe(false);
+      expect(row.nextElementSibling).toBe(q('.sap-cloud-key').closest('label'));
+      expect(q('.sap-cloud-signin-btn').textContent).toBe('Sign in with OpenRouter');
+      expect(row.textContent).toMatch(/goes straight from this browser to OpenRouter; nothing passes through .+ servers/);
+      expect(row.querySelector('a').href).toBe('https://openrouter.ai/settings/keys');
+      expect(q('.sap-cloud-help').textContent).toContain('Forget key removes a key from this browser only');
+      let went = '';
+      P.SlopAIKit.cloud.signin.go = (u) => { went = u; };
+      q('.sap-cloud-signin-btn').click();
+      await waitFor(() => went);
+      const u = new URL(went), r = record();
+      expect(u.origin + u.pathname).toBe('https://openrouter.ai/auth');
+      expect(u.searchParams.get('callback_url')).toBe(P.location.origin + P.location.pathname);
+      expect(u.searchParams.get('code_challenge_method')).toBe('S256');
+      expect(r.provider).toBe('openrouter');
+      expect(r.state.length >= 32).toBe(true);
+      expect(u.searchParams.get('state')).toBe(r.state);
+      expect(r.verifier.length >= 43 && r.verifier.length <= 128).toBe(true);
+      expect(/^[A-Za-z0-9._~-]+$/.test(r.verifier)).toBe(true);
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(r.verifier));
+      expect(u.searchParams.get('code_challenge')).toBe(b64url(digest));
+      expect(u.searchParams.get('key_label')).toMatch(/^.+ in this browser$/);
+      expect(went).not.toContain(r.verifier);
+      expect(exchanges().length).toBe(0);
+    }, { timeout: 30000 });
+  });
+
+  describe('the callback', () => {
+    it('exchanges the code, stores the key like a pasted one, cleans the address and tests the connection', async () => {
+      await wipe(); const state = started();
+      await frame(`panel-page.html?code=${CODE}&state=${state}`);
+      await waitFor(() => /^Signed in with OpenRouter/.test(msg()) && /Connected to OpenRouter/.test(msg()), { timeout: 20000 });
+      expect(P.location.search).toBe('');
+      expect(P.location.href).not.toContain(CODE);
+      const x = exchanges();
+      expect(x.length).toBe(1);
+      expect(x[0].method).toBe('POST');
+      expect(x[0].body).toEqual({ code: CODE, code_verifier: 'v'.repeat(64), code_challenge_method: 'S256' });
+      expect(await P.SlopAIKit.cloud.keys.get('openrouter')).toBe(GOT);
+      expect(sessionStorage.getItem('slop-ai.cloud.key:openrouter')).toBe(GOT);
+      expect(await P.SlopAIKit.cloud.keys.remembered('openrouter')).toBe(false);
+      expect(localStorage.getItem('slop-ai.cloud') || '').not.toContain(GOT);
+      expect(q('.sap-cloud-provider').value).toBe('openrouter');
+      expect(q('.sap-cloud-model').options.length > 0).toBe(true);
+      const tested = F.requests.find((r) => /openrouter\.ai\/api\/v1\/key$/.test(r.url));
+      expect(tested.headers.Authorization || tested.headers.authorization).toBe('Bearer ' + GOT);
+      expect(record().used).toBe(true); expect(record().verifier).toBe(undefined);
+      // Forget key: the same as for a pasted key
+      expect(q('.sap-cloud-forget').disabled).toBe(false);
+      q('.sap-cloud-forget').click();
+      await waitFor(() => /key is gone from this browser/.test(msg()));
+      expect(await P.SlopAIKit.cloud.keys.get('openrouter')).toBe('');
+    }, { timeout: 40000 });
+
+    it('through the app header: shell/header.js takes the code out and opens the panel, which finishes', async () => {
+      await wipe(); const state = started();
+      sessionStorage.setItem(KEY, JSON.stringify(Object.assign(record(), { remember: true })));
+      await frame(`../../checksum/?code=${CODE}&state=${state}`);
+      await waitFor(() => /Connected to OpenRouter/.test(msg()), { timeout: 30000 });
+      expect(P.location.search).toBe('');
+      expect(P.SlopAIPanel.isOpen).toBe(true);
+      expect(await P.SlopAIKit.cloud.keys.remembered('openrouter')).toBe(true);
+      expect(q('.sap-cloud-remember').checked).toBe(true);
+    }, { timeout: 45000 });
+
+    it('a wrong state is refused: no exchange, no key', async () => {
+      await wipe(); started('the-state-this-tab-made-0123456789');
+      await frame(`panel-page.html?code=${CODE}&state=someone-elses-state-000000000000`);
+      await waitFor(() => /did not start in this tab/.test(msg()), { timeout: 20000 });
+      expect(P.location.search).toBe('');
+      expect(exchanges().length).toBe(0);
+      expect(await P.SlopAIKit.cloud.keys.get('openrouter')).toBe('');
+    }, { timeout: 30000 });
+
+    it('a denied consent says so', async () => {
+      await wipe(); started();
+      await frame('panel-page.html?error=access_denied');
+      await waitFor(() => /^Access was not allowed at OpenRouter/.test(msg()), { timeout: 20000 });
+      expect(P.location.search).toBe('');
+      expect(exchanges().length).toBe(0);
+    }, { timeout: 30000 });
+
+    it('a used or expired code (403) and offline each say so', async () => {
+      await wipe(); let state = started();
+      await frame(`panel-page.html?code=${CODE}&state=${state}`, { keys: { status: 403, body: { error: { code: 403, message: 'Invalid code or code_verifier' } } } });
+      await waitFor(() => /already used or has expired/.test(msg()), { timeout: 20000 });
+      expect(await P.SlopAIKit.cloud.keys.get('openrouter')).toBe('');
+      // the same code again in this tab (Back): used, nothing sent
+      await frame(`panel-page.html?code=${CODE}&state=${state}`);
+      await waitFor(() => /already used or has expired/.test(msg()), { timeout: 20000 });
+      expect(exchanges().length).toBe(0);
+      await wipe(); state = started();
+      await frame(`panel-page.html?code=${CODE}&state=${state}`, { offline: true });
+      await waitFor(() => /offline/.test(msg()), { timeout: 20000 });
+      expect(exchanges().length).toBe(0);
+      expect(P.location.search).toBe('');
+    }, { timeout: 60000 });
+  });
+
+  describe('the free-key guide', () => {
+    it('offers Sign in with OpenRouter as the easiest way', async () => {
+      await wipe(); await frame('panel-page.html'); await form();
+      const g = q('.sap-free-guide'); g.querySelector('summary').click(); await sleep(30);
+      const sec = q('.sap-free-guide section[data-provider="openrouter"]');
+      expect(sec.textContent).toContain('Easiest: press “Sign in with OpenRouter”');
+      expect(q('.sap-free-guide section[data-provider="groq"] .sap-free-signin')).toBe(null);
+      let went = '';
+      P.SlopAIKit.cloud.signin.go = (u) => { went = u; };
+      sec.querySelector('.sap-free-signin').click();
+      await waitFor(() => went);
+      expect(q('.sap-cloud-provider').value).toBe('openrouter');
+      expect(went.startsWith('https://openrouter.ai/auth?')).toBe(true);
+      await wipe();
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop AI: Sign in with OpenRouter' });
+  </script>
+</body>
+</html>

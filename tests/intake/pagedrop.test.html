@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake: a file drop anywhere on the page</title></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shared/intake/sources.js
+  // A file drag that nothing on the page took (a header, a sidebar, a page with no drop area) goes to the page's main reader and
+  // never makes the browser open the file in place of the app. A plain drop area still takes its own drop (once), a SlopDrop page
+  // (its window handler marks the drop seen) is left alone, and a page whose only readers are parts (a backup) is not touched.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const LOAD = ['slopui', 'intake/rules', 'intake/normalize', 'intake/pipeline', 'intake/intake', 'intake/sources'].map((f) => `<script src="../../shared/${f}.js"><\/script>`).join('');
+  /** A page in an iframe with the intake loaded, one reader registered by `setup` (a string of script), and `#outside` / `#panel`. */
+  function page(setup) {
+    return new Promise((resolve) => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'width:600px;height:400px';
+      f.srcdoc = `<!doctype html><body><div id="outside" style="height:200px"></div><div id="panel" style="height:100px"></div>${LOAD}<script>window.seen = []; ${setup}<\/script></body>`;
+      f.onload = () => resolve(f.contentWindow);
+      document.body.append(f);
+    });
+  }
+  const READER = "SlopIntake.register({ id: 'app', accept: { any: true }, toast: false, process: async (file, ctx) => { seen.push([file.name, ctx.source]); return file.name; } });";
+  /** One file drag step on an element of the page `w`. Returns the event (to read defaultPrevented). */
+  function drag(w, type, el) {
+    const dt = new w.DataTransfer(); dt.items.add(new w.File(['x'], 'a.txt', { type: 'text/plain' }));
+    const e = new w.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt });
+    el.dispatchEvent(e);
+    return e;
+  }
+  const veil = (w) => w.document.querySelector('.si-pagedrop');
+
+  describe('a file drop anywhere on the page', () => {
+    it('goes to the main reader, with the cue shown while the files are over the page', async () => {
+      const w = await page(READER), out = w.document.getElementById('outside');
+      drag(w, 'dragenter', out);                       // the first file drag arms the page-wide handlers
+      expect(drag(w, 'dragover', out).defaultPrevented).toBe(true);
+      expect(!!veil(w)).toBe(true);
+      expect(veil(w).textContent).toBe('Add files');
+      const drop = drag(w, 'drop', out);
+      expect(drop.defaultPrevented).toBe(true);        // the browser does not open the file
+      await waitFor(() => w.seen.length === 1);
+      expect(w.seen[0]).toEqual(['a.txt', 'drop']);
+      expect(!!veil(w)).toBe(false);
+    });
+    it('does not take it twice when a plain drop area took it', async () => {
+      const w = await page(READER + " SlopIntake.dropTarget(document.getElementById('panel'), { to: 'app' });");
+      drag(w, 'dragenter', w.document.getElementById('panel'));
+      drag(w, 'drop', w.document.getElementById('panel'));
+      await waitFor(() => w.seen.length === 1);
+      drag(w, 'drop', w.document.getElementById('outside')); // outside the area: the page-wide handler takes it
+      await waitFor(() => w.seen.length === 2);
+      expect(w.seen.map((s) => s[1])).toEqual(['drop', 'drop']);
+    });
+    it('leaves a page alone whose own window handler took the drop (a SlopDrop page)', async () => {
+      const w = await page("window.addEventListener('dragover', (e) => e.preventDefault()); window.addEventListener('drop', (e) => { e.preventDefault(); e.sdSeen = true; }); " + READER);
+      const out = w.document.getElementById('outside');
+      drag(w, 'dragenter', out); drag(w, 'dragover', out); drag(w, 'drop', out);
+      await new Promise((r) => setTimeout(r, 150));
+      expect(w.seen.length).toBe(0);
+      expect(!!veil(w)).toBe(false);
+    });
+    it('leaves a page alone whose reader asked for it (SlopDrop window: false)', async () => {
+      const w = await page(READER + " SlopIntake.noPageDrop('app');"), out = w.document.getElementById('outside');
+      drag(w, 'dragenter', out);
+      expect(drag(w, 'dragover', out).defaultPrevented).toBe(false);
+      const drop = drag(w, 'drop', out);
+      expect(drop.defaultPrevented).toBe(false);       // the browser's own handling stays
+      await new Promise((r) => setTimeout(r, 80));
+      expect(w.seen.length).toBe(0);
+    });
+    it('does nothing on a page whose only readers are parts (a backup), and the browser keeps its own handling', async () => {
+      const w = await page("SlopIntake.part({ id: 'backup', accept: { any: true }, process: async (f) => f.name });");
+      const out = w.document.getElementById('outside');
+      drag(w, 'dragenter', out);
+      expect(drag(w, 'dragover', out).defaultPrevented).toBe(false);
+      expect(drag(w, 'drop', out).defaultPrevented).toBe(false);
+      expect(!!veil(w)).toBe(false);
+    });
+    it('is kept from the browser but not taken while a dialog is open', async () => {
+      const w = await page(READER), out = w.document.getElementById('outside');
+      w.SlopUI.dialog({ title: 'Open dialog', body: w.document.createElement('p'), buttons: [{ label: 'OK' }] });
+      drag(w, 'dragenter', out);
+      drag(w, 'dragover', out);
+      expect(!!veil(w)).toBe(false);
+      expect(drag(w, 'drop', out).defaultPrevented).toBe(true);
+      await new Promise((r) => setTimeout(r, 150));
+      expect(w.seen.length).toBe(0);
+    });
+    it('ignores a drag that carries no files (text, an element)', async () => {
+      const w = await page(READER), out = w.document.getElementById('outside');
+      const dt = new w.DataTransfer(); dt.setData('text/plain', 'hello');
+      out.dispatchEvent(new w.DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      const over = new w.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt });
+      out.dispatchEvent(over);
+      expect(over.defaultPrevented).toBe(false);
+      expect(!!veil(w)).toBe(false);
+    });
+  });
+  run({ name: 'Shared intake: a file drop anywhere on the page' });
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Language menu in the header: an app and the homepage, Swedish and Arabic, desktop and 390 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/i18n/switcher.js, shared/i18n/i18n.js, shell/header.js, shell/shell.js, shell/notify.js,
+  //   shared/tour/mount.js, shared/ui/hbtn.js, shared/ui/menubutton.js, settings/language.js
+  const { describe, it, beforeEach, afterEach, expect, sleep, waitFor, run } = SlopTest;
+  const frames = [];
+  async function open(src, w = 1100, h = 760) {
+    const f = document.createElement('iframe');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    f.src = src;
+    document.body.append(f);
+    frames.push(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentDocument.querySelector('.sh-hdr .sh-lang'), { timeout: 30000 });
+    await sleep(300);
+    return f;
+  }
+  async function reload(f) {
+    const loaded = new Promise((r) => f.addEventListener('load', r, { once: true }));
+    f.contentWindow.location.reload();
+    await loaded;
+    await waitFor(() => f.contentDocument.querySelector('.sh-hdr .sh-lang'), { timeout: 30000 });
+    await sleep(300);
+  }
+  const D = (f) => f.contentDocument;
+  const html = (f) => D(f).documentElement;
+  const rows = (f) => [...D(f).querySelectorAll('.smb-menu .smb-row')];
+  /** Opens the language menu the way a visitor does: its button, or, when it gave way in a full header, its row in More
+   *  (on a phone) or in the Theme menu. */
+  async function openMenu(f) {
+    const b = D(f).querySelector('.sh-lang'), more = D(f).querySelector('.slop-hmore');
+    if (b.hidden && more && !more.hidden) {
+      more.click();
+      const row = await waitFor(() => rows(f).find((r) => /:/.test(r.textContent)), { timeout: 10000 });
+      row.click();
+    } else if (b.hidden) {
+      const t = D(f).querySelector('.sh-theme');
+      t.click();
+      const row = await waitFor(() => [...D(f).querySelectorAll('.sui-menu *')].find((n) => !n.children.length && /…$/.test(n.textContent) && n.textContent.length < 30), { timeout: 10000 });
+      row.click();
+    } else b.click();
+    return waitFor(() => rows(f).length >= 8 && rows(f).find((r) => r.dataset.value === 'en') && rows(f), { timeout: 15000 });
+  }
+  async function choose(f, code) {
+    const list = await openMenu(f);
+    list.find((r) => r.dataset.value === code).click();
+    await waitFor(() => html(f).getAttribute('lang') === code, { timeout: 5000 });
+    await sleep(200);
+  }
+  const stored = () => { try { return JSON.parse(localStorage.getItem('slop-profile') || 'null'); } catch (e) { return null; } };
+  /** Every shared header button that shows is inside the frame, and nothing scrolls sideways. */
+  function fits(f) {
+    const W = f.contentWindow;
+    for (const n of D(f).querySelectorAll('header .slop-hbtn')) {
+      const r = n.getBoundingClientRect();
+      if (!r.width) continue;
+      expect(r.left >= -0.5 && r.right <= W.innerWidth + 0.5).toBe(true, `${n.className} at ${Math.round(r.left)}–${Math.round(r.right)}`);
+    }
+    expect(D(f).documentElement.scrollWidth).toBeLessThan(W.innerWidth + 2);
+  }
+
+  describe('the header language menu', () => {
+    beforeEach(() => { localStorage.clear(); SlopTest.english(); });   // each test starts in English (a build may start elsewhere)
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('an app header: lists every language by its own name, current checked; Svenska switches at once and survives a reload', async () => {
+      const f = await open('../../ledger/index.html');
+      const b = D(f).querySelector('.sh-lang');
+      expect(b.textContent.trim()).toBe('EN');
+      expect(b.getAttribute('aria-haspopup')).toBe('menu');
+      const list = await openMenu(f);
+      const names = list.map((r) => r.querySelector('.smb-lbl').textContent);
+      expect(names.length).toBe(f.contentWindow.SlopI18n.LANGS.length);
+      expect(names.slice(0, 8)).toEqual(['English', 'Español', 'Français', 'Deutsch', 'Português (Brasil)', 'Italiano', 'العربية', 'Svenska']);
+      expect(names).toContain('日本語');
+      expect(list.find((r) => r.dataset.value === 'sw').textContent).toContain('beta');
+      expect(list.filter((r) => r.getAttribute('aria-checked') === 'true').map((r) => r.dataset.value)).toEqual(['en']);
+      expect(list.find((r) => r.dataset.value === 'ar').getAttribute('lang')).toBe('ar');
+      list.find((r) => r.dataset.value === 'sv').click();
+      await waitFor(() => html(f).getAttribute('lang') === 'sv', { timeout: 5000 });
+      expect(html(f).getAttribute('dir')).toBe('ltr');
+      // the Swedish tables load on the choice (lazily): the words follow as soon as they are in
+      await waitFor(() => D(f).querySelector('.sh-switch .slop-hbtn-txt').textContent === 'Appar', { timeout: 5000 });
+      expect(D(f).querySelector('.sh-theme').getAttribute('aria-label')).toBe('Tema');
+      expect(D(f).querySelector('.sn-bell').title).toBe('Aviseringar');
+      expect(D(f).querySelector('.sh-lang').textContent.trim()).toBe('SV');
+      expect(D(f).querySelector('.sh-lang').getAttribute('aria-label')).toBe('Språk: Svenska');
+      // stored, unless Swedish is the build's start language: choosing the default clears the override
+      if (BRAND_FACTS.defaultLang === 'sv') expect((stored().data.lang || {}).mode).toBe(undefined); else expect(stored().data.lang.mode).toBe('sv');
+      await reload(f);
+      expect(html(f).getAttribute('lang')).toBe('sv');
+      expect(D(f).querySelector('.sh-switch .slop-hbtn-txt').textContent).toBe('Appar');
+      const again = await openMenu(f);
+      expect(again.filter((r) => r.getAttribute('aria-checked') === 'true').map((r) => r.dataset.value)).toEqual(['sv']);
+    }, { timeout: 60000 });
+
+    it('the homepage header: Svenska translates the tabs, Install, Tours and Theme, and survives a reload', async () => {
+      const f = await open('../../index.html', 1280, 800);
+      await waitFor(() => D(f).querySelector('header .stour-btn'), { timeout: 15000 });
+      await choose(f, 'sv');
+      // the Swedish tables load on the choice (lazily): the words follow as soon as they are in
+      await waitFor(() => D(f).querySelector('[data-i18n="nav.apps"]').textContent === 'Appar', { timeout: 5000 });
+      expect(D(f).querySelector('#pwa-install .slop-hbtn-txt').textContent).toBe('Installera');
+      expect(D(f).getElementById('pwa-install').title).toBe('Installera ' + f.contentWindow.SlopBrand.config.name);
+      const tours = D(f).querySelector('header .stour-btn');
+      expect(tours.textContent.trim()).toBe('Guider');
+      expect(tours.title).toBe('Guidade turer för varje app');
+      expect(D(f).querySelector('.sh-theme .slop-hbtn-txt').textContent).toBe('Tema');
+      await reload(f);
+      await waitFor(() => D(f).querySelector('header .stour-btn'), { timeout: 15000 });
+      expect(html(f).getAttribute('lang')).toBe('sv');
+      expect(D(f).querySelector('header .stour-btn').textContent.trim()).toBe('Guider');
+    }, { timeout: 60000 });
+
+    it('the keyboard opens it, moves through it and picks; Escape closes it back on the button', async () => {
+      const f = await open('../../ledger/index.html');
+      const W = f.contentWindow, b = D(f).querySelector('.sh-lang');
+      b.focus();
+      b.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      await waitFor(() => rows(f).length >= 8, { timeout: 15000 });
+      // 29 languages: the menu opens with the cursor in its filter box; ArrowDown goes to the first row
+      expect(D(f).activeElement.classList.contains('smb-search')).toBe(true);
+      D(f).activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(D(f).activeElement.dataset.value).toBe('en');
+      D(f).activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await sleep(50);
+      expect(rows(f).length).toBe(0);
+      expect(D(f).activeElement).toBe(b);
+      b.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      await waitFor(() => rows(f).length >= 8, { timeout: 5000 });
+      const box = D(f).activeElement;
+      box.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      D(f).activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+      expect(D(f).activeElement.dataset.value).toBe(W.SlopI18n.LANGS[W.SlopI18n.LANGS.length - 1].code);
+      // typing an English name filters to it, and Enter picks the first match
+      box.focus(); box.value = 'swedish'; box.dispatchEvent(new W.Event('input', { bubbles: true }));
+      box.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await waitFor(() => html(f).getAttribute('lang') === 'sv', { timeout: 5000 });
+    }, { timeout: 60000 });
+
+    for (const [src, name] of [['../../ledger/index.html', 'an app'], ['../../index.html', 'the homepage']]) {
+      it(`${name} at 390 px: the menu is reachable, Arabic turns the page right to left, and the header still fits`, async () => {
+        const f = await open(src, 390, 800);
+        fits(f);
+        await choose(f, 'ar');
+        expect(html(f).getAttribute('dir')).toBe('rtl');
+        await sleep(400);
+        fits(f);
+        await openMenu(f);   // the open menu fits the phone, under right to left too
+        const m = D(f).querySelector('.smb-menu').getBoundingClientRect();
+        expect(m.left >= 0 && m.right <= 390 && m.bottom <= 800).toBe(true, `menu at ${Math.round(m.left)}–${Math.round(m.right)}`);
+        D(f).activeElement.dispatchEvent(new f.contentWindow.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await sleep(100);
+        await choose(f, 'sv');
+        expect(html(f).getAttribute('dir')).toBe('ltr');
+        fits(f);
+      }, { timeout: 60000 });
+    }
+
+    it('Settings follows a choice made in its header', async () => {
+      const f = await open('../../settings/index.html');
+      await choose(f, 'de');
+      expect(D(f).getElementById('lang-select').value).toBe('de');
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Header language menu' });
+  </script>
+</body>
+</html>

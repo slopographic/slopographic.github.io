@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · catalog and navigation</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let win, doc;
+  const ready = HomeTest.openHome().then((w) => { win = w; doc = w.document; });
+
+  describe('catalog', () => {
+    it('every registry app has a card in a section, and no card sits outside a section', async () => {
+      await ready;
+      const apps = win.SLOP_APPS;
+      expect(apps.length).toBeGreaterThan(5);
+      for (const a of apps) {
+        const card = doc.querySelector(`[data-section] > [data-perch="card"][data-id="${a.id}"]`);
+        if (!card) throw new Error('missing card for ' + a.id);
+        expect(card.getAttribute('href')).toBe(a.path);
+        expect(card.querySelector('h3').textContent).toBe(win.slopAppLabel(a, false));
+      }
+      expect(doc.querySelectorAll('[data-section] > [data-perch="card"]').length).toBeGreaterThan(apps.length);
+    });
+    it('compact cards show the tagline and a status badge from the registry, and no feature list', async () => {
+      await ready;
+      const labels = { live: 'Live', beta: 'Beta', building: 'In development' };
+      for (const a of win.SLOP_APPS.filter((x) => x.kind === 'app')) {
+        const card = doc.querySelector(`.app-card[data-id="${a.id}"]`);
+        // A converter card shows its one-line "in and out" from SECTIONS, so the tagline is one of the two.
+        const lines = [a.tagline, win.slopAppTagline(a)].concat([].concat(win.SlopHomeSections.SECTIONS[a.id] || []).map((p) => p.line).filter(Boolean));
+        expect(lines.includes(card.querySelector('.app-tag').textContent)).toBe(true);
+        expect(card.querySelector('.feats')).toBe(null);
+        const badge = card.querySelector('.badge');
+        if (BRAND_FACTS.tone === 'plain' && a.status === 'live') { expect(badge).toBe(null); continue; }   // a plain build badges only what is not ready
+        expect(badge.classList.contains(a.status)).toBe(true);
+        expect(badge.textContent).toBe(BRAND_FACTS.tone === 'plain' ? HomeTest.words(win, 'status.' + a.status) : labels[a.status]);
+      }
+    });
+    it('every app card draws its own Sloppo badge, a lime tile holding the glyph', async () => {
+      await ready;
+      const ids = new Set();
+      for (const a of win.SLOP_APPS.filter((x) => x.kind === 'app')) {
+        const svg = doc.querySelector(`.shot[data-id="${a.id}"] svg.shot-icon`);
+        if (!svg) throw new Error('no icon on the card for ' + a.id);
+        expect(svg.getAttribute('data-icon')).toBe(a.id);
+        expect(svg.querySelector('rect').getAttribute('fill')).toBe('#d4ff3a');
+        expect(svg.querySelector('g').children.length).toBeGreaterThan(0);
+        ids.add(svg.querySelector('g').innerHTML);
+      }
+      expect(doc.querySelectorAll('[data-section] .shot-icon').length).toBeGreaterThan(ids.size);
+    });
+    it('lists every project on the status board with matching counts', async () => {
+      await ready;
+      const apps = win.SLOP_APPS;
+      expect(doc.querySelectorAll('#status-board .status-row').length).toBe(apps.length);
+      const live = apps.filter((a) => a.status === 'live').length;
+      if (BRAND_FACTS.tone === 'plain') {   // the plain wording (plain.home.status_sum)
+        const count = (s) => apps.filter((a) => a.status === s).length;
+        expect(doc.getElementById('status-sum').textContent).toContain(HomeTest.words(win, 'home.status_sum', { n: apps.length, live, beta: count('beta'), building: count('building') }));
+      } else expect(doc.getElementById('status-sum').textContent).toContain(`${apps.length} projects: ${live} live`);
+      // In development first, live last.
+      const states = [...doc.querySelectorAll('#status-board .dot')].map((d) => d.className.split(' ')[1]);
+      const rank = { building: 0, beta: 1, live: 2 };
+      for (let i = 1; i < states.length; i++) expect(rank[states[i]]).toBeGreaterThanOrEqual(rank[states[i - 1]]);
+    });
+  });
+
+  describe('navigation', () => {
+    for (const id of ['apps', 'status']) {
+      it(`the ${id} tab jumps to its section`, async () => {
+        await ready;
+        win.scrollTo(0, 0);
+        doc.documentElement.style.scrollBehavior = 'auto';
+        doc.querySelector(`.tabs a[data-jump][href="#${id}"]`).click();
+        const target = doc.getElementById(id);
+        // Smooth scrolling; lazy screenshots above may still shift the layout a little.
+        await waitFor(() => Math.abs(target.getBoundingClientRect().top - parseFloat(win.getComputedStyle(target).scrollMarginTop)) < 80, { timeout: 9000 });
+        expect(win.location.hash).toBe('');
+      });
+    }
+    it('switches to the Authenticator and back home', async () => {
+      await ready;
+      doc.defaultView.location.hash = '#detector';
+      await waitFor(() => !doc.getElementById('view-detector').hidden, { timeout: 8000 });
+      expect(doc.getElementById('view-home').hidden).toBe(true);
+      expect(win.location.hash).toBe('#detector');
+      doc.querySelector('.brand').click();
+      await waitFor(() => !doc.getElementById('view-home').hidden);
+      expect(doc.getElementById('view-detector').hidden).toBe(true);
+    });
+    it('a jump link works from the Authenticator view too', async () => {
+      await ready;
+      doc.defaultView.location.hash = '#detector';
+      await waitFor(() => doc.getElementById('view-home').hidden, { timeout: 8000 });
+      doc.querySelector('.tabs a[data-jump][href="#apps"]').click();
+      await waitFor(() => !doc.getElementById('view-home').hidden);
+      await waitFor(() => Math.abs(doc.getElementById('apps').getBoundingClientRect().top) < 120, { timeout: 5000 });
+    });
+    it('the Authenticator certifies pasted slop', async () => {
+      await ready;
+      doc.defaultView.location.hash = '#detector';
+      await waitFor(() => doc.getElementById('sample-slop'), { timeout: 8000 });   // home/view.js loads detector/ on first open
+      doc.getElementById('sample-slop').click();
+      await waitFor(() => !doc.getElementById('result').hidden);
+      expect(+doc.getElementById('score').textContent).toBeGreaterThanOrEqual(0);
+      doc.querySelector('.brand').click();
+    });
+    if (BRAND_FACTS.mascot === 'builtin') it('clicks on the mascot do not count as navigation', async () => {   // the built-in one (tests/brand-facts.js)
+      await ready;
+      await HomeTest.settled(win);
+      doc.documentElement.style.scrollBehavior = 'auto';
+      await sleep(800);                        // let earlier smooth scrolls finish
+      win.scrollTo(0, 300);
+      await sleep(50);
+      win.SlopMascot.M.hit.click();
+      await sleep(50);
+      expect(win.scrollY).toBe(300);
+    });
+  });
+
+  describe('app icons', () => {
+    it('each card and globe icon is an SVG-namespace svg with the badge rect and glyph group as direct children', async () => {
+      await ready;
+      await waitFor(() => doc.querySelector('.gx-layer .gx-svg'), { timeout: 20000 });
+      const SVG = 'http://www.w3.org/2000/svg';
+      const icons = [...doc.querySelectorAll('[data-section] .shot-icon'), ...doc.querySelectorAll('.gx-layer .gx-svg')];
+      expect(icons.length).toBeGreaterThan(win.SLOP_APPS.length);
+      for (const svg of icons) {
+        expect(svg.namespaceURI).toBe(SVG);
+        expect(svg.getAttribute('viewBox')).toBe('0 0 48 48');
+        const rect = svg.querySelector(':scope > rect');
+        if (!rect) throw new Error('no badge rect as a direct child of ' + svg.getAttribute('class'));
+        expect(rect.namespaceURI).toBe(SVG);
+        expect(rect.getAttribute('fill')).toBe('#d4ff3a');
+        expect(svg.querySelector(':scope > ellipse').namespaceURI).toBe(SVG);
+        expect(svg.querySelector(':scope > g').namespaceURI).toBe(SVG);
+      }
+    });
+    it('the old app carousel is gone: no carousel markup, no slide controls', async () => {
+      await ready;
+      expect(doc.querySelectorAll('#app-carousel, .carousel, .car-slide, .car-pause').length).toBe(0);
+    });
+  });
+
+  ready.then(() => sleep(100)).then(() => run());
+  </script>
+</body>
+</html>

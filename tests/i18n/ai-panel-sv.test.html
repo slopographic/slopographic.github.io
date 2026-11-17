@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The Slop AI panel, model choice and permissions in Swedish</title>
+  <!-- Covers: shared/i18n/ui/en/ai.js, shared/i18n/ui/sv/ai.js, shared/i18n/ui/en/ai2.js, shared/i18n/ui/sv/ai2.js,
+       shared/i18n/ui/en/models.js, shared/i18n/ui/sv/models.js, shared/ai/panel.js, shared/ai/panel-run.js, shared/ai/picker.js,
+       shared/ai/model-menu.js, shared/ai/permissions.js, shared/ai/permissions-ui.js, shared/ai/catalog.js, shared/ai/md.js,
+       shared/ai/handoff.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 900px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The panel's test host page in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  async function open(lang) {
+    localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    localStorage.setItem('slop-firstrun:aitools', '1');
+    const f = document.createElement('iframe');
+    f.src = '../ai/panel-page.html';
+    document.body.append(f);
+    frames.push(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopAIPanel && f.contentWindow.SlopI18n, { timeout: 30000 });
+    await f.contentWindow.SlopI18n.ready();
+    const w = f.contentWindow;
+    w.SlopAIPanel.open();
+    await w.SlopAIPanel.ready;
+    await waitFor(() => w.document.querySelector('.sap textarea') && !w.document.querySelector('.sap-pick-wait'), { timeout: 30000 });
+    return w;
+  }
+  const KEY = /(^|[\s(“"'«”])(ui|menu|shell|nav)\.[a-z0-9_]+\.[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const $ = (w, s) => w.document.querySelector(s);
+  const switched = (w, code) => new Promise((res) => { const off = w.SlopI18n.on(() => { off(); res(); }); w.SlopI18n.set(code); });
+
+  describe('Slop AI panel in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('the panel, the model choice, the menu, notes and the permissions read Swedish, with no key showing', async () => {
+      const w = await open('sv'), P = w.SlopAIPanel._p, K = w.SlopAIKit;
+      expect(w.document.documentElement.getAttribute('lang')).toBe('sv');
+      expect($(w, '.sap textarea').placeholder).toBe('Fråga om PhotoSlop eller säg vad som ska göras…');
+      expect($(w, '.sap-foot').textContent).toBe('Körs på din enhet. Inget lämnar den.');
+      expect($(w, '.sap-tools').textContent.trim()).toBe('Styr PhotoSlop');
+      expect($(w, '.sap-gear').title).toBe('AI-behörigheter');
+      expect($(w, '.sap-x').getAttribute('aria-label')).toBe('Stäng Slop AI');
+      expect($(w, '.sap-status').textContent).toBe('ingen modell än');
+      // the model choice: the local models (Pick a model) or the plain WebGPU message, in Swedish
+      expect($(w, '.sap-pick').textContent).toMatch(/Välj en modell för att börja|WebGPU/);
+      expect($(w, '.sap-pick').textContent).not.toMatch(/Pick a model to start|This browser (cannot|has)/);
+      // the model blurbs and the cut-out model names come from the tables by id
+      expect(K.catalog.byId('Qwen2.5-1.5B-Instruct-q4f16_1-MLC').blurb).toBe('Den bästa allroundmodellen för små GPU:er. Följer verktygsinstruktioner bra.');
+      expect(K.catalog.LICENSES.llama.commercial).toBe('ja, under 700 miljoner användare i månaden');
+      // the model menu's items
+      const items = K.modelMenu.items(P).map((x) => x.label || x.heading);
+      expect(items).toContain('AI-inställningar…');
+      expect(items).toContain('Använd ditt eget AI-konto…');
+      expect(items).toContain('Mer');
+      // the AI permissions: the mode switch by the message box, and the settings view
+      expect([...$(w, '.sap-mode').options].map((o) => o.textContent)).toEqual(['Fråga varje gång', 'Tillåt appändringar', 'Tillåt allt']);
+      P.settings();
+      await waitFor(() => $(w, '.sap-perm'));
+      expect($(w, '.sap-settings').textContent).toContain('Alltid tillåtet på den här enheten');
+      expect($(w, '.sap-settings').textContent).toContain('När en uppgift använder andra appar');
+      expect($(w, '.sap-back').textContent).toBe('← Tillbaka till chatten');
+      P.settings();
+      // a note in the chat and a code block in a reply
+      P.messages.push({ role: 'user', content: 'hej' }, { role: 'assistant', content: '', display: 'Stopped.', dk: 'ui.ai.run.stopped', note: true },
+        { role: 'assistant', content: '```html\n<!doctype html><p>x</p>\n```' });
+      P.render();
+      expect($(w, '.sap-list').textContent).toContain('Stoppad. Stegen ovan med ✓ blev klara.');
+      expect([...w.document.querySelectorAll('.md-code button')].map((b) => b.textContent)).toEqual(['Förhandsgranska', 'Kopiera']);
+      expect(KEY.test(visible(w.document))).toBe(false);
+    });
+
+    it('the download notice of a model, in Swedish', async () => {
+      const w = await open('sv'), K = w.SlopAIKit;
+      const m = K.catalog.byId('Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
+      const asked = K.picker.consent(m, { partial: true });
+      const dlg = await waitFor(() => [...w.document.querySelectorAll('.sui-dlg')].pop(), { timeout: 20000 });
+      expect(dlg.textContent).toContain('Ladda ned Qwen2.5 1.5B?');
+      expect(dlg.textContent).toContain('Qwen2.5 1.5B körs på den här enheten med WebGPU');
+      expect(dlg.textContent).toContain('Licens: Apache License 2.0; kommersiell användning: ja.');
+      expect(dlg.textContent).toContain('En del av den är redan nedladdad');
+      expect(KEY.test(dlg.textContent)).toBe(false);
+      dlg.querySelector('.sui-foot .sui-btn:not(.sui-primary)').click();
+      expect(await asked).toBe(false);
+    });
+
+    it('switching to English live: the panel, its note and the permissions follow, then Swedish again', async () => {
+      const w = await open('sv'), P = w.SlopAIPanel._p;
+      P.messages.push({ role: 'assistant', content: '', display: 'x', dk: 'ui.ai.run.undid', note: true });
+      P.render();
+      expect($(w, '.sap-list').textContent).toContain('Alla ändringar från den senaste förfrågan har ångrats.');
+      await switched(w, 'en');
+      await waitFor(() => $(w, '.sap textarea').placeholder === 'Ask about PhotoSlop, or say what to do…', { timeout: 20000 });
+      expect($(w, '.sap-foot').textContent).toBe('Runs on your device. Nothing leaves it.');
+      expect($(w, '.sap-tools').textContent.trim()).toBe('Control PhotoSlop');
+      expect($(w, '.sap-list').textContent).toContain('Undid every change from the last request.');
+      expect([...$(w, '.sap-mode').options].map((o) => o.textContent)).toEqual(['Ask each time', 'Allow app changes', 'Allow everything']);
+      expect(w.SlopAIKit.catalog.byId('Qwen2.5-1.5B-Instruct-q4f16_1-MLC').blurb).toBe('The best all-rounder for small GPUs. Follows tool instructions well.');
+      await switched(w, 'sv');
+      await waitFor(() => $(w, '.sap-foot').textContent === 'Körs på din enhet. Inget lämnar den.', { timeout: 20000 });
+      expect($(w, '.sap-list').textContent).toContain('Alla ändringar från den senaste förfrågan har ångrats.');
+      expect(KEY.test(visible(w.document))).toBe(false);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

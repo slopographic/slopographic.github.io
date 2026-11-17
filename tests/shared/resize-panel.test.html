@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopResizePanel: drag, keys, limits, kept in the settings store across a reload, reset, phones; Slop AI and SlopFrame use it</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; height: 700px; }</style>
+</head>
+<body>
+  <!-- Covers: shared/ui/resize-panel.js, shared/profile/profile.js, shared/frame/frame.js, shared/ai/panel.js, shared/ai/panel.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let f = null;
+  async function open(width, src = 'resize-panel-page.html', ready = (w) => w.RIGHT) {
+    if (f) f.remove();
+    f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = src;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentDocument.readyState === 'complete' && ready(f.contentWindow), { timeout: 30000 });
+    await sleep(50);
+    return f.contentWindow;
+  }
+  const w = (W, id) => Math.round(W.document.getElementById(id).getBoundingClientRect().width);
+  const ptr = (el, type, x) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: 100, pointerId: 3, button: 0, isPrimary: true }));
+  const key = (el, k, o = {}) => el.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o)));
+  const stored = () => { try { return JSON.parse(localStorage.getItem('slop-profile')).data['@panels'].rptest; } catch (e) { return undefined; } };
+
+  describe('SlopResizePanel', () => {
+    it('a handle on each panel\'s inner edge, a separator with its values, over the edge even though the panel scrolls', async () => {
+      localStorage.removeItem('slop-profile'); SlopTest.english();
+      const W = await open(1200), g = W.RIGHT.handle, r = W.document.getElementById('right').getBoundingClientRect();
+      expect([w(W, 'right'), w(W, 'left')]).toEqual([300, 200]);
+      expect([g.getAttribute('role'), g.getAttribute('aria-valuenow'), g.getAttribute('aria-valuemin'), g.getAttribute('aria-valuemax'), g.tabIndex]).toEqual(['separator', '300', '220', '500', 0]);
+      expect(Math.abs(g.getBoundingClientRect().left + 4 - r.left)).toBeLessThan(2);
+      expect(W.getComputedStyle(g).cursor).toBe('col-resize');
+      W.document.getElementById('right').scrollTop = 500;
+      await sleep(30);
+      expect(Math.abs(g.getBoundingClientRect().top - r.top)).toBeLessThan(2);   // it does not scroll with the content
+    });
+
+    it('drags wider and narrower within min and max; the right panel grows to the left, the left one to the right', async () => {
+      const W = await open(1200), g = W.RIGHT.handle, lg = W.LEFT.handle;
+      ptr(g, 'pointerdown', 900); ptr(g, 'pointermove', 800); ptr(g, 'pointerup', 800);
+      expect(w(W, 'right')).toBe(400);
+      ptr(g, 'pointerdown', 800); ptr(g, 'pointermove', 100); ptr(g, 'pointerup', 100);
+      expect(w(W, 'right')).toBe(500);
+      ptr(g, 'pointerdown', 700); ptr(g, 'pointermove', 1190); ptr(g, 'pointerup', 1190);
+      expect(w(W, 'right')).toBe(220);
+      ptr(lg, 'pointerdown', 200); ptr(lg, 'pointermove', 260); ptr(lg, 'pointerup', 260);
+      expect(w(W, 'left')).toBe(260);
+      expect(stored()).toEqual({ right: 220, left: 260 });
+    });
+
+    it('keys: Left and Right (Shift for bigger steps), Home and End', async () => {
+      const W = await open(1200), g = W.RIGHT.handle;
+      W.RIGHT.setWidth(300);
+      key(g, 'ArrowLeft'); expect(W.RIGHT.width()).toBe(316);
+      key(g, 'ArrowRight', { shiftKey: true }); expect(W.RIGHT.width()).toBe(252);
+      key(g, 'End'); expect(W.RIGHT.width()).toBe(500);
+      key(g, 'Home'); expect(W.RIGHT.width()).toBe(220);
+      expect(g.getAttribute('aria-valuenow')).toBe('220');
+      key(W.LEFT.handle, 'ArrowRight'); expect(W.LEFT.width()).toBe(276);
+    });
+
+    it('the sizes come back after a reload, applied as the page is built', async () => {
+      const W = await open(1200);
+      expect([w(W, 'right'), w(W, 'left')]).toEqual([220, 276]);
+      expect(W.getComputedStyle(W.document.getElementById('app')).getPropertyValue('--right-w').trim()).toBe('220px');
+    });
+
+    it('a double-click puts one panel back; Reset panel sizes (View) puts them all back and clears the store', async () => {
+      const W = await open(1200);
+      W.RIGHT.handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(w(W, 'right')).toBe(300);
+      expect(stored()).toEqual({ left: 276 });
+      W.RIGHT.setWidth(450);
+      expect(W.SlopCmd.list().some((c) => c.id === 'view.resetPanels' && c.title === 'Reset panel sizes' && c.group === 'View')).toBe(true);
+      W.SlopCmd.run('view.resetPanels');
+      expect([w(W, 'right'), w(W, 'left')]).toEqual([300, 200]);
+      expect(stored()).toBe(undefined);
+    });
+
+    it('phones do not resize: no handle, and the app\'s own layout applies', async () => {
+      const W = await open(390);
+      expect(W.RIGHT.handle.hidden).toBe(true);
+      expect(W.getComputedStyle(W.document.getElementById('app')).getPropertyValue('--right-w').trim()).toBe('');
+      key(W.RIGHT.handle, 'ArrowLeft');
+      expect(W.RIGHT.width()).toBe(300);
+    });
+
+    it('the Slop AI panel and a SlopFrame panel use this one module (Slop Upscale with Slop AI open)', async () => {
+      const W = await open(1280, '../../upscale/index.html', (x) => x.SlopUpscale && x.SlopUpscale.layout && x.document.querySelector('.sh-ai'));
+      W.document.querySelector('.sh-ai').click();
+      await waitFor(() => W.SlopResizePanel.panels().some((p) => p.id === 'ai'), { timeout: 20000 });
+      const ids = W.SlopResizePanel.panels().map((p) => p.id);
+      expect(ids).toContain('frame-panel');
+      expect(ids).toContain('ai');
+      const ai = W.SlopResizePanel.panels().find((p) => p.id === 'ai');
+      ai.setWidth(480);
+      await sleep(50);
+      expect(Math.round(W.document.querySelector('.sap').getBoundingClientRect().width)).toBe(480);
+      expect(Math.round(W.document.getElementById('up-frame').getBoundingClientRect().right)).toBe(1280 - 480);
+      ai.reset();
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'SlopResizePanel' });
+  </script>
+</body>
+</html>

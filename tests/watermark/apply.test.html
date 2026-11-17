@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>The one watermark call: pictures, animated GIF and WebP, a video with sound, a PDF</title></head>
+<body>
+  <!-- SlopWatermark.apply(file, spec) on real files: the pixels of a picture, every frame of an animated GIF, a decoded video
+       frame (with the sound kept and the length unchanged, and a layer with a time range), and a PDF read back with pdf.js
+       (the watermark is real text on the pages of its range, and the logo an image). -->
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../../shared/watermark/spec.js"></script>
+  <script src="../../shared/watermark/spec-layout.js"></script>
+  <script src="../../shared/watermark/spec-convert.js"></script>
+  <script src="../../shared/watermark/core.js"></script>
+  <script src="../../shared/watermark/apply.js"></script>
+  <script type="module">
+  // Covers: shared/watermark/apply.js, shared/watermark/apply-video.js, shared/watermark/apply-pdf.js, shared/watermark/core.js
+  // Covers: convert/js/core/ffmpeg-engine.js
+  import { loadPdfLib } from '../../convert/js/core/lib.js';
+  import { openPdf } from '../../convert/js/core/pdf-raster.js';
+  const { describe, it, expect } = SlopTest;
+  const WM = window.SlopWatermark;
+  const fetchFile = async (url, name, type) => new File([await (await fetch(url)).arrayBuffer()], name, { type });
+  /** A flat colour square as a logo data URL. */
+  function square(colour) { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); g.fillStyle = colour; g.fillRect(0, 0, 32, 32); return c.toDataURL('image/png'); }
+  const MAGENTA = square('#ff00ff'), CYAN = square('#00ffff');
+  const logo = (url, o) => Object.assign({ kind: 'logo', logo: url, logoW: 32, logoH: 32, size: 0.4, opacity: 1, margin: 0 }, o);
+  async function picture(type, w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = '#2050a0'; g.fillRect(0, 0, w, h);
+    return new File([await new Promise((r) => c.toBlob(r, type, 0.95))], 'pic.' + type.split('/')[1], { type });
+  }
+  async function canvasOf(src, w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(src, 0, 0, w, h); return c; }
+  const px = (c, x, y) => [...c.getContext('2d').getImageData(x, y, 1, 1).data];
+  const isMagenta = (p) => p[0] > 180 && p[2] > 180 && p[1] < 100;
+  const isCyan = (p) => p[1] > 180 && p[2] > 180 && p[0] < 100;
+  /** The frame of a video blob at time t, on a canvas of its size. */
+  async function frameAt(blob, t) {
+    const v = document.createElement('video'); v.muted = true; v.src = URL.createObjectURL(blob);
+    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error('the video does not play')); });
+    v.currentTime = t; await new Promise((res) => { v.onseeked = res; });
+    const c = await canvasOf(v, v.videoWidth, v.videoHeight);
+    return Object.assign(c, { duration: v.duration });
+  }
+  /** Frame i of an animated picture, through the browser's image decoder. */
+  async function frameOf(blob, i) {
+    const d = new ImageDecoder({ data: await blob.arrayBuffer(), type: blob.type });
+    await d.tracks.ready;
+    const { image } = await d.decode({ frameIndex: i });
+    const c = await canvasOf(image, image.displayWidth, image.displayHeight);
+    image.close();
+    return Object.assign(c, { frames: d.tracks.selectedTrack.frameCount });
+  }
+
+  describe('pictures', () => {
+    it('a PNG keeps its size and format, with the watermark where the spec puts it', async () => {
+      const out = await WM.apply(await picture('image/png', 200, 100), { layers: [logo(MAGENTA, { position: 'mc' })] });
+      expect(out.type).toBe('image/png');
+      const c = await canvasOf(await createImageBitmap(out), 200, 100);
+      expect(c.width).toBe(200);
+      expect(isMagenta(px(c, 100, 50))).toBe(true);   // 40 px square in the middle (0.4 of the shorter side)
+      expect(px(c, 5, 5).slice(0, 3)).toEqual([32, 80, 160]);
+    });
+    it('JPEG stays JPEG and WebP stays WebP; an SVG becomes a PNG of its own size', async () => {
+      const spec = { layers: [logo(MAGENTA, { position: 'tl' })] };
+      expect((await WM.apply(await picture('image/jpeg', 120, 90), spec)).type).toBe('image/jpeg');
+      expect((await WM.apply(await picture('image/webp', 120, 90), spec)).type).toBe('image/webp');
+      const svg = new File(['<svg xmlns="http://www.w3.org/2000/svg" width="150" height="60"><rect width="150" height="60" fill="#0a0"/></svg>'], 'a.svg', { type: 'image/svg+xml' });
+      const out = await WM.apply(svg, spec), b = await createImageBitmap(out);
+      expect([out.type, b.width, b.height]).toEqual(['image/png', 150, 60]);
+      expect(isMagenta(px(await canvasOf(b, 150, 60), 5, 5))).toBe(true);
+    });
+    it('a spec that cannot draw is refused with the reason', async () => {
+      await expect(WM.apply(await picture('image/png', 20, 20), { layers: [{ kind: 'text', text: '  ' }] })).rejects(/Type the watermark text/);
+      await expect(WM.apply(new File(['x'], 'notes.txt', { type: 'text/plain' }), { layers: [{ text: 'A' }] })).rejects(/not a picture, a video or a PDF/);
+    });
+    it('kinds of file, output names and animation are told apart', async () => {
+      expect(['a.JPG', 'b.mov', 'c.pdf', 'd.heic', 'e.txt'].map((n) => WM.mediaOf(new File([''], n)))).toEqual(['picture', 'video', 'pdf', 'picture', '']);
+      expect(WM.outName('holiday.jpeg', new Blob([], { type: 'image/jpeg' }))).toBe('holiday-watermarked.jpg');
+      const gif = new Uint8Array(await (await fetch('fixtures/two-frames.gif')).arrayBuffer()), webp = new Uint8Array(await (await fetch('fixtures/two-frames.webp')).arrayBuffer());
+      expect([WM.isAnimated(gif, 'image/gif'), WM.isAnimated(webp, 'image/webp')]).toEqual([true, true]);
+      const still = new Uint8Array(await (await picture('image/webp', 10, 10)).arrayBuffer());
+      expect(WM.isAnimated(still, 'image/webp')).toBe(false);
+    });
+    it('an animated WebP keeps its first frame and says so, instead of flattening quietly', async () => {
+      let note = '';
+      const out = await WM.apply(await fetchFile('fixtures/two-frames.webp', 'anim.webp', 'image/webp'), { layers: [logo(MAGENTA, { position: 'mc' })] }, { notice: (t) => { note = t; } });
+      expect(out.type).toBe('image/webp');
+      expect(note).toMatch(/animated/);
+      expect(note).toMatch(/first frame/);
+    });
+    it('an animated GIF is watermarked on every frame and stays animated', async () => {
+      const out = await WM.apply(await fetchFile('fixtures/two-frames.gif', 'anim.gif', 'image/gif'), { layers: [logo(MAGENTA, { position: 'mc' })] });
+      expect(out.type).toBe('image/gif');
+      const f0 = await frameOf(out, 0), f1 = await frameOf(out, 1);
+      expect(f0.frames).toBe(2);
+      expect(isMagenta(px(f0, 40, 30)) && isMagenta(px(f1, 40, 30))).toBe(true);
+      expect(px(f1, 3, 3)[1] > px(f0, 3, 3)[1]).toBe(true);   // the second frame is still the green one
+    }, { timeout: 240000 });
+  });
+
+  describe('video', () => {
+    it('every frame gets the watermark, the sound is kept, the length is the same, and a timed layer shows from its time', async () => {
+      const src = await fetchFile('../convert/fixtures/tone.mp4', 'tone.mp4', 'video/mp4');
+      let last = 0;
+      const out = await WM.apply(src, { layers: [logo(MAGENTA, { position: 'tl' }), logo(CYAN, { position: 'br', from: 1 })] }, { progress: (p) => { last = p; } });
+      expect(out.type).toBe('video/mp4');
+      const bytes = new Uint8Array(await out.arrayBuffer()), text = new TextDecoder('latin1').decode(bytes);
+      expect(text.includes('soun')).toBe(true);   // an audio track (handler 'soun')
+      const early = await frameAt(out, 0.3), late = await frameAt(out, 1.5), orig = await frameAt(src, 0.3);
+      expect(Math.abs(early.duration - orig.duration)).toBeLessThan(0.15);
+      expect([early.width, early.height]).toEqual([160, 120]);
+      expect(isMagenta(px(early, 20, 20)) && isMagenta(px(late, 20, 20))).toBe(true);   // 48 px square in the top left
+      expect(isCyan(px(early, 140, 100))).toBe(false);
+      expect(isCyan(px(late, 140, 100))).toBe(true);
+      expect(last).toBeGreaterThan(0);
+    }, { timeout: 300000 });
+  });
+
+  describe('PDF', () => {
+    it('the watermark is real text on the pages of its range, sized from each page, and the logo is an image', async () => {
+      const L = await loadPdfLib(), doc = await L.PDFDocument.create(), font = await doc.embedFont(L.StandardFonts.Helvetica);
+      [[612, 792], [842, 595], [300, 300]].forEach(([w, h], i) => doc.addPage([w, h]).drawText('Page ' + (i + 1), { x: 40, y: h - 60, size: 18, font }));
+      const file = new File([await doc.save()], 'three.pdf', { type: 'application/pdf' });
+      const out = await WM.apply(file, { layers: [logo(MAGENTA, { position: 'tl', size: 0.1 }), { kind: 'text', text: 'SLOPMARK', position: 'br', size: 0.05, pages: '2-3' }] });
+      expect(out.type).toBe('application/pdf');
+      const pdf = await openPdf(new Uint8Array(await out.arrayBuffer()));
+      const found = [];
+      for (let n = 1; n <= 3; n++) {
+        const page = await pdf.getPage(n), vp = page.getViewport({ scale: 1 });
+        const item = (await page.getTextContent()).items.find((x) => x.str.includes('SLOPMARK'));
+        found.push(item ? { right: item.transform[4] > vp.width / 2, size: Math.round(item.transform[0]) } : null);
+      }
+      expect(found[0]).toBe(null);
+      expect(found[1]).toEqual({ right: true, size: Math.round(595 * 0.05) });   // 5% of the shorter side of each page
+      expect(found[2]).toEqual({ right: true, size: Math.round(300 * 0.05) });
+      const back = await L.PDFDocument.load(await out.arrayBuffer());
+      expect(String(back.getPage(0).node.Resources().lookup(L.PDFName.of('XObject'))).includes('/Im')).toBe(true);
+      await pdf.destroy();
+    }, { timeout: 60000 });
+  });
+
+  SlopTest.run({ name: 'The one watermark call' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: mountTool puts the whole tool in any element; two on one page, one dialog-sized</title>
+<style>body { margin: 0; font: 16px system-ui; } #a { width: 900px; } #b { width: 600px; border: 1px solid #888; }</style></head>
+<body>
+  <div id="a"></div>
+  <div id="b" role="dialog" aria-label="Convert"></div>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../../shared/drop/panel.js"></script>
+  <script src="../../shared/drop/drop.js"></script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/ui/mount-tool.js, convert/js/ui/mount.js, convert/js/ui/tool.js, convert/js/ui/markup.js, convert/css/tool.css
+  // This page loads no File convert stylesheet: mountTool adds css/tool.css, whose rules are all under .cv-tool.
+  import { mountTool } from '../../convert/js/ui/mount-tool.js';
+  import { pngOf } from './fixtures.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  let A, B, got = null;
+
+  describe('two tools on one page', () => {
+    it('each has its own ids, its styles arrive, the dialog-sized one is compact', async () => {
+      const png = new File([await (await pngOf(20, 10)).arrayBuffer()], 'pic.png', { type: 'image/png' });
+      A = mountTool(document.getElementById('a'));
+      B = mountTool(document.getElementById('b'), { compact: true, fixedTarget: 'csv-to-json', files: [new File(['a,b\n1,2\n'], 'x.csv', { type: 'text/csv' })], onResults: (r) => { got = r; } });
+      await B.ready;
+      await A.addFiles([png]);
+      const ids = [...document.querySelectorAll('[id]')].map((e) => e.id);
+      expect(ids.length).toBe(new Set(ids).size);
+      expect([A.ns, B.ns, !!document.getElementById('cv-drop'), !!document.getElementById('cv2-drop')]).toEqual(['cv', 'cv2', true, true]);
+      await waitFor(() => getComputedStyle(B.root).getPropertyValue('--cv-tool').trim() === '1', { timeout: 10000 });
+      expect(B.root.classList.contains('cv-compact') && B.root.classList.contains('cv-tool')).toBe(true);
+      const drop = document.getElementById('cv2-drop').getBoundingClientRect();
+      expect(Math.round(drop.height)).toBe(76);   // a strip from the start
+      expect(document.getElementById('b').scrollWidth <= 602).toBe(true);
+      expect(getComputedStyle(document.body).backgroundColor).toBe('rgba(0, 0, 0, 0)');   // the page itself is left alone
+    }, { timeout: 30000 });
+    it('a file converts in each, with onResults called for the dialog one', async () => {
+      await A.run();
+      await B.run();
+      expect(A.outputs.map((o) => o.name)).toEqual(['pic.jpg']);
+      expect(B.outputs.map((o) => o.name)).toEqual(['x.json']);
+      expect(JSON.parse(await got[0].blob.text())).toEqual([{ a: '1', b: '2' }]);
+      expect(document.querySelectorAll('#cv-out a').length + document.querySelectorAll('#cv2-out a').length).toBe(2);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'File convert: mountTool' });
+  </script>
+</body>
+</html>

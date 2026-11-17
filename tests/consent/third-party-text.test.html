@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Consent · text about analytics only on a site that has them</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+  <!-- Covers: shared/consent/consent-mode.js -->
+</head>
+<body>
+  <!-- A build without analytics or ads (the brand's third-party switch off, as in the store app, or no IDs) does not say
+       "analytics and ads stay off unless you switch them on": every [data-third-party] element is hidden. -->
+  <script src="../harness.js"></script>
+  <script src="frames.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, waitFor, run } = SlopTest;
+  const { open, openPage, reset, GA, ADS } = ConsentTest;
+
+  describe('text about analytics and ads', () => {
+    beforeEach(reset);
+    it('is hidden when the site has no analytics or ad IDs', async () => {
+      const w = await open({ cfg: { ga4MeasurementId: '', adsensePublisherId: '' } });
+      expect(w.SlopConsent.hasThirdParty()).toBe(false);
+      expect(w.document.getElementById('tp-note').hidden).toBe(true);
+    });
+    it('stays when the site has analytics or ads (a build with the third-party switch off has none, whatever the IDs)', async () => {
+      for (const cfg of [{ ga4MeasurementId: GA, adsensePublisherId: '' }, { ga4MeasurementId: '', adsensePublisherId: ADS }]) {
+        const w = await open({ cfg });
+        const on = w.SLOP_CONSENT_CONFIG.thirdParty !== false;
+        expect(w.SlopConsent.hasThirdParty()).toBe(on);
+        expect(w.document.getElementById('tp-note').hidden).toBe(!on);
+      }
+    });
+    for (const [page, key] of [['../../index.html', 'footer.accounts_home'], ['../../settings/index.html', 'footer.accounts_settings']]) {
+      it(`${page.replace('../../', '')}: the footer's analytics line follows this build's switch`, async () => {
+        const w = await openPage(page);
+        await waitFor(() => w.SlopConsent && w.document.readyState === 'complete', { timeout: 20000 });
+        const p = w.document.querySelector(`[data-i18n="${key}"]`).closest('p');
+        expect(p.hasAttribute('data-third-party')).toBe(true);
+        expect(p.hidden).toBe(!w.SlopConsent.hasThirdParty());
+      }, { timeout: 30000 });
+    }
+  });
+  run();
+  </script>
+</body>
+</html>

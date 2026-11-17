@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: search in files</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/search.js, code/js/search-run.js, code/js/main.js, code/js/editor.js, code/js/fmtpane.js
+  // Search in files: files in other encodings are searched as the editor would show them and written back in their own encoding and
+  // line endings; open tabs take a replacement as an undoable change; a file whose other bytes would move is left alone and reported;
+  // Find reaches the bytes view, the database table and the formatted pane too.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H, doc, view, textOf, dialog, clickButton } = CT;
+  let w;
+  const ids = {};
+  const u16le = (s) => { const b = new Uint8Array(2 + s.length * 2); b[0] = 0xff; b[1] = 0xfe; for (let i = 0; i < s.length; i++) { b[2 + i * 2] = s.charCodeAt(i) & 255; b[3 + i * 2] = s.charCodeAt(i) >> 8; } return b; };
+  const latin1 = (s) => Uint8Array.from(s, (c) => c.charCodeAt(0));
+  const put = (name, body) => H().put(body instanceof Uint8Array ? new Blob([body]) : text(body), { name, from: 'test' });
+  const bytesOf = async (id) => Array.from(new Uint8Array(await (await H().get(id)).blob.arrayBuffer()));
+  const field = (n) => w.document.querySelector('#cd-sec-search-body [name=' + n + ']');
+  const statusText = () => w.document.querySelector('.cd-find-status').textContent;
+  const hits = () => [...w.document.querySelectorAll('.cd-find-hit')];
+  const files = () => [...w.document.querySelectorAll('.cd-find-path')].map((n) => n.textContent);
+  const type = (input, v) => { input.value = v; input.dispatchEvent(new w.Event('input', { bubbles: true })); };
+  const goButton = () => w.document.querySelector('#cd-sec-search-body .cd-find-btns .sui-primary');
+  const replaceAllButton = () => w.document.querySelector('#cd-sec-search-body .cd-find-btns .sui-btn:not(.sui-primary)');
+  async function search(v) {
+    type(field('find'), v);
+    goButton().click();
+    await waitFor(() => /^(No matches|\d+ match(es)? in )/.test(statusText()), { timeout: 15000 }); // a result line, not the Searching… or Replaced… of before
+  }
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1f, 0x15, 0xc4, 0x89, 0x66, 0x6f, 0x6f]);
+
+  describe('Slop Code: search in files', () => {
+    it('finds a word in files in different encodings, and skips what is not text', async () => {
+      w = await frame('../../code/');
+      ids.a = await put('a.txt', 'alpha foo\nbeta\n');
+      ids.b = await put('b.txt', u16le('foo bär\r\nsecond\r\n'));
+      ids.c = await put('c.txt', latin1('café foo\n'));
+      ids.png = await put('pic.dat', PNG);
+      ids.mixed = await put('mixed.txt', 'a foo\r\nb foo\nc\r\n');
+      w.SlopCode.actions.findFiles();
+      await waitFor(() => field('find') && !field('find').closest('.cd-sec').classList.contains('collapsed'));
+      await search('foo');
+      expect(files()).toEqual(['a.txt', 'b.txt', 'c.txt', 'mixed.txt']);
+      expect(statusText()).toContain('5 matches in 4 files');
+      expect(hits().length).toBe(5);
+    }, { timeout: 60000 });
+
+    it('a result opens the file with the match selected, and the search is in the find panel', async () => {
+      const hit = hits().find((h) => h.closest('.cd-find-file').querySelector('.cd-find-path').textContent === 'b.txt');
+      hit.click();
+      await waitFor(() => doc(w) && doc(w).name === 'b.txt');
+      const sel = view(w).state.selection.main;
+      expect(view(w).state.sliceDoc(sel.from, sel.to)).toBe('foo');
+      expect(textOf(w)).toBe('foo bär\nsecond\n');
+    });
+
+    it('Replace all writes each unopened file back in its own encoding and line endings, and leaves other bytes alone', async () => {
+      type(field('replace'), 'qux');
+      goButton().click();
+      await waitFor(() => !replaceAllButton().disabled, { timeout: 15000 });
+      replaceAllButton().click();
+      await waitFor(() => dialog(w));
+      expect(dialog(w).textContent).toContain('5 matches in 4 files');
+      clickButton(w, 'Replace');
+      await waitFor(() => /Replaced/.test(statusText()), { timeout: 15000 });
+      expect(await bytesOf(ids.a)).toEqual(Array.from(new TextEncoder().encode('alpha qux\nbeta\n')));
+      expect(await bytesOf(ids.c)).toEqual(Array.from(latin1('café qux\n')));
+      expect(await bytesOf(ids.png)).toEqual(Array.from(PNG));
+    }, { timeout: 40000 });
+
+    it('the open tab took its change as an edit (still unsaved), the file with mixed line endings was left alone and reported', async () => {
+      // b.txt was open: its tab changed, the file on Drive did not
+      expect(textOf(w)).toBe('qux bär\nsecond\n');
+      expect(doc(w).dirty).toBe(true);
+      expect(await bytesOf(ids.b)).toEqual(Array.from(u16le('foo bär\r\nsecond\r\n')));
+      expect(await bytesOf(ids.mixed)).toEqual(Array.from(latin1('a foo\r\nb foo\nc\r\n')));
+      expect(w.document.querySelector('.cd-find-list').textContent).toContain('mixed.txt');
+      expect(w.document.querySelector('.cd-find-list').textContent).toContain('left alone');
+    });
+
+    it('Ctrl+Z undoes a replacement in an open tab; saving writes UTF-16 with its line endings', async () => {
+      view(w).contentDOM.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', keyCode: 90, ctrlKey: true, bubbles: true, cancelable: true }));
+      await waitFor(() => textOf(w) === 'foo bär\nsecond\n');
+      expect(doc(w).dirty).toBe(false);
+      view(w).dispatch({ changes: { from: 0, to: 3, insert: 'new' } });
+      expect(await w.SlopCode.saveDoc()).toBe(true);
+      const b = await bytesOf(ids.b);
+      expect([b[0], b[1]]).toEqual([0xff, 0xfe]);
+      expect(new TextDecoder('utf-16le').decode(Uint8Array.from(b.slice(2)))).toBe('new bär\r\nsecond\r\n');
+    });
+
+    it('Where to look: only the open tabs, and a file filter', async () => {
+      field('scope').value = 'open'; field('scope').dispatchEvent(new w.Event('change', { bubbles: true }));
+      await search('qux');
+      expect(files()).toEqual([]); // b.txt (open) has no qux now
+      field('scope').value = 'all'; field('scope').dispatchEvent(new w.Event('change', { bubbles: true }));
+      type(field('include'), '*.txt');
+      await search('qux');
+      expect(files()).toEqual(['a.txt', 'c.txt']);
+    });
+    it('a regular expression with $1 in the replacement', async () => {
+      type(field('include'), 'c.*');
+      w.document.querySelector('[aria-label="Regular expression"]').click();
+      await search('caf(.) (qux)');
+      expect(files()).toEqual(['c.txt']);
+      type(field('replace'), '$2 caf$1');
+      replaceAllButton().click();
+      await waitFor(() => dialog(w));
+      clickButton(w, 'Replace');
+      await waitFor(() => /Replaced/.test(statusText()), { timeout: 15000 });
+      expect(await bytesOf(ids.c)).toEqual(Array.from(latin1('qux café\n')));
+    }, { timeout: 40000 });
+
+    it('a pattern that is not valid is explained, not thrown', async () => {
+      type(field('find'), '(');
+      goButton().click();
+      await waitFor(() => /not a valid regular expression/.test(statusText()));
+    });
+  });
+
+  describe('Slop Code: Find in the views that are not the editor', () => {
+    it('Find goes to the find box of the bytes view, and Replace says it is read only', async () => {
+      CT.close(w); // a fresh page
+      w = await frame('../../code/');
+      const id = await put('pic.dat', PNG);
+      await w.SlopCode.openRecord(await H().get(id));
+      await waitFor(() => w.document.querySelector('#cd-viewer .cd-hex-findbox'), { timeout: 10000 });
+      expect(w.SlopCode.actions.find()).toBe(true);
+      expect(w.document.activeElement.classList.contains('cd-hex-findbox')).toBe(true);
+      expect(w.SlopCode.actions.replace()).toBe(false);
+    }, { timeout: 40000 });
+
+    it('Find opens the search panel in the formatted pane when it has the focus', async () => {
+      const id = await put('d.json', '{"a":1,"b":[1,2,3]}');
+      await w.SlopCode.openRecord(await H().get(id));
+      await waitFor(() => doc(w) && doc(w).name === 'd.json');
+      w.SlopCode.actions.fmtview();
+      await waitFor(() => w.document.querySelector('#cd-fmt-body .cm-content'), { timeout: 8000 });
+      w.document.querySelector('#cd-fmt-body .cm-content').focus();
+      expect(w.SlopCode.actions.find()).toBe(true);
+      await waitFor(() => w.document.querySelector('#cd-fmt-body .cm-search'));
+      expect(w.document.querySelector('#cd-fmt-body .cm-search input[name=replace]')).toBe(null); // read only: no replace box
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Code: search in files' });
+  </script>
+</body>
+</html>

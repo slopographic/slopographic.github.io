@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: assistant commands (fake engine)</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: ai/js/ui/ai-commands.js, ai/js/ui/commands.js
+  // prepare() loads the commands. new_chat with settings, add_message (no model run), send_message (refused with no model,
+  // then a real reply from the demo engine), set_settings, open_chat, export_chat to Slop Drive and a download; state()
+  // and the checkpoint.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, AI, C;
+  const downloads = [];
+  const run = async (tool, args) => { const r = await C.exec('ai.ai.' + tool.replace(/_/g, '-'), args); if (!r.ok) throw new Error(tool + ': ' + r.error); return r.value; };
+  const fails = async (tool, args) => { const r = await C.exec('ai.ai.' + tool.replace(/_/g, '-'), args); expect(r.ok).toBe(false); return r.error; };
+
+  describe('Slop AI: assistant commands', () => {
+    it('new_chat with a persona and settings; add_message puts text in without running the model', async () => {
+      W = await AT.app(); AI = W.AI; C = W.SlopCmd; AT.answer(W);
+      W.SlopUI.download = (blob, name) => downloads.push({ blob, name });
+      await C.prepare();
+      expect(C.ownState()).toBe(true);
+      await run('new_chat', { title: 'Trip plan', persona: 'writer', temperature: 0.3, max_tokens: 300, tools: false });
+      let s = C.state();
+      expect(s.chat.title).toBe('Trip plan');
+      expect(s.chat.persona).toBe('Writing coach');
+      expect(s.chat.temperature).toBe(0.3);
+      expect(s.chat.maxTokens).toBe(300);
+      expect(s.chat.saved).toBe(false);
+      expect(s.model).toBe(null);
+      await run('add_message', { text: 'Pack light.' });
+      s = C.state();
+      expect(s.chat.messages).toBe(1);
+      expect(s.chat.saved).toBe(true);
+      expect((await AI.db.get(s.chat.id)).messages[0].content).toBe('Pack light.');
+      expect(W.document.getElementById('convTitle').textContent).toBe('Trip plan');
+    }, { timeout: 30000 });
+
+    it('send_message with no model sends nothing and says so; with the demo engine it gets a reply', async () => {
+      expect(await fails('send_message', { text: 'Hello?' })).toMatch(/No model is loaded/);
+      expect(C.state().chat.messages).toBe(1);
+      await AI.E.load('Qwen2.5-0.5B-Instruct-q4f16_1-MLC');
+      await waitFor(() => AI.E.ready());
+      const v = await run('send_message', { text: 'Say something' });
+      expect(v).toMatch(/Reply from/);
+      const s = C.state();
+      expect(s.chat.messages).toBe(3);
+      expect(s.chat.last[2].role).toBe('assistant');
+    }, { timeout: 30000 });
+
+    it('set_settings changes the system prompt and title; open_chat finds it again', async () => {
+      await run('set_settings', { system: 'Answer in one word.', title: 'One word', tools: true });
+      let s = C.state();
+      expect(s.chat.persona).toBe('Custom');
+      expect(s.chat.system).toBe('Answer in one word.');
+      expect(s.chat.tools).toBe(true);
+      expect(await fails('set_settings', {})).toMatch(/Give a setting/);
+      expect(await fails('set_settings', { persona: 'pirate' })).toBeTruthy();
+      await run('new_chat', {});
+      expect(C.state().chat.messages).toBe(0);
+      await run('open_chat', { chat: 'one word' });
+      s = C.state();
+      expect(s.chat.title).toBe('One word');
+      expect(s.chat.messages).toBe(3);
+    }, { timeout: 30000 });
+
+    it('export_chat writes Markdown to Slop Drive and downloads JSON; the checkpoint undoes a message', async () => {
+      let v = await run('export_chat', { format: 'md', to: 'drive' });
+      const rec = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(v)[1]);
+      expect(rec.name).toBe('one-word.md');
+      expect(await rec.blob.text()).toContain('Pack light.');
+      await run('export_chat', { format: 'json', to: 'download' });
+      const d = downloads.pop();
+      expect(d.name).toBe('one-word.json');
+      expect(JSON.parse(await d.blob.text()).format).toBe('slop-ai-conversation');
+      const back = C.checkpoint();
+      await run('add_message', { text: 'An extra line', role: 'assistant' });
+      expect(C.state().chat.messages).toBe(4);
+      expect(back()).toBe(true);
+      expect(C.state().chat.messages).toBe(3);
+      await run('new_chat', {});
+      expect(await fails('export_chat', {})).toMatch(/no messages/);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop AI: assistant commands' });
+  </script>
+</body>
+</html>

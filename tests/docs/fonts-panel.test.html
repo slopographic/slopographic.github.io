@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs fonts panel</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Opens Slop Docs in the iframe and waits for it to boot. */
+  async function open() {
+    const want = new URL('../../docs/index.html', location.href).pathname;
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../docs/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && f.contentWindow.SlopDocs && f.contentWindow.SlopDocs.ready, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const panel = (W) => W.document.querySelector('.sf-ov');
+  const rowOf = (W, name) => panel(W) && panel(W).querySelector(`.sf-row[data-family="${name}"]`);
+  const btnIn = (root, text) => root && [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+
+  describe('Slop Docs: Fonts panel', () => {
+    it('opens from the toolbar with your own file and the closest font, and no library download', async () => {
+      const W = await open();
+      const S = W.SlopDocs;
+      S.setDoc(W.SlopDocEngine.M.newDoc(), { file: { id: null, name: 'Fonts test', dirty: false } });
+      const para = [...W.SlopDocEngine.M.docBlocks(S.doc)].find((b) => b.type === 'p');
+      para.runs = [{ text: 'Set in a font the app does not ship', font: 'Gill Sans' }];
+      W.document.getElementById('tbFonts').click();
+      await waitFor(() => rowOf(W, 'Gill Sans'), { timeout: 10000 });
+      const row = rowOf(W, 'Gill Sans');
+      expect(row.textContent.includes('Missing')).toBe(true);
+      expect(!!btnIn(row, 'Drop your own font')).toBe(true);
+      expect(!!btnIn(row, 'Use the closest font instead (Carlito)')).toBe(true);
+      expect(!!btnIn(panel(W), 'Download from the library')).toBe(false);
+      expect(panel(W).textContent.includes('Downloads from the library are off in Slop Docs')).toBe(true);
+    });
+
+    it('a built-in family (a Word name Slop Docs maps) is listed as built in, not missing', async () => {
+      const W = await open();
+      const S = W.SlopDocs;
+      S.setDoc(W.SlopDocEngine.M.newDoc(), { file: { id: null, name: 'Built in test', dirty: false } });
+      const para = [...W.SlopDocEngine.M.docBlocks(S.doc)].find((b) => b.type === 'p');
+      para.runs = [{ text: 'Set in Calibri', font: 'Calibri' }];
+      W.document.getElementById('tbFonts').click();
+      await waitFor(() => rowOf(W, 'Calibri'), { timeout: 10000 });
+      expect(rowOf(W, 'Calibri').textContent.includes('Built in')).toBe(true);
+      expect(!!btnIn(panel(W), 'Download from the library')).toBe(false);
+    });
+  });
+  run({ name: 'Slop Docs · fonts panel' });
+  </script>
+</body>
+</html>

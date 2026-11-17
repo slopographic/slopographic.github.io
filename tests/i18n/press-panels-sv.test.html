@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Press panels in Swedish</title>
+  <!-- Covers: press/i18n/index.js, press/js/ui/dock.js, press/js/ui/props-panel.js, press/js/ui/pages-panel.js, press/js/ui/layers-panel.js, press/js/ui/styles-panel.js, press/js/ui/swatches-panel.js, press/js/ui/controlbar.js, press/js/ui/toolbar.js, press/js/ui/status.js -->
+  <!-- Covers (strings): press/js/ui/kit.js press/js/ui/style-editor.js press/js/ui/guides.js press/js/io/templates.js
+        press/js/io/templates2.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // Slop Press in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../press/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => {
+      const w = f.contentWindow, d = f.contentDocument;
+      return d && d.readyState === 'complete' && w.PR && w.PR.state && w.PR.state.doc && d.querySelector('#dock .dtab') && d.querySelector('#toolbar .tool') && d.querySelector('#statusbar .sb-item');
+    }, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(press|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const tabs = (doc) => [...doc.querySelectorAll('#dock .dtab')].map((b) => b.textContent.trim());
+  const ctl = (doc) => doc.querySelector('#controlbar').innerText;
+  const status = (doc) => doc.querySelector('#statusbar').innerText;
+  const titles = (doc, sel) => [...doc.querySelectorAll(sel)].map((b) => b.getAttribute('title') || b.getAttribute('aria-label') || '');
+  /** Selects the first item of a kind in the open document and shows the Properties panel. */
+  function pick(f, kind) {
+    const PR = f.contentWindow.PR, d = PR.state.doc;
+    let it = null;
+    PR.model.containers(d).forEach((c) => c.items.forEach((x) => { if (!it && x.type === kind) it = x; }));
+    if (!it) return false;
+    const pi = PR.engine.pageOf(d, it); if (pi >= 0) PR.goPage(pi);
+    PR.select([it.id]); PR.ui.showPanel('props');
+    return true;
+  }
+
+  describe('Slop Press panels, toolbar, control bar and status bar in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish panel tabs, control bar, toolbar chips and status bar, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(tabs(doc)).toEqual(['Sidor', 'Lager', 'Egenskaper', 'Färgrutor', 'Styckeformat', 'Teckenformat']);
+      expect(ctl(doc)).toContain('Dokumentinställningar…');
+      expect(ctl(doc)).toContain('Marginaler och spalter…');
+      expect(titles(doc, '#statusbar .sbb')).toContain('Första sidan');
+      expect(doc.querySelector('.pchip.fill').getAttribute('aria-label')).toBe('Fyllningsfärg');
+      await waitFor(() => /Inga fel|saknas|överskjutande/.test(status(doc)), { timeout: 10000 });
+      expect(doc.querySelector('#dock').innerText).toContain('Dokument');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('a selected frame shows Swedish object controls and properties; the template picker and style editor too', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, PR = f.contentWindow.PR;
+      await PR.io.openDoc(PR.templates.make('magazine'));
+      expect(pick(f, 'image')).toBe(true);
+      await waitFor(() => /Bildram/.test(ctl(doc)) && /Textombrytning/i.test(doc.querySelector('#dock').innerText), { timeout: 10000 });
+      expect(ctl(doc)).toContain('Fyllning');
+      expect(doc.querySelector('#dock').innerText).toContain('Ersätt bild…');
+      expect(KEY.test(visible(doc))).toBe(false);
+      PR.ui.styleEditor('para', null);
+      await waitFor(() => /Nytt styckeformat/.test(doc.body.innerText), { timeout: 10000 });
+      expect(doc.body.innerText).toContain('Håll ihop och avstavning');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      I.set('en');
+      await waitFor(() => tabs(doc)[0] === 'Pages' && /Document Setup…/.test(ctl(doc)) && titles(doc, '#statusbar .sbb').includes('First page'), { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(tabs(doc)).toContain('Paragraph Styles');
+      expect(doc.querySelector('.pchip.fill').getAttribute('aria-label')).toBe('Fill colour');
+      I.set('sv');
+      await waitFor(() => tabs(doc)[0] === 'Sidor' && /Dokumentinställningar…/.test(ctl(doc)) && titles(doc, '#statusbar .sbb').includes('Första sidan'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px there is no sideways scroll in Swedish', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Press panels in Swedish' });
+  </script>
+</body>
+</html>

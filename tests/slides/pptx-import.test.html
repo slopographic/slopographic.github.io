@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides: PowerPoint import in the editor</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <!-- The real editor in an iframe opens a hand-built .pptx (tests/node/slides-pptx-fixture.mjs) from Slop Drive, from a
+       file dropped on the window and from Open a file; what was left out is reported; the deck is drawn and exports again.
+       Covers: slides/js/io/pptx-in.js, slides/js/io/pptx-in-shape.js, slides/js/io/pptx-in-text.js, slides/js/io/pptx-in-style.js,
+       slides/js/io/native.js, slides/js/ui/files.js, slides/js/ui/file-drop.js, slides/js/ui/toolbar.js, slides/js/ui/main.js -->
+  <script src="../harness.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  let FIX = null, Z = null;
+  async function pptxBlob() {
+    FIX = FIX || await import('../node/slides-pptx-fixture.mjs');
+    Z = Z || await import('../../shared/office/zip.js');
+    const png = Uint8Array.from(atob(FIX.PNG_B64), (c) => c.charCodeAt(0));
+    return Z.writeZip(FIX.fixtureEntries(png));
+  }
+  const toasts = (w) => [...w.document.querySelectorAll('.sui-toast')].map((t) => t.textContent).join(' | ');
+  const plain = (w, o) => w.SS.objects.plain(o.text);
+
+  describe('PowerPoint import', () => {
+    it('a .pptx opened from Slop Drive becomes a deck in a tab with no link, and the original file is untouched', async () => {
+      const w = await ST.open('../../slides/');
+      const blob = await pptxBlob();
+      const id = await w.SlopHub.put(new w.Blob([await blob.arrayBuffer()], { type: PPTX }), { name: 'Harbour.pptx' });
+      ST.close(w);
+      const a = await ST.open('../../slides/?drive=' + id);
+      await waitFor(() => a.SS.app.deck.slides.length === 2, { timeout: 10000 });
+      const d = a.SS.app.deck;
+      expect(a.SS.app.doc.driveId).toBe(null);
+      expect(a.SS.app.doc.name).toBe('Harbour report 2026.sslide');
+      expect([d.size.w, d.size.h]).toEqual([720, 540]);
+      expect(d.theme.fonts.heading).toBe('Georgia');
+      const title = d.slides[0].objects.find((o) => o.placeholder === 'title');
+      expect(plain(a, title)).toBe('Harbour report');
+      expect(d.slides[0].notes).toBe('Remember the numbers.\nThen smile.');
+      expect(d.slides[1].hidden).toBe(true);
+      expect(d.slides[1].transition.name).toBe('fade');
+      expect(toasts(a)).toContain('Opened Harbour.pptx: 2 slides. Not imported: 1 chart.');
+      expect(toasts(a)).toContain('Save keeps it as a new Slop Slides file');
+      const rec = await a.SlopHub.get(id);
+      expect(rec.blob.size).toBe(blob.size);
+      // the imported deck is drawn: the canvas is not one flat colour
+      const cv = a.document.getElementById('canvas'), px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      const colours = new Set();
+      for (let i = 0; i < px.length; i += 4 * 97) colours.add(px[i] + ',' + px[i + 1] + ',' + px[i + 2]);
+      expect(colours.size).toBeGreaterThan(5);
+      ST.close(a);
+    }, { timeout: 40000 });
+
+    it('a damaged PowerPoint file is reported, nothing opens over it, and the file is kept as it was', async () => {
+      const w = await ST.open('../../slides/');
+      const id = await w.SlopHub.put(new w.Blob(['PK-not-really'], { type: PPTX }), { name: 'Broken.pptx' });
+      ST.close(w);
+      const a = await ST.open('../../slides/?drive=' + id);
+      await waitFor(() => /Could not open Broken\.pptx/.test(toasts(a)), { timeout: 8000 });
+      expect(a.SS.app.doc.driveId).toBe(null);
+      expect(await (await a.SlopHub.get(id)).blob.text()).toBe('PK-not-really');
+      ST.close(a);
+    }, { timeout: 30000 });
+
+    it('a .pptx dropped on the editor opens in a new tab; a file of another kind is refused with the reason', async () => {
+      const w = await ST.open('../../slides/');
+      const tabs0 = w.SS.tabs.api().tabs().length;
+      const drop = (files) => {
+        const dt = new w.DataTransfer();
+        files.forEach((f) => dt.items.add(f));
+        const app = w.document.getElementById('app');
+        ['dragenter', 'dragover', 'drop'].forEach((type) => app.dispatchEvent(new w.DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true, clientX: 300, clientY: 300 })));
+      };
+      drop([new w.File([await (await pptxBlob()).arrayBuffer()], 'harbour.pptx', { type: PPTX })]);
+      await waitFor(() => w.SS.tabs.api().tabs().length === tabs0 + 1 && w.SS.app.deck.slides.length === 2, { timeout: 10000 });
+      expect(w.SS.app.deck.title).toBe('Harbour report 2026');
+      expect(w.SS.app.doc.driveId).toBe(null);
+      drop([new w.File(['hello'], 'notes.txt', { type: 'text/plain' })]);
+      await waitFor(() => /notes\.txt is not a PowerPoint/.test(w.document.getElementById('ssDrop').textContent), { timeout: 5000 });
+      expect(w.SS.tabs.api().tabs().length).toBe(tabs0 + 1);
+      ST.close(w);
+    }, { timeout: 40000 });
+
+    it('Open a file takes a .sslide too, and the File menu lists Open a file and Download PDF', async () => {
+      const w = await ST.open('../../slides/');
+      const deck = w.SS.model.newDeck({ title: 'From disk' });
+      await w.SS.files.openFile(new w.File([JSON.stringify(deck)], 'From disk.sslide'));
+      expect(w.SS.app.deck.title).toBe('From disk');
+      let err = null;
+      try { await w.SS.files.openFile(new w.File(['x'], 'a.txt', { type: 'text/plain' })); } catch (e) { err = e.message; }
+      expect(err).toBe('a.txt is not a presentation Slop Slides can open');
+      w.document.getElementById('btnFile').click();
+      const labels = [...w.document.querySelectorAll('.sui-menu button, .sui-menu [role="menuitem"]')].map((b) => b.textContent);
+      expect(labels.some((l) => /Open a file from this computer/.test(l))).toBe(true);
+      expect(labels.some((l) => /Download PDF/.test(l))).toBe(true);
+      expect(labels.some((l) => /Present with presenter view/.test(l))).toBe(true);
+      ST.close(w);
+    }, { timeout: 30000 });
+
+    it('an imported deck exports to PowerPoint again and reads back the same', async () => {
+      const w = await ST.open('../../slides/');
+      await w.SS.files.openFile(new w.File([await (await pptxBlob()).arrayBuffer()], 'harbour.pptx'));
+      const r = await w.SS.pptx.write(w.SS.app.deck);
+      const back = await w.SS.pptxIn.read(r.blob, 'again.pptx');
+      const texts = (d) => d.slides.map((s) => s.objects.filter((o) => o.text).map((o) => w.SS.objects.plain(o.text)).filter(Boolean).join('/'));   // groups are flattened on export
+      expect(texts(back.deck)).toEqual(texts(w.SS.app.deck));
+      expect(back.deck.slides.map((s) => s.hidden)).toEqual([false, true]);
+      ST.close(w);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

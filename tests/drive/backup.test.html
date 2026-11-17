@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive backup tests</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, H;
+  const B = () => W.SlopBackupCore;
+
+  describe('zip', () => {
+    it('loads the backup kit', async () => {
+      W = await DT.frame('frame.html'); H = W.SlopHub;
+      await W.eval(`new Promise((r) => { const s = document.createElement('script'); s.src = '../../shared/backup/index.js'; s.onload = r; document.head.append(s); })`);
+      await W.SlopBackup.ready();
+      expect(typeof B().exportAll).toBe('function');
+    });
+    it('round-trips stored entries with UTF-8 names and folders', async () => {
+      const Z = W.SlopZip;
+      const blob = await Z.zip([{ name: 'a/', data: null }, { name: 'a/héllo ✓.txt', data: 'hi there' }, { name: 'b.bin', data: new Uint8Array([0, 1, 2, 255]) }, { name: 'c.blob', data: new Blob(['blob!']) }]);
+      const out = await Z.unzip(blob);
+      expect(out.map((e) => e.name)).toEqual(['a/', 'a/héllo ✓.txt', 'b.bin', 'c.blob']);
+      expect(new TextDecoder().decode(out[1].bytes)).toBe('hi there');
+      expect([...out[2].bytes]).toEqual([0, 1, 2, 255]);
+      expect(out[0].dir).toBe(true);
+      expect(Z.crc32(new TextEncoder().encode('123456789'))).toBe(0xcbf43926);
+    });
+    it('reads deflated entries made elsewhere', async () => {
+      const raw = new TextEncoder().encode('deflate me '.repeat(50));
+      const def = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+      // build a one-entry zip by hand with method 8
+      const Z = W.SlopZip, name = new TextEncoder().encode('x.txt'), crc = Z.crc32(raw);
+      const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(8, 8, true); lh.setUint32(14, crc, true); lh.setUint32(18, def.length, true); lh.setUint32(22, raw.length, true); lh.setUint16(26, name.length, true);
+      const cd = new DataView(new ArrayBuffer(46)); cd.setUint32(0, 0x02014b50, true); cd.setUint16(10, 8, true); cd.setUint32(16, crc, true); cd.setUint32(20, def.length, true); cd.setUint32(24, raw.length, true); cd.setUint16(28, name.length, true);
+      const end = new DataView(new ArrayBuffer(22)); end.setUint32(0, 0x06054b50, true); end.setUint16(8, 1, true); end.setUint16(10, 1, true); end.setUint32(12, 46 + name.length, true); end.setUint32(16, 30 + name.length + def.length, true);
+      const out = await Z.unzip(new Blob([lh.buffer, name, def, cd.buffer, name, end.buffer]));
+      expect(new TextDecoder().decode(out[0].bytes)).toBe('deflate me '.repeat(50));
+    });
+  });
+
+  describe('codec', () => {
+    it('encodes structured-clone values and decodes them back', async () => {
+      const C = W.SlopBackupCodec, blobs = [];
+      const v = { s: 'x', n: NaN, inf: -Infinity, neg: -0, u: undefined, big: 12345678901234567890n, d: new W.Date(7), re: /a+b/gi, m: new W.Map([[1, { a: 1 }]]), set: new W.Set(['q']),
+        ta: new W.Float32Array([1.5, -2]), ab: new W.Uint8Array([9, 8]).buffer, blob: new W.Blob(['zz'], { type: 'x/y' }), file: new W.File(['ff'], 'f.txt', { type: 'text/plain', lastModified: 99 }), $: 'dollar', arr: [1, [2, { $: 'nested' }]] };
+      const json = JSON.parse(JSON.stringify(C.encode(v, blobs)));
+      expect(blobs.length).toBe(4);
+      const bytes = await Promise.all(blobs.map(async (b) => new Uint8Array(await b.arrayBuffer())));
+      const o = C.decode(json, (i) => bytes[i]);
+      expect([o.s, Number.isNaN(o.n), o.inf, Object.is(o.neg, -0), 'u' in o && o.u === undefined, o.big === 12345678901234567890n]).toEqual(['x', true, -Infinity, true, true, true]);
+      expect([+o.d, o.re.source, o.re.flags, o.m.get(1).a, o.set.has('q')]).toEqual([7, 'a+b', 'gi', 1, true]);
+      expect([o.ta.constructor.name, ...o.ta]).toEqual(['Float32Array', 1.5, -2]);
+      expect([...new Uint8Array(o.ab)]).toEqual([9, 8]);
+      expect([await o.blob.text(), o.blob.type, o.file.name, o.file.lastModified, o.$, o.arr[1][1].$]).toEqual(['zz', 'x/y', 'f.txt', 99, 'dollar', 'nested']);
+    });
+  });
+
+  async function seedApp(name, records) {
+    const d = await new Promise((res) => { const r = W.indexedDB.open(name, 2); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('docs', { keyPath: 'id', autoIncrement: true }).createIndex('by', 'by'); }; r.onsuccess = () => res(r.result); });
+    const t = d.transaction(['kv', 'docs'], 'readwrite');
+    for (const [k, v] of records.kv || []) t.objectStore('kv').put(v, k);
+    for (const v of records.docs || []) t.objectStore('docs').put(v);
+    await new Promise((r) => { t.oncomplete = r; }); d.close();
+  }
+  async function readApp(name) {
+    const d = await DT.openRaw(name), t = d.transaction(['kv', 'docs']);
+    const [k, v, docs] = await Promise.all([DT.req(t.objectStore('kv').getAllKeys()), DT.req(t.objectStore('kv').getAll()), DT.req(t.objectStore('docs').getAll())]);
+    const idx = [...t.objectStore('docs').indexNames]; d.close();
+    return { kv: k.map((x, i) => [x, v[i]]), docs, idx, version: d.version };
+  }
+  describe('export everything and import', () => {
+    let file;
+    it('exports Drive files and folders, localStorage and app autosaves into one .slop file', async () => {
+      await H.clear(); W.localStorage.clear();
+      const f = await H.createFolder('Saves'), sub = await H.createFolder('Deep', f);
+      await H.put(await DT.png(), { name: 'pic.png', from: 'photoslop', folderId: sub });
+      await H.put(DT.text('notes'), { name: 'n.txt', from: 'upload' });
+      W.localStorage.setItem('photoslop.recent', '42'); W.localStorage.setItem('slop-pdf.theme', '"light"');
+      await seedApp('dt-app', { kv: [['autosave', { layers: [new W.Uint8Array([1, 2, 3])], when: new W.Date(5) }]], docs: [{ by: 'me', blob: new W.Blob(['doc'], { type: 'text/plain' }) }] });
+      const { blob, name, manifest } = await B().exportAll();
+      file = blob;
+      expect(name).toMatch(/^slopographic-backup-\d{4}-\d\d-\d\d\./);
+      expect(name.endsWith(W.SlopBackup.EXT)).toBe(true);   // the profile's extension (shared/backup/index.js)
+      expect([manifest.counts.driveFiles, manifest.counts.driveFolders, manifest.counts.localStorage]).toEqual([2, 2, 2]);
+      expect(manifest.counts.databases).toBeGreaterThanOrEqual(2);
+      const names = (await W.SlopZip.unzip(blob)).map((e) => e.name);
+      expect(names).toContain('manifest.json'); expect(names).toContain('idb.json'); expect(names).toContain('local.json');
+    });
+    it('replace: wipes and restores exactly', async () => {
+      await H.clear(); W.localStorage.clear(); W.localStorage.setItem('stray', '1');
+      await DT.delDb('dt-app');
+      const r = await B().importBackup(file, { mode: 'replace' });
+      expect(r.errors).toEqual([]);
+      expect(W.localStorage.getItem('photoslop.recent')).toBe('42');
+      expect(W.localStorage.getItem('stray')).toBe(null);
+      const files = await H.list(), folders = await H.listFolders();
+      expect(files.map((x) => x.name).sort()).toEqual(['n.txt', 'pic.png']);
+      const pic = files.find((x) => x.name === 'pic.png');
+      expect((await H.folderPath(pic.folderId)).map((x) => x.name)).toEqual(['Saves', 'Deep']);
+      expect(folders.length).toBe(2);
+      expect((await createImageBitmap(pic.blob)).width).toBe(40);
+      const app = await readApp('dt-app');
+      expect(app.version).toBe(2);
+      expect(app.idx).toEqual(['by']);
+      expect(app.kv[0][0]).toBe('autosave');
+      expect([...app.kv[0][1].layers[0]]).toEqual([1, 2, 3]);
+      expect(+app.kv[0][1].when).toBe(5);
+      expect(await app.docs[0].blob.text()).toBe('doc');
+    });
+    it('merge: keeps local-only things and lets the backup win on conflicts', async () => {
+      W.localStorage.setItem('photoslop.recent', '99'); W.localStorage.setItem('local-only', 'yes');
+      const extra = await H.put(DT.text('new'), { name: 'only-here.txt' });
+      const r = await B().importBackup(file, { mode: 'merge' });
+      expect(r.errors).toEqual([]);
+      expect(W.localStorage.getItem('photoslop.recent')).toBe('42');
+      expect(W.localStorage.getItem('local-only')).toBe('yes');
+      const names = (await H.list()).map((x) => x.name).sort();
+      expect(names).toEqual(['n.txt', 'only-here.txt', 'pic.png']);
+      expect(!!(await H.get(extra))).toBe(true);
+    });
+    it('rejects files that are not backups', async () => {
+      await expect(B().read(new Blob(['nope']))).rejects(/not a Slopographic backup/);
+      const z = await W.SlopZip.zip([{ name: 'manifest.json', data: '{"format":"other"}' }]);
+      await expect(B().read(z)).rejects(/not a Slopographic backup/);
+    });
+    it('the Backup & restore dialog exports and previews an import', async () => {
+      const p = W.SlopBackup.openDialog();
+      const dlg = await waitFor(() => W.document.querySelector('[data-backup]'));
+      dlg.querySelector('[data-act="export"]').click();
+      await waitFor(() => /Saved slopographic-backup-/.test(dlg.textContent), { timeout: 15000 });
+      W.SlopBackupUI.open.choose(new W.File([file], 'b.slop'));
+      await waitFor(() => dlg.querySelector('[data-act="restore"]'));
+      expect(dlg.textContent).toContain('Slop Drive files in 2 folders');
+      expect(dlg.querySelectorAll('input[name="bk-mode"]').length).toBe(2);
+      dlg.querySelector('[data-act="restore"]').click();
+      await waitFor(() => /Restored \d+ items/.test(dlg.textContent), { timeout: 15000 });
+      dlg.querySelector('.sui-x').click();
+      await p;
+      expect(W.SlopBackup.lastExport()).toBeGreaterThan(0);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: backup' });
+  </script>
+</body>
+</html>

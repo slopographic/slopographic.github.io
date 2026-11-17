@@ -1,0 +1,36 @@
+/* SlopCut — timeline: toolbar, track headers, lanes canvas, splitter. */
+.timeline { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-top: 1px solid var(--line); }
+.tl-split { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 3; touch-action: none; }
+.tl-split:hover { background: linear-gradient(transparent 3px, var(--accent-line) 3px, var(--accent-line) 5px, transparent 5px); }
+.tl-bar { display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 8px; border-bottom: 1px solid var(--line); flex: none; overflow-x: auto; scrollbar-width: none; }
+.tl-bar::-webkit-scrollbar { display: none; }
+.tl-bar .tb { min-width: 28px; height: 28px; }
+.tl-bar .tb .ic { width: 17px; height: 17px; }
+.tl-zoom { width: 120px; }
+.tl-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 150px minmax(0, 1fr); }
+.tl-heads { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); overflow: hidden; }
+.th-corner { flex: none; display: flex; align-items: center; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--panel); position: relative; z-index: 1; }
+.tl-tc { border: 0; background: none; padding: 0; font: 600 13px var(--mono); color: var(--accent-line); cursor: text; }
+.th-clip { flex: 1; min-height: 0; overflow: hidden; }
+.th-inner { will-change: transform; }
+.th { display: flex; align-items: center; gap: 4px; padding: 0 4px 0 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.th.audio { background: var(--panel); }
+.th-name { flex: 1; min-width: 0; font: 700 11px var(--mono); color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; user-select: none; }
+.th.video .th-name::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 2px; background: var(--clip-video); vertical-align: 1px; }
+.th.audio .th-name::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 2px; background: var(--clip-audio); vertical-align: 1px; }
+.th-tools { display: flex; gap: 2px; }
+.th-b { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--faint); font: 800 10px var(--mono); }
+.th-b .ic { width: 14px; height: 14px; }
+.th-b:hover { background: var(--hover); color: var(--fg); }
+.th-b.on { color: var(--accent-ink); background: var(--accent); }
+.th-b.mute.on { background: #ff8a3d; color: var(--ink); }
+.th-b.solo.on { background: #ffc94a; color: var(--ink); }
+.th-b.eye.on, .th-b.lock.on { background: var(--active); color: var(--danger); }
+.th.locked .th-name { color: var(--faint); }
+.th-add { display: flex; gap: 4px; padding: 6px; }
+.th-add .btn { flex: 1; padding: 0 4px; }
+.tl-lanes { position: relative; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
+.tl-lanes:focus-visible { box-shadow: inset 0 0 0 1px var(--accent-line); }
+.tl-lanes canvas { position: absolute; left: 0; top: 0; display: block; }
+/* A finger-sized grip for the timeline's height (--slop-hit: shared/input/touch.css) */
+@media (pointer: coarse) { .tl-split { height: var(--slop-hit, 8px); top: calc(var(--slop-hit, 8px) / -2); } }

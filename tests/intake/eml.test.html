@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop EML: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: eml/js/main.js, eml/js/actions.js, eml/js/export-ui.js
+  // Slop EML on the one intake: Open messages…, a drop on the page, a paste, ?drive=<id> (launch) and the sample reach the
+  // same reader with the same events; a message already open is refused with its reason. Out: Open in Slop PDF is
+  // SlopOuttake.send, an attachment's Open in is the SlopOuttake builder.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  const mail = (name, subject) => new W.File(['From: a@example.com\r\nTo: b@example.com\r\nSubject: ' + subject + '\r\nDate: Mon, 1 Jan 2024 10:00:00 +0000\r\nContent-Type: multipart/mixed; boundary=X\r\n\r\n--X\r\nContent-Type: text/plain\r\n\r\nHello ' + subject + '\r\n--X\r\nContent-Type: text/plain; name=a.txt\r\nContent-Disposition: attachment; filename=a.txt\r\n\r\nalpha\r\n--X--\r\n'], name, { type: 'message/rfc822' });
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(source, start, n = 1) {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'eml' && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop EML: one way in', () => {
+    it('Open messages…', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../eml/index.html';
+      await waitFor(() => { try { return fr.contentDocument.body.classList.contains('ready') && fr.contentWindow.SlopIntake.spec('eml'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('eml'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      W.SlopUI.pickFiles = async () => [mail('one.eml', 'One'), mail('two.eml', 'Two')];
+      await through('picker', () => D.getElementById('em-open').click(), 2);
+      expect(W.EmlApp.docs().length).toBe(2);
+    }, { timeout: 40000 });
+    it('a drop on the page; a message already open is refused', async () => {
+      await through('drop', () => D.getElementById('em-frame').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([mail('three.eml', 'Three')]) })));
+      const r = await W.SlopIntake.take([mail('three.eml', 'Three')], { to: 'eml', source: 'drop' });
+      expect(r.skipped.map((x) => x.reason)).toEqual(['three.eml is already open']);
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([mail('four.eml', 'Four')]) })));
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'sent.eml', type: 'message/rfc822', blob: mail('sent.eml', 'Sent') });
+      await through('launch', () => W.SlopIntake.launch({ to: 'eml' }));
+    });
+  });
+  describe('Slop EML: one way out', () => {
+    it('Open in Slop PDF is SlopOuttake.send; an attachment’s Open in is the builder', async () => {
+      let sent = null;
+      W.SlopOuttake.send = async (to, o) => { sent = [to, o.from, o.type, o.name]; return 'id1'; };
+      W.EmlApp.select(W.EmlApp.docs()[0].id);
+      await W.EmlActions.openInPdf();
+      expect(sent[0]).toBe('pdf'); expect(sent[1]).toBe('eml'); expect(sent[2]).toBe('application/pdf');
+      const labels = W.EmlExport.attachmentItems(W.EmlApp.current(), 0).map((i) => i.label);
+      expect(labels[0]).toBe('Save');
+      expect(labels[labels.length - 1]).toBe('Save to Slop Drive…');
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Shared intake: Slop EML' });
+</script>
+</body>
+</html>

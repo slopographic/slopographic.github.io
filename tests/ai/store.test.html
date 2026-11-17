@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: conversations</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, AI;
+  const wf = (label, fn) => waitFor(fn).catch(() => { throw new Error('timed out waiting for ' + label); });
+  describe('conversation storage (IndexedDB)', () => {
+    it('saves, lists newest first, filters by kind, removes and clears', async () => {
+      W = await AT.app(); AI = W.AI;
+      const a = AI.db.blank('chat', { title: 'A' }), b = AI.db.blank('build', { title: 'B' }), c = AI.db.blank('chat', { title: 'C' });
+      a.messages.push({ role: 'user', content: 'hi', time: 1 });
+      await AI.db.put(a); await new Promise((r) => setTimeout(r, 5)); await AI.db.put(b); await new Promise((r) => setTimeout(r, 5)); await AI.db.put(c);
+      expect((await AI.db.list()).map((x) => x.title)).toEqual(['C', 'B', 'A']);
+      expect((await AI.db.list('chat')).map((x) => x.title)).toEqual(['C', 'A']);
+      expect((await AI.db.get(a.id)).messages[0].content).toBe('hi');
+      await AI.db.remove(c.id);
+      expect((await AI.db.list('chat')).map((x) => x.title)).toEqual(['A']);
+      await AI.db.clear();
+      expect(await AI.db.list()).toEqual([]);
+    });
+    it('blank chats take the default settings; builds use the builder persona', () => {
+      AI.prefs.temperature = 0.3;
+      expect(AI.db.blank('chat').temperature).toBe(0.3);
+      const b = AI.db.blank('build');
+      expect(b.persona).toBe('builder'); expect(b.tools).toBe(false);
+      expect(AI.systemFor(b)).toMatch(/ONE complete HTML file/);
+      expect(AI.systemFor(AI.db.blank('chat', { persona: 'sloppo' }))).toMatch(/SLURP/);
+      expect(AI.systemFor(AI.db.blank('chat', { persona: 'custom', system: 'Be a pirate.' }))).toBe('Be a pirate.');
+      expect(AI.systemFor(AI.db.blank('chat', { tools: true }))).toMatch(/open apps/);
+    });
+    it('exports Markdown and JSON, and imports JSON as a copy', () => {
+      const c = AI.db.blank('chat', { title: 'Export me' });
+      c.messages.push({ role: 'user', content: 'Q with file', display: 'Q', attachments: [{ name: 'a.txt', size: 3 }] }, { role: 'assistant', content: 'A **bold**' }, { role: 'tool', name: 'open_app', content: 'Opened' });
+      const md = AI.toMarkdown(c);
+      expect(md).toMatch(/^# Export me/); expect(md).toContain('## You\n\nQ'); expect(md).toContain('## Slop AI\n\nA **bold**');
+      expect(md).toContain('_Attached: a.txt_'); expect(md).toContain('🔧 **open_app**');
+      const back = AI.fromJSON(AI.toJSON(c));
+      expect(back.id).not.toBe(c.id); expect(back.title).toBe('Export me'); expect(back.messages.length).toBe(3);
+      expect(() => AI.fromJSON('{"x":1}')).toThrow(/Not a Slop AI/);
+    });
+  });
+  describe('the sidebar', () => {
+    it('lists chats, opens, renames and deletes them', async () => {
+      AT.answer(W, { confirm: true, prompt: 'Renamed chat' });
+      const c = AI.db.blank('chat', { title: 'First' }); c.messages.push({ role: 'user', content: 'hello' });
+      await AI.db.put(c);
+      await wf('one chat in the list', () => W.document.querySelectorAll('#convList .conv').length === 1);
+      W.document.querySelector('#convList .conv').click();
+      await wf('the chat to open', () => AI.chat.conv && AI.chat.conv.id === c.id);
+      expect(W.document.querySelector('.msg.user .bubble').textContent).toBe('hello');
+      await AI.renameConv();
+      expect((await AI.db.get(c.id)).title).toBe('Renamed chat');
+      expect(W.document.getElementById('convTitle').textContent).toBe('Renamed chat');
+      await AI.deleteConv();
+      expect(await AI.db.get(c.id)).toBe(undefined);
+      await wf('an empty list', () => !W.document.querySelector('#convList .conv'));
+      expect(AI.chat.conv.messages.length).toBe(0);
+    });
+    it('export goes to Slop Drive as .md and .json', async () => {
+      const saved = [];
+      W.SlopHub.saveToDrive = async (blob, name) => { saved.push([name, blob.type, await blob.text()]); return 'x'; };
+      const c = AI.db.blank('chat', { title: 'Drive me' }); c.messages.push({ role: 'user', content: 'yo' });
+      AI.exportItems(c)[0].act(); AI.exportItems(c)[1].act();
+      await waitFor(() => saved.length === 2);
+      expect(saved[0][0]).toBe('drive-me.md'); expect(saved[0][1]).toBe('text/markdown'); expect(saved[0][2]).toMatch(/^# Drive me/);
+      expect(saved[1][0]).toBe('drive-me.json'); expect(JSON.parse(saved[1][2]).format).toBe('slop-ai-conversation');
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: conversations' });
+  </script>
+</body>
+</html>

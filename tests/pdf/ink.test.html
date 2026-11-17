@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: edited text keeps its colour</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Edited text keeps its colour: the colour the content paints it in, in the editor (on a field it reads on) and in
+       the saved file, for Lines, Paragraphs and Replace. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="pdf.spec-ink.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF: edited text keeps its colour' });</script>
+</body>
+</html>

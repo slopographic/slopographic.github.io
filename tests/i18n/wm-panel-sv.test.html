@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The shared watermark panel in Swedish</title>
+  <!-- Covers: shared/watermark/panel.js, shared/watermark/panel-fields.js, shared/watermark/panel-saved.js,
+       shared/watermark/preview.js, shared/watermark/spec.js, shared/watermark/spec-convert.js,
+       shared/i18n/ui/en/watermark.js, shared/i18n/ui/sv/watermark.js -->
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/watermark/panel.css">
+  <style>.host { width: 340px; }</style>
+</head>
+<body>
+  <div class="host" id="host"></div><div class="host" id="pv"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../shared/watermark/spec.js"></script>
+  <script src="../../shared/watermark/spec-layout.js"></script>
+  <script src="../../shared/watermark/spec-convert.js"></script>
+  <script src="../../shared/watermark/core.js"></script>
+  <script src="../../shared/watermark/apply.js"></script>
+  <script src="../../shared/watermark/saved.js"></script>
+  <script src="../../shared/watermark/panel-fields.js"></script>
+  <script src="../../shared/watermark/panel-saved.js"></script>
+  <script src="../../shared/watermark/panel.js"></script>
+  <script src="../../shared/watermark/preview.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n, S = window.SlopWatermarkSpec;
+  const KEY = /\bui\.[a-z_]+\./;
+  async function lang(code) {
+    expect(I.set(code).ok).toBe(true);
+    await I.ready();
+  }
+  /** Text a person sees or hears in an element: its text and the labelling attributes. */
+  function visible(root) {
+    const out = [root.innerText];
+    for (const el of root.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const buttons = (root) => [...root.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean);
+
+  describe('the watermark panel follows the language', () => {
+    it('a panel built in English turns Swedish on a switch, and back, with no key showing', async () => {
+      const seen = [];
+      const p = window.SlopWatermarkPanel.mount(document.getElementById('host'), { value: S.defaults(), media: { pages: true, time: true }, onChange: (sp, how) => seen.push(how.label) });
+      const pv = window.SlopWatermarkPreview.mount(document.getElementById('pv'), {});
+      try {
+        expect(buttons(p.el)).toContain('+ Text');
+        await lang('sv');
+        await waitFor(() => buttons(p.el).includes('+ Logotyp…'));
+        expect(buttons(p.el)).toContain('Duplicera');
+        expect(buttons(p.el)).toContain('Mina vattenstämplar ▾');
+        expect(buttons(p.el)).toContain('Alla sidor');
+        expect(p.el.querySelector('.swp-cell[data-pos="br"]').getAttribute('aria-label')).toBe('Nederst till höger');
+        expect(p.el.querySelector('input[data-f="text"]').getAttribute('aria-label')).toBe('Vattenstämpelns text');
+        expect(pv.canvas.getAttribute('aria-label')).toBe('Förhandsgranskning med vattenstämpeln');
+        expect(KEY.test(visible(p.el))).toBe(false);
+        // the undo label a change hands to the app is Swedish too
+        p.el.querySelector('[data-add="text"]').click();
+        expect(seen.at(-1)).toBe('Lägg till textlager');
+        await lang('en');
+        await waitFor(() => buttons(p.el).includes('+ Logo…'));
+        expect(p.el.querySelector('.swp-cell[data-pos="br"]').getAttribute('aria-label')).toBe('Bottom right');
+        expect(pv.canvas.getAttribute('aria-label')).toBe('Preview with the watermark');
+        expect(KEY.test(visible(p.el))).toBe(false);
+      } finally { p.destroy(); pv.destroy(); localStorage.removeItem('slop-profile'); SlopTest.english(); }
+    });
+  });
+  run({ name: 'The shared watermark panel in Swedish' });
+  </script>
+</body>
+</html>

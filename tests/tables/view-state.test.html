@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for Slop Tables, wait until the workbook has launched (SlopTables.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('tables');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.SlopTables && f.contentWindow.SlopTables.ready)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('Slop Tables saved place', () => {
+    it('comes back to the same active cell after leaving for Slop Drive', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slop-tables-drafts'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../tables/index.html');
+      const S = W.SlopTables.S;
+      S.sel = { r: 3, c: 2, er: 3, ec: 2 };
+      W.document.body.click(); // a user gesture: the place is saved on input
+      await sleep(600);
+      W.SlopGuard && W.SlopGuard.setUnsaved('tables', false); // the leave-page prompt would hold the navigation
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../tables/index.html');
+      expect(JSON.stringify(W.SlopTables.S.sel)).toBe(JSON.stringify({ r: 3, c: 2, er: 3, ec: 2 }));
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Tables · saved place' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · the app globe names its front-most icons and a search's matches</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="hero-boot.js"></script>
+  <script>
+  // Covers: home/globe/labels.js, home/globe/globe.js, home/globe/globe.css, index.html
+  /* Without hovering, a few icons facing you carry their app's name (the icon's own accessible name, so a plain-names
+   * profile shows its names); labels never overlap, come and go as the globe turns, and live in the globe's aria-hidden,
+   * data-live layer (the keyboard list is what screen readers read). Searching names the matches on the near side, marked
+   * with the accent. Fewer and smaller at 390 px. Reduced motion: no fade. */
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let win, doc;
+  const L = () => win.SlopGlobeLabels;
+  const type = (q) => { const i = doc.querySelector('#app-finder .fd-input'); i.value = q; i.dispatchEvent(new win.Event('input', { bubbles: true })); win.scrollTo(0, 0); };
+  const iconOf = (id) => win.SlopGlobe.icons().find((i) => i.id === id);
+  const boxes = () => win.SlopGlobe.labels().map((l) => l.el.getBoundingClientRect());
+  function noOverlap() {
+    const b = boxes();
+    for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++) {
+      const A = b[i], B = b[j];
+      if (A.left < B.right && B.left < A.right && A.top < B.bottom && B.top < A.bottom) throw new Error(`labels ${i} and ${j} overlap`);
+    }
+  }
+  /** Every label keeps labels.js's margin inside the hero's sides (a long search label once ran to the window's edge):
+   *  its drawn width is within the estimate it was placed with. */
+  function insideEdges() {
+    const hero = doc.getElementById('hero'), h = hero.getBoundingClientRect(), e = L().EDGE[hero.clientWidth < 600 ? 1 : 0];
+    for (const l of win.SlopGlobe.labels()) {
+      const b = l.el.getBoundingClientRect();
+      if (b.left - h.left < e - 1 || h.left + hero.clientWidth - b.right < e - 1) throw new Error(`“${l.text}” is ${Math.round(b.left - h.left)} px / ${Math.round(h.left + hero.clientWidth - b.right)} px from the hero's sides`);
+    }
+  }
+  const heroAttrs = () => [...doc.getElementById('hero').attributes].map((a) => a.name + '=' + a.value).join(' ');
+
+  describe('at 1280 px', () => {
+    let attrs;
+    it('a few front-most icons carry their names, without hovering; decorative, inside the live layer', async () => {
+      win = await HeroTest.open({ width: 1280 }); doc = win.document;
+      attrs = heroAttrs();
+      await waitFor(() => win.SlopGlobe.labels().length >= 2, { timeout: 8000 });
+      const shown = win.SlopGlobe.labels();
+      expect(shown.length).toBeLessThanOrEqual(L().limit(false, false));
+      for (const l of shown) {
+        const ic = iconOf(l.id);
+        expect(ic.z).toBeGreaterThan(0.3);
+        expect(l.text).toBe(ic.el.getAttribute('aria-label'));
+        expect(l.el.closest('.gx-layer[aria-hidden="true"][data-live]') !== null).toBe(true);
+        expect(win.getComputedStyle(l.el).visibility).toBe('visible');
+        expect(l.el.classList.contains('is-match')).toBe(false);
+      }
+      await sleep(400);   // past the fade
+      noOverlap();
+      insideEdges();
+      // nothing over the headline
+      const t = HeroTest.titleBox(win);
+      for (const b of boxes()) expect(b.right < t.left || b.left > t.right || b.bottom < t.top || b.top > t.bottom).toBe(true);
+    }, { timeout: 60000 });
+
+    it('labels come and go as the globe turns, from a small pool of elements; the hero itself never changes', async () => {
+      const first = win.SlopGlobe.labels().map((l) => l.id).sort().join();
+      await waitFor(() => win.SlopGlobe.labels().map((l) => l.id).sort().join() !== first, { timeout: 30000 });
+      expect(doc.querySelectorAll('.gx-tag').length).toBeLessThanOrEqual(L().limit(true, false) + 4);
+      await waitFor(() => [...doc.querySelectorAll('.gx-tag:not(.is-on)')].some((n) => win.getComputedStyle(n).visibility === 'hidden'), { timeout: 5000 });
+      expect(heroAttrs()).toBe(attrs);
+    }, { timeout: 60000 });
+
+    it('searching names the matches on the near side, marked with the accent, and no other app', async () => {
+      type('pdf');
+      const want = new Set(win.SlopHomeBrowse.result().ids);
+      expect(want.size).toBeGreaterThan(2);
+      await waitFor(() => win.SlopGlobe.labels().length >= 3 && win.SlopGlobe.labels().every((l) => want.has(l.id)), { timeout: 10000 });
+      await sleep(1500);   // the globe has turned the matches to the front
+      const shown = win.SlopGlobe.labels();
+      expect(shown.length).toBeLessThanOrEqual(L().limit(true, false));
+      expect(shown.length).toBeGreaterThan(Math.min(want.size, L().limit(true, false)) / 3);
+      for (const l of shown) {
+        expect(want.has(l.id)).toBe(true);
+        expect(l.el.classList.contains('is-match')).toBe(true);
+        expect(iconOf(l.id).el.classList.contains('is-match')).toBe(true);
+      }
+      noOverlap();
+      insideEdges();
+      expect(win.getComputedStyle(shown[0].el).outlineStyle).toBe('solid');
+      type('');
+      await waitFor(() => win.SlopGlobe.labels().every((l) => !l.el.classList.contains('is-match')), { timeout: 8000 });
+      expect(doc.querySelectorAll('.gx-i.is-match').length).toBe(0);
+      expect(heroAttrs()).toBe(attrs);
+    }, { timeout: 60000 });
+
+    it('a hovered icon shows its own name chip and gets no second label', async () => {
+      const id = win.SlopGlobe.labels()[0].id;
+      win.SlopGlobe.focusApp(id);
+      await sleep(100);
+      expect(win.SlopGlobe.labels().some((l) => l.id === id)).toBe(false);
+      win.SlopGlobe.focusApp(null);
+    }, { timeout: 30000 });
+
+    it('reduced motion: labels are there at once on the still globe, with no fade', async () => {
+      win.SlopGlobe.reduce(true);
+      expect(win.SlopGlobe.labels().length).toBeGreaterThan(0);
+      const rules = [...doc.styleSheets].flatMap((s) => { try { return [...s.cssRules]; } catch (e) { return []; } });
+      const still = rules.some((r) => r.media && /reduce/.test(r.media.mediaText) && [...r.cssRules].some((x) => /\.gx-tag/.test(x.selectorText || '') && x.style.transition.startsWith('none')));
+      expect(still).toBe(true);
+      win.SlopGlobe.reduce(false);
+    }, { timeout: 30000 });
+  });
+
+  describe('at 390 px', () => {
+    it('fewer, smaller labels, inside the screen and not overlapping', async () => {
+      win = await HeroTest.open({ width: 390, height: 844, theme: 'dark' }); doc = win.document;
+      await waitFor(() => win.SlopGlobe.labels().length >= 1, { timeout: 10000 });
+      expect(win.SlopGlobe.labels().length).toBeLessThanOrEqual(L().limit(false, true));
+      expect(doc.querySelector('.gx-layer').classList.contains('gx-narrow')).toBe(true);
+      const l = win.SlopGlobe.labels()[0].el;
+      expect(win.getComputedStyle(l).fontSize).toBe(BRAND_FACTS.tone === 'plain' ? '12.5px' : '10px');   // the plain tone's labels (style/tone.css)
+      await sleep(400);
+      noOverlap();
+      for (const b of boxes()) expect(b.left >= 0 && b.right <= 390).toBe(true);
+      insideEdges();
+    }, { timeout: 60000 });
+  });
+
+  run({ name: 'Homepage · the app globe names its front-most icons and a search\'s matches' });
+  </script>
+</body>
+</html>

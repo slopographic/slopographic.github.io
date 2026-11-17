@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides app tests</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <!-- The real editor runs in iframes (../../slides/). Each spec drives it with pointer and key events. -->
+  <script src="../harness.js"></script>
+  <script src="frame.js"></script>
+  <script src="spec-boot.js"></script>
+  <script src="spec-storage.js"></script>
+  <script src="spec-present.js"></script>
+  <script>SlopTest.run();</script>
+</body>
+</html>

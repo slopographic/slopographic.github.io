@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel in Swedish</title>
+  <!-- Covers: label/i18n/index.js, label/js/core/units.js, label/js/core/configs.js, label/js/io/config.js, label/js/io/configs-store.js, label/js/io/offline.js,
+       label/js/print/job.js, label/js/render/scene.js, label/js/ui/app.js, label/js/ui/barcode-gen.js, label/js/ui/boot.js, label/js/ui/bulkprint.js,
+       label/js/ui/commands.js, label/js/ui/configs-dlg.js, label/js/ui/context.js, label/js/ui/datadlg.js, label/js/ui/dialogs.js, label/js/ui/export.js,
+       label/js/ui/form.js, label/js/ui/hub.js, label/js/ui/intake.js, label/js/ui/interact.js, label/js/ui/keys.js, label/js/ui/menus.js, label/js/ui/panels.js,
+       label/js/ui/presets-dlg.js, label/js/ui/printdlg.js, label/js/ui/props-reset.js, label/js/ui/props-types.js, label/js/ui/props.js, label/js/ui/tabs.js,
+       shared/tour/tours/label.js, label/css/panels.css, shared/doctabs/tabs.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The app in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../label/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && (f.contentDocument.body.classList.contains('ready')), { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(label|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text, the labelling attributes and the options. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    for (const o of doc.querySelectorAll('option')) out.push(o.textContent);
+    return out.join('\n');
+  }
+  const txt = (doc, sel) => doc.querySelector(sel).textContent.trim();
+  /** The tour's words, read the way SlopTour reads them: keys <ns>.tour.title, <ns>.tour.<step>_title in the app tables. */
+  function tour(f) {
+    const w = f.contentWindow, got = [], keep = w.SlopTour;
+    w.SlopTour = { define: (t) => got.push(t) };
+    return new Promise((res, rej) => {
+      const s = f.contentDocument.createElement('script');
+      s.src = '../shared/tour/tours/label.js';
+      s.onload = () => { w.SlopTour = keep; const d = got[0], say = (k) => w.SlopI18n.t((d.ns || d.app) + '.tour.' + k); res({ title: say('title'), steps: d.steps.map((x) => ({ title: say(x.id.replace(/-/g, '_') + '_title') })) }); };
+      s.onerror = rej;
+      f.contentDocument.head.append(s);
+    });
+  }
+
+  describe('SlopLabel in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+    const tabs = (doc) => [...doc.querySelectorAll('#dockTabs .tab')].map((b) => b.firstChild.textContent.trim());
+    const menus = (doc) => [...doc.querySelectorAll('#menubar .smb-menu-b')].map((b) => b.textContent.trim());
+
+    it('shows Swedish menus, panels, tools and palette titles, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(menus(doc)).toEqual(['Arkiv', 'Redigera', 'Infoga', 'Objekt', 'Data', 'Visa', 'Hjälp']);
+      expect(tabs(doc)).toEqual(['Egenskaper', 'Objekt', 'Variabler', 'Data']);
+      expect(txt(doc, '#btnPrint')).toBe('Skriv ut…');
+      expect(doc.querySelector('.tool[data-tool="select"]').getAttribute('aria-label')).toBe('Markera');
+      expect(w.SlopCmd.get('label.save').title).toBe('Spara projekt');
+      expect(w.menuFile().map((i) => i && i.label)).toContain('Ladda ned projekt (.sloplabel)');
+      const t = await tour(f);
+      expect(t.title).toBe('Rundtur i SlopLabel');
+      expect(t.steps[0].title).toBe('Etikettinställningar');
+      expect(KEY.test(visible(doc))).toBe(false);
+      // the tab strip's own label is the host's key (shared/doctabs/tabs.js copied the English before the marks applied)
+      expect(doc.querySelector('#tabs .sl-doctabs-strip').getAttribute('aria-label')).toBe('Öppna etiketter');
+      // a stock with no name of its own read "Sheet" or "Roll" in every language
+      const App = w.eval('App'), body = doc.createElement('div'), name = App.doc.stock.name;
+      App.doc.stock.name = '';
+      w.eval('renderLabelProps')(body);
+      App.doc.stock.name = name;
+      expect([...body.querySelectorAll('button')].some((b) => /^(Ark|Rulle)$/.test(b.textContent.trim()))).toBe(true);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow, I = w.SlopI18n;
+      I.set('en');
+      await waitFor(() => tabs(doc)[0] === 'Properties' && w.SlopCmd.get('label.save').title === 'Save project', { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(txt(doc, '#btnPrint')).toBe('Print…');
+      expect(menus(doc)).toContain('Object');
+      I.set('sv');
+      await waitFor(() => tabs(doc)[0] === 'Egenskaper' && menus(doc).includes('Objekt'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('the offline copy carries the English tables', async () => {
+      const f = await open('sv');
+      const w = f.contentWindow;
+      expect(w.offlineManifest(f.contentDocument.documentElement.outerHTML)).toContain('i18n/index.js');
+      const idx = "window.SlopI18n && window.SlopI18n.source({ ns: 'label', parts: ['app', 'ui1'], langs: ['en', 'sv'] });";
+      // the shared components' parts (UI_PARTS in i18n.js) go in too: an offline copy fetches none
+      const src = { 'index.html': '<!doctype html><html><head><script src="../shared/i18n/i18n.js"><\/script><script src="i18n/index.js" data-src="label/i18n/index.js"><\/script></head><body></body></html>', 'i18n/index.js': idx,
+        '../shared/i18n/i18n.js': "var UI_PARTS = /*ui-parts*/{ parts: ['widgets'], langs: ['en', 'sv'] };", '../shared/i18n/ui/en.js': '/*ui*/', '../shared/i18n/ui/en/widgets.js': '/*w*/', 'i18n/en/app.js': '/*app*/', 'i18n/en/ui1.js': '/*ui1*/' };
+      const html = w.buildOfflineHTML(src);
+      expect(html.indexOf('<meta name="sloplabel-build" content="offline">') < html.indexOf('data-src="i18n/index.js"')).toBe(true);
+      for (const p of ['../shared/i18n/ui/en.js', '../shared/i18n/ui/en/widgets.js', 'i18n/en/app.js', 'i18n/en/ui1.js']) expect(html).toContain('data-src="' + p + '"');
+      expect(w.extractOfflineSources(html)).toEqual(src);
+    });
+
+    it('at 390 px Swedish fits with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('the property labels are not cut off in Swedish ("Storlek (mm)"), on a desktop and at 390 px', async () => {
+      for (const width of [1280, 390]) {
+        const f = await open('sv', width);
+        const doc = f.contentDocument;
+        await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+        if (width < 700) doc.getElementById('btnDock').click();
+        const labels = () => [...doc.querySelectorAll('#dock .row > span:first-child')].filter((s) => s.offsetWidth > 0);
+        await waitFor(() => labels().some((s) => s.textContent === 'Storlek (mm)'), { timeout: 20000 });
+        const cut = labels().filter((s) => s.scrollWidth > s.clientWidth).map((s) => s.textContent);
+        expect(width + ': ' + cut.join(', ')).toBe(width + ': ');
+        frames.splice(0).forEach((x) => x.remove());
+      }
+    });
+  });
+  run({ name: 'SlopLabel in Swedish' });
+  </script>
+</body>
+</html>

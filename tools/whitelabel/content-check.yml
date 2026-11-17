@@ -1,0 +1,34 @@
+name: Content check
+
+# Generated with the site: everything in the repository (every branch and tag with its whole history, every file, folder
+# and commit, every ref name) searched for the words this site must never carry (tools/content-check/check.mjs). The words
+# are not in the code: they come from the CONTENT_RULES secret, and the log names only where something was found. main
+# requires this check (a ruleset), so nothing unchecked goes live. No concurrency cancel: every push gets its own result.
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  content:
+    name: Content check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # the check reads the whole repository, so every branch and tag is fetched, not only the one pushed
+      - name: Fetch every branch and tag
+        run: git fetch -q --tags --force origin '+refs/heads/*:refs/remotes/origin/*'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Check every object and ref name
+        env:
+          CONTENT_RULES: ${{ secrets.CONTENT_RULES }}
+        run: node tools/content-check/check.mjs

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared FMP: find, export and error screens</title>
+  <style>body { margin: 0; background: #fff; color: #111; font: 13px system-ui; }</style>
+</head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/i18n/i18n.js"></script>
+<script src="../../shared/intake/outtake.js"></script>
+<script src="fake.js"></script>
+<script src="../../shared/fmp/view-util.js"></script>
+<script src="../../shared/fmp/view-error.js"></script>
+<script src="../../shared/fmp/view-grid.js"></script>
+<script src="../../shared/fmp/view-find.js"></script>
+<script src="../../shared/fmp/view-export.js"></script>
+<script src="../../shared/fmp/view.js"></script>
+<script>
+  // Covers: shared/fmp/view.js, shared/fmp/view-util.js, shared/fmp/view-error.js, shared/fmp/view-grid.js, shared/fmp/view-find.js, shared/fmp/view-export.js
+  // The database viewer's tools on a fake database of 10,000 rows x 8 columns (rows() answers after a delay): the find box
+  // (paging onward until found), the export items (the real SlopOuttake over a stub Slop Hub) and the error screen per code.
+  // The viewer's header, tabs and grid are in view.test.html.
+  const { describe, it, afterEach, expect, sleep, waitFor, run } = SlopTest;
+  const V = window.SlopFmpView;
+  let box = null, view = null, db = null;
+  const mountDb = (opts, dbOpts) => {
+    db = FakeFmp.make(dbOpts);
+    box = document.createElement('div');
+    box.style.cssText = 'width:900px;height:520px';
+    document.body.append(box);
+    view = V.mount(box, db, opts || { title: 'Contacts.fmp12' });
+    return view;
+  };
+  const q = (s) => box.querySelector(s), qa = (s) => [...box.querySelectorAll(s)];
+  const real = () => qa('.sfv-r:not([aria-busy])');
+  const loaded = () => waitFor(() => real().length > 0);
+  const scroller = () => q('.sfv-scroll');
+  const key = (el, k, extra) => el.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, extra)));
+  const rowNo = (el) => el.querySelector('.sfv-n').textContent;
+  const cleanup = () => { if (view) view.destroy(); if (box) box.remove(); view = box = null; };
+
+  describe('Find in this table', () => {
+    afterEach(cleanup);
+    const find = async (text, shift) => { const i = q('.sfv-find-in'); i.value = text; i.dispatchEvent(new Event('input')); key(i, 'Enter', { shiftKey: !!shift }); };
+    const hitNo = () => (q('.sfv-hit') ? rowNo(q('.sfv-hit')) : null);
+    it('finds the next row, paging onward until found, then the next and round the end; Shift+Enter goes back', async () => {
+      mountDb(null, { delay: 5 }); await loaded();
+      expect(q('.sfv-find-in').getAttribute('aria-label')).toBe('Find in this table');
+      await find('NEEDLE');
+      await waitFor(() => hitNo() === String(7778));
+      expect(q('.sfv-find-st').textContent).toBe('Found in row ' + V.num(7778));
+      expect(db.calls.some((c) => c[1] === 7600)).toBe(true);
+      expect(q('.sfv-hit .sfv-m').textContent).toBe('a needle in row 7778');
+      key(q('.sfv-find-in'), 'Enter');
+      await waitFor(() => hitNo() === String(9501));
+      key(q('.sfv-find-in'), 'Enter');
+      await waitFor(() => hitNo() === String(7778)); // round the end
+      key(q('.sfv-find-in'), 'Enter', { shiftKey: true });
+      await waitFor(() => hitNo() === String(9501)); // back (round the start)
+    });
+    it('starts where the person is looking, and says when there is no match', async () => {
+      mountDb(null, { delay: 2 }); await loaded();
+      scroller().scrollTop = 9000 * 28;
+      await waitFor(() => real().some((r) => rowNo(r) === String(9001)));
+      await find('needle');
+      await waitFor(() => hitNo() === String(9501));
+      await find('no such text anywhere');
+      await waitFor(() => q('.sfv-find-st').textContent === 'Not found in this table.', { timeout: 15000 });
+      expect(q('.sfv-hit')).toBe(null);
+    });
+    it('has Next and Previous buttons as well', async () => {
+      mountDb(null, { delay: 2 }); await loaded();
+      const i = q('.sfv-find-in'); i.value = 'needle';
+      const [prev, next] = qa('.sfv-find .sfv-btn');
+      expect([prev.textContent, next.textContent]).toEqual(['Previous', 'Next']);
+      next.click();
+      await waitFor(() => hitNo() === String(7778));
+    });
+  });
+
+  describe('Export', () => {
+    afterEach(cleanup);
+    let menu = null, downloads = [], sent = [], saved = [];
+    const setup = () => {
+      menu = null; downloads = []; sent = []; saved = [];
+      window.SlopUI = { menu: (items) => { menu = items; }, download: (blob, name) => downloads.push([name, blob.type]), toast: () => {} };
+      window.SlopHub = {
+        self: { app: 'fmp' }, matches: (type, p) => p === type,
+        appsAccepting: (type) => (type === 'text/csv' ? [{ id: 'tables', name: 'Slop Sheets' }] : [{ id: 'code', name: 'Slop Code' }]),
+        appById: (id) => ({ id, name: id }), sendTo: async (to, blob, name) => { sent.push([to, name, blob.type]); return 'drive1'; },
+        saveToDrive: async (blob, name) => { saved.push([name, blob.type]); return 'drive2'; },
+      };
+    };
+    it('offers downloads and, from SlopOuttake, the apps that take each file and Save to Slop Drive', async () => {
+      setup(); mountDb(); await loaded();
+      q('.sfv-export button').click();
+      expect(menu.map((m) => (typeof m === 'string' ? m : m.label))).toEqual(['Download CSV', 'Download JSON', '-', 'CSV in Slop Sheets', 'Save CSV to Slop Drive…', 'JSON in Slop Code', 'Save JSON to Slop Drive…']);
+      expect(db.exported.length).toBe(0); // nothing is built until an item is chosen
+      menu[0].act();
+      await waitFor(() => downloads.length === 1);
+      expect(downloads[0]).toEqual(['Contacts.csv', 'text/csv']);
+      menu[1].act();
+      await waitFor(() => downloads.length === 2);
+      expect(downloads[1]).toEqual(['Contacts.json', 'application/json']);
+      menu[3].act();
+      await waitFor(() => sent.length === 1);
+      expect(sent[0]).toEqual(['tables', 'Contacts.csv', 'text/csv']);
+      menu[6].act();
+      await waitFor(() => saved.length === 1);
+      expect(saved[0]).toEqual(['Contacts.json', 'application/json']);
+      expect(db.exported.map((e) => e.join(':'))).toEqual(['csv:t1', 'json:t1', 'csv:t1', 'json:t1']);
+    });
+    it('exports the table that is showing', async () => {
+      setup(); mountDb(); await loaded();
+      qa('[role="tab"]')[1].click();
+      await waitFor(() => scroller().getAttribute('aria-label') === 'Orders');
+      q('.sfv-export button').click();
+      menu[0].act();
+      await waitFor(() => downloads.length === 1);
+      expect(downloads[0][0]).toBe('Orders.csv');
+      expect(db.exported[0]).toEqual(['csv', 't2']);
+    });
+    it('leaves Export out when the host asks, and falls back to plain downloads without SlopOuttake', async () => {
+      setup(); mountDb({ title: 'x', outtake: false }); await loaded();
+      expect(q('.sfv-export')).toBe(null);
+      view.destroy(); box.remove();
+      const keep = window.SlopOuttake;
+      delete window.SlopOuttake;
+      try {
+        mountDb(); await loaded();
+        expect(qa('.sfv-export button').map((b) => b.textContent)).toEqual(['Download CSV', 'Download JSON']);
+        qa('.sfv-export button')[1].click();
+        await waitFor(() => downloads.length === 1);
+        expect(downloads[0][0]).toBe('Contacts.json');
+      } finally { window.SlopOuttake = keep; }
+    });
+  });
+
+  describe('mountError', () => {
+    afterEach(cleanup);
+    const MSG = {
+      encrypted: 'This FileMaker file is encrypted. Open it in FileMaker with the password and export it.',
+      'not-filemaker': 'This file is not a FileMaker database.',
+      unsupported: 'This kind of FileMaker file cannot be read here. Open it in FileMaker and export its tables.',
+      corrupt: 'This FileMaker file seems damaged, so it cannot be read. Try a backup copy, or export its tables from FileMaker.',
+      'too-large': 'This FileMaker file is too large to open here. Export its tables from FileMaker and open those instead.',
+    };
+    for (const code of Object.keys(MSG)) {
+      it('a calm message with the file name for ' + code, () => {
+        box = document.createElement('div'); document.body.append(box);
+        const h = V.mountError(box, Object.assign(new Error('internal words'), { code }), { name: 'Sales.fmp12' });
+        expect(q('.sfv-err').getAttribute('role')).toBe('alert');
+        expect(q('.sfv-err').dataset.code).toBe(code);
+        expect(q('.sfv-err-title').textContent).toBe('Could not open Sales.fmp12');
+        expect(q('.sfv-err-msg').textContent).toBe(MSG[code]);
+        expect(q('.sfv-err-detail')).toBe(null); // the reader's own words are not shown for a code of ours
+        h.destroy();
+        expect(box.children.length).toBe(0);
+      });
+    }
+    it('an error with no code gets the general message, with its own words as a detail', () => {
+      box = document.createElement('div'); document.body.append(box);
+      V.mountError(box, new Error('no tables found'), {});
+      expect(q('.sfv-err-title').textContent).toBe('Could not open this file');
+      expect(q('.sfv-err-msg').textContent).toBe('This file could not be opened.');
+      expect(q('.sfv-err-detail').textContent).toBe('no tables found');
+    });
+  });
+
+  run();
+</script>
+</body>
+</html>

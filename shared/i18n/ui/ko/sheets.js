@@ -1,0 +1,23 @@
+/* Shared components, Korean: the spreadsheet reader (errors, the parts of a file that are not imported) and the sheet table's column headers. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'ui.sheets.xls_old': '구형 .xls 파일은 지원되지 않습니다. 파일을 Excel이나 LibreOffice에서 열고 .xlsx, .ods 또는 .csv로 저장하세요.',
+  'ui.sheets.ods_not_zip': '이 .ods 파일은 올바른 스프레드시트가 아닙니다(zip 패키지가 아님).',
+  'ui.sheets.xlsx_not_zip': '이 .xlsx 파일은 올바른 통합 문서가 아닙니다(zip 패키지가 아님).',
+  'ui.sheets.ods_no_content': 'OpenDocument 스프레드시트가 아닙니다(content.xml 없음).',
+  'ui.sheets.ods_not_sheet': '이 OpenDocument 파일은 스프레드시트가 아닙니다.',
+  'ui.sheets.no_sheets': '이 통합 문서에는 워크시트가 없습니다.',
+  'ui.sheets.xlsx_no_workbook': 'Excel 통합 문서가 아닙니다(xl/workbook.xml 없음).',
+  'ui.sheets.xlsx_missing': '통합 문서에 {part}이(가) 없습니다.',
+  'ui.sheets.part_pictures': '그림',
+  'ui.sheets.part_charts': '차트',
+  'ui.sheets.part_chart_sheets': '차트 시트',
+  'ui.sheets.part_pivots': '피벗 테이블(값은 유지됨)',
+  'ui.sheets.part_comments': '댓글',
+  'ui.sheets.part_macros': '매크로',
+  'ui.sheets.part_cond': '조건부 서식',
+  'ui.sheets.part_validation': '데이터 유효성 검사',
+  'ui.sheets.part_filters': '필터',
+  'ui.sheets.sort_col': '{col} 열 정렬',
+  'ui.sheets.filter_col': '{col} 열 필터',
+  'ui.sheets.col_filtered': '{col} 열이 필터링되어 있습니다',
+});

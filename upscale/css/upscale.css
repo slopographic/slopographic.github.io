@@ -1,0 +1,113 @@
+/* Slop Upscale: colours come from the shared Slop theme (--sl-* set by shared/theme/theme.js); the fallbacks are the Dark look.
+ * Then layout, the before and after slider, and the phone stack. The page is the suite's List · View · Panel
+ * (shared/frame/frame.css): files on the left (two or more), the picture in the middle, the settings and the Upscale
+ * button in the panel on the right. Phone (≤900 px): the panel is a bottom sheet whose foot holds the Upscale button. */
+:root {
+  --up-bg: var(--sl-background, #0e0e10);
+  --up-panel: var(--sl-surface, #17171b);
+  --up-line: var(--sl-border, #2a2a31);
+  --up-ink: var(--sl-text, #ecebe6);
+  --up-mute: color-mix(in srgb, var(--up-ink) 70%, transparent);
+  --up-accent: var(--sl-accent, #f2c14e);
+  --up-ok: #7fd3a0;
+  --up-warn: #f08a6c;
+  /* the shared button and dialog kit (shared/slopui.css) reads these */
+  --s-bg: var(--up-panel); --s-bg2: color-mix(in srgb, var(--up-ink) 6%, var(--up-panel)); --s-input: var(--up-bg); --s-line: var(--up-line);
+  --s-fg: var(--up-ink); --s-dim: var(--up-mute); --s-accent: var(--up-accent); --s-accent-ink: var(--sl-on-accent, #15120a);
+  --s-hover: color-mix(in srgb, var(--up-ink) 14%, transparent); --s-radius: 8px; --s-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"], :root[data-slop-theme="classic"] {
+  --up-ok: #1f7a46;
+  --up-warn: #a8402a;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--up-bg); color: var(--up-ink); font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+button, select, input { font: inherit; }
+h1, h2, p { margin: 0; }
+
+/* header: home link (the app icon, brand/brand.js), name, tagline, the tools, then the shell's buttons on one row.
+   The shared header buttons (shared/ui/hbtn.css) wear the look of the tools. The file status line sits under it. */
+.up-top { display: flex; flex: none; align-items: center; gap: 8px 12px; padding: 10px 20px; background: var(--up-panel); border-bottom: 1px solid var(--up-line); position: relative; z-index: 5; min-width: 0;
+  --slop-hbtn-h: 32px; --slop-hbtn-radius: var(--s-radius); --slop-hbtn-bg: var(--s-bg2); --slop-hbtn-line: var(--up-line); --slop-hbtn-fs: 14px; }
+.up-brand { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; overflow: clip; overflow-clip-margin: 6px; }
+.up-brand .brand { display: grid; place-items: center; width: 32px; height: 32px; flex: none; color: var(--up-accent); text-decoration: none; }
+.up-brand h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+.up-tag-line { color: var(--up-mute); font-size: 13px; white-space: nowrap; }
+.up-tools { display: flex; gap: 6px; flex: none; }
+.up-top .sui-btn { height: 32px; }
+.up-status-line { flex: none; padding: 10px 20px; min-height: 40px; color: var(--up-mute); font-size: 13px; overflow-wrap: anywhere; border-bottom: 1px solid var(--up-line); }
+.up-status-line:empty { min-height: 0; padding: 0; border: 0; }
+
+/* layout: SlopFrame's three columns fill the rest of the window; the picture's column scrolls */
+.up-frame { flex: 1 1 auto; min-height: 0; }
+.up-left { display: flex; flex-direction: column; gap: 14px; padding: 20px; min-width: 0; }
+.up-back { display: none; align-self: flex-start; }
+.sf-phone.sf-viewing .up-back { display: inline-flex; }
+.up-list-head { margin: 0; padding: 12px 14px 8px; font-size: 12px; color: var(--up-mute); }
+.up-rows { list-style: none; margin: 0; padding: 0 8px 12px; overflow: auto; display: grid; gap: 4px; align-content: start; }
+.up-row-open { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; text-align: start; cursor: pointer; }
+.up-row-open:hover { background: var(--s-hover); }
+.up-row-open:focus-visible { outline: 2px solid var(--up-accent); outline-offset: -2px; }
+.up-on .up-row-open { border-color: var(--up-accent); background: var(--s-hover); }
+.up-row-name { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.up-row-meta { font-size: 12px; color: var(--up-mute); }
+
+/* the settings in the panel (shared/frame: .sf-field, .sf-seg); only what is the app's own */
+.up-group { display: contents; }
+.up-seg-big .sui-btn, .sf-seg .sui-btn { font-size: 15px; }
+.up-val { color: var(--up-mute); font-variant-numeric: tabular-nums; }
+.up-more { justify-self: start; }
+.up-fine { font-size: 12px; color: var(--up-mute); }
+
+/* empty state: the drop target */
+.up-empty { flex: 1 0 auto; border: 1px dashed var(--up-line); border-radius: 14px; min-height: 360px; display: grid; place-items: center; padding: 28px; background: var(--up-panel); }
+.up-drop-card { max-width: 480px; text-align: center; display: grid; gap: 12px; justify-items: center; }
+/* shared/drop draws the zone's message, hint, Choose files and progress */
+.up-dropzone { width: 100%; }
+.up-dropzone .sd-zone { gap: 12px; }
+.up-dropzone .sd-msg { font-size: 20px; font-weight: 700; color: var(--up-ink); }
+.up-dropzone .sd-zone > p:not(.sd-msg) { font-size: 14px; color: var(--up-mute); }
+
+/* the preview and the before and after slider */
+.up-stage { flex: none; position: relative; background: var(--up-panel); border: 1px solid var(--up-line); border-radius: 14px; overflow: hidden; }
+.up-cmp { position: relative; overflow: hidden; cursor: ew-resize; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.up-cmp img, .up-cmp canvas { display: block; width: 100%; height: auto; pointer-events: none; -webkit-user-drag: none; }
+.up-layer { position: absolute; inset: 0; }
+.up-before { position: relative; }
+.up-after { clip-path: inset(0 0 0 50%); }
+.up-divider { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--up-accent); box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); pointer-events: none; }
+.up-handle { position: absolute; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: var(--up-accent); color: var(--s-accent-ink); border: 3px solid var(--up-panel); box-shadow: 0 3px 14px rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; gap: 0; cursor: ew-resize; touch-action: none; }
+.up-handle::before, .up-handle::after { content: ""; width: 7px; height: 7px; border: solid currentColor; border-width: 0 2.5px 2.5px 0; }
+.up-handle::before { transform: rotate(135deg); margin-right: 3px; }
+.up-handle::after { transform: rotate(-45deg); margin-left: 3px; }
+.up-handle:hover { filter: brightness(1.06); }
+.up-handle:focus-visible { outline: 3px solid var(--up-ink); outline-offset: 3px; }
+.up-cmp.up-drag .up-handle { transform: scale(1.08); }
+.up-tag { position: absolute; top: 10px; padding: 3px 9px; border-radius: 6px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 600; pointer-events: none; }
+.up-tag-before { left: 10px; }
+.up-tag-after { right: 10px; }
+.up-videos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; }
+.up-videos video { width: 100%; height: auto; display: block; border-radius: 8px; }
+
+/* the output panel: progress and the result message */
+.up-output { display: grid; gap: 8px; padding: 14px 16px; background: var(--up-panel); border: 1px solid var(--up-line); border-radius: 12px; }
+.up-bar { width: 100%; height: 8px; accent-color: var(--up-accent); }
+.up-status { min-height: 1.5em; color: var(--up-ink); overflow-wrap: anywhere; }
+.up-status:empty::before { content: attr(data-empty); color: var(--up-mute); }
+
+@media (max-width: 1500px) { .up-tag-line { display: none; } }
+/* below the width the tools need, they get a row of their own under the name */
+@media (max-width: 1100px) { .up-top { flex-wrap: wrap; } }
+@media (max-width: 900px) {
+  .up-top { padding: 10px 16px; }
+  .up-tools { flex: 1 1 100%; order: 9; }
+  .up-tools .sui-btn { flex: 1 1 auto; }
+  .up-status-line { padding: 8px 16px; }
+  .up-left { padding: 12px; }
+  .up-empty { min-height: 300px; padding: 20px; }
+}

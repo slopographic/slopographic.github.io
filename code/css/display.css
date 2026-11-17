@@ -1,0 +1,9 @@
+/* Slop Code: the display options (the ruler; CodeMirror draws the visible spaces and tabs itself) and the controls in the Extensions
+ * panel. They change how the text is drawn, never the text. */
+.cd-editor[data-ruler] .cm-content {
+  background-image: linear-gradient(to right, transparent calc(var(--cd-ruler) * 1ch + 6px), var(--cd-line) calc(var(--cd-ruler) * 1ch + 6px),
+    var(--cd-line) calc(var(--cd-ruler) * 1ch + 7px), transparent calc(var(--cd-ruler) * 1ch + 7px));
+}
+.cd-opts { display: grid; gap: 6px; margin-top: 6px; }
+.cd-opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--cd-fg); }
+.cd-opt select { max-width: 96px; }

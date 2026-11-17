@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopIsolate: the assistant's batch commands</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 1280px; height: 800px; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: slopisolate/js/ui/ai-commands.js, slopisolate/js/ui/commands.js, slopisolate/js/ui/macros.js, shared/commands/sources.js
+  // add_images takes Slop Drive pictures through the intake, the app's own queue cuts them out (the bundled model),
+  // co.look sets the look, save_cutouts waits and saves them to Slop Drive, new_batch empties the list.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W = null, C = null;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('SlopIsolate: assistant commands', () => {
+    it('prepare() loads them; new_batch is destructive', async () => {
+      const f = document.createElement('iframe'); f.src = '../../slopisolate/index.html'; document.body.append(f);
+      await waitFor(() => f.contentWindow.CO && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('co.file-open') && f.contentWindow.SlopCmd.get('co.look'), { timeout: 30000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      expect(C.get('co.ai.add-images')).toBe(null);
+      await C.prepare();
+      expect(C.get('co.ai.new-batch').destructive).toBe(true);
+      expect(C.get('co.ai.save-cutouts').tool).toBe('save_cutouts');
+    }, { timeout: 40000 });
+
+    it('add_images from Slop Drive, co.look on a colour, save_cutouts to Slop Drive, new_batch', async () => {
+      const c = document.createElement('canvas'); c.width = 160; c.height = 120;
+      const g = c.getContext('2d'); g.fillStyle = '#f0f0f0'; g.fillRect(0, 0, 160, 120); g.fillStyle = '#c03020'; g.beginPath(); g.arc(80, 60, 35, 0, Math.PI * 2); g.fill();
+      await W.SlopHub.put(await new Promise((r) => c.toBlob(r, 'image/png')), { name: 'ball.png', from: 'test' });
+      const r = await run('co.ai.add-images', { files: ['ball.png'] });
+      expect(r.value).toMatch(/Added 1 image/);
+      expect(W.CO.state.items.length).toBe(1);
+      expect((await C.exec('co.ai.add-images', {})).ok).toBe(false);
+      const s = await run('co.ai.save-cutouts', { to: 'drive', format: 'png' });
+      expect(s.value).toMatch(/Saved 1 cutout to Slop Drive \(ball-cutout\.png, id /);
+      const id = /id ([^)\s;]+)/.exec(s.value)[1], rec = await W.SlopHub.get(id);
+      expect(rec.blob.type).toBe('image/png');
+      const bmp = await createImageBitmap(rec.blob);
+      expect(bmp.width > 0 && bmp.height > 0).toBe(true);
+      expect(C.state().images[0].status).toBe('done');
+      await run('co.ai.new-batch', {});
+      expect(W.CO.state.items.length).toBe(0);
+      expect((await C.exec('co.ai.save-cutouts', {})).ok).toBe(false);
+    }, { timeout: 120000 });
+  });
+  SlopTest.run({ name: 'SlopIsolate: assistant commands' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+/* Slop Gallery: the Drive source. The Library / Drive switch and the Drive bar (kind chips, search, sort) above the grid,
+ * the Drive grid of tiles, and the audio strip. Works at 390px: the chips and tools wrap, nothing scrolls sideways. */
+.srcbar { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 0; min-width: 0; }
+.seg { display: inline-flex; align-self: flex-start; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg-btn { background: var(--panel-2); border: 0; padding: 5px 12px; cursor: pointer; color: var(--fg-dim); }
+.seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+.seg-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.dbar[hidden], .dgrid[hidden], .astrip[hidden] { display: none; }
+.dbar { display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12px; white-space: nowrap; color: var(--fg); }
+.chip:hover { background: var(--hover); }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.chip-n { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); margin-left: 2px; }
+.dtools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.dtools input { flex: 1 1 180px; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--fg); }
+.dtools select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; color: var(--fg); }
+.dcount { font-size: 12px; color: var(--fg-faint); font-family: var(--mono); }
+
+.dgrid { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; }
+.dtiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; padding: 10px; }
+.dtile { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 6px; background: none; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; text-align: left; color: var(--fg); }
+.dtile:hover { background: var(--hover); }
+.dtile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dthumb { display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
+.dthumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.dcard { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.dk { font-size: 11px; color: var(--fg-dim); }
+.dx { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--accent); }
+.dname { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dmeta { font-size: 11px; color: var(--fg-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.astrip { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.astrip-n { flex: 1 1 160px; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.astrip audio { flex: 2 1 240px; min-width: 0; max-width: 100%; }
+
+/* The Drive source has its own search and kinds, so the Library's views and filters step aside. */
+body.src-drive #sideNav, body.src-drive #secAlbums, body.src-drive #secFilters { display: none; }
+.dviewer .dv-video { flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }

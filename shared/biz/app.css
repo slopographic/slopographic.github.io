@@ -1,0 +1,165 @@
+/* Business app base (Slop Expenses, Quotes, Orders and Invoices; Ledger and Admin next): colour tokens taken from the site theme,
+ * base elements, inputs, buttons, status chips, view tabs, toolbars, cards, form grids, messages, the empty state, the
+ * backup block and stat tiles. An app stylesheet adds only what is its own. Works at 390 px wide. Record rows are SlopList
+ * (shared/ui/list.css); document line cards and totals are shared/docs/lines.css. */
+:root {
+  /* Every colour follows the site theme (shared/theme/theme.js sets --sl-* on each page: Light, Dark, Classic, Lime);
+     the values after the commas are the dark look for a page without it. */
+  --bg: var(--sl-background, #0e0e10); --panel: var(--sl-surface, #17171b); --ink: var(--sl-text, #f1ede4);
+  --line: var(--sl-border, #2b2b33); --accent: var(--sl-accent, #d4ff3a); --accent-ink: var(--sl-on-accent, #0e0e10); --focus: var(--accent);
+  --panel-2: color-mix(in srgb, var(--panel) 94%, var(--ink)); --input: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  --mute: color-mix(in srgb, var(--ink) 68%, transparent); --line-strong: color-mix(in srgb, var(--ink) 30%, var(--line));
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent); --hover: color-mix(in srgb, var(--ink) 7%, var(--panel));
+  --sel: color-mix(in srgb, var(--accent) 13%, var(--panel)); --chip: color-mix(in srgb, var(--ink) 9%, var(--panel));
+  --danger: #ff4f6e; --warn: #ffb547; --ok: #7fdc8a;
+  --r: 12px; --r-s: 8px;
+  --font-ui: 'Inter Tight', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+html[data-slop-theme="light"], html[data-slop-theme="classic"] { --danger: #c81e44; --ok: #17803a; --warn: #a25b00; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); overflow-x: hidden; }
+body { font: 14px/1.45 var(--font-ui); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.app { min-height: 100vh; display: flex; flex-direction: column; min-width: 0; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.sub { color: var(--mute); font-size: 12px; }
+.note { color: var(--mute); font-size: 12.5px; margin: 6px 0; }
+.empty { color: var(--mute); padding: 10px 0; margin: 0; }
+.h2 { font-size: 14px; font-weight: 600; margin: 18px 0 8px; letter-spacing: .01em; }
+.local-badge { margin-left: auto; font-size: 12px; color: var(--mute); }
+.bad-text { color: var(--danger); }
+
+/* Inputs and selects: one style everywhere */
+input, select, textarea { background: var(--input); border: 1px solid var(--line); border-radius: var(--r-s); padding: 6px 9px; min-height: 34px; box-sizing: border-box; max-width: 100%; transition: border-color .12s, box-shadow .12s; }
+input:hover, select:hover, textarea:hover { border-color: var(--line-strong); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input[readonly] { color: var(--mute); }
+
+/* Buttons: secondary (default), primary, danger, small. Also the menu bar's buttons. */
+.btn, .tb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-s); border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font-weight: 500; white-space: nowrap; transition: background .12s, border-color .12s; }
+.btn:hover:not(:disabled), .tb-btn:hover { background: var(--hover); border-color: var(--line-strong); }
+.btn:disabled { opacity: .5; cursor: default; }
+a.btn { text-decoration: none; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 12%, var(--panel-2)); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.btn.small { min-height: 28px; padding: 0 9px; font-size: 12.5px; }
+.tb-btn { min-height: 32px; font-size: 13px; }
+
+/* Status chips of the business records: a dot in the status colour (in progress, done, cancelled, overdue, sample data) */
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; background: var(--chip); border: 1px solid var(--line); font-size: 11.5px; line-height: 1.6; white-space: nowrap; color: var(--mute); }
+.chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.chip.open, .chip.issued, .chip.sent, .chip.ordered { color: var(--accent); }
+.chip.fulfilled, .chip.paid, .chip.posted, .chip.accepted, .chip.received { color: var(--ok); }
+.chip.cancelled, .chip.void, .chip.declined { color: var(--mute); text-decoration: line-through; }
+.chip.credited { color: var(--mute); }
+.chip.overdue { color: var(--danger); font-weight: 600; }
+.chip.sample { color: var(--warn); }
+
+/* View tabs (SlopTabs): one view at a time; the strip scrolls inside itself on a phone */
+.tabs { display: flex; gap: 4px; overflow-x: auto; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--panel); scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; min-height: 40px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--mute); font-weight: 500; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+/* The record bar (shared/biz/docbar.js) over an open invoice, order, quote or entry: back, name and status, its actions */
+.biz-docbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 46px; padding: 6px 12px; box-sizing: border-box; background: var(--bg); border-bottom: 1px solid var(--line); }
+.biz-docbar[hidden] { display: none; }
+.biz-back { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 10px 0 6px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; }
+.biz-back span { font-size: 18px; line-height: 1; }
+.biz-back:hover { border-color: var(--mute); }
+.biz-doc-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.biz-docbar .h2 { margin: 0; }
+.biz-doc-title { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.biz-doc-name .chip:empty { display: none; }
+.biz-doc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+
+.main { padding: 14px 16px 40px; min-width: 0; max-width: 960px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+.boot { padding: 30px 0; color: var(--mute); }
+.msg { min-height: 1.4em; margin: 10px 0; font-size: 13px; }
+.msg.ok { color: var(--ok); }
+.msg.bad { color: var(--danger); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 0 0 10px; min-width: 0; }
+.toolbar label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--mute); min-width: 0; }
+.toolbar .search { flex: 1 1 200px; }
+.toolbar .search input { width: 100%; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; margin: 0 0 12px; min-width: 0; }
+.table { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--panel); }
+.head-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.head-row[hidden] { display: none; }
+.head-row .h2 { margin: 0; }
+.empty-state { display: grid; justify-items: start; gap: 8px; padding: 16px; border: 1px dashed var(--line-strong); border-radius: var(--r); color: var(--mute); margin: 8px; }
+.empty-state p { margin: 0; }
+/* A notice that asks for an action, such as repeating invoices that are due */
+.notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--sel); }
+
+/* Forms */
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.form-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--mute); min-width: 0; }
+.form-grid .wide { grid-column: 1 / -1; }
+.form-grid input, .form-grid select, .form-grid textarea { color: var(--ink); width: 100%; }
+.inline { display: flex; gap: 6px; }
+.inline select { flex: 1 1 auto; min-width: 0; }
+.actions .btn { margin-right: 4px; }
+
+/* Backup and restore, and stat tiles */
+.file { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; color: var(--mute); font-size: 12.5px; }
+.report { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; }
+.report li { padding: 2px 0; }
+.report .rep-error { color: var(--danger); }
+.report .rep-ok { color: var(--ok); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 12px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; min-width: 0; }
+.stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--mute); font-size: 12.5px; }
+@media (max-width: 420px) {
+  .main { padding: 12px 12px 40px; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .local-badge { display: none; }
+}
+
+.h3 { font-size: 15px; margin: 0 0 8px; }
+
+/* Form grids of plain labels (one column on a phone) and data tables that scroll inside their own box */
+.grid2, .grid3 { display: grid; gap: 10px; grid-template-columns: 1fr; }
+.grid2 > label, .grid3 > label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--mute); min-width: 0; }
+.grid2 input, .grid2 select, .grid2 textarea, .grid3 input, .grid3 select { width: 100%; color: var(--ink); }
+@media (min-width: 640px) { .grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); margin-bottom: 12px; }
+.grid-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.grid-t th, .grid-t td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.grid-t thead th { color: var(--mute); font-weight: 600; }
+.grid-t tfoot th { font-weight: 600; border-bottom: 0; }
+.grid-t .num { text-align: right; }
+
+/* The panels of shared/biz/panel.js. A record beside its list (SlopBiz.panel.records: Expenses, Timesheets): one row of
+   SlopFrame, the list on the left and the open record the panel on the right. A view whose form adds a record
+   (SlopBiz.panel.form: Ledger) keeps the rest of the view on the left and the form in the panel. The main buttons are in the
+   panel's footer; the window holds the menu bar and the row, and the parts scroll inside it. On a phone the panel is a
+   bottom sheet whose footer stays on screen. */
+.biz-lr:not(.biz-lr-on) { display: none !important; }
+.biz-lr.biz-lr-rec > .sf-view[hidden] { display: block !important; }
+.biz-lr:not(.biz-lr-rec) > .sf-panel, .biz-lr:not(.biz-lr-rec) > .sf-grip { display: none; }
+.biz-rp-panel.sf-panel { padding: 0 14px; }
+.biz-fv > .biz-rp-panel.sf-panel { padding-top: 12px; }
+.biz-rp-panel > .sf-p-foot { margin-inline: -14px; }
+.biz-rp-panel.sf-panel .card, .biz-rp-panel.sf-panel.card { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 0 12px; margin: 0 0 12px; }
+.biz-rp-panel.sf-panel.card { border-bottom: 0; margin: 0; padding: 12px 14px 0; background: var(--panel); border-inline-start: 1px solid var(--line); }
+.biz-rp-panel .form-grid, .biz-rp-panel .grid3, .biz-rp-panel .grid2 { grid-template-columns: minmax(0, 1fr); }
+.biz-rp-panel > .msg:empty { min-height: 0; margin: 6px 0; }
+.biz-rp:not(.sf-phone) > .sf-panel > .sf-p-foot:has(.biz-rp-peek), .biz-rp > .sf-panel.ssh-on > .sf-p-foot:has(.biz-rp-peek) { display: none; }   /* "Details" alone: only a phone's closed sheet needs it */
+.biz-lr:not(.sf-phone) > .sf-view, .biz-fv:not(.sf-phone) > .sf-view { padding: 14px 16px 40px; }
+.ssh-phone > .biz-rp-panel > .ssh-x { float: none; display: flex; margin-block-end: 0; background: inherit; }   /* its own row over the form */
+@media (min-width: 901px) {
+  body.biz-lr-open, body:has(.biz-fv:not([hidden])) { height: 100vh; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; }
+  body.biz-lr-open .app, body:has(.biz-fv:not([hidden])) .app { flex: 1 1 0; min-height: 0; height: auto; }
+  body.biz-lr-open .app > .main, body:has(.biz-fv:not([hidden])) .app > .main { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 0; max-width: none; }
+  body.biz-lr-open .app > :not(.main), body:has(.biz-fv:not([hidden])) .app > :not(.main) { flex: none; }
+  body.biz-lr-open .main > .local-badge { display: none; }
+  .biz-lr.biz-lr-rec, .main > .biz-fv { flex: 1 1 auto; }
+}

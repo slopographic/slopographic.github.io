@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Contacts · follows the site theme</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../contacts/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: contacts/css/contacts.css, contacts/css/contacts-panel.css, shared/theme/theme.js
+  // Contacts keeps its own light and dark palette; the site theme switches it and paints its surface, text and accent.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  describe('Slop Contacts and the site theme', () => {
+    it('in every theme the page, the top bar and the search box read on their backgrounds, and each theme looks its own', async () => {
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopContacts && f.contentWindow.SlopContacts.ready && f.contentWindow.SlopTheme, { timeout: 30000 });
+      const W = f.contentWindow, D = W.document, seen = new Set();
+      const themes = ['light', 'dark', 'lime'].filter((t) => BRAND_FACTS.themes.includes(t));   // the ones the build offers
+      for (const theme of themes) {
+        W.SlopTheme.apply(theme);
+        const body = W.getComputedStyle(D.body), bar = W.getComputedStyle(D.querySelector('.topbar')), inp = W.getComputedStyle(D.getElementById('search'));
+        expect(SlopTest.contrast(body.color, body.backgroundColor) >= 4.5).toBe(true, `${theme}: page`);
+        expect(SlopTest.contrast(bar.color, bar.backgroundColor) >= 4.5).toBe(true, `${theme}: top bar`);
+        expect(SlopTest.contrast(inp.color, inp.backgroundColor) >= 4.5).toBe(true, `${theme}: search`);
+        seen.add(body.backgroundColor);
+      }
+      expect(seen.size).toBe(themes.length);
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Slop Contacts · theme' });
+  </script>
+</body>
+</html>

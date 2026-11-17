@@ -1,0 +1,4 @@
+/* Slop Quotes: only what is its own. The base (theme tokens, inputs, buttons, status chips, tabs, toolbars, cards, forms) is
+ * shared/biz/app.css; the quote rows are SlopList (shared/ui/list.css); line cards, totals and the paper view are
+ * shared/docs/lines.css and paper.css. */
+#eLinks a { margin-right: 10px; }

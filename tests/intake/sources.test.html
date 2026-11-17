@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake: every source, one pipeline</title></head>
+<body>
+<div id="zone"></div>
+<div id="panel" style="width:200px;height:100px"></div>
+<script src="../harness.js"></script>
+<script src="../../shared/slopui.js"></script>
+<script src="../../shared/intake/rules.js"></script>
+<script src="../../shared/intake/normalize.js"></script>
+<script src="../../shared/intake/pipeline.js"></script>
+<script src="../../shared/intake/intake.js"></script>
+<script src="../../shared/intake/sources.js"></script>
+<script src="../../shared/drop/panel.js"></script>
+<script src="../../shared/drop/drop.js"></script>
+<script>
+  // Covers: shared/intake/intake.js, shared/intake/sources.js, shared/drop/drop.js
+  // Every source (a drop on the zone, a plain drop area, Choose files, the picker, a paste, Slop Drive, ?drive= launch,
+  // the Convert dialog's hand-back, the sample, take itself) ends in the same process() and fires the same events, and
+  // the first-use notice shows once per batch whichever source. Slop Hub, the picker and the notice are stubbed.
+  const { describe, it, expect, sleep, waitFor, run } = SlopTest;
+  const png = (n) => new File([new Uint8Array([137, 80, 78, 71, n])], 'p' + n + '.png', { type: 'image/png' });
+  const txt = () => new File(['hello'], 'notes.txt', { type: 'text/plain' });
+  let seen = [], notices = 0;
+  window.SlopFirstRun = { once: async () => { notices++; return true; } };
+  SlopUI.dialog = (o) => { const b = o.buttons.find((x) => x.label.startsWith('Add to')); if (b && b.act) b.act(); o.onClose && o.onClose(b); };
+  SlopIntake.register({
+    id: 'app', accept: { types: ['image/*'], noun: 'a picture' }, notice: { title: 'First use', lines: ['x'] },
+    process: async (file, ctx) => { seen.push([ctx.source, file.name, ctx.drive ? ctx.drive.id : null]); return file.name; },
+  });
+  const events = [];
+  for (const t of ['before', 'file', 'after']) SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+  const zone = SlopDrop.attach(document.getElementById('zone'), { intake: 'app', toast: false, sample: { files: () => [png(9)] } });
+  SlopIntake.dropTarget(document.getElementById('panel'), { to: 'app' });
+  const dtOf = (files) => { const dt = new DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const rec = (id) => ({ id, name: 'drive-' + id + '.png', type: 'image/png', blob: new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }) });
+  window.SlopHub = {
+    pickFromDrive: async () => rec('d1'), get: async () => null,
+    consumeLaunch: async () => rec('L1'),
+  };
+  SlopUI.pickFiles = async () => [png(3), png(4)];
+  /** Runs one source with two pictures and a text file, waits for the batch, and checks what reached process. */
+  async function through(source, start, expectSource = source) {
+    seen = []; events.length = 0; notices = 0;
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 5000 });
+    expect(seen.length >= 1).toBe(true);
+    expect(seen.every((s) => s[0] === expectSource)).toBe(true);
+    expect(events[0]).toEqual(['before', 'app', expectSource]);
+    expect(events.filter((e) => e[0] === 'file').length).toBe(seen.length);
+    expect(events[events.length - 1]).toEqual(['after', 'app', expectSource]);
+    expect(notices).toBe(1); // once per batch, whatever the source and however many files
+    return seen;
+  }
+
+  describe('every source ends in the same process() with the same events', () => {
+    it('a drop on the zone', () => through('drop', () => document.getElementById('zone').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([png(1), png(2), txt()]) }))));
+    it('a drop on a plain drop area (dropTarget)', () => through('drop', () => document.getElementById('panel').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([png(1), png(2)]) }))));
+    it("the zone's Choose files", () => through('picker', () => { const i = document.querySelector('#zone input[type=file]'); i.files = dtOf([png(5), png(6)]).files; i.dispatchEvent(new Event('change')); }));
+    it('the picker (File ▸ Open, Ctrl+O)', () => through('picker', () => SlopIntake.pick({ to: 'app' })));
+    it('a paste', () => through('paste', () => document.body.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([png(7), png(8)]) }))));
+    it('Open from Slop Drive keeps the Drive id', async () => { const s = await through('drive', () => SlopIntake.fromDrive({ to: 'app' })); expect(s[0]).toEqual(['drive', 'drive-d1.png', 'd1']); });
+    it('?drive=<id> (Send to…) through launch', async () => { const s = await through('launch', () => SlopIntake.launch({ to: 'app' })); expect(s[0][2]).toBe('L1'); });
+    it("the Convert dialog's hand-back", () => through('convert', () => SlopIntake.fromConvert([{ name: 'out.png', blob: new Blob([new Uint8Array([1])], { type: 'image/png' }) }], { to: 'app' })));
+    it("the zone's sample", () => through('sample', () => zone.sample()));
+    it('take itself, a single file as a batch of one', () => through('api', () => SlopIntake.take(png(10), { to: 'app' })));
+  });
+
+  describe('gates', () => {
+    it('a refused file is named with its reason, and the notice is not shown for a batch with nothing accepted', async () => {
+      notices = 0;
+      const s = await SlopIntake.take([txt()], { to: 'app', source: 'drop' });
+      expect(s.skipped[0].reason).toBe('notes.txt is not a picture');
+      expect(notices).toBe(0);
+    });
+    it('a listener can cancel a batch before it runs (slop:intake-before)', async () => {
+      seen = [];
+      const off = SlopIntake.on('before', () => false);
+      const s = await SlopIntake.take([png(11)], { to: 'app' });
+      off();
+      expect(s.cancelled).toBe(true);
+      expect(seen.length).toBe(0);
+    });
+    it('Add or New is asked with one dialog when something is open, and skipped when the source gave the mode', async () => {
+      let asked = 0;
+      const real = SlopUI.dialog;
+      SlopUI.dialog = (o) => { asked++; expect(o.cls).toBe('si-choose'); real(o); };
+      const modes = [];
+      SlopIntake.register({ id: 'doc', main: false, paste: false, hasOpen: () => true, openName: () => 'Doc', process: async (f, ctx) => { modes.push(ctx.mode); } });
+      await SlopIntake.take([png(12)], { to: 'doc', source: 'picker' });
+      await SlopIntake.take([png(13)], { to: 'doc', source: 'drop', mode: 'new' });
+      SlopUI.dialog = real;
+      expect(asked).toBe(1);
+      expect(modes).toEqual(['add', 'new']);
+    });
+  });
+  run({ name: 'Shared intake: sources' });
+</script>
+</body>
+</html>

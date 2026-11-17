@@ -1,0 +1,34 @@
+/* Slop Drive — preview.css: thumbnails in icon slots (the list's icon column, duplicates), the live 3D view and the
+ * CSV table. Colours come from the tokens in base.css, so Pro, Light and Classic all work. */
+.badge.has-img { background: var(--panel-2); padding: 0; overflow: hidden; }
+.badge.has-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pv-card { width: 100%; min-height: 150px; display: grid; place-items: center; }
+.pv-card .badge.big { width: 80px; height: 96px; }
+.pv-card img { max-width: 100%; max-height: 240px; object-fit: contain; display: block; }
+.pv-csv { width: 100%; }
+.csv-scroll { max-height: 280px; overflow: auto; width: 100%; background: var(--input); }
+.ql .csv-scroll { max-height: 70vh; }
+.csv-table { border-collapse: collapse; font: 12px/1.4 var(--mono); width: max-content; min-width: 100%; color: var(--fg); }
+.csv-table th, .csv-table td { border-bottom: 1px solid var(--line); padding: 3px 8px; text-align: left; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.csv-table th { position: sticky; top: 0; background: var(--panel-2); font-weight: 600; }
+.pv > .pv3d { width: 100%; display: grid; gap: 6px; }
+.pv3d-cv { width: 100%; height: 260px; display: block; touch-action: none; cursor: grab; border-radius: var(--radius-s); background: #1d1e22; }
+.pv3d-cv.grabbing { cursor: grabbing; }
+.pv3d.big .pv3d-cv { height: 70vh; }
+.pv3d-reset { justify-self: start; }
+.pv3d-hint { color: var(--faint); font-size: var(--fs-s); text-align: center; margin: 0; }
+/* The audio player (ui/audio-view.js) and the mini bar (ui/mini-player.js). */
+.ap { display: grid; gap: 8px; width: 100%; padding: 10px; background: var(--panel-2); border-radius: var(--radius-s); outline: none; }
+.ap:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.ap-wave { width: 100%; height: 84px; display: block; cursor: pointer; touch-action: none; border-radius: 4px; background: var(--input); }
+.ap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ap-b { min-width: 34px; }
+.ap-play { min-width: 44px; }
+.ap-time { font: 12px var(--mono); color: var(--faint); margin-left: auto; }
+.ap-vol { width: 90px; }
+.ap-msg { margin: 0; color: var(--faint); font-size: var(--fs-s); }
+.mini-player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line); box-shadow: var(--shadow); font-size: var(--fs-s); }
+.mini-player[hidden] { display: none; }
+.mp-label { color: var(--faint); }
+.mp-name { font-weight: 600; min-width: 0; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-time { font: 12px var(--mono); color: var(--faint); margin-left: auto; }

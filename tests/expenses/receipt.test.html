@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Expenses: From a receipt… (the reader stubbed): the form fills in, the photo is linked, the model is asked for first</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: expenses/js/ui/receipt.js, expenses/js/ui/editor.js, expenses/index.html, aitools/get-more.js, aitools/common.js
+  // The text reader (PP-OCRv4) is a download the tests do not make: SlopAITools and the model store are stubbed, and the
+  // stub answers with the lines of a café receipt.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, saved = [];
+  const $ = (id) => D.getElementById(id);
+  const LINES = ['BLUE BOTTLE COFFEE', '315 Linden St', '2026-10-20 08:15', 'Latte 5.50', 'Croissant 4.25', 'Subtotal 9.75', 'Sales Tax 0.84', 'TOTAL $10.59'];
+  async function boot(installed) {
+    const f = document.getElementById('app');
+    f.src = '../../expenses/index.html#new';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopExpenses && f.contentWindow.SlopExpenses.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+    await W.SlopData.store.erase(); await W.SlopData.store.ready();
+    saved = [];
+    W.SlopAIManager.status = async () => (installed ? 'installed' : 'needs-download');
+    Object.assign(W.SlopAITools, {
+      ensure: async () => {}, image: async () => ({ bitmap: {}, w: 10, h: 10 }),
+      call: async (type) => ({ lines: LINES.map((text) => ({ text })) }),
+      toDrive: async (name, blob) => { saved.push({ name, blob }); return 'drive-receipt-1'; },
+    });
+    W.SlopExpenses.app.go('new');
+    await waitFor(() => !$('view-edit').hidden && !$('eForm').hidden && $('eAccount').options.length > 1);
+  }
+  /** From a receipt… is the intake's picker (spec 'expenses'). */
+  function pick() {
+    const f = new W.File([new W.Uint8Array(20)], 'receipt.jpg', { type: 'image/jpeg' });
+    W.SlopUI.pickFiles = async () => [f];
+    $('eReceipt').click();
+  }
+
+  describe('From a receipt…', () => {
+    it('reads the photo and fills the supplier, the date, the amount and the tax; the photo goes to Slop Drive', async () => {
+      await boot(true);
+      expect($('eReceipt').textContent).toBe('From a receipt…');
+      pick();
+      await waitFor(() => $('eAmount').value === '10.59');
+      expect($('eSupplier').value).toBe('BLUE BOTTLE COFFEE');
+      expect($('eDate').value).toBe('2026-10-20');
+      expect($('eTax').value).toBe('0.84');
+      expect($('eMsg').textContent).toBe('Read from the receipt. Check it, then Record.');
+      expect(saved.map((s) => s.name)).toEqual(['receipt.jpg']);
+    });
+    it('Record links the photo to the expense; the recorded expense offers View the receipt', async () => {
+      $('eRecord').click();
+      await waitFor(() => W.location.hash.startsWith('#e/'));
+      const list = (await W.SlopData.store.list('expenses')).value;
+      expect(list.length).toBe(1);
+      expect([list[0].supplier, list[0].amount, list[0].tax, list[0].receiptId]).toEqual(['BLUE BOTTLE COFFEE', 1059, 84, 'drive-receipt-1']);
+      await waitFor(() => [...D.querySelectorAll('#eView button')].some((b) => b.textContent === 'View the receipt'));
+    });
+    it('without the model, Get more asks first; cancelling it leaves the form as it was and says why', async () => {
+      await boot(false);
+      let asked = null;
+      W.SlopAIGetMore.open = (id, opts) => { asked = id; setTimeout(() => opts.onClose(), 10); return {}; };
+      pick();
+      await waitFor(() => /text reader is needed/.test($('eMsg').textContent));
+      expect(asked).toBe('ppocr-v4');
+      expect($('eAmount').value).toBe('');
+      expect(saved.length).toBe(0);
+    });
+    it('a pasted receipt photo is read the same way (the intake, spec expenses)', async () => {
+      await boot(true);
+      const dt = new W.DataTransfer(); dt.items.add(new W.File([new W.Uint8Array(20)], 'pasted.jpg', { type: 'image/jpeg' }));
+      D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
+      await waitFor(() => $('eAmount').value === '10.59');
+      expect(saved.map((x) => x.name)).toEqual(['pasted.jpg']);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

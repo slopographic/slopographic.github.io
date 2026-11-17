@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: New ▸ documents</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, sent;
+  const rows = () => [...W.document.querySelectorAll('.sui-menu .sui-row')].map((r) => r.querySelector('.sui-lbl').textContent);
+  describe('New ▸ menu', () => {
+    it('lists every app that creates a file type', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      sent = [];
+      H.sendTo = async (app, blob, name, o) => { sent.push({ app, name, id: o && o.id }); return o && o.id; };
+      const want = W.SLOP_APPS.filter((a) => Array.isArray(a.creates) && a.creates.length).map((a) => a.id);
+      expect(want).toContain('docs');
+      expect(DR.creatables().map((c) => c.app.id)).toEqual(want);
+      expect(DR.newItems().map((i) => i.label)).toContain('Document (Slop Docs)');
+    });
+    it('shows a New submenu on the toolbar button and on right-click', async () => {
+      W.document.getElementById('btnNew').click();
+      expect(rows()).toContain('New');
+      const r = W.document.querySelector('.sui-menu .sui-has-sub');
+      r.dispatchEvent(new W.PointerEvent('pointerenter'));
+      await waitFor(() => rows().includes('Spreadsheet (Slop Tables)'));
+      W.SlopUI.closeMenu ? W.SlopUI.closeMenu() : W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+      DR.select([]); DR.contextMenu(100, 100);
+      expect(rows()).toContain('New');
+      W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+    });
+    it('creates an empty, uniquely named file in the open folder and opens it in its app', async () => {
+      const f = await DR.newFolder(null, 'Work');
+      DR.go(f);
+      const id = await DR.createNew('docs');
+      const r = await H.get(id);
+      expect(r.name).toBe('Untitled document.sdoc');
+      expect(r.type).toBe('application/x-slop-doc');
+      expect(r.size).toBe(0);
+      expect(r.folderId).toBe(f);
+      expect(sent.at(-1)).toEqual({ app: 'docs', name: 'Untitled document.sdoc', id });
+      const id2 = await DR.createNew('docs', f, { open: false });
+      expect((await H.get(id2)).name).toBe('Untitled document (2).sdoc');
+      expect(sent.length).toBe(1);
+      expect(DR.appsFor(DR.item('f:' + id))[0].id).toBe('docs');
+    });
+    it('creates inside a folder from its right-click menu', async () => {
+      DR.go(null);
+      const work = [...DR.S.folders.values()].find((x) => x.name === 'Work');
+      DR.select(['d:' + work.id]); DR.contextMenu(50, 50);
+      expect(rows()).toContain('New');
+      W.document.querySelectorAll('.sui-menu').forEach((m) => m.remove());
+      const sub = DR.newSub(work.id).sub.find((s) => s.label.startsWith('Presentation'));
+      await sub.act();
+      const made = (await H.list({ folderId: work.id })).find((x) => x.name === 'Untitled presentation.sslide');
+      expect(made && made.type).toBe('application/x-slop-slides');
+      expect(sent.at(-1).app).toBe('slides');
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: New menu' });
+  </script>
+</body>
+</html>

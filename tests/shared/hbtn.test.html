@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · header buttons (one look, labels give way to icons when the header is full)</title>
+  <link rel="stylesheet" href="../../shared/ui/hbtn.css">
+  <style>
+    body { margin: 0; background: #f1ede4; color: #111; font: 14px system-ui; }
+    .bar { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid #999; margin: 8px; }
+    .wide { width: 900px; } .over { width: 260px; overflow: hidden; } .wrap { width: 260px; flex-wrap: wrap; }
+    .own { height: 30px; padding: 0 12px; flex: none; }
+  </style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/ui/hbtn.js"></script>
+  <script>
+  // Covers: shared/ui/hbtn.css, shared/ui/hbtn.js, shared/ui/menubutton.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>';
+  /** A header with one app button and three shared buttons (an icon and a label each). */
+  function bar(cls) {
+    const h = document.createElement('header');
+    h.className = 'bar ' + cls;
+    h.innerHTML = '<button class="own">Save</button>' + ['Slop Drive', 'Tour', 'Apps'].map((t) =>
+      `<button class="slop-hbtn" title="${t}">${ICON}<span class="slop-hbtn-txt">${t}</span></button>`).join('');
+    document.body.append(h);
+    return h;
+  }
+  const labelsShown = (h) => [...h.querySelectorAll('.slop-hbtn-txt')].every((s) => getComputedStyle(s).display !== 'none');
+
+  describe('SlopHbtn look', () => {
+    it('every shared button has one height, radius and font, whatever the element (a, button)', () => {
+      const h = bar('wide');
+      const a = document.createElement('a'); a.className = 'slop-hbtn'; a.href = '#'; a.innerHTML = ICON + '<span class="slop-hbtn-txt">Link</span>';
+      h.append(a);
+      const looks = [...h.querySelectorAll('.slop-hbtn')].map((n) => { const c = getComputedStyle(n); return [Math.round(n.getBoundingClientRect().height), c.borderTopLeftRadius, c.fontSize, c.textDecorationLine].join('|'); });
+      expect(new Set(looks).size).toBe(1);
+      expect(looks[0]).toBe('32|8px|13px|none');
+      h.remove();
+    });
+    it('an app sets the tokens on its header and the buttons follow them', () => {
+      const h = bar('wide');
+      h.style.cssText = '--slop-hbtn-h: 26px; --slop-hbtn-radius: 3px; --slop-hbtn-bg: rgb(1, 2, 3); --slop-hbtn-fs: 11px';
+      const b = h.querySelector('.slop-hbtn'), c = getComputedStyle(b);
+      expect(Math.round(b.getBoundingClientRect().height)).toBe(26);
+      expect(c.borderTopLeftRadius).toBe('3px');
+      expect(c.backgroundColor).toBe('rgb(1, 2, 3)');
+      expect(c.fontSize).toBe('11px');
+      h.remove();
+    });
+  });
+
+  describe('SlopHbtn.fit', () => {
+    it('a header with room keeps every label', () => {
+      const h = SlopHbtn.fit(bar('wide'));
+      expect(h.classList.contains('slop-htight')).toBe(false);
+      expect(labelsShown(h)).toBe(true);
+      h.remove();
+    });
+    it('a header that cuts its buttons off goes tight: icons only, each one square', () => {
+      const h = SlopHbtn.fit(bar('over'));
+      expect(h.classList.contains('slop-htight')).toBe(true);
+      expect(labelsShown(h)).toBe(false);
+      const b = h.querySelector('.slop-hbtn').getBoundingClientRect();
+      expect(Math.round(b.width)).toBe(Math.round(b.height));
+      h.remove();
+    });
+    it('a header whose title is clipped by its brand box goes tight ("Slop Upsca" at 1280)', () => {
+      const h = bar('wide');
+      h.style.width = '420px';
+      const brand = document.createElement('div');
+      brand.style.cssText = 'display:flex;flex:1 1 auto;min-width:0;overflow:clip';
+      brand.innerHTML = '<h1 style="margin:0;font-size:18px;white-space:nowrap">Slop Upscale with a long name</h1>';
+      h.prepend(brand);
+      SlopHbtn.fit(h);
+      expect(h.scrollWidth).toBeLessThanOrEqual(h.clientWidth + 1);   // nothing overflows the header itself
+      expect(h.classList.contains('slop-htight')).toBe(true);
+      h.style.width = '1200px';
+      expect(SlopHbtn.check(h)).toBe(false);
+      h.remove();
+    });
+    it('content that runs into the header\'s end padding counts as full, so the last button never slides into it', () => {
+      const h = bar('wide');
+      h.style.cssText = 'box-sizing: border-box; padding: 6px 14px 6px 6px';
+      const need = () => h.lastElementChild.getBoundingClientRect().right - h.getBoundingClientRect().left + 14 + 1;   // + padding + border
+      const w = need();
+      h.style.width = w + 'px';
+      expect(SlopHbtn.check(h)).toBe(false);   // exactly as wide as its content: room
+      h.style.width = (w - 3) + 'px';          // 3 px into the padding, still inside the border box
+      expect(SlopHbtn.check(h)).toBe(true);
+      h.remove();
+    });
+    it('a header that wraps its buttons onto a second row goes tight', () => {
+      const h = SlopHbtn.fit(bar('wrap'));
+      expect(h.classList.contains('slop-htight')).toBe(true);
+      h.remove();
+    });
+    it('the labels come back when the header gets room again', async () => {
+      const h = SlopHbtn.fit(bar('over'));
+      expect(h.classList.contains('slop-htight')).toBe(true);
+      h.classList.replace('over', 'wide');
+      await waitFor(() => !h.classList.contains('slop-htight'));
+      expect(labelsShown(h)).toBe(true);
+      h.remove();
+    });
+    it('a button added later is measured too', async () => {
+      const h = SlopHbtn.fit(bar('wide'));
+      h.style.width = '420px';
+      expect(SlopHbtn.check(h)).toBe(false);
+      for (const t of ['View', 'Theme', 'More']) h.insertAdjacentHTML('beforeend', `<button class="slop-hbtn">${ICON}<span class="slop-hbtn-txt">${t} with a long label</span></button>`);
+      await waitFor(() => h.classList.contains('slop-htight'));
+      h.remove();
+    });
+  });
+
+  describe('SlopHbtn: the buttons that yield (Convert…, AI)', () => {
+    /** The bar with two yielding buttons in front of the shared ones; state: full, icon or hidden. */
+    function yieldBar(width) {
+      const h = bar('wide');
+      h.style.cssText = `width:${width}px;flex-wrap:wrap`;
+      h.querySelector('.own').insertAdjacentHTML('afterend', ['Convert files', 'Assistant'].map((t, i) =>
+        `<button class="slop-hbtn y${i + 1}" data-hbtn-yield="${i + 1}">${ICON}<span class="slop-hbtn-txt">${t}</span></button>`).join(''));
+      return h;
+    }
+    const state = (b) => b.hidden ? 'hidden' : b.classList.contains('sh-icon-only') ? 'icon' : 'full';
+    const states = (h) => [state(h.querySelector('.y1')), state(h.querySelector('.y2')), h.classList.contains('slop-htight')].join(' ');
+    /** The header's width with only the app button and the plain shared buttons, labels shown. */
+    function baseWidth() {
+      const h = bar('wide'); h.style.width = 'max-content';
+      const w = h.getBoundingClientRect().width; h.remove();
+      return w;
+    }
+    it('with room they keep their labels', () => {
+      const h = yieldBar(900); SlopHbtn.fit(h);
+      expect(states(h)).toBe('full full false');
+      h.remove();
+    });
+    it('they give way in order: the first one\'s label, the second\'s, the first, the second; the others keep their labels', () => {
+      const seen = [];
+      for (let w = Math.ceil(baseWidth()) + 400; w >= baseWidth() - 2; w -= 4) {
+        const h = yieldBar(w);
+        SlopHbtn.check(h);
+        const s = states(h);
+        if (seen[seen.length - 1] !== s) seen.push(s);
+        expect(h.getBoundingClientRect().height).toBeLessThan(60);   // never a second row
+        h.remove();
+      }
+      expect(seen.slice(0, 5)).toEqual(['full full false', 'icon full false', 'icon icon false', 'hidden icon false', 'hidden hidden false']);
+    });
+    it('a header that is tight without them takes them back as icons where they fit', () => {
+      const h = yieldBar(Math.floor(baseWidth()) - 30);
+      SlopHbtn.check(h);
+      expect(h.classList.contains('slop-htight')).toBe(true);
+      expect(states(h)).toBe('icon icon true');
+      h.remove();
+    });
+    it('two controls drawn over each other count as a full header', () => {
+      const h = bar('wide');
+      h.style.width = '900px';
+      const g = document.createElement('div');
+      g.style.cssText = 'display:flex;width:40px;flex:none';
+      g.innerHTML = '<button class="own" style="flex:none">One</button><button class="own" style="flex:none">Two</button>';
+      h.prepend(g);
+      expect(SlopHbtn.check(h)).toBe(true);
+      g.style.width = 'auto';
+      expect(SlopHbtn.check(h)).toBe(false);
+      h.remove();
+    });
+  });
+  describe('SlopHbtn on a phone: AI stays, the others fold into More (⋯)', () => {
+    /** A 390 px page with the shell's header: an app button, then AI (keeps its place), Theme, Apps and the bell. */
+    async function phone(width) {
+      const f = document.createElement('iframe'); f.style.cssText = 'width:390px;height:300px;border:0';
+      f.srcdoc = `<!doctype html><html><head><link rel="stylesheet" href="../../shared/ui/hbtn.css"><style>body{margin:0;font:14px system-ui}
+        .bar{display:flex;align-items:center;gap:8px;padding:6px;flex-wrap:wrap}.own{height:30px;padding:0 12px;flex:none}</style></head><body>
+        <script src="../../shared/ui/menubutton.js"><\/script><script src="../../shared/ui/hbtn.js"><\/script></body></html>`;
+      document.body.append(f);
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopHbtn && f.contentWindow.SlopMenuButton);
+      const D = f.contentDocument, h = D.createElement('header');
+      h.className = 'bar'; h.style.width = width + 'px';
+      h.innerHTML = '<button class="own">Save the document</button><div class="sh-hdr" style="display:flex;gap:8px">' +
+        '<button class="slop-hbtn sh-ai" data-hbtn-yield="2" data-hbtn-keep data-hbtn-label="Ask Slop AI…" aria-label="Slop AI">' + ICON + '<span class="slop-hbtn-txt">AI</span></button>' +
+        [['sh-theme', 'Theme'], ['sh-switch', 'Apps'], ['sn-bell', 'Notifications']].map(([c, t]) => `<button class="slop-hbtn ${c}" aria-label="${t}">${ICON}<span class="slop-hbtn-txt">${t}</span></button>`).join('') + '</div>';
+      D.body.append(h);
+      return { f, W: f.contentWindow, D, h };
+    }
+    const vis = (h, s) => { const b = h.querySelector(s); return !!b && !b.hidden && b.getBoundingClientRect().width > 0; };
+    const rows = (D) => waitFor(() => [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')].map((r) => r.textContent).filter(Boolean).length && [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')]);
+    it('a narrow header folds Theme, then the others, into More while AI stays as an icon; More lists them by label and opens them', async () => {
+      const { f, W, D, h } = await phone(260); let themed = 0;
+      h.querySelector('.sh-theme').addEventListener('click', () => themed++);
+      W.SlopHbtn.check(h);
+      expect([vis(h, '.sh-ai'), vis(h, '.slop-hmore'), h.querySelector('.sh-theme').hidden]).toEqual([true, true, true]);
+      expect(h.getBoundingClientRect().height).toBeLessThan(60);
+      h.querySelector('.slop-hmore').click();
+      const rs = await rows(D);
+      expect(rs[0].textContent).toBe('Theme');
+      rs[0].click();
+      expect(themed).toBe(1);
+      expect(W.SlopHbtn.anchor(h.querySelector('.sh-theme'))).toBe(h.querySelector('.slop-hmore'));
+      h.style.width = '380px'; W.SlopHbtn.check(h);   // room again: everything comes back, More goes
+      expect([vis(h, '.sh-theme'), vis(h, '.sn-bell'), h.querySelector('.slop-hmore').hidden]).toEqual([true, true, true]);
+      f.remove();
+    });
+    it('with no room at all AI goes last, into More with its label', async () => {
+      const { f, D, h, W } = await phone(200);
+      W.SlopHbtn.check(h);
+      expect([h.querySelector('.sh-ai').hidden, vis(h, '.slop-hmore')]).toEqual([true, true]);
+      h.querySelector('.slop-hmore').click();
+      expect((await rows(D)).map((r) => r.textContent)).toContain('Ask Slop AI…');
+      f.remove();
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

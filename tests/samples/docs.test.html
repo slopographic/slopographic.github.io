@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopSamples.docs: the sample price list, workbook, invoice PDF, invite and email</title>
+</head>
+<body>
+  <script src="../../shared/samples/samples.js"></script>
+  <script src="../../shared/samples/docs.js"></script>
+  <script src="../../shared/mail/codec.js"></script>
+  <script src="../../shared/mail/mime.js"></script>
+  <script src="../../vendor/pdf-lib/pdf-lib.min.js"></script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: shared/samples/docs.js
+  import { read } from '../../shared/sheets/read.js';
+  const { describe, it, expect } = SlopTest;
+  const D = window.SlopSamples.docs;
+  const bin = async (f) => { const u = new Uint8Array(await f.arrayBuffer()); let s = ''; for (const b of u) s += String.fromCharCode(b); return s; };
+
+  describe('SlopSamples.docs', () => {
+    it('the price list CSV reads back as a header and 24 products', async () => {
+      const f = D.csv();
+      expect(f.name).toBe('Price list.csv');
+      expect(f.type).toBe('text/csv');
+      const book = await read(f);
+      const s = book.sheets[0];
+      expect(s.height).toBe(25);
+      expect(s.rows[0]).toEqual(['SKU', 'Product', 'Category', 'Unit price (EUR)', 'In stock']);
+      expect(s.rows[1]).toEqual(['BW-1001', 'Oat flat white, 1 L', 'Dairy-free', 2.85, 140]);
+    });
+    it('the workbook has the price list and an Orders sheet with dates and totals', async () => {
+      const f = await D.xlsx();
+      expect(f.name).toBe('Price list.xlsx');
+      const book = await read(f);
+      expect(book.format).toBe('xlsx');
+      expect(book.sheets.map((s) => s.name)).toEqual(['Price list', 'Orders']);
+      expect(book.sheets[0].height).toBe(25);
+      const o = book.sheets[1];
+      expect(o.height).toBe(11);
+      expect(o.rows[1][0]).toBe('SO-3301');
+      expect(o.rows[1][1] instanceof Date).toBe(true);
+      expect(o.rows[1][5]).toBe(111);   // 6 x 18.50
+    });
+    it('the invoice is a valid one-page PDF whose xref points at every object', async () => {
+      const f = D.pdf();
+      expect(f.name).toBe('Invoice 2026-118.pdf');
+      const s = await bin(f);
+      expect(s.startsWith('%PDF-1.4')).toBe(true);
+      const start = Number(/startxref\n(\d+)/.exec(s)[1]);
+      expect(s.slice(start, start + 4)).toBe('xref');
+      const offs = s.slice(start).split('\n').slice(3, 10).map((l) => Number(l.slice(0, 10)));
+      offs.forEach((n, i) => expect(s.slice(n, n + String(i + 1).length + 6)).toBe(`${i + 1} 0 obj`));
+      expect(s).toContain('(Invoice) Tj');
+      const doc = await PDFLib.PDFDocument.load(await f.arrayBuffer(), { throwOnInvalidObject: true });
+      expect(doc.getPageCount()).toBe(1);
+      expect(doc.getTitle()).toBe('Invoice 2026-118');
+    });
+    it('the email has a text and an HTML body, and the invite and the invoice attached', async () => {
+      const f = D.eml();
+      expect(f.name).toBe('Kickoff on Thursday.eml');
+      const m = EmlMime.parse(new Uint8Array(await f.arrayBuffer()));
+      expect(m.headers.find((h) => h.name === 'Subject').value).toBe('Kickoff on Thursday: agenda and invoice');
+      expect(m.text).toContain('Hi Tom');
+      expect(m.html).toContain('<b>Thursday</b>');
+      expect(m.html).toContain('café');
+      expect(m.attachments.map((a) => a.name)).toEqual(['Kickoff.ics', 'Invoice 2026-118.pdf']);
+      expect(m.warnings.length).toBe(0);
+      const pdf = m.attachments[1].bytes, own = new Uint8Array(await D.pdf().arrayBuffer());
+      expect(pdf.length).toBe(own.length);
+    });
+    it('the invite is one VEVENT with a start, an end and an organizer', async () => {
+      const t = await D.ics().text();
+      expect(t.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
+      expect(t.match(/BEGIN:VEVENT/g).length).toBe(1);
+      expect(t).toContain('DTSTART:20261105T140000Z');
+      expect(t).toContain('ORGANIZER;CN=Maya Lindqvist');
+    });
+  });
+  SlopTest.run({ name: 'SlopSamples.docs' });
+  </script>
+</body>
+</html>

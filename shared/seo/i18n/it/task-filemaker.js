@@ -1,0 +1,22 @@
+/* SEO copy, it: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'seo.task.code.open-filemaker-file.crumb': 'Apri un file FileMaker',
+  'seo.task.code.open-filemaker-file.title': 'Apri un file FileMaker online: vedi le tabelle .fmp12 e .fp7',
+  'seo.task.code.open-filemaker-file.description': 'Apri un database FileMaker (.fmp12, .fp7, .fp5, .fp3) nel browser e leggi tabelle e record senza FileMaker. Cerca, esporta in CSV o JSON. Senza caricare nulla.',
+  'seo.task.code.open-filemaker-file.h1': 'Apri un file FileMaker online',
+  'seo.task.code.open-filemaker-file.lead': 'Un file FileMaker contiene tabelle di record e di solito serve FileMaker per vederle. Trascina il file su Slop Code e le sue tabelle si aprono come una griglia da scorrere, cercare ed esportare, senza installare nulla.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Apri Slop Code e trascina il file .fmp12, .fp7, .fp5 o .fp3 sulla pagina, oppure sceglilo da Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'Il file si apre come griglia di sola lettura. Scegli una tabella dall\'elenco: le righe si caricano mentre scorri, così anche un file grande resta veloce.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Cerca nella tabella con il campo di ricerca, oppure scegli un tipo di testo (un indirizzo IP, un indirizzo e-mail, una chiave) per saltare alla riga successiva che ne contiene uno.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Scegli Esporta per salvare la tabella come CSV o JSON, oppure aprila in un\'altra app.',
+  'seo.task.code.open-filemaker-file.body.0': 'La pagina legge da sé il formato del file: file di FileMaker Pro da 3 a 6 (.fp3, .fp5, .fmp), da Pro 7 a 12 (.fp7, .fmp12) e l\'esportazione di tabelle scritta da FileMaker (.fmpxml). Il lettore è un port in JavaScript di fmptools, open source.',
+  'seo.task.code.open-filemaker-file.body.1': 'Vedi le tabelle, i nomi delle colonne e i record. Immagini e file nei campi contenitore, layout, script, relazioni ed elenchi di valori non vengono letti, e un file cifrato va prima aperto in FileMaker.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'Mi serve FileMaker per aprire il file?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'No. La pagina legge il file nel tuo browser e mostra tabelle e righe. Non esegue il database né i suoi script.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'Il mio file viene caricato?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'No. Il file viene letto su questo dispositivo e non viene inviato nulla a Slopographic né ad altri.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'Posso modificare i dati?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'No. Il file è mostrato in sola lettura e non viene mai modificato. Esporta una tabella come CSV o JSON per lavorare sui dati in un\'altra app.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'Quali file FileMaker si possono aprire?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'File di FileMaker Pro da 3 a 12 (.fp3, .fp5, .fp7, .fmp12) ed esportazioni di tabelle nel formato FMPXMLRESULT. I .fmp12 più recenti creati da versioni successive di FileMaker si aprono allo stesso modo, a meno che siano cifrati.',
+});

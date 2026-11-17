@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+<meta charset="utf-8">
+<title>Slopographic share card</title>
+<style>
+  /* 1200 x 630: the social share image (Open Graph and Twitter). Rendered to og-share.png by tools/og/render.mjs. */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: #0c0d0a;
+    color: #f4f2ea;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    position: relative;
+  }
+  .rule { position: absolute; left: 0; right: 0; top: 0; height: 10px; background: #d4ff3a; }
+  .copy { position: absolute; left: 72px; top: 84px; width: 600px; }
+  .kicker { font-size: 20px; letter-spacing: .24em; text-transform: uppercase; color: #d4ff3a; font-weight: 700; }
+  h1 { margin: 18px 0 0; font-size: 60px; line-height: 1.04; font-weight: 800; letter-spacing: -.02em; }
+  .lede { margin: 20px 0 0; font-size: 23px; line-height: 1.4; color: #c9c7bd; max-width: 560px; }
+  .chips { margin-top: 26px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .chip { font-size: 18px; font-weight: 700; padding: 8px 16px; border-radius: 999px; border: 2px solid #d4ff3a; color: #d4ff3a; }
+  .grid {
+    position: absolute; right: 64px; top: 104px; width: 430px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
+  }
+  .tile { width: 100%; aspect-ratio: 1; display: block; }
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 34px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid #2b2d25; padding-top: 22px; }
+  .brand { font-size: 26px; font-weight: 800; letter-spacing: .02em; }
+  .url { font-size: 22px; color: #9b9a90; }
+</style>
+</head>
+<body>
+  <div class="rule"></div>
+  <div class="copy">
+    <div class="kicker">Office and creative software</div>
+    <h1>Business software that runs in your browser.</h1>
+    <p class="lede">Documents, spreadsheets, invoices, CRM, PDF, photo and video tools. Offline, free, and no subscription.</p>
+    <div class="chips">
+      <span class="chip">Offline</span><span class="chip">Free</span><span class="chip">No subscription</span>
+    </div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="foot">
+    <div class="brand">Slopographic</div>
+    <div class="url">slopographic.com</div>
+  </div>
+  <script src="../../shared/app-icons.js"></script>
+  <script>
+    // The same badges the homepage draws (SLOP_ICON_BADGE over SLOP_ICONS), so the card matches the product.
+    const ids = ['docs', 'tables', 'slides', 'pdf', 'invoices', 'orders', 'crm', 'ledger', 'photoslop', 'vector', 'calendar', 'drive'];
+    const grid = document.getElementById('grid');
+    for (const id of ids) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 48 48');
+      svg.setAttribute('class', 'tile');
+      svg.innerHTML = window.SLOP_ICON_BADGE(window.SLOP_ICONS[id]);
+      grid.append(svg);
+    }
+  </script>
+</body>
+</html>

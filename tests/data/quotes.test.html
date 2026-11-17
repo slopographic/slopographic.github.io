@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · quotes: numbers, status rules, to an order, to an invoice</title>
+  <!-- Covers: shared/data/quotes.js, shared/data/schema-defs.js, shared/data/schema.js, shared/data/store.js, shared/data/bundle-check.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/data/quotes.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData, st = S.store;
+  const fresh = async () => { const r = await st.erase(); if (!r.ok) throw new Error(r.message); const q = await st.ready(); if (!q.ok) throw new Error(q.message); };
+  let cust;
+  const line = (o = {}) => ({ description: 'Design work', qty: 2, unitPrice: 5000, taxRate: 2000, ...o });
+  async function quote(o = {}) {
+    if (!cust) cust = (await st.put('customers', { name: 'Ada', stage: 'lead' })).value;
+    const r = await st.put('quotes', { customerId: cust.id, date: '2026-10-20', validUntil: '2026-11-19', lines: [line()], ...o });
+    if (!r.ok) throw new Error(r.message);
+    return r.value;
+  }
+  const setStatus = async (q, status) => st.put('quotes', { ...(await st.get('quotes', q.id)).value, status });
+
+  describe('quotes', () => {
+    beforeEach(async () => { await fresh(); cust = null; });
+    it('a new quote is a draft with the next QUO number and totals from its lines', async () => {
+      const a = await quote(), b = await quote();
+      expect(a.status).toBe('draft');
+      expect(a.number).toBe('QUO-0001');
+      expect(b.number).toBe('QUO-0002');
+      expect([a.subtotal, a.tax, a.total]).toEqual([10000, 2000, 12000]);
+    });
+    it('the status rules: sent goes back to draft for a revision, accepted is final, declined can be reopened', async () => {
+      const q = await quote();
+      expect((await setStatus(q, 'sent')).ok).toBe(true);
+      expect((await setStatus(q, 'draft')).ok).toBe(true);
+      expect((await setStatus(q, 'declined')).ok).toBe(true);
+      expect((await setStatus(q, 'draft')).ok).toBe(true);
+      expect((await setStatus(q, 'accepted')).ok).toBe(true);
+      const back = await setStatus(q, 'draft');
+      expect(back.code).toBe('invalid_transition');
+      const cur = (await st.get('quotes', q.id)).value;
+      const edit = await st.put('quotes', { ...cur, notes: 'changed' });
+      expect(edit.code).toBe('invalid_transition');
+    });
+    it('a quote cannot be deleted', async () => {
+      const q = await quote();
+      expect((await st.remove('quotes', q.id)).ok).toBe(false);
+    });
+    it('to an order: one confirmed order with the lines, linked both ways, and the quote is accepted', async () => {
+      const q = await quote({ notes: 'Phase 1', lines: [line(), line({ description: 'Hosting', qty: 1, unitPrice: 2000, taxRate: 0 })] });
+      const r = await S.quotes.toOrder(q.id);
+      expect(r.ok).toBe(true);
+      expect(r.value.status).toBe('open');
+      expect(r.value.number).toBe('ORD-0001');
+      expect(r.value.quoteId).toBe(q.id);
+      expect(r.value.total).toBe(14000);
+      expect(r.value.notes).toBe('Phase 1');
+      const after = (await st.get('quotes', q.id)).value;
+      expect(after.status).toBe('accepted');
+      expect(after.orderId).toBe(r.value.id);
+      const again = await S.quotes.toOrder(q.id);
+      expect(again.code).toBe('conflict');
+      expect((await S.quotes.toInvoice(q.id)).code).toBe('conflict');
+    });
+    it('to an invoice: a draft invoice with the due date, nothing posted yet', async () => {
+      const q = await quote();
+      await setStatus(q, 'sent');
+      const r = await S.quotes.toInvoice(q.id, { dueDate: '2026-12-01' });
+      expect(r.ok).toBe(true);
+      expect(r.value.status).toBe('draft');
+      expect(r.value.dueDate).toBe('2026-12-01');
+      expect(r.value.quoteId).toBe(q.id);
+      expect(r.value.total).toBe(12000);
+      expect((await st.list('journal')).value.length).toBe(0);
+      expect((await st.get('quotes', q.id)).value.invoiceId).toBe(r.value.id);
+    });
+    it('the order or invoice keeps the quote\'s document language; a language tag is checked', async () => {
+      const q = await quote({ docLang: 'sv' });
+      expect(q.docLang).toBe('sv');
+      expect((await S.quotes.toOrder(q.id)).value.docLang).toBe('sv');
+      const plain = await quote();
+      expect(plain.docLang).toBe(undefined);
+      expect((await S.quotes.toInvoice(plain.id, { dueDate: '2026-12-01' })).value.docLang).toBe(undefined);
+      expect((await st.put('quotes', { ...(await quote()), docLang: 'not a tag' })).ok).toBe(false);
+    });
+    it('a declined quote is refused, and a quote that no longer exists is not found', async () => {
+      const q = await quote();
+      await setStatus(q, 'declined');
+      expect((await S.quotes.toOrder(q.id)).code).toBe('invalid_transition');
+      expect((await S.quotes.toInvoice('nope')).code).toBe('not_found');
+      expect((await st.list('orders')).value.length).toBe(0);
+    });
+    it('isExpired: an open quote past its valid-until day', () => {
+      expect(S.quotes.isExpired({ status: 'sent', validUntil: '2026-10-01' }, '2026-10-02')).toBe(true);
+      expect(S.quotes.isExpired({ status: 'sent', validUntil: '2026-10-02' }, '2026-10-02')).toBe(false);
+      expect(S.quotes.isExpired({ status: 'accepted', validUntil: '2026-10-01' }, '2026-10-02')).toBe(false);
+      expect(S.quotes.isExpired({ status: 'draft' }, '2026-10-02')).toBe(false);
+    });
+    it('backups: a quote pointing at a missing customer is refused; an export made before quotes and expenses still imports', async () => {
+      await quote();
+      const b = (await S.exporter.exportBundle()).value;
+      expect(S.bundleCheck.validateBundle(b).ok).toBe(true);
+      const bad = JSON.parse(JSON.stringify(b));
+      bad.collections.quotes[0].customerId = 'gone';
+      expect(S.bundleCheck.validateBundle(bad).errors.some((e) => e.includes('quotes[0]: customerId gone does not exist'))).toBe(true);
+      const old = JSON.parse(JSON.stringify(b));
+      delete old.collections.quotes; delete old.collections.expenses;
+      expect(S.bundleCheck.validateBundle(old).ok).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

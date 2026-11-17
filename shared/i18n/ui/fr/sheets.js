@@ -1,0 +1,23 @@
+/* Shared components, French: le lecteur de tableurs (erreurs, parties d’un fichier qui ne sont pas importées) et les en-têtes de colonnes du tableau. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('fr', {
+  'ui.sheets.xls_old': 'Les anciens fichiers .xls ne sont pas pris en charge. Ouvrez le fichier dans Excel ou LibreOffice et enregistrez-le en .xlsx, .ods ou .csv.',
+  'ui.sheets.ods_not_zip': 'Ce fichier .ods n’est pas un tableur valide (ce n’est pas un paquet zip).',
+  'ui.sheets.xlsx_not_zip': 'Ce fichier .xlsx n’est pas un classeur valide (ce n’est pas un paquet zip).',
+  'ui.sheets.ods_no_content': 'Ce n’est pas un tableur OpenDocument (pas de content.xml)',
+  'ui.sheets.ods_not_sheet': 'Ce fichier OpenDocument n’est pas un tableur',
+  'ui.sheets.no_sheets': 'Ce classeur ne contient aucune feuille de calcul',
+  'ui.sheets.xlsx_no_workbook': 'Ce n’est pas un classeur Excel (pas de xl/workbook.xml)',
+  'ui.sheets.xlsx_missing': 'Élément manquant dans le classeur : {part}',
+  'ui.sheets.part_pictures': 'images',
+  'ui.sheets.part_charts': 'graphiques',
+  'ui.sheets.part_chart_sheets': 'feuilles de graphique',
+  'ui.sheets.part_pivots': 'tableaux croisés dynamiques (leurs valeurs sont conservées)',
+  'ui.sheets.part_comments': 'commentaires',
+  'ui.sheets.part_macros': 'macros',
+  'ui.sheets.part_cond': 'mise en forme conditionnelle',
+  'ui.sheets.part_validation': 'validation des données',
+  'ui.sheets.part_filters': 'filtres',
+  'ui.sheets.sort_col': 'Trier la colonne {col}',
+  'ui.sheets.filter_col': 'Filtrer la colonne {col}',
+  'ui.sheets.col_filtered': 'La colonne {col} est filtrée',
+});

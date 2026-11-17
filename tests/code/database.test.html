@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: FileMaker files</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/viewers.js, code/js/docs.js
+  // A FileMaker file opens in Slop Code as a read-only database view: its tables as a grid (the shared viewer, shared/fmp), not as
+  // text or bytes. The table export FileMaker writes (FMPXMLRESULT) is small enough to build here.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H } = CT;
+  const XML = '<?xml version="1.0" encoding="UTF-8"?>\n<FMPXMLRESULT xmlns="http://www.filemaker.com/fmpxmlresult"><ERRORCODE>0</ERRORCODE>'
+    + '<PRODUCT BUILD="" NAME="FileMaker" VERSION="Pro 12"/><DATABASE DATEFORMAT="MM/dd/yyyy" LAYOUT="" NAME="Parts" RECORDS="3" TIMEFORMAT="h:mm:ss a"/>'
+    + '<METADATA><FIELD EMPTYOK="YES" MAXREPEAT="1" NAME="Part" TYPE="TEXT"/><FIELD EMPTYOK="YES" MAXREPEAT="1" NAME="Qty" TYPE="NUMBER"/></METADATA>'
+    + '<RESULTSET FOUND="3"><ROW MODID="1" RECORDID="1"><COL><DATA>bolt</DATA></COL><COL><DATA>10</DATA></COL></ROW>'
+    + '<ROW MODID="2" RECORDID="2"><COL><DATA>nut</DATA></COL><COL><DATA>200</DATA></COL></ROW>'
+    + '<ROW MODID="3" RECORDID="3"><COL><DATA>host 10.1.2.3</DATA></COL><COL><DATA>1</DATA></COL></ROW></RESULTSET></FMPXMLRESULT>';
+  describe('Slop Code: FileMaker files', () => {
+    it('a table export opens as a grid, read only', async () => {
+      const w = await frame('../../code/');
+      const id = await H().put(text(XML, 'application/xml'), { name: 'parts.fmpxml', from: 'test' });
+      await w.SlopCode.openRecord(await H().get(id));
+      const viewer = () => w.document.getElementById('cd-viewer');
+      await waitFor(() => viewer().textContent.includes('bolt') && viewer().textContent.includes('Qty'), { timeout: 20000 });
+      expect(viewer().textContent).toContain('nut');
+      expect(w.document.getElementById('cd-save').disabled).toBe(true);
+      expect(w.document.getElementById('cd-status').textContent).toContain('FileMaker database');
+    }, { timeout: 60000 });
+    it('the find list finds a kind of text: the row with an IP address', async () => {
+      const w = await frame('../../code/');
+      const id = await H().put(text(XML, 'application/xml'), { name: 'parts.fmpxml', from: 'test' });
+      await w.SlopCode.openRecord(await H().get(id));
+      const q = (sel) => w.document.querySelector('#cd-viewer ' + sel);
+      await waitFor(() => q('.sfv-find-kind'), { timeout: 20000 });
+      const sel = q('.sfv-find-kind');
+      sel.value = 'ipv4'; sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+      await waitFor(() => /row 3/.test(q('.sfv-find-st').textContent), { timeout: 10000 });
+      expect(q('.sfv-find-st').textContent).toContain('3');
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Code: FileMaker files' });
+  </script>
+</body>
+</html>

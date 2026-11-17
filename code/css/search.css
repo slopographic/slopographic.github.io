@@ -1,0 +1,33 @@
+/* Slop Code: Search in files (the sidebar section drawn by js/search.js). */
+.cd-sec[data-sec="search"] .cd-sec-body { max-height: 62vh; }
+.cd-find { display: grid; gap: 6px; padding: 2px 8px 10px; }
+.cd-find-row { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.cd-find-row .sui-input, .cd-find-row .sui-select { flex: 1; min-width: 0; width: 100%; }
+.cd-find-tog { flex: none; min-width: 26px; height: 26px; padding: 0 4px; border: 1px solid var(--cd-line); border-radius: 6px; background: none; color: var(--cd-dim); font: 600 11px/1 ui-monospace, monospace; cursor: pointer; }
+.cd-find-tog:hover, .cd-find-tog:focus-visible { color: var(--cd-fg); outline: none; background: var(--cd-hover); }
+.cd-find-tog[aria-pressed="true"] { color: var(--cd-accent); border-color: var(--cd-accent); background: var(--cd-on); }
+.cd-find-btns .sui-btn { flex: 1; }
+.cd-find-status { margin: 0; min-height: 1.3em; color: var(--cd-dim); font-size: 12px; line-height: 1.4; }
+.cd-find-status[data-kind="err"] { color: var(--cd-danger, #c0392b); }
+.cd-find-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cd-find-head { display: flex; align-items: center; gap: 4px; }
+.cd-find-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 3px 4px; border: 0; background: none; color: var(--cd-fg); cursor: pointer; text-align: left; border-radius: 4px; font-size: 12px; }
+.cd-find-name::before { content: '▾'; font-size: 9px; color: var(--cd-faint); }
+.cd-find-name[aria-expanded="false"]::before { content: '▸'; }
+.cd-find-name:hover, .cd-find-name:focus-visible { background: var(--cd-hover); outline: none; }
+.cd-find-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-find-n { flex: none; padding: 0 6px; border-radius: 8px; background: var(--cd-on); color: var(--cd-dim); font-size: 11px; }
+.cd-find-hits { list-style: none; margin: 0 0 4px; padding: 0 0 0 14px; }
+.cd-find-hit { display: flex; gap: 6px; width: 100%; padding: 2px 4px; border: 0; background: none; color: var(--cd-dim); cursor: pointer; text-align: left; border-radius: 4px; font: 12px/1.45 ui-monospace, monospace; }
+.cd-find-hit:hover, .cd-find-hit:focus-visible { background: var(--cd-hover); color: var(--cd-fg); outline: none; }
+.cd-find-ln { flex: none; min-width: 3ch; text-align: right; color: var(--cd-faint); }
+.cd-find-tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.cd-find-tx mark { background: var(--cd-on); color: var(--cd-accent); border-radius: 2px; }
+.cd-find-more, .cd-find-skip { padding: 2px 6px; color: var(--cd-faint); font-size: 11px; }
+
+/* Kinds of text in this file (js/findkinds.js) */
+.cd-kinds-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; min-width: min(420px, 80vw); }
+.cd-kinds-row { display: flex; align-items: center; gap: 8px; }
+.cd-kinds-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.cd-kinds-warn { font-style: normal; font-size: 11px; color: var(--cd-danger, #c0392b); }
+.cd-kinds-n { flex: none; padding: 0 8px; border-radius: 8px; background: var(--cd-on); color: var(--cd-dim); font-size: 12px; }

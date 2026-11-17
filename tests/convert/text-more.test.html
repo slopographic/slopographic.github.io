@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: HTML to Markdown, CSV tables, JSON Lines, UTF-8, EPUB books, ASS and SBV subtitles</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/core/html-md.js, convert/js/core/epub.js, convert/js/core/text-more.js, convert/js/core/table-out.js
+  // Covers: convert/js/core/encoding.js, convert/js/core/jsonl.js, convert/js/core/subs-more.js, convert/js/preview/spec.js
+  // Real files go through the catalog's own run(): a hand-written HTML page, CSV, JSON Lines, a Windows-1252 CSV, ASS and SBV
+  // subtitles, and an EPUB book made by epub-fixture.js; then EPUB to PDF through Markdown, read back as text.
+  import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+  import { detectKind } from '../../convert/js/core/detect.js';
+  import { acceptsText, REVERSE } from '../../convert/js/preview/spec.js';
+  import { runChain } from '../../convert/js/core/chain-run.js';
+  import { routeTo } from '../../convert/js/core/chain.js';
+  import { makeEpub } from './epub-fixture.js';
+  const { describe, it, expect } = SlopTest;
+  const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+  const kindOf = (f) => detectKind(f.name, f.type, null);
+  const run = async (id, file, o = {}) => conv(id).run([{ name: file.name, file, kind: kindOf(file) }], o);
+  const one = async (id, file, o) => { const r = await run(id, file, o); return { name: r[0].name, text: await r[0].blob.text(), info: r.info, out: r[0] }; };
+  const ids = (kind) => conversionsFor([kind]).map((c) => c.id);
+
+  const PAGE = `<!doctype html><html><head><title>t</title><style>p{color:red}</style><script>alert(1)<\/script></head><body>
+    <h1>Release <em>notes</em></h1>
+    <p>Version <strong>2.0</strong> is out. Read the <a href="https://example.com/docs" title="Docs">docs</a> or mail us.<br>Thanks!</p>
+    <ul><li>Faster</li><li>Smaller<ol start="3"><li>Three</li><li>Four</li></ol></li></ul>
+    <pre><code class="language-js">const a = 1;
+console.log(a * 2);</code></pre>
+    <blockquote><p>Quote one</p><p>Quote two</p></blockquote>
+    <table><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody><tr><td>a|b</td><td><code>x</code></td></tr></tbody></table>
+    <p>Prices *not* bold: 5_000 and [brackets]. <img src="pic one.png" alt="A pic"></p><hr><div>Loose text<p>and a paragraph</p></div>
+  </body></html>`;
+
+  describe('HTML to Markdown', () => {
+    it('headings, emphasis, links, breaks, nested lists, code, quotes, tables, images; scripts and styles left out', async () => {
+      const r = await one('html-to-md', new File([PAGE], 'notes.html', { type: 'text/html' }));
+      expect(r.name).toBe('notes.md');
+      expect(r.text).toBe(['# Release *notes*', '', 'Version **2.0** is out. Read the [docs](https://example.com/docs "Docs") or mail us.  ', 'Thanks!', '',
+        '- Faster', '- Smaller', '  3. Three', '  4. Four', '', '```js', 'const a = 1;', 'console.log(a * 2);', '```', '', '> Quote one', '>', '> Quote two', '',
+        '| Key | Value |', '| --- | --- |', '| a\\|b | `x` |', '', 'Prices \\*not\\* bold: 5\\_000 and \\[brackets\\]. ![A pic](pic%20one.png)', '', '---', '', 'Loose text', '', 'and a paragraph', ''].join('\n'));
+      expect(r.text.includes('alert') || r.text.includes('color:red')).toBe(false);
+    });
+    it('an empty page says so; HTML now routes to Word through Markdown', async () => {
+      let msg = '';
+      try { await run('html-to-md', new File(['<html><body> </body></html>'], 'e.html')); } catch (e) { msg = e.message; }
+      expect(msg).toMatch(/no text/);
+      expect(ids('html')).toContain('html-to-md');
+    });
+  });
+
+  describe('CSV tables, the separator and JSON Lines', () => {
+    const csv = new File(['Item;Qty;Note\nTea;2;"green, loose"\nCups;12;\n'], 'order.csv', { type: 'text/csv' });
+    it('CSV to a Markdown table and an HTML page that a browser reads back as a table', async () => {
+      const md = await one('csv-to-md', csv, { delimiter: 'auto', header: true, align: true });
+      expect(md.text).toBe('| Item | Qty | Note |\n| --- | ---: | --- |\n| Tea | 2 | green, loose |\n| Cups | 12 |  |\n');
+      const html = await one('csv-to-html', csv, { header: true, standalone: true });
+      const doc = new DOMParser().parseFromString(html.text, 'text/html');
+      expect([html.name, doc.title, doc.querySelectorAll('tbody tr').length, doc.querySelector('th:nth-child(3)').textContent, doc.querySelector('tbody tr td:nth-child(3)').textContent])
+        .toEqual(['order.html', 'order', 2, 'Note', 'green, loose']);
+    });
+    it('CSV to TSV, and a TSV file reads as CSV', async () => {
+      const r = await one('csv-separator', csv, { delimiter: 'auto', to: '\t' });
+      expect([r.name, r.text]).toEqual(['order.tsv', 'Item\tQty\tNote\nTea\t2\tgreen, loose\nCups\t12\t\n']);
+      expect(detectKind('order.tsv', '', null)).toBe('csv');
+      const back = await one('csv-to-json', new File([r.text], 'order.tsv'), { delimiter: 'auto', header: true });
+      expect(JSON.parse(back.text)[0]).toEqual({ Item: 'Tea', Qty: '2', Note: 'green, loose' });
+    });
+    it('JSON Lines to JSON and back, swappable in the preview', async () => {
+      const lines = new File(['{"id":1,"tag":"ä"}\n{"id":2,"tag":null}\n'], 'log.jsonl');
+      const j = await one('jsonl-to-json', lines, { indent: '0' });
+      expect([j.name, j.text]).toEqual(['log.json', '[{"id":1,"tag":"ä"},{"id":2,"tag":null}]']);
+      const l = await one('json-to-jsonl', new File([j.text], 'log.json'));
+      expect([l.name, l.text, l.info]).toEqual(['log.jsonl', '{"id":1,"tag":"ä"}\n{"id":2,"tag":null}\n', '2 lines.']);
+      expect([REVERSE['jsonl-to-json'], acceptsText(conv('jsonl-to-json')), acceptsText(conv('ass-to-srt'))]).toEqual(['json-to-jsonl', true, true]);
+    });
+  });
+
+  describe('text encoding to UTF-8', () => {
+    it('a Windows-1252 CSV is read right and saved as UTF-8 with its own extension', async () => {
+      const bytes = Uint8Array.from([0x4e, 0x61, 0x6d, 0x65, 0x3b, 0x50, 0x72, 0x69, 0x73, 0x0a, 0x4b, 0x61, 0x66, 0x66, 0xe9, 0x3b, 0x80, 0x35, 0x0a]);   // Name;Pris / Kaffé;€5
+      const r = await one('text-to-utf8', new File([bytes], 'prices.csv'), { from: 'auto' });
+      expect([r.name, r.text, r.info]).toEqual(['prices-utf8.csv', 'Name;Pris\nKaffé;€5\n', 'Read as Western (Windows-1252) (detected), saved as UTF-8.']);
+      expect(r.out.kind).toBe('csv');
+      const k = await one('text-to-utf8', new File([Uint8Array.from([0xcf, 0xf0, 0xe8])], 'ru.txt'), { from: 'windows-1251', bom: true });
+      expect([...new Uint8Array(await r.out.blob.arrayBuffer()).slice(14, 16)]).toEqual([0xc3, 0xa9]);   // é as UTF-8
+      expect([...new Uint8Array(await k.out.blob.arrayBuffer())]).toEqual([0xef, 0xbb, 0xbf, 0xd0, 0x9f, 0xd1, 0x80, 0xd0, 0xb8]);   // the UTF-8 mark, then При
+    });
+  });
+
+  describe('subtitles: ASS, SSA and SBV', () => {
+    it('ASS to SRT and VTT, and YouTube SBV to SRT', async () => {
+      const ass = new File(['[Script Info]\nTitle: x\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,{\\i1}Hi{\\i0}, you\\Nthere\n'], 'ep1.ass');
+      expect(kindOf(ass)).toBe('ass');
+      expect((await one('ass-to-srt', ass)).text).toBe('1\n00:00:01,000 --> 00:00:02,500\n<i>Hi</i>, you\nthere\n');
+      expect((await one('ass-to-vtt', ass, { shift: -0.5 })).text).toBe('WEBVTT\n\n00:00:00.500 --> 00:00:02.000\n<i>Hi</i>, you\nthere\n');
+      const sbv = await one('sbv-to-srt', new File(['0:00:01.000,0:00:02.000\nHello\n'], 'captions.sbv'));
+      expect([sbv.name, sbv.text]).toEqual(['captions.srt', '1\n00:00:01,000 --> 00:00:02,000\nHello\n']);
+    });
+  });
+
+  describe('EPUB books', () => {
+    it('to text: title, author, the chapters in spine order, the picture as its alt text', async () => {
+      const r = await one('epub-to-txt', await makeEpub());
+      expect(r.name).toBe('lighthouse.txt');
+      const t = r.text;
+      expect(t.startsWith('The Lighthouse Keeper\n\nAda Strand\n\n\nChapter One')).toBe(true);
+      expect(t.indexOf('Chapter One') < t.indexOf('Chapter Two') && !t.includes('Contents')).toBe(true);
+      for (const s of ['The lamp was lit at dusk, every day.', '[A brass lamp]', '- cotton', 'Göteborg, Malmö — مرحبا', 'Storms come in threes.']) expect(t).toContain(s);
+    });
+    it('to Markdown: headings, emphasis, nested lists, the quote, the table', async () => {
+      const t = (await one('epub-to-md', await makeEpub())).text;
+      for (const s of ['# The Lighthouse Keeper\n\n*Ada Strand*', '# Chapter One', 'The *lamp* was lit at **dusk**, every day.', '- Wick\n  - cotton', '> Storms come in threes.',
+        '| Day | Wind |\n| --- | --- |\n| Monday | 12 m/s |', '[chapter one](ch1.xhtml#top)']) expect(t).toContain(s);
+    });
+    it('to one HTML page with the picture inside it', async () => {
+      const r = await one('epub-to-html', await makeEpub());
+      const doc = new DOMParser().parseFromString(r.text, 'text/html');
+      expect([doc.title, doc.querySelectorAll('body > section').length, doc.querySelectorAll('h1').length]).toEqual(['The Lighthouse Keeper', 2, 3]);
+      const img = doc.querySelector('img');
+      expect([img.getAttribute('alt'), img.getAttribute('src').startsWith('data:image/png;base64,')]).toEqual(['A brass lamp', true]);
+      await new Promise((res, rej) => { const i = new Image(); i.onload = () => (i.naturalWidth === 4 ? res() : rej(new Error('size'))); i.onerror = rej; i.src = img.getAttribute('src'); });
+    });
+    it('a DRM-locked book is refused with the reason', async () => {
+      let msg = '';
+      try { await run('epub-to-txt', await makeEpub({ drm: true })); } catch (e) { msg = e.message; }
+      expect(msg).toMatch(/protected with DRM/);
+    });
+    it('EPUB to PDF: through Markdown, then the PDF has the chapters as text', async () => {
+      const f = await makeEpub({ arabic: false });
+      expect(ids('epub').filter((i) => !conv(i).from.includes('*'))).toEqual(['epub-to-txt', 'epub-to-md', 'epub-to-html']);
+      expect(routeTo('epub', 'pdf')).toBe('epub-to-md>md-to-pdf');
+      const steps = [{ conv: conv('epub-to-md'), to: 'md' }, { conv: conv('md-to-pdf'), to: 'pdf' }];
+      const res = await runChain(steps, [{ id: 1, name: f.name, file: f, kind: 'epub' }], { optsFor: () => ({ page: 'a4', font: 'serif' }) });
+      expect(res.errors).toEqual([]);
+      const pdf = res.outputs[0];
+      expect(pdf.name).toBe('lighthouse.pdf');
+      const text = await (await run('pdf-to-text', new File([pdf.blob], 'lighthouse.pdf'))).at(0).blob.text();
+      for (const s of ['The Lighthouse Keeper', 'Chapter One', 'Storms come in threes']) expect(text).toContain(s);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'File convert: text, tables, JSON Lines, encodings, EPUB and subtitles' });
+  </script>
+</body>
+</html>

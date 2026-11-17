@@ -1,0 +1,102 @@
+/* Slop Code: layout, tokens and the chrome (toolbar, file tree, tabs, status bar, empty state). */
+/* Colours come from the shared Slop theme (shared/theme/theme.js sets --sl-* on the page). The fallbacks are the Dark look. */
+:root {
+  --cd-bg: var(--sl-background, #0e0e10); --cd-panel: var(--sl-surface, #17171b); --cd-line: var(--sl-border, #2c2c34);
+  --cd-fg: var(--sl-text, #f1ede4); --cd-dim: color-mix(in srgb, var(--cd-fg) 75%, transparent); --cd-faint: color-mix(in srgb, var(--cd-fg) 65%, transparent);
+  --cd-accent: var(--sl-accent, #d4ff3a); --cd-ink: var(--sl-on-accent, #0e0e10);
+  --cd-hover: color-mix(in srgb, var(--cd-fg) 7%, transparent); --cd-on: color-mix(in srgb, var(--cd-accent) 14%, transparent);
+  --cd-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --cd-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* syntax colours: the light set on the light and Classic 98 themes, the dark set elsewhere */
+  --cd-kw: #ff9ec7; --cd-str: #b8e994; --cd-num: #ffcb6b; --cd-com: #7b7f8a; --cd-fn: #82aaff; --cd-tag: #ff7b7b;
+  --cd-attr: #f5c178; --cd-prop: #9ad8ff; --cd-type: #c3a6ff; --cd-op: #c7c7cc; --cd-err: #ff4f6e;
+  --cd-tree-w: 232px;
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"], :root[data-slop-theme="classic"] {
+  --cd-kw: #a2215f; --cd-str: #2b6e1c; --cd-num: #9a5b00; --cd-com: #7f8590; --cd-fn: #1f5bb5; --cd-tag: #b3261e;
+  --cd-attr: #8a4b00; --cd-prop: #0d5f7d; --cd-type: #6a2fb5; --cd-op: #3c3a35; --cd-err: #b3261e;
+  color-scheme: light;
+}
+/* SlopUI dialogs, menus and toasts follow the Code tokens (the shared --s-* fallbacks are fixed greys) */
+:root {
+  --sui-bg: var(--cd-panel); --sui-bg2: var(--cd-bg); --sui-input: var(--cd-bg); --sui-line: var(--cd-line);
+  --sui-fg: var(--cd-fg); --sui-dim: var(--cd-dim); --sui-faint: var(--cd-faint); --sui-hover: var(--cd-hover);
+  --sui-sel: var(--cd-on); --sui-accent: var(--cd-accent); --sui-accent-ink: var(--cd-ink);
+}
+/* slopui.css gives .sui-btn its --s-* colours only inside its own dialogs and menus: these are for the app's buttons. */
+.cd-app { --s-bg2: var(--cd-bg); --s-line: var(--cd-line); --s-fg: var(--cd-fg); --s-hover: var(--cd-hover); --s-accent: var(--cd-accent); --s-accent-ink: var(--cd-ink); --s-radius: 6px; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--cd-bg); color: var(--cd-fg); font: 14px/1.4 var(--cd-sans); overflow: hidden; }
+button { font: inherit; color: inherit; }
+.cd-app { height: 100%; display: grid; grid-template-columns: var(--cd-tree-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.cd-app.cd-tree-hidden { grid-template-columns: minmax(0, 1fr); }
+.cd-app.cd-tree-hidden .cd-tree { display: none; }
+.cd-app.cd-pv-open { grid-template-columns: var(--cd-tree-w) minmax(0, 1fr) minmax(300px, 44%); }
+.cd-app.cd-tree-hidden.cd-pv-open { grid-template-columns: minmax(0, 1fr) minmax(300px, 44%); }
+
+/* toolbar */
+.cd-top { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--cd-line); background: var(--cd-panel); min-width: 0; }
+/* The shared header buttons (Tour, Theme, Apps, the bell: shared/ui/hbtn.css) wear the look of the toolbar's .sui-btn. */
+.cd-top { --slop-hbtn-h: 32px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: var(--cd-bg); --slop-hbtn-line: var(--cd-line); --slop-hbtn-hover: var(--cd-hover); --slop-hbtn-fs: 14px; }
+.cd-files-btn { display: none; }
+.cd-top .sui-btn { height: 32px; }
+.cd-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cd-brand h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.cd-brand .brand { display: grid; place-items: center; width: 28px; height: 28px; flex: none; color: var(--cd-fg); }
+.cd-brand .brand-mark { width: 20px; height: 20px; fill: currentColor; }
+.cd-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; min-width: 0; }
+.cd-tools .sui-btn { white-space: nowrap; }
+
+/* file tree */
+.cd-tree { grid-row: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--cd-line); background: var(--cd-panel); }
+/* the section headers of the Explorer sidebar are in explorer.css */
+.cd-mini { font-size: 12px; padding: 3px 8px; }
+.cd-tree-list { padding: 0 4px 12px; }
+.cd-row { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; border: 0; background: none; text-align: left; padding: 5px 8px; border-radius: 6px; cursor: pointer; color: var(--cd-fg); }
+.cd-row:hover, .cd-row:focus-visible { background: var(--cd-hover); outline: none; }
+.cd-row.on { background: var(--cd-on); color: var(--cd-accent); }
+.cd-row.cd-dir .cd-nm { font-weight: 600; }
+.cd-ic { flex: none; width: 30px; font: 600 10px/1 var(--cd-mono); color: var(--cd-faint); text-align: left; }
+.cd-dir .cd-ic { width: 12px; font-size: 13px; color: var(--cd-dim); }
+.cd-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-hint { color: var(--cd-faint); font-size: 13px; padding: 8px; }
+
+/* main column */
+.cd-main { grid-column: 2; grid-row: 2; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; }
+.cd-app.cd-tree-hidden .cd-main { grid-column: 1; }
+.cd-tabs { display: flex; overflow-x: auto; min-width: 0; border-bottom: 1px solid var(--cd-line); background: var(--cd-panel); scrollbar-width: thin; }
+.cd-tab { display: flex; align-items: center; flex: none; border-right: 1px solid var(--cd-line); }
+.cd-tab-name { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 8px 6px 8px 12px; border: 0; background: none; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--cd-dim); }
+.cd-tab.on { background: var(--cd-bg); }
+.cd-tab.on .cd-tab-name { color: var(--cd-fg); box-shadow: inset 0 2px 0 var(--cd-accent); }
+.cd-dirty { color: var(--cd-accent); font-size: 16px; line-height: 1; }
+.cd-tab-x { border: 0; background: none; padding: 4px 9px 4px 4px; color: var(--cd-faint); cursor: pointer; font-size: 16px; line-height: 1; border-radius: 4px; }
+.cd-tab-x:hover, .cd-tab-x:focus-visible { color: var(--cd-fg); background: var(--cd-hover); outline: none; }
+.cd-editor { min-height: 0; min-width: 0; position: relative; overflow: hidden; }
+.cd-status { display: flex; flex-wrap: wrap; gap: 0 4px; align-items: center; min-height: 26px; padding: 3px 12px; border-top: 1px solid var(--cd-line); background: var(--cd-panel); color: var(--cd-dim); font: 12px/1.6 var(--cd-mono); }
+
+/* empty state */
+.cd-empty { padding: 32px clamp(16px, 6vw, 72px); max-width: 640px; overflow: auto; min-height: 0; }
+.cd-empty h2 { margin: 0 0 8px; font-size: 22px; }
+.cd-empty p { color: var(--cd-dim); line-height: 1.55; }
+.cd-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.cd-fine, .cd-note { color: var(--cd-faint); font-size: 12px; }
+.cd-tools .sui-btn:disabled, .cd-empty .sui-btn:disabled { opacity: .5; }
+
+/* on a phone the Explorer is a drawer: shared/ui/sheet.js gives it its place and motion (js/ui.js initDrawer) */
+@media (max-width: 719px) {
+  .cd-app, .cd-app.cd-tree-hidden, .cd-app.cd-pv-open, .cd-app.cd-tree-hidden.cd-pv-open { grid-template-columns: minmax(0, 1fr); }
+  .cd-app.cd-tree-hidden .cd-main { grid-column: auto; }
+  .cd-files-btn { display: inline-flex; align-items: center; }
+  .cd-tree-hidden .cd-tree { display: flex; }
+  .cd-main { grid-column: 1; }
+  .cd-brand { flex: 1 1 auto; }
+  /* the file and run buttons take the second row, and scroll sideways when they do not fit */
+  .cd-tools { order: 1; margin-left: 0; width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .cd-tools .sui-btn { padding: 0 10px; }
+  .cd-brand h1 { font-size: 14px; }
+  .cd-tab-name { max-width: 160px; }
+  .cd-empty { padding: 24px 16px; }
+}

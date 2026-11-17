@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><title>Slop Code: hex view</title>
+  <link rel="stylesheet" href="../../code/css/base.css">
+  <link rel="stylesheet" href="../../code/css/hex.css">
+  <style>#host { width: 900px; height: 420px; display: flex; flex-direction: column; border: 1px solid #888; } #host > * { flex: 1 1 auto; }</style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script type="module">
+  import { mountHex } from '../../code/js/hexview.js';
+  const flat = (x) => String(x).replace(/[^\p{L}\p{N}]/gu, '');
+  import { createChunks, CHUNK } from '../../code/js/hex-data.js';
+  import { search } from '../../code/js/hex-find.js';
+  import { HEX, CH, hex8, parseOffset, parseQuery, sizeLine } from '../../code/js/hex-fmt.js';
+  const { describe, it, afterEach, expect, waitFor, contrast } = SlopTest;
+
+  // The English words of every code.hex.* key (the lead adds them to the app's tables); a test below fails for a key used but not listed.
+  const KEYS = {
+    'code.hex.label': 'Hex dump', 'code.hex.goto': 'Go to offset', 'code.hex.goto_ph': '0x1F40 or 8000', 'code.hex.go': 'Go', 'code.hex.find': 'Find',
+    'code.hex.find_ph': 'Hex bytes (89 50 4e 47) or text', 'code.hex.next': 'Next', 'code.hex.prev': 'Previous', 'code.hex.bytes': '{bytes} bytes',
+    'code.hex.bytes#one': '{bytes} byte', 'code.hex.size': '{size} ({bytes})', 'code.hex.byte': 'Offset {offset} · {hex} · {dec} · {char}',
+    'code.hex.found': 'Found at offset {offset}', 'code.hex.not_found': 'Not found', 'code.hex.searching': 'Searching… {pct}%', 'code.hex.empty': 'This file is empty.',
+    'code.hex.bad_offset': 'Enter an offset such as 0x1F40 or 8000', 'code.hex.range': 'That offset is past the end of the file ({size} bytes)',
+  };
+  SlopI18n.add('en', KEYS);
+
+  const host = document.getElementById('host');
+  const frames = (n = 2) => new Promise((res) => { let i = 0; const f = () => (++i >= n ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+  const q = (s) => host.querySelector(s), rowAt = (off) => q(`.cd-hex-row[data-off="${off}"]`), scroller = () => q('.cd-hex-scroll');
+  const fullRows = () => Math.floor(scroller().clientHeight / 20), drawn = () => host.querySelectorAll('.cd-hex-row').length;
+  const key = (target, k, init = {}) => target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }));
+  const type = (input, v) => { input.value = v; };
+  const status = () => q('.cd-hex-status').textContent, info = () => q('.cd-hex-info').textContent;
+  const filled = (off) => rowAt(off) && !rowAt(off).classList.contains('cd-hex-wait');
+  /** The offset of the first row that starts at or below the top of the scroller. */
+  const firstOff = () => { const top = scroller().getBoundingClientRect().top - 0.5, r = [...host.querySelectorAll('.cd-hex-row')].find((x) => x.getBoundingClientRect().top >= top); return r ? Number(r.dataset.off) : -1; };
+  /** What a row must read, written here on its own from the bytes. */
+  function expectRow(b, off) {
+    const hex = [], asc = [];
+    for (let j = 0; j < 16; j++) { const v = off + j < b.length ? b[off + j] : -1; hex.push(v < 0 ? '  ' : v.toString(16).padStart(2, '0')); if (v >= 0) asc.push(v >= 32 && v < 127 ? String.fromCharCode(v) : '.'); }
+    return `${off.toString(16).padStart(8, '0')}  ${hex.slice(0, 8).join(' ')}  ${hex.slice(8).join(' ')}  |${asc.join('')}|`;
+  }
+  // A 12,704-byte file with a PNG start, some text, and the signature again at 5000 and 12000.
+  const SIG = [0x89, 0x50, 0x4e, 0x47], enc = (s) => new TextEncoder().encode(s);
+  const data = new Uint8Array(12704).map((_, i) => (i * 7 + 3) & 255);
+  data.set([...SIG, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52], 0);
+  data.set(enc('Hello, hex view!'), 32); data.set(SIG, 5000); data.set(SIG, 12000); data.set(enc('needle-text'), 7777);
+  const blob = new Blob([data]);
+  let h = null, bigBlob = null;
+  const big = () => bigBlob || (bigBlob = new Blob([new Uint8Array(70e6)]));
+  async function show(b = blob, opts = { name: 'photo.png', kind: 'PNG image' }) { h = mountHex(host, b, opts); await waitFor(() => filled(0)); return h; }
+
+  describe('Slop Code: hex view', () => {
+    afterEach(() => { if (h) h.destroy(); h = null; host.replaceChildren(); });
+
+    it('writes the rows as a hex dump: offset, two groups of eight bytes, and the ASCII column', async () => {
+      await show();
+      expect(rowAt(0).textContent).toBe('00000000  89 50 4e 47 0d 0a 1a 0a  00 00 00 0d 49 48 44 52  |.PNG........IHDR|');
+      expect(rowAt(32).textContent).toBe('00000020  48 65 6c 6c 6f 2c 20 68  65 78 20 76 69 65 77 21  |Hello, hex view!|');
+      for (const off of [0, 16, 32, 48, 160]) expect(rowAt(off).textContent).toBe(expectRow(data, off));
+      expect([rowAt(0).querySelectorAll('.cd-hex-b').length, rowAt(0).querySelectorAll('.cd-hex-c').length]).toEqual([16, 16]);
+      expect([rowAt(0).classList.contains('cd-hex-alt'), rowAt(16).classList.contains('cd-hex-alt')]).toEqual([false, true]);   // zebra
+      const small = new Uint8Array(21).map((_, i) => 65 + i);   // a short last row keeps the ASCII column in line
+      h.destroy();
+      await show(new Blob([small]), {});
+      expect([rowAt(16).textContent, rowAt(16).textContent.length]).toEqual([expectRow(small, 16), rowAt(0).textContent.length - 11]);
+      expect(rowAt(16).textContent.endsWith('|QRSTU|')).toBe(true);
+    });
+
+    it('has a header with the name, the size and the kind', async () => {
+      await show();
+      expect([q('.cd-hex-name').textContent, flat(q('.cd-hex-size').textContent), q('.cd-hex-kind').textContent]).toEqual(['photo.png', flat('12.4 KB (12,704 bytes)'), 'PNG image']); // flat: the page's number format does not matter here
+      expect([0, 1, 512, 1024, 1536, 5 * 1048576, 2 * 1024 ** 3].map(sizeLine).map(flat)).toEqual(['0 bytes', '1 byte', '512 bytes', '1 KB (1,024 bytes)', '1.5 KB (1,536 bytes)', '5 MB (5,242,880 bytes)', '2 GB (2,147,483,648 bytes)'].map(flat));
+    });
+
+    it('is a focusable, labelled region with a spacer, and only the rows on screen exist', async () => {
+      await show();
+      const sc = scroller();
+      expect([sc.getAttribute('tabindex'), sc.getAttribute('role'), sc.getAttribute('aria-label')]).toEqual(['0', 'region', 'Hex dump']);
+      expect([sc.hasAttribute('data-touch-surface'), getComputedStyle(sc).touchAction, q('.cd-hex-space').style.height]).toEqual([true, 'pan-x pan-y', 794 * 20 + 'px']);   // a drag has to scroll
+      const first = drawn();
+      sc.scrollTop = 6000 * 20 / 16;   // row 375 is the first on screen
+      await waitFor(() => rowAt(6000));
+      expect([first > 20 && first < 45, drawn() < 45, rowAt(6000).textContent, rowAt(0)]).toEqual([true, true, expectRow(data, 6000), null]);
+    });
+
+    it('goes to an offset given in hex or decimal, marks the byte in both columns, and says what it is', async () => {
+      await show();
+      const box = q('.cd-hex-goto'), v = data[8000];
+      type(box, '0x1F40'); key(box, 'Enter');
+      await waitFor(() => rowAt(8000) && q('.cd-hex-sel'));
+      const marked = [...host.querySelectorAll('.cd-hex-sel')];
+      expect([marked.map((n) => n.className.split(' ')[0]).sort(), marked.every((n) => n.parentNode === rowAt(8000)), info()]).toEqual([['cd-hex-b', 'cd-hex-c'], true, `Offset 0x1f40 · 0x${HEX[v]} · ${v} · ${CH[v]}`]);
+      expect(rowAt(8000).getBoundingClientRect().top).toBeGreaterThan(scroller().getBoundingClientRect().top);
+      type(box, '8001'); key(box, 'Enter');
+      await waitFor(() => info().startsWith('Offset 0x1f41') && rowAt(8000).querySelectorAll('.cd-hex-b')[1].classList.contains('cd-hex-sel'));
+      expect(host.querySelectorAll('.cd-hex-sel').length).toBe(2);
+      type(box, 'zzz'); key(box, 'Enter');
+      const bad = status();
+      type(box, '12704'); key(box, 'Enter');
+      expect([bad, status()]).toEqual(['Enter an offset such as 0x1F40 or 8000', 'That offset is past the end of the file (12704 bytes)']);
+      h.goto(5);
+      await waitFor(() => info().startsWith('Offset 0x5 · 0x'));
+      h.goto(1e9);   // past the end: the last byte
+      await waitFor(() => info().startsWith('Offset 0x319f'));
+    });
+
+    it('finds hex bytes and text, forward and backward, and says when it does not', async () => {
+      await show();
+      const box = q('.cd-hex-findbox');
+      expect([await h.find('89 50 4e 47'), status()]).toEqual([true, 'Found at offset 0x0']);
+      expect([await h.find('0x89504e47'), status()]).toEqual([true, 'Found at offset 0x1388']);
+      type(box, '89 50 4e 47'); key(box, 'Enter');   // Enter is next
+      await waitFor(() => status() === 'Found at offset 0x2ee0');
+      expect(info().startsWith('Offset 0x2ee0 · 0x89')).toBe(true);
+      key(box, 'Enter');
+      await waitFor(() => status() === 'Found at offset 0x0');   // wraps round
+      key(box, 'Enter', { shiftKey: true });   // Shift+Enter is previous
+      await waitFor(() => status() === 'Found at offset 0x2ee0');
+      expect([await h.find('89 50 4e 47', true), status()]).toEqual([true, 'Found at offset 0x1388']);
+      expect([await h.find('needle-text'), status()]).toEqual([true, 'Found at offset 0x1e61']);
+      await waitFor(() => rowAt(7776));
+      expect([await h.find('IHDR', true), status()]).toEqual([true, 'Found at offset 0xc']);
+      expect([await h.find('no such thing in here'), status()]).toEqual([false, 'Not found']);
+      expect([await h.find('ff ff ff ff ff ff'), await h.find('   ')]).toEqual([false, false]);
+    });
+
+    it('marks a byte when it is clicked, in either column, with its offset and value', async () => {
+      await show();
+      const row = rowAt(32);
+      row.querySelectorAll('.cd-hex-b')[4].click();
+      await waitFor(() => info() === 'Offset 0x24 · 0x6f · 111 · o' && row.querySelectorAll('.cd-hex-sel').length === 2);
+      expect(row.querySelectorAll('.cd-hex-c')[4].classList.contains('cd-hex-sel')).toBe(true);
+      rowAt(0).querySelectorAll('.cd-hex-c')[12].click();
+      await waitFor(() => info() === 'Offset 0xc · 0x49 · 73 · I');
+      expect([host.querySelectorAll('.cd-hex-sel').length, row.querySelectorAll('.cd-hex-sel').length]).toEqual([2, 0]);
+      rowAt(0).querySelectorAll('.cd-hex-b')[0].click();
+      expect(info()).toBe('Offset 0x0 · 0x89 · 137 · .');
+    });
+
+    it('Ctrl+G focuses Go to offset, and everything can be reached by keyboard', async () => {
+      await show();
+      scroller().focus();
+      key(scroller(), 'g', { ctrlKey: true });
+      expect(document.activeElement).toBe(q('.cd-hex-goto'));
+      expect([...host.querySelectorAll('input, button, [tabindex="0"]')].filter((n) => n.tabIndex >= 0).length).toBe(6);   // two inputs, three buttons, the scroller
+      expect([host.querySelectorAll('[aria-live]').length, q('.cd-hex-status').getAttribute('role')]).toEqual([2, 'status']);
+      scroller().focus();
+      const fr = fullRows();
+      key(scroller(), 'PageDown');
+      await waitFor(() => firstOff() === (fr - 1) * 16);
+      key(scroller(), 'ArrowDown');
+      await waitFor(() => firstOff() === fr * 16);
+      key(scroller(), 'End');
+      await waitFor(() => rowAt(12704 - 16) && firstOff() === (794 - fr) * 16);
+      key(scroller(), 'Home');
+      await waitFor(() => firstOff() === 0);
+    });
+
+    it('reads the file lazily, in aligned 64 KB chunks, and keeps sixteen', async () => {
+      const spy = { size: 3 * 1024 * 1024, reads: [], slice(a, b) { this.reads.push([a, b]); return new Blob([new Uint8Array(b - a)]); } };
+      await show(spy, {});
+      expect(spy.reads).toEqual([[0, CHUNK]]);
+      for (let c = 1; c < 40; c++) { scroller().scrollTop = c * CHUNK / 16 * 20; await waitFor(() => filled(c * CHUNK)); }
+      expect([spy.reads.every(([a, b]) => a % CHUNK === 0 && b - a === CHUNK), spy.reads.length]).toEqual([true, 40]);
+      scroller().scrollTop = 0;
+      await waitFor(() => filled(0));
+      expect(spy.reads.length).toBe(41);   // chunk 0 was dropped (only 16 are kept) and read again
+      const cache = createChunks(new Blob([new Uint8Array(20 * CHUNK)]), () => {});
+      for (let c = 0; c < 20; c++) { cache.at(c * CHUNK); await waitFor(() => cache.at(c * CHUNK)); }
+      expect(cache.size).toBe(16);
+      cache.dispose();
+    });
+
+    it('shows blank placeholders until a chunk arrives, then redraws', async () => {
+      const waiting = [], slow = { size: data.length, slice: (a, b) => ({ arrayBuffer: () => new Promise((res) => waiting.push(() => res(blob.slice(a, b).arrayBuffer()))) }) };
+      h = mountHex(host, slow, {});
+      await waitFor(() => rowAt(0) && waiting.length);
+      expect([rowAt(0).classList.contains('cd-hex-wait'), rowAt(0).textContent]).toEqual([true, '00000000  ' + ' '.repeat(23) + '  ' + ' '.repeat(23) + '  |' + ' '.repeat(16) + '|']);
+      waiting.splice(0).forEach((f) => f());
+      await waitFor(() => filled(0));
+      expect(rowAt(0).textContent).toBe(expectRow(data, 0));
+    });
+
+    it('scrolls a huge file end to end: the scroll position maps to the rows, and the last row is the last row', async () => {
+      await show(big(), { name: 'big.bin' });
+      expect(flat(q('.cd-hex-size').textContent)).toBe(flat('66.8 MB (70,000,000 bytes)'));
+      expect(parseFloat(q('.cd-hex-space').style.height)).toBeLessThan(8000001);
+      const sc = scroller(), bottom = () => sc.getBoundingClientRect().bottom;
+      sc.scrollTop = sc.scrollHeight;   // the very end
+      await waitFor(() => rowAt(69999984));
+      expect(rowAt(69999984).textContent.startsWith('042c1d70  00 00')).toBe(true);
+      expect([rowAt(69999984).getBoundingClientRect().bottom < bottom() + 1, rowAt(69999984).getBoundingClientRect().bottom > bottom() - 21, rowAt(70e6)]).toEqual([true, true, null]);
+      sc.scrollTop = (sc.scrollHeight - sc.clientHeight) / 2;   // the middle
+      await frames(3);
+      expect(Math.abs(firstOff() / 70e6 - 0.5)).toBeLessThan(0.001);
+      sc.scrollTop = 0;
+      await waitFor(() => rowAt(0));
+      expect(firstOff()).toBe(0);
+      const step = async (k, want) => { key(sc, k); await waitFor(() => firstOff() === want); };   // keys move one row, though a pixel of scroll is many rows here
+      await step('ArrowDown', 16);
+      await step('PageDown', fullRows() * 16);
+      await step('End', 70e6 - fullRows() * 16);
+      await step('ArrowUp', 70e6 - (fullRows() + 1) * 16);
+      h.goto(35e6 + 5);
+      await waitFor(() => info().startsWith('Offset 0x' + (35e6 + 5).toString(16) + ' ') && rowAt(35e6));
+      expect(rowAt(35e6).textContent.startsWith(hex8(35e6) + '  ')).toBe(true);
+    }, { timeout: 40000 });
+
+    it('keeps a 2 GB file smooth: a few rows drawn, quick to scroll, the end reachable', async () => {
+      const GB2 = 2 * 1024 ** 3, fake = { size: GB2, slice: (a, b) => ({ arrayBuffer: async () => new ArrayBuffer(b - a) }) };
+      await show(fake, {});
+      const sc = scroller(), t0 = performance.now();
+      for (let i = 1; i <= 40; i++) { sc.scrollTop = (sc.scrollHeight - sc.clientHeight) * i / 40; await frames(1); expect(drawn()).toBeLessThan(45); }
+      expect(performance.now() - t0).toBeLessThan(4000);
+      await waitFor(() => rowAt(GB2 - 16));
+      expect([rowAt(GB2 - 16).textContent.startsWith('7ffffff0  '), flat(q('.cd-hex-size').textContent)]).toEqual([true, flat('2 GB (2,147,483,648 bytes)')]);
+    }, { timeout: 40000 });
+
+    it('searches a big file in chunks, a new search replaces the old one, and destroy() ends it', async () => {
+      await show(new Blob([new Uint8Array(60e6), Uint8Array.of(1, 2, 3, 4, 5), new Uint8Array(10e6 - 5)]), {});
+      expect([await h.find('01 02 03 04 05'), status()]).toEqual([true, 'Found at offset 0x3938700']);
+      await waitFor(() => rowAt(60000000) && rowAt(60000000).textContent.includes('01 02 03 04 05'));
+      expect(rowAt(60000000).textContent.startsWith('03938700  01 02 03 04 05 00')).toBe(true);
+      const slowOne = h.find('ff ee dd cc'), second = h.find('01 02 03 04 05', true);
+      expect([await slowOne, await second, status()]).toEqual([false, true, 'Found at offset 0x3938700']);   // the first was replaced
+      expect([await h.find('ff ee dd cc'), status()]).toEqual([false, 'Not found']);
+      const gone = h.find('ff ee dd cc');
+      h.destroy();
+      expect([await gone, host.childNodes.length]).toEqual([false, 0]);
+    }, { timeout: 40000 });
+
+    it('finds across the edge of a window, forward, backward and wrapping', async () => {
+      const M = 1 << 20, zeros = new Uint8Array(3 * M), at = [M - 2, 2 * M - 2, 3 * M - 4], nd = Uint8Array.of(1, 2, 3, 4), no = () => false;
+      for (const o of at) zeros.set(nd, o);
+      const b = new Blob([zeros]), go = (from, back) => search(b, nd, from, back, no);
+      expect([await go(-1, false), await go(at[0], false), await go(at[2], false)]).toEqual([at[0], at[1], at[0]]);   // the last wraps
+      expect([await go(at[2], true), await go(at[0], true), await go(3 * M, true)]).toEqual([at[1], at[2], at[2]]);
+      expect([await search(b, Uint8Array.of(9, 9), 0, false, no), await search(b, new Uint8Array(0), 0, false, no), await search(b, nd, -1, false, () => true)]).toEqual([-1, -1, -1]);
+    });
+
+    it('reads what is typed: offsets, hex bytes and text', () => {
+      expect([parseOffset('0x1F40'), parseOffset(' 8000 '), parseOffset('0X10'), parseOffset('1,000'), parseOffset('zz'), parseOffset(''), parseOffset('0x')]).toEqual([8000, 8000, 16, 1000, NaN, NaN, NaN]);
+      expect(['89 50 4e 47', '0x89504e47', '0x89 0x50', '0xAB', 'ab', 'é'].map((x) => [...parseQuery(x)])).toEqual([SIG, SIG, [0x89, 0x50], [0xab], [97, 98], [0xc3, 0xa9]]);   // 'ab' alone is text
+      expect([parseQuery('  '), hex8(4096)]).toEqual([null, '00001000']);
+    });
+
+    it('destroy() empties the host, stops redrawing and makes the rest of the API do nothing; an empty file says so', async () => {
+      h = mountHex(host, new Blob([]), { name: 'empty.bin' });
+      expect([q('.cd-hex-empty').textContent, q('.cd-hex-size').textContent, await h.find('ab cd')]).toEqual(['This file is empty.', '0 bytes', false]);
+      h.goto(0); h.destroy();
+      await show();
+      const sc = scroller();
+      h.destroy();
+      sc.scrollTop = 500;
+      await frames(3);
+      expect(host.childNodes.length).toBe(0);
+      h.goto(10); h.destroy();
+      expect(await h.find('abc')).toBe(false);
+      host.append('keep');   // a new mount empties whatever is there first
+      h = mountHex(host, blob, {});
+      expect([host.textContent.includes('keep'), host.children.length]).toEqual([false, 1]);
+    });
+
+    it('follows the theme: the marked byte reads on its colour in dark and in light', async () => {
+      await show();
+      rowAt(0).querySelectorAll('.cd-hex-b')[2].click();
+      const root = document.documentElement, mark = () => { const s = getComputedStyle(q('.cd-hex-b.cd-hex-sel')); return [s.color, s.backgroundColor]; };
+      const dark = mark(), tokens = { '--sl-background': '#ffffff', '--sl-surface': '#f4f4f6', '--sl-text': '#16161a', '--sl-accent': '#1d4ed8', '--sl-on-accent': '#ffffff' };
+      expect(contrast(...dark)).toBeGreaterThan(7);
+      expect(getComputedStyle(q('.cd-hex-off')).color).not.toBe(getComputedStyle(q('.cd-hex-row')).color);   // the offset column is muted
+      root.setAttribute('data-slop-theme', 'light');
+      for (const [k, v] of Object.entries(tokens)) root.style.setProperty(k, v);
+      try {
+        await frames(2);
+        expect([String(mark()) !== String(dark), contrast(...mark()) > 4.5, getComputedStyle(q('.cd-hex')).backgroundColor]).toEqual([true, true, 'rgb(255, 255, 255)']);
+      } finally {
+        root.removeAttribute('data-slop-theme');
+        for (const k of Object.keys(tokens)) root.style.removeProperty(k);
+      }
+    });
+
+    it('uses click and pointer events only, makes no network call, and every word it shows is a key listed here', async () => {
+      let all = '';
+      for (const f of ['hexview', 'hex-data', 'hex-find', 'hex-fmt']) all += await (await fetch(`../../code/js/${f}.js`)).text();   // the test reads the sources; the app itself never fetches
+      expect(/mousedown|mousemove|mouseup|setPointerCapture/.test(all)).toBe(false);
+      expect(/\bfetch\s*\(|XMLHttpRequest|WebSocket/.test(all)).toBe(false);
+      const used = [...new Set([...all.matchAll(/'(code\.hex\.[a-z_#]+)'/g)].map((m) => m[1]))];
+      expect(used.filter((k) => !(k in KEYS))).toEqual([]);
+      expect(Object.keys(KEYS).filter((k) => !k.includes('#') && !used.includes(k))).toEqual([]);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: hex view' });
+  </script>
+</body>
+</html>

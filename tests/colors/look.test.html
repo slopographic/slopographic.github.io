@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Colors: the look (header, the panel, 1280 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 844px; }</style></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+// Covers: colors/index.html, colors/css/colors.css, colors/css/view.css, colors/js/main.js, colors/js/panel.js, colors/js/values.js, colors/js/wheel.js
+const { describe, it, expect, waitFor, run } = SlopTest;
+async function open(width) {
+  document.querySelectorAll('iframe').forEach((f) => f.remove());
+  const f = document.createElement('iframe');
+  f.style.width = width + 'px';
+  f.src = '../../colors/index.html';
+  document.body.append(f);
+  await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header .sh-switch') && D.querySelector('header a.brand .brand-app') && D.querySelector('#co-download'); }, { timeout: 30000 });
+  return f.contentDocument;
+}
+describe('Slop Colors: the look', () => {
+  it('1280: the header leads with the home link; Open… is its only action; the panel is on the right with Download palette at its foot', async () => {
+    localStorage.removeItem('slop-colors');
+    const D = await open(1280);
+    const brand = D.querySelector('#co-bar .sab-brand > a.brand:first-child');
+    expect(brand.getAttribute('href')).toBe('../');
+    expect(D.querySelector('#co-bar .sab-name').textContent).toBe('Slop Colors');
+    expect([...D.querySelectorAll('#co-bar .sab-btn')].map((b) => b.textContent.trim()).filter(Boolean)).toEqual(['Open…']);
+    const view = D.getElementById('co-view').getBoundingClientRect(), panel = D.getElementById('co-panel').getBoundingClientRect();
+    expect(panel.left).toBeGreaterThanOrEqual(view.right - 1);
+    const dl = D.getElementById('co-download');
+    expect(dl.closest('#co-panel')).toBeTruthy();
+    expect(dl.classList.contains('sui-primary')).toBe(true);
+    expect(dl.disabled).toBe(true);   // an empty palette has nothing to download
+    // the colour's values once, in the main view (each with Copy); the panel holds only the settings
+    const main = D.getElementById('co-view'), side = D.getElementById('co-panel');
+    expect(D.querySelectorAll('input[id^="co-in-"]').length).toBe(5);
+    expect(main.querySelectorAll('input[id^="co-in-"]').length).toBe(5);
+    expect(main.querySelectorAll('.co-value .co-copy').length).toBe(5);
+    expect(side.querySelector('input[id^="co-in-"], #co-native, #co-as-fg')).toBe(null);
+    expect([...side.querySelectorAll('.sf-h')].map((h) => h.textContent)).toEqual(['Made from it', 'Picture', 'Export']);
+    expect(D.querySelectorAll('.sd-zone').length).toBe(1);
+    expect(D.getElementById('co-canvas').hasAttribute('data-touch-surface')).toBe(true);
+    expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+    // the colour wheel sits in Made from this colour, beside its harmony row, in the view (not the panel)
+    const wheel = D.getElementById('co-wheel').getBoundingClientRect(), harm = D.getElementById('co-harmony').getBoundingClientRect();
+    expect(main.contains(D.getElementById('co-wheel'))).toBe(true);
+    expect(wheel.width).toBeGreaterThanOrEqual(200); expect(Math.abs(wheel.width - wheel.height) < 1).toBe(true);
+    expect(harm.left).toBeGreaterThanOrEqual(wheel.right);
+  }, { timeout: 40000 });
+  it('390: no sideways scrolling; the panel is a bottom sheet whose foot (Settings and Download palette) always shows', async () => {
+    const D = await open(390), W = D.defaultView;
+    W.CO.state.addColor('#ff0000');
+    expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    const dl = D.getElementById('co-download').getBoundingClientRect();
+    expect(dl.bottom).toBeLessThanOrEqual(844);
+    expect(dl.top).toBeGreaterThan(400);
+    expect(D.getElementById('co-download').disabled).toBe(false);
+    const hex = D.getElementById('co-in-hex').getBoundingClientRect();
+    expect(hex.height > 0 && hex.top > 0 && hex.right <= 390).toBe(true);   // the values are on the page, not in the sheet
+    const harm = D.getElementById('co-harmony-kind').getBoundingClientRect();
+    expect(harm.height === 0 || harm.top >= 844).toBe(true);   // the settings wait in the closed sheet
+    const wheel = D.getElementById('co-wheel').getBoundingClientRect();   // one column: the wheel fits, its row under it
+    expect(wheel.left >= 0 && wheel.right <= 390 && wheel.width >= 200).toBe(true);
+    expect(D.getElementById('co-harmony').getBoundingClientRect().top).toBeGreaterThan(wheel.bottom);
+    W.CO.main.frame().openSheet();
+    await waitFor(() => { const r = D.getElementById('co-harmony-kind').getBoundingClientRect(); return r.height > 0 && r.top > 0 && r.bottom < 844; });
+  }, { timeout: 40000 });
+});
+run({ name: 'Slop Colors: look' });
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts · Panel rows never print null or undefined</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="mock.js"></script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  // A missing family's row prints its status, a note and buttons. When no library pack lists the family the note is
+  // shown; when one does, the note is left out. Neither case may print the text "null" or "undefined".
+  const { describe, it, beforeEach, expect } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, ms = 10000) {
+    const t0 = Date.now();
+    for (;;) { let v = null; try { v = await fn(); } catch (e) { v = null; } if (v) return v; if (Date.now() - t0 > ms) throw new Error('timed out waiting'); await sleep(50); }
+  }
+  const panel = () => document.querySelector('.sf-ov');
+  const rowOf = (name) => panel() && panel().querySelector(`.sf-row[data-family="${name}"]`);
+  const BAD = /\bnull\b|undefined/;
+
+  describe('Fonts panel: no row prints null or undefined', () => {
+    beforeEach(async () => { FontTest.closeAll(); await FontTest.removeOwnFonts(); });
+    it('a missing family with a library pack (Download from the library, no note) prints no null', async () => {
+      const h = SlopFonts.openPanel({ fonts: ['Test Pack Sans'] });
+      const row = await until(() => rowOf('Test Pack Sans') && rowOf('Test Pack Sans').querySelector('button[data-how="library"]') && rowOf('Test Pack Sans'));
+      expect(row.textContent.includes('Missing')).toBe(true);
+      expect(row.textContent.includes('Download from the library')).toBe(true);
+      expect(BAD.test(row.textContent)).toBe(false);
+      for (const r of panel().querySelectorAll('.sf-row')) expect(BAD.test(r.textContent)).toBe(false);
+      h.close();
+    });
+    it('a missing family with no library pack (the note and Drop your own font) prints no null', async () => {
+      const h = SlopFonts.openPanel({ fonts: ['Barlow'] });
+      const row = await until(() => rowOf('Barlow'));
+      expect(row.textContent.includes('is not in the font library')).toBe(true);
+      expect(BAD.test(row.textContent)).toBe(false);
+      h.close();
+    });
+    it('a missing family with downloads turned off prints no null', async () => {
+      const h = SlopFonts.openPanel({ fonts: ['Test Pack Sans', 'Barlow'], download: false });
+      await until(() => rowOf('Barlow'));
+      for (const r of panel().querySelectorAll('.sf-row')) expect(BAD.test(r.textContent)).toBe(false);
+      expect(rowOf('Test Pack Sans').textContent.includes('Missing')).toBe(true);
+      h.close();
+    });
+    it('the whole panel, with a pack-backed and an unlisted missing family, prints neither word', async () => {
+      const h = SlopFonts.openPanel({ fonts: ['Test Pack Sans', 'Barlow'], title: 'Fonts', note: 'Fonts this document uses' });
+      await until(() => rowOf('Barlow') && rowOf('Test Pack Sans'));
+      expect(BAD.test(panel().querySelector('[role="dialog"]').textContent)).toBe(false);
+      h.close();
+    });
+  });
+
+  SlopTest.run({ name: 'Fonts · panel rows' });
+  </script>
+</body>
+</html>

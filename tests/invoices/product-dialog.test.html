@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoices · New product from a line</title>
+  <style>body { margin: 0; background: #111; }</style>
+</head>
+<body>
+  <!-- The real invoices app runs in a same-origin iframe; the test drives its line card and the product dialog. -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let frame = null;
+
+  /** Loads the invoices app on a new invoice in a fresh iframe and waits until its first line card is drawn. */
+  async function openNewInvoice() {
+    if (frame) frame.remove();   // a fresh frame each time: the editor's unsaved-changes guard blocks reloads
+    frame = document.createElement('iframe');
+    frame.style.cssText = 'width:1280px;height:760px;border:0;display:block';
+    const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+    frame.src = `../../invoices/index.html?t=${Date.now()}#new`;
+    document.body.append(frame);
+    await loaded;
+    await waitFor(() => {
+      const W = frame.contentWindow;
+      return W && W.SlopInvoices && W.SlopInvoices.state.view === 'edit' && W.document.querySelector('#eLines .line-card');
+    }, { timeout: 20000 });
+    return frame.contentWindow;
+  }
+  const firstCard = (W) => W.document.querySelector('#eLines .line-card');
+  const productSelect = (W) => firstCard(W).querySelector('select[data-f="product"]');
+  const field = (W, f) => firstCard(W).querySelector(`[data-f="${f}"]`);
+  const dialogOf = (W) => W.document.querySelector('.sui-dlg[aria-label="New product"]');
+  /** Picks "+ New product…" on the first line, the way a person does with the select. */
+  function chooseNewProduct(W) {
+    const sel = productSelect(W);
+    sel.value = '__new__';
+    sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+  }
+  /** Fills the dialog fields in order: SKU, Name, Price, Tax %, Unit. */
+  function fillDialog(W, { sku, name, price, tax }) {
+    const inputs = dialogOf(W).querySelectorAll('.sui-body input');
+    const set = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); };
+    set(inputs[0], sku); set(inputs[1], name); set(inputs[2], price); set(inputs[3], tax);
+  }
+  const clickButton = (W, label) => [...dialogOf(W).querySelectorAll('.sui-foot button')].find((b) => b.textContent === label).click();
+  const uniq = () => `PD-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+
+  describe('New product from an invoice line', () => {
+    it('the product select offers "+ New product…" as its last option', async () => {
+      const W = await openNewInvoice();
+      const opts = [...productSelect(W).options];
+      expect(opts[opts.length - 1].value).toBe('__new__');
+      expect(opts[opts.length - 1].textContent).toBe('+ New product…');
+    });
+
+    it('opens New product from a line, saves it, and the new product is selected with its price on the line', async () => {
+      const W = await openNewInvoice();
+      const sku = uniq();
+      chooseNewProduct(W);
+      await waitFor(() => dialogOf(W), { timeout: 3000 });
+      // The select goes back to the blank option while the dialog is open.
+      expect(productSelect(W).value).toBe('');
+      fillDialog(W, { sku, name: 'Desk lamp', price: '12.50', tax: '20' });
+      clickButton(W, 'Add product');
+      await waitFor(() => !dialogOf(W), { timeout: 5000 });
+      await waitFor(() => { const sel = productSelect(W); return sel && sel.value && sel.selectedOptions[0].textContent.includes(sku); }, { timeout: 5000 });
+      expect(productSelect(W).selectedOptions[0].textContent).toContain('Desk lamp');
+      expect(field(W, 'description').value).toBe('Desk lamp');
+      expect(field(W, 'unitPrice').value).toBe('12.50');
+      expect(field(W, 'taxRate').value).toBe('20');
+      expect(W.document.querySelector('#eLines .line-card [data-role="total"]').textContent).toContain('15.00');
+    });
+
+    it('a SKU that is already used shows the store message and keeps the dialog open', async () => {
+      const W = await openNewInvoice();
+      const sku = uniq();
+      chooseNewProduct(W);
+      await waitFor(() => dialogOf(W), { timeout: 3000 });
+      fillDialog(W, { sku, name: 'First', price: '1', tax: '0' });
+      clickButton(W, 'Add product');
+      await waitFor(() => !dialogOf(W), { timeout: 5000 });
+
+      chooseNewProduct(W);
+      await waitFor(() => dialogOf(W), { timeout: 3000 });
+      fillDialog(W, { sku, name: 'Second', price: '2', tax: '0' });
+      clickButton(W, 'Add product');
+      await waitFor(() => dialogOf(W).querySelector('.msg').textContent.includes('already used'), { timeout: 5000 });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(dialogOf(W)).toBeTruthy();
+      expect(dialogOf(W).querySelector('.msg').textContent).toContain(sku);
+      clickButton(W, 'Cancel');
+    });
+  });
+
+  run({ name: 'Invoices · New product' });
+  </script>
+</body>
+</html>

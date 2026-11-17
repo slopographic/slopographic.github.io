@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Invoices: credit notes (credit part of an unpaid invoice, refund part of a paid one, on the statement)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: invoices/js/ui/credit-note.js, invoices/js/ui/app.js, invoices/index.html, shared/biz/docbar.js
+  // Covers: invoices/js/ui/credit-dialog.js, invoices/js/ui/editor.js, invoices/js/core/context.js, invoices/js/core/util.js, invoices/js/ui/statement.js
+  // Covers: shared/data/credits.js, shared/biz/app.css, reports/js/enrich.js
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  let W, D, c;
+  const $ = (id) => D.getElementById(id);
+  const S = () => W.SlopData;
+  async function boot(hash = '') {
+    const f = document.getElementById('app');
+    f.src = '../../invoices/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopInvoices && f.contentWindow.SlopInvoices.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  async function issued(total) {
+    const d = (await S().store.put('invoices', { customerId: c.id, date: S().ledger.today(), lines: [{ description: 'Work', qty: 1, unitPrice: total, taxRate: 0 }] })).value;
+    return (await S().billing.issue(d.id)).value;
+  }
+  const action = (text) => [...D.querySelectorAll('#eActions button, .ws-panel .sf-p-foot button')].find((b) => b.textContent === text);
+  const dialog = () => D.querySelector('.sui-dlg');
+  const field = (label) => [...dialog().querySelectorAll('label, .sui-field')].find((l) => l.textContent.startsWith(label)).querySelector('input, select');
+  const type = (input, value) => { input.value = value; input.dispatchEvent(new W.Event('input', { bubbles: true })); };
+  const press = (text) => [...dialog().querySelectorAll('button')].find((b) => b.textContent === text).click();
+
+  describe('credit notes in Slop Invoices', () => {
+    it('Credit note… takes 30.00 off an unpaid invoice: CN-0001 is listed, and Void is no longer offered', async () => {
+      await boot();
+      await S().store.erase(); await S().store.ready();
+      c = (await S().store.put('customers', { name: 'Ada Ltd', stage: 'customer' })).value;
+      const inv = await issued(10000);
+      await boot(`#i/${inv.id}`);
+      await waitFor(() => action('Credit note…'));
+      action('Credit note…').click();
+      await waitFor(() => dialog());
+      expect(field('Amount to credit').value).toBe('100.00');
+      type(field('Amount to credit'), '30');
+      expect(dialog().textContent).toContain('$30.00 comes off what is owed');
+      expect(field('Pay back by').closest('[hidden]')).toBeTruthy();   // nothing was paid, so nothing is paid back
+      type(field('Reason'), 'Price agreed');
+      press('Issue credit note');
+      await waitFor(() => $('eCredits').children.length === 1);
+      await waitFor(() => !dialog());   // the dialog closes once the credit note is stored
+      expect($('eCredits').textContent).toContain('CN-0001');
+      expect($('eCreditsHead').hidden).toBe(false);
+      expect($('eBalance').textContent).toContain('$70.00');
+      expect(action('Void…').disabled).toBe(true);
+    });
+    it('the credit note opens as a printable sheet, named in the record bar, with a link back to its invoice', async () => {
+      $('eCredits').querySelector('a').click();
+      await waitFor(() => !$('view-credit').hidden && D.querySelector('.credit-note'));
+      const sheet = D.querySelector('.credit-note');
+      expect(sheet.textContent).toContain('CN-0001');
+      expect(sheet.textContent).toContain('Reason: Price agreed');
+      expect(sheet.querySelector('tfoot').textContent).toBe('Amount credited$30.00');
+      expect(D.querySelector('.biz-docbar .biz-doc-title:not([hidden])').textContent).toBe('Credit note CN-0001');
+      expect($('cnInvoice').getAttribute('href').startsWith('#i/')).toBe(true);
+    });
+    it('on a paid invoice the credit is paid back: the dialog asks how, and the statement shows the credit and the refund', async () => {
+      const inv = await issued(5000);
+      await S().billing.recordPayment({ invoiceId: inv.id, amount: 5000 });
+      await boot(`#i/${inv.id}`);
+      await waitFor(() => $('eTitle').textContent === inv.number && action('Credit note…'));
+      action('Credit note…').click();
+      await waitFor(() => dialog());
+      expect(dialog().textContent).toContain('$50.00 is paid back to the customer');
+      expect(field('Pay back by').closest('[hidden]')).toBe(null);
+      press('Issue credit note');
+      await waitFor(() => $('eCredits').textContent.includes('CN-0002'));
+      expect($('eStatus').textContent).toBe('Credited');
+      await boot(`#s/${c.id}`);
+      await waitFor(() => D.querySelector('.st-table'));
+      const kinds = [...D.querySelectorAll('.st-table tbody tr')].map((r) => r.children[1].textContent);
+      expect(kinds.filter((k) => k === 'Credit note').length).toBe(2);
+      expect(kinds).toContain('Refund');
+      expect(D.querySelector('.st-total').textContent).toBe('Balance owed$70.00');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

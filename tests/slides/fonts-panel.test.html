@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides fonts panel</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Opens Slop Slides in the iframe and waits for the deck to open. */
+  async function open() {
+    const want = new URL('../../slides/index.html', location.href).pathname;
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../slides/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const panel = (W) => W.document.querySelector('.sf-ov');
+  const rowOf = (W, name) => panel(W) && panel(W).querySelector(`.sf-row[data-family="${name}"]`);
+  const btnIn = (root, text) => root && [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+  const fontsButton = (W) => [...W.document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Fonts…');
+
+  describe('Slop Slides: Fonts panel', () => {
+    it('opens from the Document section with your own file and the closest font, and no library download', async () => {
+      const W = await open();
+      const A = W.SS.app, TH = W.SS.themes;
+      // a theme whose body font the app does not ship (the deck theme is copied, so the built-in theme is not changed)
+      A.deck.theme = Object.assign({}, TH.of(A.deck), { fonts: { body: 'Gill Sans', heading: 'Inter Tight' } });
+      await waitFor(() => fontsButton(W), { timeout: 10000 });
+      fontsButton(W).click();
+      await waitFor(() => rowOf(W, 'Gill Sans'), { timeout: 10000 });
+      const row = rowOf(W, 'Gill Sans');
+      expect(row.textContent.includes('Missing')).toBe(true);
+      expect(!!btnIn(row, 'Drop your own font')).toBe(true);
+      expect(!!btnIn(row, 'Use the closest font instead (Inter Tight)')).toBe(true);
+      expect(!!btnIn(panel(W), 'Download from the library')).toBe(false);
+      expect(panel(W).textContent.includes('Downloads from the library are off in Slop Slides')).toBe(true);
+    });
+  });
+  run({ name: 'Slop Slides · fonts panel' });
+  </script>
+</body>
+</html>

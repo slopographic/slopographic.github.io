@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: camera RAW pictures (preview size, develop, preview fallback)</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the first-use notice's words (shared/i18n/ui) -->
+  <script src="../../shared/slopui.js"></script>
+  <script src="../raw/build.js"></script>
+  <script src="../../shared/raw/tiff.js"></script>
+  <script src="../../shared/raw/detect.js"></script>
+  <script src="../../shared/raw/preview.js"></script>
+  <script src="../../shared/raw/raw.js"></script>
+  <script src="../../resize/js/core/size.js"></script>
+  <script src="../../resize/js/core/format.js"></script>
+  <script src="../../resize/js/image/image.js"></script>
+  <script src="../../resize/js/app/queue.js"></script>
+  <script>
+  // Covers: resize/js/image/image.js, resize/js/core/format.js, resize/js/app/queue.js, resize/js/app/main.js
+  // A NEF-like file with a real 200 × 100 JPEG preview, and the CC0 DNG (tests/raw/fixtures) through the real engine.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const R = window.SlopResize;
+  const dialog = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const press = (label) => [...dialog().querySelectorAll('button')].find((b) => b.textContent === label).click();
+  const HALF = { mode: 'scale', scale: 50, w: 0, h: 0, keepRatio: true, fill: 'fit', anchor: 'center', bg: 'transparent', even: false, maxBytes: 0 };
+  async function nef() {
+    const c = document.createElement('canvas'); c.width = 200; c.height = 100;
+    const g = c.getContext('2d'); g.fillStyle = '#36c'; g.fillRect(0, 0, 200, 100);
+    const jpg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95))).arrayBuffer());
+    return new File([RawBuild.tiff({ ifd0: [[0x10f, 2, 'NIKON CORPORATION'], [0x201, 4, { blob: 'p' }], [0x202, 4, { len: 'p' }]], blobs: { p: jpg } })], 'DSC_9.NEF');
+  }
+  const dng = async () => new File([await (await fetch('../raw/fixtures/canon-5d3-crop.dng')).arrayBuffer()], 'IMG_2.DNG');
+
+  describe('Slop Resize: camera RAW', () => {
+    it('a RAW file is a picture; the queue measures it from its preview and shows that preview', async () => {
+      try { localStorage.removeItem('slop-firstrun:raw-engine'); } catch (e) { /* none */ }
+      await (await SlopRaw.engine()).forget();
+      expect(R.format.kind(await nef())).toBe('image');
+      expect(R.format.kind(new File(['x'], 'a.cr3'))).toBe('image');
+      const it = await R.queue.add(await nef());
+      expect(it.status).toBe('waiting');
+      expect(it.src.w).toBe(200);
+      expect(it.src.h).toBe(100);
+      expect(it.thumb.startsWith('blob:')).toBe(true);
+      expect(dialog()).toBe(null);   // measuring needs no engine
+    });
+    it('declining the engine resizes the embedded preview and says so', async () => {
+      const r = R.image.run(await nef(), HALF, { mime: 'image/png', quality: 0.9, maxBytes: 0 });
+      await waitFor(dialog); press('Cancel');
+      const out = await r;
+      expect(out.w).toBe(100);
+      expect(out.h).toBe(50);
+      expect(out.note).toContain('embedded preview');
+    });
+    it('with the engine, a DNG is developed in full and resized', async () => {
+      const r = R.image.run(await dng(), HALF, { mime: 'image/jpeg', quality: 0.9, maxBytes: 0 });
+      await waitFor(dialog, { timeout: 15000 }); press('Continue');
+      const out = await r;
+      expect(out.w).toBe(960);
+      expect(out.h).toBe(409);
+      expect(out.blob.type).toBe('image/jpeg');
+      expect(out.note).toBe('');
+    }, { timeout: 90000 });
+    it('the app takes a dropped RAW file (main.js drop rules) and lists it with its preview size', async () => {
+      const fr = document.createElement('iframe'); fr.style.cssText = 'width:1100px;height:700px;border:0';
+      fr.src = '../../resize/index.html'; document.body.append(fr);
+      await waitFor(() => fr.contentWindow && fr.contentWindow.document.getElementById('rs-drop') && fr.contentWindow.SlopResize && fr.contentWindow.SlopResize.queue, { timeout: 30000 });
+      const W = fr.contentWindow, zone = W.document.getElementById('rs-drop');
+      await waitFor(() => zone.childElementCount > 0, { timeout: 10000 });
+      const dt = new W.DataTransfer(); dt.items.add(new W.File([await (await nef()).arrayBuffer()], 'DSC_9.NEF'));
+      for (const type of ['dragenter', 'dragover', 'drop']) zone.dispatchEvent(new W.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+      const it = await waitFor(() => W.SlopResize.queue.items().find((x) => x.name === 'DSC_9.NEF' && x.status === 'waiting'), { timeout: 10000 });
+      expect(it.src.w).toBe(200);
+      fr.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

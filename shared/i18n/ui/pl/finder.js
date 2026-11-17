@@ -1,0 +1,26 @@
+/* Shared components, Polish: the finder (search, facets, count line, sortable table) and the record list's count.
+ * Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'ui.finder.count': '{n} elementów',
+  'ui.finder.count#one': '{n} element',
+  'ui.finder.count#few': '{n} elementy',
+  'ui.finder.count#many': '{n} elementów',
+  'ui.finder.count_of': '{shown} z {n} elementów pasuje',
+  'ui.finder.count_of#one': '{shown} z {n} elementu pasuje',
+  'ui.finder.count_of#few': '{shown} z {n} elementów pasuje',
+  'ui.finder.count_of#many': '{shown} z {n} elementów pasuje',
+  'ui.finder.count_noun': '{n} {noun}',
+  'ui.finder.count_of_noun': '{shown} z {n} {noun} pasuje',
+  'ui.finder.matches': 'Dopasowania',
+  'ui.finder.chip_search': 'Szukaj: „{q}”',
+  'ui.finder.chip': '{label}: {value}',
+  'ui.finder.sort_aria': '{label}, {sorted}',
+  'ui.finder.sorted_asc': 'rosnąco',
+  'ui.finder.sorted_desc': 'malejąco',
+  'ui.finder.not_sorted': 'bez sortowania',
+  'ui.list.count': '{n} elementów',
+  'ui.list.count#one': '{n} element',
+  'ui.list.count#few': '{n} elementy',
+  'ui.list.count#many': '{n} elementów',
+  'ui.list.empty_any': 'Na razie nic tutaj nie ma.',
+});

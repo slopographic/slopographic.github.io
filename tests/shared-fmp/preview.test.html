@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared FMP: database preview</title>
+  <style>body { margin: 0; background: #fff; color: #111; font: 13px system-ui; } .box { width: 800px; height: 480px; }</style>
+</head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/i18n/i18n.js"></script>
+<script src="../../shared/kinds/kinds.js"></script>
+<script src="../../shared/preview/chrome.js"></script>
+<script src="../../shared/preview/preview.js"></script>
+<script src="fake.js"></script>
+<script>
+  // Covers: shared/kinds/kinds.js, shared/preview/chrome.js, shared/preview/preview.js, shared/fmp/view-load.js
+  // A FileMaker file in the shared preview: SlopKinds knows its extensions (kind 'database'), and SlopPreview.create({ kind:
+  // 'database', blob | blobUrl }) loads the viewer on first use (this page has only view-load.js's folder, not its scripts)
+  // and shows the tables of what SlopFmp.open gives back. SlopFmp.open is a stub here: the reader is another module's.
+  const { describe, it, afterEach, expect, sleep, waitFor, run } = SlopTest;
+  const SPV = window.SlopPreview;
+  const fm = window.SlopFmp = { opened: [], next: null, last: null, async open(input, o) {
+    fm.opened.push([input, o]);
+    if (fm.next) return fm.next(input, o);
+    return (fm.last = FakeFmp.make({ delay: 2 }));
+  } };
+  let box = null, pv = null;
+  const blob = () => new Blob([new Uint8Array([0, 1, 0, 0, 0, 1])], { type: 'application/octet-stream' });
+  const make = (o) => {
+    box = document.createElement('div'); box.className = 'box'; document.body.append(box);
+    pv = SPV.create(Object.assign({ kind: 'database', title: 'Contacts.fmp12', blob: blob() }, o));
+    box.append(pv.el);
+    return pv;
+  };
+  const q = (s) => box.querySelector(s);
+  const cleanup = () => { if (pv) pv.close(); if (box) box.remove(); pv = box = null; fm.next = null; };
+
+  describe('SlopKinds knows FileMaker files', () => {
+    const K = window.SlopKinds;
+    it('gives the extensions the kind database, named FileMaker database', () => {
+      for (const e of ['fmp12', 'fp7', 'fp5', 'fp3', 'fmp', 'fmpxml']) expect(K.kindOf('Sales.' + e, '')).toBe('database');
+      expect(K.kindOf('SALES.FMP12', 'application/octet-stream')).toBe('database');
+      expect(K.label('database')).toBe('FileMaker database');
+    });
+    it('leaves the .xml exports to code, and other files as they were', () => {
+      expect(K.kindOf('export.xml', 'text/xml')).toBe('code');
+      expect(K.kindOf('a.pdf', '')).toBe('document');
+      expect(K.kindOf('a.bin', 'application/octet-stream')).toBe('other');
+      expect(K.label('code')).toBe('Code and text');
+    });
+    it('lists a database under the Documents chip, and counts it there', () => {
+      expect(K.chipMatch('database', 'documents')).toBe(true);
+      expect(K.chipMatch('database', 'other')).toBe(false);
+      expect(K.chipsMatching('database')).toEqual(['documents']);
+      expect(K.countChips([{ name: 'a.fmp12' }, { name: 'b.pdf' }, { name: 'c.png' }]).documents).toBe(2);
+    });
+  });
+
+  describe('SlopPreview shows a database', () => {
+    afterEach(cleanup);
+    it('loads the viewer on first use and mounts it with the file, named as the title', async () => {
+      expect(window.SlopFmpView).toBe(undefined);
+      make();
+      expect(q('.spv-db')).toBeTruthy();
+      await waitFor(() => q('.sfv .sfv-scroll'));
+      expect(document.querySelector('script[src$="shared/fmp/view-load.js"]')).toBeTruthy();
+      expect(typeof window.SlopFmpView.mount).toBe('function');
+      expect(q('.sfv-title').textContent).toBe('Contacts.fmp12');
+      expect([...document.querySelectorAll('.sfv-tn')].map((n) => n.textContent)).toEqual(['Contacts', 'Orders', 'Empty']);
+      expect(fm.opened[0][0] instanceof Blob).toBe(true);
+      expect(fm.opened[0][1]).toEqual({ name: 'Contacts.fmp12' });
+      expect(document.querySelector('link[data-sfv-css]')).toBeTruthy(); // the stylesheet came with it
+    });
+    it('has no zoom stage or toolbar, only the viewer between the header and the footer', async () => {
+      make({ actions: [{ label: 'Done' }] });
+      await waitFor(() => q('.sfv .sfv-scroll'));
+      expect(q('.spv-stage')).toBe(null);
+      expect(q('.spv-bar')).toBe(null);
+      expect([...pv.el.children].map((c) => c.className)).toEqual(['spv-head', 'spv-db', 'spv-foot']);
+    });
+    it('reads a blobUrl when the host has no Blob', async () => {
+      const url = URL.createObjectURL(blob());
+      make({ blob: undefined, blobUrl: url });
+      await waitFor(() => q('.sfv .sfv-scroll'));
+      expect(fm.opened[fm.opened.length - 1][0].size).toBe(6);
+      URL.revokeObjectURL(url);
+    });
+    it('shows the calm error screen when the file does not open', async () => {
+      fm.next = async () => { throw Object.assign(new Error('x'), { code: 'encrypted' }); };
+      make({ title: 'Secret.fmp12' });
+      await waitFor(() => q('.sfv-err'));
+      expect(q('.sfv-err-title').textContent).toBe('Could not open Secret.fmp12');
+      expect(q('.sfv-err-msg').textContent).toContain('encrypted');
+      pv.close();
+      fm.next = async () => { throw Object.assign(new Error('x'), { code: 'corrupt' }); };
+      make();
+      await waitFor(() => q('.sfv-err'));
+      expect(q('.sfv-err').dataset.code).toBe('corrupt');
+    });
+    it('closes the database with the preview, and one that opens after the close is closed at once', async () => {
+      make({ chrome: false });
+      await waitFor(() => q('.sfv .sfv-scroll'));
+      const db = fm.last;
+      pv.close();
+      expect(db.closed).toBe(1);
+      expect(q('.sfv')).toBe(null);
+      let late = null;
+      fm.next = async () => { await sleep(60); return (late = FakeFmp.make({ delay: 1 })); };
+      const asked = fm.opened.length;
+      make({ chrome: false });
+      await waitFor(() => fm.opened.length === asked + 1); // the file is being opened
+      pv.close();
+      await waitFor(() => late);
+      await waitFor(() => late.closed === 1);
+      expect(q('.sfv')).toBe(null);
+    });
+    it('Escape closes it; the arrows and Home/End belong to the table, but a host can still step from the frame', async () => {
+      let closed = 0, prev = 0, next = 0;
+      make({ chrome: false, onClose: () => closed++, onPrev: () => prev++, onNext: () => next++ });
+      await waitFor(() => q('.sfv .sfv-scroll'));
+      const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+      key(q('.sfv-scroll'), 'ArrowDown');
+      key(q('.sfv-scroll'), 'ArrowRight');
+      key(q('.sfv-tab'), 'ArrowLeft');
+      expect([prev, next, closed]).toEqual([0, 0, 0]);
+      key(pv.el, 'ArrowRight');
+      expect(next).toBe(1);
+      key(q('.sfv-scroll'), 'Escape');
+      expect(closed).toBe(1);
+      expect(q('.sfv')).toBe(null);
+    });
+    it('keeps presses inside the viewer from reaching the host (its selection and click handlers)', async () => {
+      make();
+      await waitFor(() => q('.sfv .sfv-scroll'));
+      const seen = [];
+      for (const ev of ['pointerdown', 'click', 'dblclick']) box.addEventListener(ev, () => seen.push(ev));
+      for (const ev of ['pointerdown', 'click', 'dblclick']) q('.sfv-title').dispatchEvent(new MouseEvent(ev, { bubbles: true }));
+      expect(seen).toEqual([]);
+    });
+  });
+
+  describe('SlopPreview.loadScript', () => {
+    it('resolves for a script that loads (once) and rejects for one that does not', async () => {
+      const src = new URL('../../shared/fmp/view-load.js', location.href).href;
+      await SPV.loadScript(src);
+      await expect(SPV.loadScript(new URL('../../shared/fmp/not-there.js', location.href).href)).rejects(/Could not load/);
+    });
+  });
+  run();
+</script>
+</body>
+</html>

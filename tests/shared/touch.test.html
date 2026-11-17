@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>SlopTouch</title>
+  <link rel="stylesheet" href="../../shared/input/touch.css">
+  <style>
+    body { margin: 0; font: 14px sans-serif; }
+    #pad, #hooks, #plain { width: 300px; height: 220px; margin: 10px; background: #ddd; position: relative; }
+    #grip { position: absolute; left: 10px; top: 10px; width: 8px; height: 8px; background: #333; }
+    #text { margin: 10px; }
+  </style>
+</head>
+<body>
+  <!-- Covers: shared/input/gesture.js, shared/input/events.js, shared/input/touch.js -->
+  <div id="pad" data-touch-surface="wheel"><div id="grip" data-touch-hit></div></div>
+  <div id="hooks"></div>
+  <div id="plain">plain page content</div>
+  <input id="text" value="some words here">
+  <script src="../harness.js"></script>
+  <script src="touch-kit.js"></script>
+  <script src="../../shared/input/gesture.js"></script>
+  <script src="../../shared/input/events.js"></script>
+  <script src="../../shared/input/touch.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const $ = (id) => document.getElementById(id);
+  const log = [];
+  for (const t of ['dblclick', 'contextmenu', 'click', 'wheel', 'pointerdown', 'pointercancel']) for (const el of [$('pad'), $('hooks'), $('plain'), $('text')]) {
+    el.addEventListener(t, (e) => { log.push({ t, id: el.id, e }); if (t === 'contextmenu' && el.id !== 'plain') e.preventDefault(); if (t === 'wheel') e.preventDefault(); }, { passive: false });
+  }
+  // The dblclick comes inside the second click's dispatch (a user gesture: an editor it opens may focus, and iOS shows the keyboard)
+  let inClick = false, dblInClick = null;
+  $('plain').addEventListener('click', () => { inClick = true; setTimeout(() => { inClick = false; }, 0); });
+  $('plain').addEventListener('dblclick', () => { dblInClick = inClick; });
+  const got = (t, id) => log.filter((x) => x.t === t && (!id || x.id === id));
+  let zoom = 1, panned = 0;
+  $('hooks').setAttribute('data-touch-surface', ''); $('hooks').touchSurface = { zoom(s) { zoom *= s; }, pan(dx, dy) { panned += dx + dy; } }; // as app code does before the layer loads
+  SlopTouch.surface($('plain').appendChild(document.createElement('div'))).destroy(); // the API too
+
+  describe('SlopTouch', () => {
+    it('is loaded and marks surfaces so the browser never takes a drag (touch-action, callout, selection, overscroll)', () => {
+      expect(SlopTouch.ready).toBe(true);
+      const cs = getComputedStyle($('hooks'));
+      expect(cs.touchAction).toBe('none');
+      if (SlopTouch.coarse()) expect(cs.userSelect === 'none' || cs.webkitUserSelect === 'none').toBe(true); // a mouse still selects text
+      expect(cs.overscrollBehaviorY || cs.overscrollBehavior || 'contain').toMatch(/contain/);
+      expect(getComputedStyle($('plain')).touchAction).not.toBe('none');
+    });
+    it('grows handles to 44 px under a coarse pointer, and keeps them small for a mouse', () => {
+      const coarse = matchMedia('(pointer: coarse)').matches;
+      expect(SlopTouch.coarse()).toBe(coarse);
+      const after = getComputedStyle($('grip'), '::after');
+      if (coarse) expect(parseFloat(after.width)).toBeGreaterThanOrEqual(44);
+      expect(SlopTouch.hit({ pointerType: 'touch' }, 4)).toBe(22);
+      expect(SlopTouch.hit({ pointerType: 'pen' }, 4)).toBe(12);
+      expect(SlopTouch.hit({ pointerType: 'mouse' }, 4)).toBe(4);
+    });
+    it('a double tap sends exactly one dblclick, after the clicks and inside the second (a user gesture), at that point', async () => {
+      log.length = 0;
+      await TouchKit.doubleTap($('plain'));
+      await waitFor(() => got('dblclick', 'plain').length);
+      await sleep(400);
+      expect(got('dblclick', 'plain')).toHaveLength(1);
+      const order = log.filter((x) => x.id === 'plain' && /click/.test(x.t)).map((x) => x.t);
+      expect(order[order.length - 1]).toBe('dblclick');
+      const r = $('plain').getBoundingClientRect(), d = got('dblclick', 'plain')[0].e;
+      expect(Math.abs(d.clientX - (r.left + r.width / 2))).toBeLessThan(3);
+      expect(d.detail).toBe(2);
+      expect(dblInClick).toBe(true);
+    });
+    it('a double tap in a text field is the field\'s own (no dblclick from the layer)', async () => {
+      log.length = 0;
+      await TouchKit.doubleTap($('text'));
+      await sleep(300);
+      expect(got('dblclick', 'text').filter((x) => x.e.slopTouch)).toHaveLength(0);
+    });
+    it('a long press sends one contextmenu, and no click when the app opened its menu', async () => {
+      log.length = 0;
+      await TouchKit.longPress($('pad'));
+      await sleep(300);
+      expect(got('contextmenu', 'pad')).toHaveLength(1);
+      expect(got('contextmenu', 'pad')[0].e.defaultPrevented).toBe(true);
+      expect(got('click', 'pad')).toHaveLength(0);
+    });
+    it('two quick taps far apart are two clicks, no dblclick', async () => {
+      log.length = 0;
+      await TouchKit.tap({ el: $('plain'), x: 20, y: 20 }); await sleep(60); await TouchKit.tap({ el: $('plain'), x: 250, y: 180 });
+      await sleep(500);
+      expect(got('dblclick', 'plain')).toHaveLength(0);
+    });
+    it('on a busy page taps are timed by when they happened: a double tap whose last lift came late is still one dblclick', async () => {
+      log.length = 0;
+      await sleep(400); // past the last test's taps
+      await TouchKit.busyTaps($('plain'), 2);
+      await waitFor(() => got('dblclick', 'plain').length, { timeout: 2000 });
+      await sleep(400);
+      expect(got('dblclick', 'plain')).toHaveLength(1);
+      expect(got('contextmenu', 'plain')).toHaveLength(0);
+    });
+    it('a long press waits for the moves the page has not had yet (a busy page gets them at its next frame): a drag that starts late is no long press', async () => {
+      log.length = 0;
+      const r = $('pad').getBoundingClientRect(), x = r.left + 150, y = r.top + 110, raf = window.requestAnimationFrame;
+      // the drag's moves are queued for the next frame, as Chromium delivers them to a busy page: before its frame callbacks
+      let queued = null;
+      window.requestAnimationFrame = (cb) => raf((t) => { if (queued) { queued(); queued = null; } cb(t); });
+      try {
+        const f = TouchKit.finger(x, y);
+        queued = () => f.move(x + 40, y);
+        await sleep(700);
+        if (queued) { queued(); queued = null; }
+        f.up(x + 40, y);
+      } finally { window.requestAnimationFrame = raf; }
+      await sleep(100);
+      expect(got('contextmenu', 'pad')).toHaveLength(0);
+    });
+    it('a long press waits until the page has been free a moment: a lift held back while it was busy comes first', async () => {
+      log.length = 0;
+      const r = $('pad').getBoundingClientRect(), x = r.left + 150, y = r.top + 110, f = TouchKit.finger(x, y), t0 = performance.now();
+      setTimeout(() => { while (performance.now() - t0 < 480) { /* the page is busy until just before the long-press time */ } }, 100);
+      await new Promise((ok) => setTimeout(ok, 560 - (performance.now() - t0))); // the lift, handed over 60 ms after the long-press time
+      f.up(x, y);
+      await sleep(400);
+      expect(got('contextmenu', 'pad')).toHaveLength(0);
+    });
+    it('a pinch on a wheel surface sends Ctrl+wheel (zoom in: deltaY < 0), cancels the first finger, and leaves the page at scale 1', async () => {
+      log.length = 0;
+      await TouchKit.pinch($('pad'), 2.5);
+      const wheels = got('wheel', 'pad').map((x) => x.e);
+      const zooms = wheels.filter((w) => w.ctrlKey);
+      expect(zooms.length).toBeGreaterThan(0);
+      const total = zooms.reduce((s, w) => s + w.deltaY, 0);
+      expect(Math.exp(-total / 100)).toBeCloseTo(2.5, 0.2);
+      expect(got('pointercancel', 'pad').length).toBeGreaterThanOrEqual(1);
+      expect(got('pointerdown', 'pad')).toHaveLength(1); // the second finger never reached the app
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+    it('a pinch on a surface with hooks calls zoom and pan', async () => {
+      zoom = 1; panned = 0;
+      await TouchKit.pinch($('hooks'), 0.5, 8, 30, 0);
+      expect(zoom).toBeCloseTo(0.5, 0.06);
+      expect(panned).toBeCloseTo(30, 2);
+    });
+    it('a two-finger pan on a wheel surface sends plain wheel deltas against the fingers', async () => {
+      log.length = 0;
+      await TouchKit.pan2($('pad'), 0, 40);
+      const plain = got('wheel', 'pad').map((x) => x.e).filter((w) => !w.ctrlKey);
+      expect(plain.reduce((s, w) => s + w.deltaY, 0)).toBeCloseTo(-40, 2);
+    });
+    it('touches are ignored while a pen is down (palm rejection), and come back after it lifts', async () => {
+      log.length = 0;
+      const r = $('pad').getBoundingClientRect();
+      const pen = TouchKit.finger(r.left + 50, r.top + 50, 'pen', 0.7);
+      const palm = TouchKit.finger(r.left + 200, r.top + 150, 'touch');
+      palm.up(r.left + 200, r.top + 150);
+      pen.up(r.left + 50, r.top + 50);
+      const downs = got('pointerdown', 'pad').map((x) => x.e.pointerType);
+      expect(downs).toEqual(['pen']);
+      await sleep(500);
+      const later = TouchKit.finger(r.left + 200, r.top + 150, 'touch'); later.up(r.left + 200, r.top + 150);
+      expect(got('pointerdown', 'pad').map((x) => x.e.pointerType)).toEqual(['pen', 'touch']);
+    });
+    it('a finger already down when the pen lands is cancelled for the app (the palm came first)', async () => {
+      log.length = 0;
+      const r = $('pad').getBoundingClientRect();
+      const palm = TouchKit.finger(r.left + 200, r.top + 150, 'touch');
+      const pen = TouchKit.finger(r.left + 50, r.top + 50, 'pen', 0.4);
+      expect(got('pointercancel', 'pad').filter((x) => x.e.pointerType === 'touch').length).toBe(1);
+      expect(got('pointerdown', 'pad').find((x) => x.e.pointerType === 'pen').e.pressure).toBeCloseTo(0.4, 0.01);
+      pen.up(r.left + 50, r.top + 50); palm.up(r.left + 200, r.top + 150);
+      await sleep(450);
+    });
+    it('a finger whose element left the page (no pointerup ever comes) is forgotten and cancelled for the page', async () => {
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;left:0;top:0;width:60px;height:60px';
+      document.body.append(box);
+      const cancels = [];
+      addEventListener('pointercancel', (e) => { if (e.slopTouch) cancels.push(e.pointerId); }, true);
+      const gone = TouchKit.finger(30, 30, 'touch');
+      box.remove(); // the app drew it anew: the rest of that touch goes to the removed element
+      const next = TouchKit.finger(200, 400, 'touch');
+      expect(cancels.length).toBe(1);
+      next.up(200, 400);
+      await sleep(600);
+      expect(got('contextmenu').filter((x) => x.id === 'plain' && x.e.slopTouch).length).toBe(0); // no long press from the lost finger
+    });
+  });
+  SlopTest.run({ name: 'SlopTouch' });
+  </script>
+</body>
+</html>

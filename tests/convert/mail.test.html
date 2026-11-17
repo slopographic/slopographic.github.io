@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: mail, calendar and archives</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/core/mail.js, shared/sanitize/sanitize.js
+import { CONVERSIONS, conversionById, conversionsFor } from '../../convert/js/core/catalog.js';
+import { detectKind, KIND_LABEL } from '../../convert/js/core/detect.js';
+import { xmlToJson } from '../../convert/js/core/mail.js';
+const { describe, it, expect, run } = SlopTest;
+
+const file = (name, text, type = '') => new File([text], name, { type });
+const runOn = async (id, files, opts = {}) => conversionById(id).run(files, opts);
+const textOf = async (blob) => blob.text();
+
+describe('File convert: mail, calendar and archives', () => {
+  it('an email offers its own conversions, and a calendar its own, not the text ones', () => {
+    const eml = conversionsFor(['eml']).map((c) => c.id);
+    expect(eml.includes('eml-to-html') && eml.includes('eml-to-text') && eml.includes('eml-attachments')).toBe(true);
+    expect(eml.includes('csv-to-json')).toBe(false);
+    expect(eml.includes('md-to-html')).toBe(false);
+    const ics = conversionsFor(['ics']).map((c) => c.id);
+    expect(ics.includes('ics-to-csv') && ics.includes('ics-to-json')).toBe(true);
+  });
+
+  it('a file dropped on the page is detected, and offered the conversions for its kind', async () => {
+    const f = file('lunch.eml', 'From: a@b.c\nSubject: x\n\nhi');
+    const kind = detectKind(f.name, f.type, new Uint8Array(await f.slice(0, 512).arrayBuffer()));
+    expect(kind).toBe('eml');
+    expect(conversionsFor([kind]).length > 0).toBe(true);
+  });
+
+  it('an email converts to HTML and to text, from the file the page holds', async () => {
+    const f = file('lunch.eml', 'From: Ada <a@b.c>\r\nSubject: Lunch\r\n\r\nSee you at noon.\r\n');
+    const [html] = await runOn('eml-to-html', [{ name: f.name, kind: 'eml', file: f }]);
+    expect(html.name).toBe('lunch.html');
+    expect((await textOf(html.blob)).includes('See you at noon.')).toBe(true);
+    const [txt] = await runOn('eml-to-text', [{ name: f.name, kind: 'eml', file: f }]);
+    expect(txt.name).toBe('lunch.txt');
+    expect((await textOf(txt.blob)).includes('Subject: Lunch')).toBe(true);
+  });
+
+  it('an HTML email converts to a page with its text and styles, and without scripts, handlers or remote loads', async () => {
+    const mail = ['From: Ada <ada@example.com>', 'Subject: Hi', 'MIME-Version: 1.0', 'Content-Type: text/html; charset=utf-8', '',
+      '<html><head><style>p{color:#c00}</style></head><body onload="steal()"><p>Hello <b>there</b></p>\x3cscript>alert(1)\x3c/script>' +
+      '<img src="https://tracker.example/x.gif"><a href="javascript:alert(2)">bad</a><a href="https://example.com/">good</a>' +
+      '<svg><animate attributeName="href" values="javascript:alert(3)"/></svg><img src=x onerror="alert(4)"></body></html>'].join('\n');
+    const [out] = await runOn('eml-to-html', [{ name: 'hi.eml', kind: 'eml', file: file('hi.eml', mail) }]);
+    const html = await textOf(out.blob);
+    expect(html).toContain('<p>Hello <b>there</b></p>');
+    expect(html).toContain('p{color:#c00}');
+    expect(html).toContain('href="https://example.com/"');
+    expect(html).toContain('Content-Security-Policy');
+    expect(/<script|onload=|onerror=|javascript:|tracker\.example|alert\(/i.test(html)).toBe(false);
+  });
+
+  it('an XML file whose entities could expand without limit is refused before it is parsed', () => {
+    const bomb = '<?xml version="1.0"?><!DOCTYPE l [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;"><!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">]><l>&c;</l>';
+    let refused = '';
+    try { xmlToJson(bomb); } catch (e) { refused = e.message; }
+    expect(refused).toContain('expand without limit');
+  });
+
+  it('a calendar file converts to CSV, and a ZIP unpacks into its files', async () => {
+    const ics = file('plan.ics', 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x\r\nSUMMARY:Demo\r\nDTSTART:20251010T090000Z\r\nDTEND:20251010T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n');
+    const [csv] = await runOn('ics-to-csv', [{ name: ics.name, kind: 'ics', file: ics }]);
+    expect((await textOf(csv.blob)).split('\n')[1].startsWith('Demo,')).toBe(true);
+    const zipped = await runOn('zip-files', [{ name: 'a.txt', kind: 'txt', file: file('a.txt', 'one') }, { name: 'b.txt', kind: 'txt', file: file('b.txt', 'two') }]);
+    const back = await runOn('unzip', [{ name: zipped[0].name, kind: 'zip', file: zipped[0].blob }]);
+    expect(back.map((e) => e.name).join(',')).toBe('a.txt,b.txt');
+    expect(await textOf(back[1].blob)).toBe('two');
+  });
+
+  it('an XML document becomes JSON, and a broken one is refused with a reason', () => {
+    const data = JSON.parse(xmlToJson('<shop id="1"><item sku="a">Pen</item><item sku="b">Ink</item></shop>'));
+    expect(data.name).toBe('shop');
+    expect(data.attributes.id).toBe('1');
+    expect(data.children.length).toBe(2);
+    expect(data.children[0].text).toBe('Pen');
+    let refused = '';
+    try { xmlToJson('<shop><item></shop>'); } catch (e) { refused = e.message; }
+    expect(refused.includes('well formed')).toBe(true);
+  });
+
+  it('AVIF and ICO images convert to the usual formats, and have a label', () => {
+    const png = conversionsFor(['avif', 'ico']).map((c) => c.id);
+    expect(png.includes('to-png') && png.includes('to-jpg')).toBe(true);
+    expect(!!KIND_LABEL.avif && !!KIND_LABEL.ico).toBe(true);
+  });
+
+  it('every new conversion is in the catalogue once, with a unique id', () => {
+    const ids = CONVERSIONS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.includes('unzip') && ids.includes('zip-files') && ids.includes('xml-to-json')).toBe(true);
+  });
+});
+run({ name: 'File convert: mail, calendar and archives' });
+</script>
+</body>
+</html>

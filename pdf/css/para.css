@@ -1,0 +1,31 @@
+/* Slop PDF — Edit text: its bar (Lines | Paragraphs) and the paragraph frame (editor/para-mode.js, para-edit.js). */
+.ctx-edittext { gap: 8px; }
+#ctxPage[hidden] + .ctx-edittext { display: none; }
+.ctx-edittext .et-label { font-size: var(--fs-s); font-weight: 600; color: var(--fg); }
+.ctx-edittext .et-hint { font-size: var(--fs-s); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ctx-edittext .seg { flex-wrap: nowrap; }
+.ctx-edittext .seg-b:focus-visible, .ctx-edittext .et-done:focus-visible { outline: 2px solid var(--accent, #d4ff3a); outline-offset: 1px; }
+
+/* the frame: a dashed box round the block, a handle on each side, its kind in a tag above it */
+.para-frame { position: absolute; z-index: 3; box-sizing: border-box; outline: 1.5px solid #0a0a0a; outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(212, 255, 58, .7); cursor: move; touch-action: none; }
+.para-frame:focus { outline-color: #0a0a0a; }
+.para-frame:focus-visible { box-shadow: 0 0 0 5px rgba(212, 255, 58, 1), 0 0 0 7.5px rgba(10, 10, 10, .35); }
+.para-frame.is-busy { outline-style: dashed; cursor: progress; }
+.para-frame.is-editing { outline-style: dashed; box-shadow: none; pointer-events: none; z-index: 4; }
+.para-frame.is-editing .para-h { display: none; }
+.para-h { position: absolute; top: 50%; width: 8px; height: 24px; margin: -12px 0 0 -4px; background: var(--lime, #d4ff3a); border: 1.5px solid #0a0a0a;
+  border-radius: 3px; cursor: ew-resize; box-sizing: border-box; }
+.para-h[data-h="w"] { left: -5px; }
+.para-h[data-h="e"] { left: calc(100% + 5px); }
+@media (pointer: coarse) { .para-h { width: 18px; height: 34px; margin: -17px 0 0 -9px; } }
+.para-tag { position: absolute; left: -1.5px; bottom: 100%; margin-bottom: 5px; padding: 2px 7px; border-radius: 5px; white-space: nowrap; pointer-events: none;
+  background: #0a0a0a; color: #f2f2f2; font: 600 11px/1.4 system-ui, sans-serif; }
+.para-frame.is-editing .para-tag { display: none; }
+
+/* typing in the frame: the paragraph's own font on the paper, with no box of its own that would move the text */
+.para-edit { position: absolute; z-index: 4; box-sizing: content-box; margin: 0; padding: 0; border: 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  text-align-last: auto; outline: 1.5px dashed var(--accent, #d4ff3a); outline-offset: 2px; cursor: text; caret-color: currentColor; }
+.para-edit > div { margin: 0; }
+.viewer.para-mode .pv-page { cursor: default; }
+.viewer.para-mode .pv-textlayer span { cursor: pointer; }

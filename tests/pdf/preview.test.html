@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: the empty page shows a finished PDF and three steps above the drop strip; Try a sample opens four pages</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; height: 860px; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: pdf/js/ui/drop.js, pdf/css/workspace.css, assets/shots/pdf-preview.webp (a 600 px WebP of assets/shots/pdf.jpg, preloaded by pdf/index.html)
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  /** The app in a fresh iframe of this width, once the preview is in. */
+  async function boot(width) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../pdf/index.html';
+    document.body.append(f);
+    await waitFor(() => { const w = f.contentWindow; return w && w.document.readyState === 'complete' && !!(w.SP && w.SP.engine && w.document.querySelector('#empty .sd-preview')); }, { timeout: 30000 });
+    W = f.contentWindow; D = W.document;
+  }
+  const $ = (sel) => D.querySelector(sel);
+
+  describe('Slop PDF: the first visit', () => {
+    it('the empty page shows what it makes and how, and Try a sample fills it', async () => {
+      await boot(1280);
+      expect(D.querySelectorAll('#empty .sd-steps li').length).toBe(3);
+      const img = $('#empty .sd-pic img');
+      SlopTest.shot(img, '../assets/shots/pdf-preview.webp');   // a build without media has no picture
+      if (img) {
+        expect(img.alt.length > 10).toBe(true);
+        await waitFor(() => img.complete && img.naturalWidth > 300);
+      }
+      expect($('#empty .empty-art')).toBe(null);
+      expect($('#empty .sd-preview').nextElementSibling.tagName).toBe('H1');
+      $('#emptySample').click();
+      await waitFor(() => { return W.SP.engine.state.pages.length === 4; }, { timeout: 20000 });
+      await waitFor(() => $('#empty').hidden);
+      expect($('#app').dataset.mode === 'empty').toBe(false);
+    }, { timeout: 60000 });
+    it('at 390 px the preview fits: no sideways scroll', async () => {
+      await boot(390);
+      const p = $('#empty .sd-preview').getBoundingClientRect();
+      expect(p.width > 200 && p.right <= 391).toBe(true);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+    }, { timeout: 40000 });
+  });
+  run();
+  </script>
+</body>
+</html>

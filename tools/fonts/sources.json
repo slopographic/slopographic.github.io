@@ -1,0 +1,42 @@
+{
+  "_": "The upstream OFL fonts a font spec can start from: files from the Google Fonts repository at one pinned commit, each with its SHA-256 (build.py refuses changed bytes). None of these licences names a Reserved Font Name; build.py checks each OFL.txt again before it uses the font.",
+  "base": "https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/",
+  "fonts": {
+    "inter-tight": {
+      "family": "Inter Tight", "designer": "Rasmus Andersson", "category": "sans",
+      "ofl": { "file": "intertight/OFL.txt", "sha256": "50240ab035cf1b6b3307940235481d515c4b6de3ab1fa843dbe59e7892cb9d58" },
+      "normal": { "file": "intertight/InterTight%5Bwght%5D.ttf", "sha256": "b81b73dcb64df3c230cabade7df6c5773bf863233f24c9ee51087519f1f88b6f" },
+      "italic": { "file": "intertight/InterTight-Italic%5Bwght%5D.ttf", "sha256": "15d3edf0c3d2560658529b8c4c7398d06c730a4695484c680b6c9ca9e4385be2" }
+    },
+    "instrument-serif": {
+      "family": "Instrument Serif", "designer": "Rodrigo Fuenzalida, Jordan Egstad", "category": "serif",
+      "ofl": { "file": "instrumentserif/OFL.txt", "sha256": "129ed7618959716959f2941fdd5b49e0ad6e6c1d78726761786a00253d865521" },
+      "normal": { "file": "instrumentserif/InstrumentSerif-Regular.ttf", "sha256": "498efd461f6ddfcb7a111bf9a565709d2085d48201d501ead960d93e84ffbb88" },
+      "italic": { "file": "instrumentserif/InstrumentSerif-Italic.ttf", "sha256": "08939b8bdf534afec24ae0ef5e03f948940cd9a8fe08e7fecbad040e62327385" }
+    },
+    "jetbrains-mono": {
+      "family": "JetBrains Mono", "designer": "JetBrains, Philipp Nurullin, Konstantin Bulenkov", "category": "mono",
+      "ofl": { "file": "jetbrainsmono/OFL.txt", "sha256": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d" },
+      "normal": { "file": "jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf", "sha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda" },
+      "italic": { "file": "jetbrainsmono/JetBrainsMono-Italic%5Bwght%5D.ttf", "sha256": "85ae2a5cd3f56baf1ce1c21a851322c58e3d8fbe8e8ad4a4d090a820dd7fe558" }
+    },
+    "archivo": {
+      "family": "Archivo", "designer": "Omnibus-Type", "category": "sans",
+      "ofl": { "file": "archivo/OFL.txt", "sha256": "108b4e57c9c796d3d38d0428ca7ee39de47ad93187302718d9b2d8864b9b716b" },
+      "normal": { "file": "archivo/Archivo%5Bwdth%2Cwght%5D.ttf", "sha256": "0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053" },
+      "italic": { "file": "archivo/Archivo-Italic%5Bwdth%2Cwght%5D.ttf", "sha256": "305d13b4eb80e62f7d517f78d7c045250d977552a420f2dbed906f314e761305" }
+    },
+    "instrument-sans": {
+      "family": "Instrument Sans", "designer": "Rodrigo Fuenzalida, Jordan Egstad", "category": "sans",
+      "ofl": { "file": "instrumentsans/OFL.txt", "sha256": "9e27a72ed30eb49a08678f6a5d6ed98ec7ba5368f541637ee0683ec9134ef966" },
+      "normal": { "file": "instrumentsans/InstrumentSans%5Bwdth%2Cwght%5D.ttf", "sha256": "b24f1812584816958afcf22e22d08e44318c5e51651e25d2438efdde389b33b1" },
+      "italic": { "file": "instrumentsans/InstrumentSans-Italic%5Bwdth%2Cwght%5D.ttf", "sha256": "a74203cc5066a3b2f8de1a7b0887ef897773c2319dc86c911f8e85350cde0d07" }
+    },
+    "red-hat-mono": {
+      "family": "Red Hat Mono", "designer": "MCKL", "category": "mono",
+      "ofl": { "file": "redhatmono/OFL.txt", "sha256": "435fbfb7e66988b2a06686a4cb966faec733f35d8fe100a1601573c27f3e0bb8" },
+      "normal": { "file": "redhatmono/RedHatMono%5Bwght%5D.ttf", "sha256": "253377ac29ccce89cb1b5fb297c69812ffe993b0c436322b3656323ff30fd14f" },
+      "italic": { "file": "redhatmono/RedHatMono-Italic%5Bwght%5D.ttf", "sha256": "bdb184e308ec6dfb2790a5ec6a0b1aceb2aca32b95db447873451934eb3517b7" }
+    }
+  }
+}

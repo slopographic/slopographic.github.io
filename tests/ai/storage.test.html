@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: model storage</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, AI, D;
+  const row = (id) => D.querySelector(`#mStorageBody tr[data-id="${CSS.escape(id)}"]`);
+  describe('models: storage section', () => {
+    it('lists a downloaded model with its size and Delete removes its files', async () => {
+      W = await AT.app(); AI = W.AI; D = W.document; AT.answer(W);
+      const m = AI.allModels()[0];
+      await AI.E.load(m.id, { skipConsent: true }); // the fake engine stores its download the same way
+      AI.setTab('models');
+      await waitFor(() => row(m.id));
+      expect(row(m.id).textContent).toContain('Downloaded');
+      expect(D.querySelector('#mStorage h2').textContent).toBe('Storage');
+      row(m.id).querySelector('[data-act="delete-storage"]').click();
+      await waitFor(() => !row(m.id));
+      expect((await AI.E.status(m.id)).state).toBe('none');
+    });
+    it('deletes exactly the cache the engine uses, and only that model', async () => {
+      const K = AI.K, [a, b] = AI.allModels().filter((x) => !x.custom);
+      const c = await W.caches.open('webllm/model');
+      for (const id of [a.id, b.id]) {
+        const base = K.models.urlFor(id);
+        await c.put(base + 'ndarray-cache.json', new W.Response(JSON.stringify({ records: [{}] }), { headers: { 'content-type': 'application/json' } }));
+        await c.put(base + 'params_shard_0.bin', new W.Response(new Uint8Array(4096), { headers: { 'content-type': 'application/octet-stream', 'content-length': '4096' } }));
+      }
+      expect((await K.models.status(a.id)).state).toBe('ready');
+      expect((await K.models.status(a.id)).bytes).toBeGreaterThan(4000);
+      await K.models.remove(a.id);
+      expect((await K.models.status(a.id)).state).toBe('none');
+      expect((await K.models.status(b.id)).state).toBe('ready');
+      await K.models.remove(b.id);
+    });
+    it('warns when storage for the site is nearly full and says what to free', async () => {
+      const realEstimate = W.navigator.storage.estimate;
+      W.navigator.storage.estimate = async () => ({ quota: 1e9, usage: 1e9 - 2e6 });
+      try {
+        AI.setTab('models'); AI.renderModels();
+        const warn = await waitFor(() => D.getElementById('mFull'));
+        expect(warn.getAttribute('role')).toBe('alert');
+        expect(warn.textContent).toContain('Storage is full');
+        expect(warn.textContent).toContain('Clear local cache');
+      } finally { W.navigator.storage.estimate = realEstimate; }
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'Slop AI: model storage' });</script>
+</body>
+</html>

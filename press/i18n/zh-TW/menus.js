@@ -1,0 +1,22 @@
+/* Slop Press, Traditional Chinese (Taiwan): the menu titles and submenu names. Same keys as press/i18n/en/menus.js. Terms: shared/i18n/glossary-zh-TW.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'press.menu.layout': '版面',
+  'press.menu.type': '文字',
+  'press.menu.object': '物件',
+  'press.menu.window': '視窗',
+  'press.menu.tools': '工具',
+  'press.menu.styles': '樣式',
+  'press.menu.send_to': '傳送到',
+  'press.menu.pages': '頁面',
+  'press.menu.para_style': '段落樣式',
+  'press.menu.char_style': '字元樣式',
+  'press.menu.alignment': '對齊',
+  'press.menu.special_char': '插入特殊字元',
+  'press.menu.composer': '排版器',
+  'press.menu.arrange': '排列',
+  'press.menu.fitting': '符合方式',
+  'press.menu.text_wrap': '文字繞排',
+  'press.menu.theme': '佈景主題',
+  'press.menu.hub_unavailable': 'Slop Hub 無法使用',
+  'press.menu.none': '（無）',
+});

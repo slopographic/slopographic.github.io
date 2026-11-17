@@ -1,0 +1,22 @@
+/* SEO copy, ar: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'seo.task.code.open-filemaker-file.crumb': 'فتح ملف FileMaker',
+  'seo.task.code.open-filemaker-file.title': 'فتح ملف FileMaker عبر الإنترنت: عرض جداول .fmp12 و .fp7',
+  'seo.task.code.open-filemaker-file.description': 'افتح قاعدة بيانات FileMaker (.fmp12 أو .fp7 أو .fp5 أو .fp3) في متصفحك واقرأ جداولها وسجلاتها دون FileMaker. ابحث وصدّر إلى CSV أو JSON. بدون رفع.',
+  'seo.task.code.open-filemaker-file.h1': 'فتح ملف FileMaker عبر الإنترنت',
+  'seo.task.code.open-filemaker-file.lead': 'يحتوي ملف FileMaker على جداول من السجلات، وعادةً تحتاج إلى FileMaker لرؤيتها. أسقط الملف على Slop Code فتُفتح جداوله على شكل شبكة يمكنك تمريرها والبحث فيها وتصديرها، دون تثبيت أي شيء.',
+  'seo.task.code.open-filemaker-file.steps.0': 'افتح Slop Code وأسقط ملف .fmp12 أو .fp7 أو .fp5 أو .fp3 على الصفحة، أو اخترْه من Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'يُفتح الملف كشبكة للقراءة فقط. اختر جدولًا من القائمة: تُحمَّل الصفوف أثناء التمرير، فيبقى الملف الكبير سريعًا.',
+  'seo.task.code.open-filemaker-file.steps.2': 'ابحث في الجدول بمربع البحث، أو اختر نوعًا من النص (عنوان IP أو بريدًا إلكترونيًا أو مفتاحًا) للانتقال إلى الصف التالي الذي يحتوي عليه.',
+  'seo.task.code.open-filemaker-file.steps.3': 'اختر «تصدير» لحفظ الجدول بصيغة CSV أو JSON، أو افتحه في تطبيق آخر.',
+  'seo.task.code.open-filemaker-file.body.0': 'تقرأ الصفحة صيغة الملف بنفسها: ملفات FileMaker Pro من 3 إلى 6 (.fp3 و.fp5 و.fmp)، ومن Pro 7 إلى 12 (.fp7 و.fmp12)، وتصدير الجداول الذي يكتبه FileMaker (.fmpxml). القارئ نسخة JavaScript من الأداة المفتوحة المصدر fmptools.',
+  'seo.task.code.open-filemaker-file.body.1': 'ترى الجداول وأسماء الأعمدة والسجلات. لا تُقرأ الصور والملفات في حقول الحاوية ولا التخطيطات ولا النصوص البرمجية ولا العلاقات ولا قوائم القيم، ويجب فتح الملف المشفّر أولًا في FileMaker.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'هل أحتاج إلى FileMaker لفتح الملف؟',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'لا. تقرأ الصفحة الملف في متصفحك وتعرض جداوله وصفوفه. ولا تشغّل قاعدة البيانات ولا نصوصها البرمجية.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'هل يُرفع ملفي؟',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'لا. يُقرأ الملف على هذا الجهاز ولا يُرسل أي شيء إلى Slopographic أو إلى أي جهة أخرى.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'هل يمكنني تغيير البيانات؟',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'لا. يُعرض الملف للقراءة فقط ولا يتغير أبدًا. صدّر جدولًا بصيغة CSV أو JSON للعمل على البيانات في تطبيق آخر.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'ما ملفات FileMaker التي يمكن فتحها؟',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'ملفات FileMaker Pro من 3 إلى 12 (.fp3 و.fp5 و.fp7 و.fmp12) وتصديرات الجداول بصيغة FMPXMLRESULT. وتُفتح ملفات .fmp12 الأحدث من إصدارات FileMaker اللاحقة بالطريقة نفسها ما لم تكن مشفّرة.',
+});

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Font on a phone, by touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; } iframe { width: 390px; height: 844px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Slop Font with a finger at phone width: the grid is the page, a tap opens a glyph, a finger draws a rectangle on the
+       canvas (a touch surface: no scroll), "‹ Glyphs" goes back, and the panel is a bottom sheet whose foot shows
+       Download font. Covers: fontcreator/css/fontcreator.css, fontcreator/css/views.css, fontcreator/js/editor/view.js, fontcreator/js/grid.js -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, D, FC;
+  const S = () => FC.state;
+  const shown = (el) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+  describe('Slop Font by touch', () => {
+    it('on a phone the grid is the page and Download font is at the foot', async () => {
+      ({ W, D, FC } = await FT.open(document.getElementById('app')));
+      expect(shown(D.getElementById('fc-cells'))).toBe(true);
+      expect(shown(D.getElementById('fc-stage'))).toBe(false);
+      expect(shown(D.getElementById('fc-download'))).toBe(true);
+      expect(D.documentElement.scrollWidth <= D.documentElement.clientWidth + 1).toBe(true);
+    }, { timeout: 40000 });
+
+    it('a tap on a letter opens it; a finger drags a rectangle with the Rectangle tool', async () => {
+      await TouchKit.tap(D.querySelector('[data-id="u0048"]'));
+      await waitFor(() => shown(D.getElementById('fc-stage')) && S().cur() === 'u0048');
+      expect(shown(D.getElementById('fc-back'))).toBe(true);
+      expect(D.getElementById('fc-canvas').hasAttribute('data-touch-surface')).toBe(true);
+      await TouchKit.tap(D.getElementById('fc-tool-rect'));
+      expect(S().settings().tool).toBe('rect');
+      await sleep(300);
+      const c = D.getElementById('fc-canvas'), r = c.getBoundingClientRect(), a = FC.editor.toScreen(100, 0);
+      await TouchKit.drag({ el: c, x: a.x, y: a.y }, 80, -160, 10);
+      await waitFor(() => S().view().contours.length === 1, { timeout: 5000 });
+      expect(r.height).toBeGreaterThan(200);
+    }, { timeout: 20000 });
+
+    it('‹ Glyphs goes back to the grid, where H is drawn now', async () => {
+      await sleep(900);   // the touch layer swallows a tap this soon after a finger held still (a long press) on the canvas
+      await TouchKit.tap(D.getElementById('fc-back'));
+      await waitFor(() => shown(D.getElementById('fc-cells')));
+      expect(D.querySelector('[data-id="u0048"]').classList.contains('fc-empty')).toBe(false);
+    });
+
+    it('Settings opens the panel as a sheet with the glyph\'s width', async () => {
+      const more = [...D.querySelectorAll('.sf-foot-more')].find(shown);
+      await TouchKit.tap(more);
+      await waitFor(() => shown(D.getElementById('fc-advance')), { timeout: 5000 });
+      expect(Number(D.getElementById('fc-advance').value)).toBeGreaterThan(0);
+    });
+  });
+  SlopTest.run({ name: 'Slop Font by touch' });
+  </script>
+</body>
+</html>

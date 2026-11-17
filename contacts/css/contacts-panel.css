@@ -1,0 +1,61 @@
+/* Slop Contacts: the filter section, the chips, the splitter and the import dialogs. Colours are the --sl-* tokens: the
+ * shared theme (shared/theme) sets them on the page, and the defaults below follow the page's own light and dark tokens. */
+:root {
+  --sl-background: var(--bg); --sl-surface: var(--panel); --sl-surface-2: var(--panel-2); --sl-text: var(--ink);
+  --sl-text-muted: var(--mute); --sl-border: var(--line); --sl-accent: var(--accent); --sl-accent-soft: var(--accent-soft);
+  --sl-on-accent: var(--accent-ink); --sl-danger: var(--danger);
+}
+
+/* Filter section (left column, under Pipeline) */
+.filters { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.filt { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; }
+.flt { display: flex; flex-direction: column; gap: 3px; padding: 0 10px; margin: 0 0 6px; font-size: 12px; color: var(--sl-text-muted); }
+.flt select, .flt input { width: 100%; min-width: 0; min-height: 30px; padding: 0 6px; border-radius: 7px; border: 1px solid var(--sl-border); background: var(--sl-surface); color: var(--sl-text); font-size: 13px; }
+.flt-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.flt-row input[type="date"] { font-size: 12px; }
+.flt-row select { min-width: 0; }
+
+/* Chips above the list */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 26px; padding: 0 8px 0 10px; border-radius: 999px; border: 1px solid var(--sl-border); background: var(--sl-accent-soft); color: var(--sl-text); font-size: 12px; cursor: pointer; }
+.chip:hover { border-color: var(--sl-text); }
+.chip span { color: var(--sl-text-muted); font-size: 14px; line-height: 1; }
+
+/* Splitter between the list and the card (wide screens only) */
+.splitter { position: relative; cursor: col-resize; touch-action: none; min-width: 6px; }
+.splitter::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; transform: translateX(-50%); background: var(--sl-border); transition: width .12s, background .12s; }
+.splitter:hover::before, .splitter:focus-visible::before, .splitter.on::before { width: 3px; background: var(--sl-text); }
+.splitter:focus-visible { outline: none; }
+
+/* Drop zone at the head of the contact list (shared/drop/panel.js draws it; the column is the drop target) */
+.ct-drop { padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.ct-drop:empty { display: none; }
+
+/* Import dialogs (SlopUI dialogs with these classes) */
+.imp-dlg { width: min(680px, 94vw); }
+.imp-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--sl-border); border-radius: 8px; }
+.imp-sum { font-weight: 600; margin: 0 0 10px; }
+.imp-warn { color: var(--sl-danger); }
+.imp-list { list-style: none; margin: 0; padding: 0; }
+.imp-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; align-items: baseline; padding: 7px 10px; border-bottom: 1px solid var(--sl-border); font-size: 13px; }
+.imp-row.is-dup { background: var(--sl-surface-2); }
+.imp-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-sub, .imp-status { color: var(--sl-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-choice { border: 1px solid var(--sl-border); border-radius: 8px; padding: 6px 12px 10px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
+.imp-choice legend { padding: 0 4px; font-size: 12px; color: var(--sl-text-muted); }
+.imp-map { width: 100%; border-collapse: collapse; font-size: 13px; }
+.imp-map th, .imp-map td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--sl-border); vertical-align: middle; }
+.imp-map th { font-size: 12px; color: var(--sl-text-muted); font-weight: 600; position: sticky; top: 0; background: var(--sl-surface); }
+.imp-map select { min-height: 30px; max-width: 100%; }
+.imp-ex { color: var(--sl-text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) {
+  .imp-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .imp-sub, .imp-status { white-space: normal; }
+}
+
+/* vCard tools (Groups column, under the filters): a plain disclosure with links to the vCard converter pages */
+.vcard-tools { margin: 18px 12px 0; font-size: 12px; color: var(--sl-text-muted); }
+.vcard-tools summary { cursor: pointer; font-weight: 600; color: var(--sl-text); }
+.vcard-tools p { margin: 8px 0; line-height: 1.45; }
+.vcard-tools ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.vcard-tools a { color: var(--sl-accent); }

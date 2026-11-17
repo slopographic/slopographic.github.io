@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: 3D model conversions</title>
+<style>body { margin: 0; } iframe { width: 1100px; height: 1400px; border: 0; }</style></head>
+<body>
+  <!-- Covers: convert/js/core/threed.js, convert/js/core/threed-pages.js, convert/js/preview/model3d.js, convert/js/core/detect.js -->
+  <!-- Covers: convert/js/core/catalog.js, convert/js/ui/tool.js, convert/js/preview/model.js, convert/js/preview/view.js, convert/js/ui/cards.js -->
+  <!-- Covers: convert/obj-to-stl/index.html, convert/gltf-to-glb/index.html, convert/css/convert.css -->
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+import * as T from '../../vendor/three/three.module.min.js';
+import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+import { detectKind } from '../../convert/js/core/detect.js';
+import { PAGES } from '../../convert/js/core/pages.js';
+import { writeModel } from '../../shared/3d-io/write.js';
+import { readModel } from '../../shared/3d-io/read.js';
+import { stats, bounds } from '../../shared/3d-io/scene.js';
+import { stlIsBinary } from '../../shared/3d-io/formats.js';
+import { dae, fbxBinary, threeMf, splitGltf, glbParts } from '../3d-io/fixtures.js';
+const { describe, it, expect, waitFor } = SlopTest;
+const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+const head = async (f) => new Uint8Array(await f.slice(0, 512).arrayBuffer());
+const item = async (f) => ({ name: f.name, file: f, kind: detectKind(f.name, f.type, await head(f)) });
+const near = (a, b, eps = 1e-3) => a.every((v, i) => Math.abs(v - b[i]) < eps);
+
+/** Two 2 × 2 × 2 cubes side by side, red and blue, as files of the given format. */
+async function cubes(format, opts = {}) {
+  const g = new T.Group(); g.name = 'Pair';
+  for (const [x, c, n] of [[0, 0xff0000, 'Red'], [4, 0x0000ff, 'Blue']]) {
+    const m = new T.Mesh(new T.BoxGeometry(2, 2, 2), new T.MeshStandardMaterial({ name: n, color: c }));
+    m.position.x = x; m.name = n; g.add(m);
+  }
+  const { files } = await writeModel(g, format, { name: 'pair', ...opts });
+  return files.map((f) => new File([f.blob], f.name));
+}
+async function readBack(outs) { const r = await readModel(outs.map((o) => ({ name: o.name, blob: o.blob }))); return { r, s: stats(r.root), b: bounds(r.root) }; }
+
+describe('detection and the target list', () => {
+  it('names each 3D format from its bytes or its name', async () => {
+    expect(detectKind('x.bin', '', new TextEncoder().encode('glTF\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000'))).toBe('glb');
+    expect(detectKind('noname', '', new TextEncoder().encode('Kaydara FBX Binary  \u0000\u001a\u0000'))).toBe('fbx');
+    expect(detectKind('scan', '', new TextEncoder().encode('ply\nformat binary_little_endian 1.0\n'))).toBe('ply');
+    for (const [name, kind] of [['a.stl', 'stl'], ['a.obj', 'obj'], ['a.gltf', 'gltf'], ['a.dae', 'dae'], ['a.mtl', 'mtl'], ['a.bin', 'bin'], ['a.FBX', 'fbx']]) expect(detectKind(name, '', null)).toBe(kind);
+    expect(detectKind('a.3mf', '', new Uint8Array([0x50, 0x4b, 3, 4]))).toBe('3mf');
+    expect(detectKind('a.usdz', '', new Uint8Array([0x50, 0x4b, 3, 4]))).toBe('usdz');
+    expect(detectKind('a.zip', '', new Uint8Array([0x50, 0x4b, 3, 4]))).toBe('zip');
+  });
+  it('offers the 3D targets for a model with its companions, and never for the companions alone', () => {
+    const ids = (k) => conversionsFor(k).map((c) => c.id).filter((id) => id.startsWith('3d-'));
+    expect(ids(['obj', 'mtl', 'png'])).toEqual(['3d-to-stl', '3d-to-obj', '3d-to-glb', '3d-to-gltf', '3d-to-ply', '3d-to-usdz']);
+    expect(ids(['gltf', 'bin', 'jpg'])).toHaveLength(6);
+    expect(ids(['png'])).toEqual([]);
+    expect(ids(['mtl', 'bin'])).toEqual([]);
+    expect(conversionsFor(['png']).some((c) => c.id === 'to-jpg')).toBeTruthy();
+  });
+});
+
+describe('the conversions', () => {
+  it('OBJ (+MTL) to STL, binary and ASCII: one solid, same triangles, and the status line names the lost materials', async () => {
+    const files = await Promise.all((await cubes('obj')).map(item));
+    const bin = await conv('3d-to-stl').run(files, { encoding: 'binary', units: '1', up: 'keep' });
+    expect(bin.map((o) => o.name)).toEqual(['pair.stl']);
+    expect(stlIsBinary(new Uint8Array(await bin[0].blob.arrayBuffer()))).toBe(true);
+    expect(bin.info).toContain('STL cannot hold 2 materials');
+    expect(bin.info).toContain('The 2 parts are joined into one solid.');
+    expect(bin.info).toContain('Wavefront OBJ read: 2 meshes, 24 triangles');
+    const { s, b } = await readBack(bin);
+    expect(s.triangles).toBe(24);
+    expect(near(b.min, [-1, -1, -1]) && near(b.max, [5, 1, 1])).toBeTruthy();
+    const asc = await conv('3d-to-stl').run(files, { encoding: 'ascii' });
+    expect(await asc[0].blob.text()).toMatch(/^solid/);
+  });
+  it('units and up axis: metres to millimetres scales by 1000, Z up to Y up turns the model', async () => {
+    const files = [await item((await cubes('stl'))[0])];
+    const big = await readBack(await conv('3d-to-glb').run(files, { units: '1000', up: 'keep' }));
+    expect(near(big.b.size, [6000, 2000, 2000], 0.01)).toBeTruthy();
+    const turned = await readBack(await conv('3d-to-stl').run(files, { units: '1', scale: 2, up: 'y-to-z' }));
+    expect(near(turned.b.size, [12, 4, 4], 1e-3)).toBeTruthy();
+    expect(near(turned.b.min, [-2, -2, -2], 1e-3)).toBeTruthy();
+  });
+  it('Merge makes one mesh with a material per part, and OBJ keeps the materials in its .mtl', async () => {
+    const files = [await item((await cubes('glb'))[0])];
+    const outs = await conv('3d-to-obj').run(files, { merge: true, materials: true });
+    expect(outs.map((o) => o.name)).toEqual(['pair.obj', 'pair.mtl']);
+    expect((await outs[1].blob.text()).match(/^newmtl /gm).length).toBe(2);
+    const glb = await conv('3d-to-glb').run(files, { merge: true });
+    expect(glbParts(await glb[0].blob.arrayBuffer()).json.meshes.length).toBe(1);
+  });
+  it('a .gltf with a separate .bin becomes one GLB; without the .bin it names the missing file', async () => {
+    const split = await splitGltf((await cubes('gltf'))[0], 'pair');
+    const outs = await conv('3d-to-glb').run(await Promise.all(split.map(item)), {});
+    expect(outs[0].name).toBe('pair.glb');
+    expect((await readBack(outs)).s.triangles).toBe(24);
+    let msg = '';
+    try { await conv('3d-to-glb').run([await item(split[0])], {}); } catch (e) { msg = e.message; }
+    expect(msg).toContain('pair.bin');
+  });
+  it('FBX, DAE, 3MF and PLY convert, and several models in one drop give one file each', async () => {
+    const drop = await Promise.all([new File([fbxBinary()], 'a.fbx'), new File([dae()], 'b.dae'), new File([await threeMf()], 'c.3mf'), (await cubes('ply'))[0]].map(item));
+    expect(drop.map((d) => d.kind)).toEqual(['fbx', 'dae', '3mf', 'ply']);
+    const outs = await conv('3d-to-stl').run(drop, {});
+    expect(outs.map((o) => o.name)).toEqual(['a.stl', 'b.stl', 'c.stl', 'pair.stl']);
+    expect(outs.info).toContain('a.fbx: FBX read: 1 mesh, 12 triangles');
+    const glb = await conv('3d-to-glb').run([drop[0]], { animations: true });
+    expect((await readBack(glb)).s.triangles).toBe(12);
+  });
+  it('USDZ is a zip package, and a broken model is reported without stopping the others', async () => {
+    const outs = await conv('3d-to-usdz').run([await item((await cubes('glb'))[0]), await item(new File(['# empty\n'], 'bad.obj'))], {});
+    expect(outs.map((o) => o.name)).toEqual(['pair.usdz']);
+    expect([...new Uint8Array(await outs[0].blob.slice(0, 2).arrayBuffer())]).toEqual([0x50, 0x4b]);
+    expect(outs.info).toContain('Not converted: bad.obj');
+  });
+});
+
+describe('the 3D pages, the hub and the preview', () => {
+  it('every 3D page is in PAGES with a 3D conversion and the 3D category', () => {
+    const p3 = PAGES.filter((p) => p.cat === '3D models');
+    expect(p3.length).toBe(12);
+    for (const p of p3) { expect(conv(p.conv)).toBeTruthy(); for (const k of p.from) expect(conv(p.conv).from).toContain(k); }
+  });
+  it('the OBJ to STL page takes the .mtl beside the .obj and previews both models in 3D', async () => {
+    const f = document.createElement('iframe');
+    f.src = '../../convert/obj-to-stl/';
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.querySelector('[data-convert-root]') && f.contentDocument.querySelector('[data-convert-root]').convertTool, { timeout: 20000 });
+    const tool = f.contentDocument.querySelector('[data-convert-root]').convertTool;
+    const files = (await cubes('obj')).map((x) => new f.contentWindow.File([x], x.name));
+    await tool.addFiles(files);
+    expect(tool.active().length).toBe(2);
+    expect(tool.target).toBe('3d-to-stl');
+    const D = f.contentDocument;
+    const caps = () => [...D.querySelectorAll('.cv-pv-panel .cv-hint')].map((p) => p.textContent);
+    // both panels caption themselves once their model has loaded, one after the other
+    await waitFor(() => D.querySelectorAll('.cv-pv-panel .cv-pv-3d').length === 2 && caps().length === 2 && caps().every((c) => /triangles/.test(c)), { timeout: 20000 });
+    expect(D.querySelector('.cv-pv-note').textContent).toContain('STL cannot hold 2 materials');
+    expect(caps().every((c) => c.includes('24 triangles'))).toBeTruthy();
+    f.remove();
+  }, { timeout: 40000 });
+});
+
+SlopTest.run({ name: 'File convert: 3D models' });
+</script>
+</body>
+</html>

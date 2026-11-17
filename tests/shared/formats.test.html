@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · WebP, SVG, WebM, AVIF and GIF in Drive, Gallery and Label</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script>window.SLOP_DRIVE_DB = 'slop-drive-test-formats-' + Date.now();</script>
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/kinds/kinds.js"></script>
+  <script src="../../gallery/js/core/thumb.js"></script>
+  <script src="../../gallery/js/io/source.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script>window.uid = (p) => p + Math.random().toString(36).slice(2, 8);</script>
+  <script src="../../label/js/io/files.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const G = window.SlopGallery;
+  const FILES = { webp: 'image/webp', avif: 'image/avif', gif: 'image/gif', svg: 'image/svg+xml', webm: 'video/webm' };
+  /** The fixture file as a File with its MIME type (the test server does not serve every type). */
+  async function fixture(ext) {
+    const bytes = await (await fetch('fixtures/formats/sample.' + ext)).arrayBuffer();
+    return new File([bytes], 'sample.' + ext, { type: FILES[ext] });
+  }
+  const img = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('img failed')); i.src = src; });
+  const dataUrlText = (url) => atob(url.split(',')[1]);
+
+  describe('Shared kind table', () => {
+    it('knows WebP, SVG, AVIF and GIF as images, and WebM as video, by name and by MIME type', () => {
+      for (const e of ['webp', 'svg', 'avif', 'gif']) { expect(SlopKinds.kindOf('a.' + e, '')).toBe('image'); }
+      expect(SlopKinds.kindOf('a.webm', '')).toBe('video');
+      expect(SlopKinds.kindOf('x', 'image/webp')).toBe('image');
+      expect(SlopKinds.kindOf('x', 'image/svg+xml')).toBe('image');
+      expect(SlopKinds.kindOf('x', 'image/avif')).toBe('image');
+      expect(SlopKinds.kindOf('x', 'image/gif')).toBe('image');
+      expect(SlopKinds.kindOf('x', 'video/webm')).toBe('video');
+      expect(SlopKinds.chipMatch(SlopKinds.kindOf('a.webm', ''), 'videos')).toBe(true);
+    });
+  });
+
+  describe('Browser decode (the test browser)', () => {
+    it('WebP, AVIF and GIF decode as bitmaps at their real size', async () => {
+      for (const e of ['webp', 'avif', 'gif']) {
+        const bmp = await createImageBitmap(await fixture(e));
+        expect([e, bmp.width, bmp.height]).toEqual([e, 96, 64]);
+        bmp.close();
+      }
+    });
+    it('SVG draws in an <img>', async () => {
+      const i = await img(URL.createObjectURL(await fixture('svg')));
+      expect([i.naturalWidth, i.naturalHeight]).toEqual([96, 64]);
+    });
+    it('WebM plays as video (its frame size and length are read)', async () => {
+      const f = await fixture('webm'), u = URL.createObjectURL(f);
+      const v = document.createElement('video'); v.muted = true; v.src = u;
+      await waitFor(() => v.readyState >= 1, { timeout: 8000 });
+      expect([v.videoWidth, v.videoHeight]).toEqual([96, 64]);
+      expect(v.duration > 0).toBe(true);
+      URL.revokeObjectURL(u);
+    });
+  });
+
+  describe('Slop Gallery: the photo library and the Drive source', () => {
+    it('makes a JPEG thumbnail of WebP, AVIF, GIF and SVG at 96 x 64', async () => {
+      for (const e of ['webp', 'avif', 'gif', 'svg']) {
+        const t = await G.thumb.make(await fixture(e), 1);
+        expect([e, t.blob.type, t.w, t.h]).toEqual([e, 'image/jpeg', 96, 64]);
+      }
+    });
+    it('makes a thumbnail of an SVG with no width or height (only a viewBox)', async () => {
+      const svg = new Blob(['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><rect width="200" height="100" fill="#3a7"/></svg>'], { type: 'image/svg+xml' });
+      const t = await G.thumb.make(svg, 1);
+      expect(t.blob.type).toBe('image/jpeg');
+      expect(t.w > 0 && t.h > 0).toBe(true);
+    });
+    it('keeps the still formats and refuses WebM with the reason (the library keeps photos; the intake rules)', async () => {
+      const files = await Promise.all(['webp', 'avif', 'gif', 'svg', 'webm'].map(fixture));
+      const R = window.SlopIntake.rules, rules = G.source.rules();
+      expect(files.filter((f) => R.check(f, rules).ok).map((f) => f.name)).toEqual(['sample.webp', 'sample.avif', 'sample.gif', 'sample.svg']);
+      expect(R.check(files[4], rules).reason).toBe('sample.webm is not a photo');
+      expect(G.source.isVideo(files[4])).toBe(true);
+    });
+    it('does not make a photo of WebM', async () => {
+      let threw = false;
+      try { await G.thumb.make(await fixture('webm'), 1); } catch (e) { threw = true; }
+      expect(threw).toBe(true);
+    });
+  });
+
+  describe('Slop Label: import as image, SVG as vector', () => {
+    it('places WebP, AVIF and GIF as bitmap assets with their aspect', async () => {
+      for (const e of ['webp', 'avif', 'gif']) {
+        const doc = { assets: {}, objects: [] };
+        const a = await addImageAsset(doc, await fixture(e));
+        expect(doc.assets[a.id].startsWith('data:image/' + e)).toBe(true);
+        expect(Math.round(a.aspect * 100)).toBe(150);
+      }
+    });
+    it('keeps SVG as vector: the asset is the SVG markup, not a bitmap', async () => {
+      const doc = { assets: {}, objects: [] };
+      const a = await addImageAsset(doc, await fixture('svg'));
+      expect(doc.assets[a.id].startsWith('data:image/svg+xml')).toBe(true);
+      expect(dataUrlText(doc.assets[a.id]).includes('<svg')).toBe(true);
+      expect(Math.round(a.aspect * 100)).toBe(150);
+    });
+    it('refuses WebM with a clear note that it is video', async () => {
+      let msg = '';
+      try { await addImageAsset({ assets: {}, objects: [] }, await fixture('webm')); } catch (e) { msg = e.message; }
+      expect(msg).toContain('WebM is video');
+    });
+    it('a format this browser cannot decode gets a clear message, not a crash', async () => {
+      let msg = '';
+      try { await addImageAsset({ assets: {}, objects: [] }, new File(['not an image'], 'broken.avif', { type: 'image/avif' })); } catch (e) { msg = e.message; }
+      expect(msg).toContain('cannot decode broken.avif');
+    });
+  });
+
+  describe('Slop Drive: thumbnails and previews', () => {
+    let W, DR;
+    it('makes a thumbnail and a preview of each format', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready') && w.DR);
+      DR = W.DR;
+      for (const e of ['webp', 'avif', 'gif', 'svg', 'webm']) {
+        const id = await W.SlopHub.put(await fixture(e), { name: 'sample.' + e, from: 'upload' });
+        const r = await W.SlopHub.get(id);
+        const want = e === 'webm' ? 'video' : 'image';
+        expect([e, DR.kindOf(r)]).toEqual([e, want]);
+        const th = await DR.makeThumb(r);
+        expect([e, !!th.blob, th.info.kind]).toEqual([e, true, want]);
+        const pv = DR.previewOf(r, true);
+        expect([e, !!pv.querySelector(e === 'webm' ? 'video' : 'img, canvas')]).toEqual([e, true]);
+      }
+    });
+    it('an undecodable AVIF still gets a card thumbnail and a clear preview note, not an error', async () => {
+      const id = await W.SlopHub.put(new Blob(['not an image'], { type: 'image/avif' }), { name: 'broken.avif', from: 'upload' });
+      const r = await W.SlopHub.get(id);
+      const th = await DR.makeThumb(r);
+      expect(!!th.blob).toBe(true);
+      expect(DR.previewOf(r, true).textContent.length > 0).toBe(true);
+    });
+  });
+  run({ name: 'Shared: WebP, SVG, WebM, AVIF and GIF' });
+  </script>
+</body>
+</html>

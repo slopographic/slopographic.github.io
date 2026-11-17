@@ -1,0 +1,28 @@
+/* Slop Music, Polish: the command palette entries and their groups. Same keys as music/i18n/en/commands.js.
+ * Terms: shared/i18n/glossary-pl.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'music.cmd.play': 'Odtwórz',
+  'music.cmd.pause': 'Pauza',
+  'music.cmd.play_pause': 'Odtwórz lub wstrzymaj',
+  'music.cmd.play_track': 'Odtwórz utwór…',
+  'music.cmd.play_playlist': 'Odtwórz playlistę…',
+  'music.cmd.next': 'Następny utwór',
+  'music.cmd.previous': 'Poprzedni utwór',
+  'music.cmd.seek': 'Przewiń',
+  'music.cmd.volume': 'Ustaw głośność',
+  'music.cmd.speed': 'Ustaw prędkość',
+  'music.cmd.shuffle': 'Losowo',
+  'music.cmd.repeat': 'Powtarzaj',
+  'music.cmd.queue_track': 'Dodaj utwór do kolejki…',
+  'music.cmd.find_tracks': 'Znajdź utwory…',
+  'music.cmd.tag_track': 'Oznacz utwór…',
+  'music.cmd.create_playlist': 'Nowa playlista…',
+  'music.cmd.rename_playlist': 'Zmień nazwę playlisty…',
+  'music.cmd.add_to_playlist': 'Dodaj utwór do playlisty…',
+  'music.cmd.remove_from_playlist': 'Usuń utwór z playlisty…',
+  'music.cmd.delete_playlist': 'Usuń playlistę…',
+  'music.cmd.export_playlist': 'Eksportuj playlistę…',
+  'music.cmd.group_player': 'Odtwarzacz',
+  'music.cmd.group_library': 'Biblioteka',
+  'music.cmd.group_playlists': 'Playlisty',
+});

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: display options</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/display.js, code/js/prefs.js, code/js/docs.js, code/js/extensions.js
+  // The display options (shown spaces and tabs, tab width, ruler, text size) change how the text is drawn and nothing else: the text
+  // stays as it was, the file is not marked changed, the choice is kept per viewer, and the helper's switch puts the defaults back.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, close, text, H, textOf, view } = CT;
+  let w, id;
+  const SAMPLE = 'a\tb  c\nsecond line\n';
+  const opt = (n) => w.document.querySelectorAll('#cd-ext-list .cd-opts .cd-opt')[n];
+  const selectOf = (n) => opt(n).querySelector('select');
+  const pick = (n, value) => { const s = selectOf(n); s.value = String(value); s.dispatchEvent(new w.Event('change', { bubbles: true })); };
+  const current = () => w.SlopCode.docs.current();
+  async function boot() {
+    w = await frame('../../code/');
+    if (!id) id = await H().put(text(SAMPLE), { name: 'display.txt', from: 'test' });
+    await w.SlopCode.openRecord(await H().get(id));
+    await waitFor(() => current() && current().name === 'display.txt');
+  }
+
+  describe('Slop Code: display options', () => {
+    it('show spaces and tabs: drawn on the page, the text and the saved state are untouched', async () => {
+      await boot();
+      expect(view(w).state.tabSize).toBe(4);
+      expect(w.document.querySelectorAll('.cm-highlightSpace, .cm-highlightTab').length).toBe(0);
+      opt(0).querySelector('input').click();
+      await waitFor(() => w.document.querySelectorAll('.cm-highlightSpace, .cm-highlightTab').length > 0);
+      expect(textOf(w)).toBe(SAMPLE);
+      expect(current().dirty).toBe(false);
+    }, { timeout: 40000 });
+    it('tab width, ruler and text size', async () => {
+      pick(1, 8);
+      await waitFor(() => view(w).state.tabSize === 8);
+      pick(2, 80);
+      await waitFor(() => w.document.querySelector('.cd-editor[data-ruler="80"]'));
+      pick(3, 18);
+      await waitFor(() => w.getComputedStyle(w.document.querySelector('.cd-editor .cm-editor')).fontSize === '18px');
+      expect(textOf(w)).toBe(SAMPLE);
+      expect(current().dirty).toBe(false);
+    });
+    it('the options follow another tab and are kept after a reload', async () => {
+      const other = await H().put(text('other\n'), { name: 'other.txt', from: 'test' });
+      await w.SlopCode.openRecord(await H().get(other));
+      await waitFor(() => current().name === 'other.txt');
+      expect(view(w).state.tabSize).toBe(8);
+      expect(w.document.querySelector('.cd-editor[data-ruler="80"]')).toBeTruthy();
+      close(w);
+      await boot();
+      await waitFor(() => view(w).state.tabSize === 8);
+      expect(selectOf(2).value).toBe('80');
+      expect(JSON.parse(w.localStorage.getItem('slop-code.display')).data).toEqual({ whitespace: true, tab: 8, ruler: 80, size: 18, fmt: false });
+    });
+    it('switching the helper off puts the defaults back; the choices come back when it is switched on', async () => {
+      w.document.getElementById('cd-ext-display').click();
+      await waitFor(() => view(w).state.tabSize === 4);
+      expect(w.document.querySelector('.cd-editor[data-ruler]')).toBe(null);
+      expect(w.document.querySelectorAll('.cm-highlightSpace, .cm-highlightTab').length).toBe(0);
+      w.document.getElementById('cd-ext-display').click();
+      await waitFor(() => view(w).state.tabSize === 8);
+    });
+    it('an unknown value is ignored', async () => {
+      pick(1, 5);
+      expect(JSON.parse(w.localStorage.getItem('slop-code.display')).data.tab).toBe(8);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: display options' });
+  </script>
+</body>
+</html>

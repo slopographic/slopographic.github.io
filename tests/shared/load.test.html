@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopLoad, scripts and stylesheets after the first paint or on demand</title>
+  <!-- Covers: shared/load/load.js, shared/hub.js -->
+</head>
+<body>
+  <!-- loaded after the first paint, in this order; b is in the page already, so it is not fetched again -->
+  <template id="t-paint" data-load="paint">
+    <script src="../../shared/profile/profile.js"></script>
+    <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+    <script src="fixtures/load/a.js"></script>
+    <script src="fixtures/load/b.js"></script>
+    <script>(window.__loadOrder = window.__loadOrder || []).push('inline');</script>
+    <link rel="stylesheet" href="fixtures/load/style.css">
+    <style>.load-fixture-style { width: 41px; }</style>
+    <script src="fixtures/load/c.js"></script>
+  </template>
+  <!-- only when asked -->
+  <template id="t-ask">
+    <script src="fixtures/load/d.js"></script>
+    <script type="module" src="fixtures/load/mod.js"></script>
+  </template>
+  <template id="t-missing">
+    <script src="fixtures/load/not-there.js"></script>
+    <script src="fixtures/load/d.js"></script>
+  </template>
+  <script src="../harness.js"></script>
+  <script src="fixtures/load/b.js"></script>
+  <script src="../../shared/load/load.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const order = () => window.__loadOrder.slice();
+  const count = (n) => order().filter((x) => x === n).length;
+  const fetched = (name) => performance.getEntriesByType('resource').filter((e) => e.name.endsWith('/fixtures/load/' + name)).length;
+
+  describe('SlopLoad', () => {
+    it('loads a data-load="paint" template after the first paint, in order, an inline script after the scripts before it', async () => {
+      await SlopLoad.ready('t-paint');
+      expect(SlopLoad.loaded('t-paint')).toBe(true);
+      // b ran once, from the page itself (a script already in the page counts as loaded)
+      expect(order()).toEqual(['b', 'a', 'inline', 'c']);
+      expect(fetched('b.js')).toBe(1);
+    });
+    it('applies the template stylesheets and inline styles (the offline build turns links into <style>)', async () => {
+      await SlopLoad.ready('t-paint');
+      const probe = (cls) => { const el = document.createElement('div'); el.className = cls; document.body.append(el); const w = getComputedStyle(el).width; el.remove(); return w; };
+      expect(probe('load-fixture-css')).toBe('37px');
+      expect(probe('load-fixture-style')).toBe('41px');
+    });
+    it('does not start a template without data-load until group() asks; group() runs it once', async () => {
+      let done = false;
+      SlopLoad.ready('t-ask').then(() => { done = true; });
+      await new Promise((r) => setTimeout(r, 150));
+      expect(done).toBe(false);
+      expect(count('d')).toBe(0);
+      await Promise.all([SlopLoad.group('t-ask'), SlopLoad.group('t-ask')]);
+      await waitFor(() => window.__loadMod === 1);
+      expect(done).toBe(true);
+      expect(count('d')).toBe(1);
+      await SlopLoad.group('t-ask');
+      expect(count('d')).toBe(1);
+    });
+    it('script() and scripts(): site-root paths, each file once, the list run in order', async () => {
+      const base = 'tests/shared/fixtures/load/';
+      await Promise.all([SlopLoad.scripts([base + 'c.js', base + 'a.js']), SlopLoad.script(base + 'a.js')]);
+      // a and c were loaded by the template already: nothing runs twice
+      expect(count('a')).toBe(1);
+      expect(count('c')).toBe(1);
+      expect(SlopLoad.url(base + 'a.js')).toBe(new URL('fixtures/load/a.js', location.href).href);
+      expect(SlopLoad.root).toBe(new URL('../../', location.href).href);
+    });
+    it('a missing script rejects (and can be asked for again); the rest of a group still runs', async () => {
+      let err = null;
+      await SlopLoad.script('tests/shared/fixtures/load/nope.js').catch((e) => { err = e; });
+      expect(!!err && /nope\.js/.test(err.message)).toBe(true);
+      err = null;
+      await SlopLoad.script('tests/shared/fixtures/load/nope.js').catch((e) => { err = e; });
+      expect(!!err).toBe(true);
+      await SlopLoad.group('t-missing');
+      expect(SlopLoad.loaded('t-missing')).toBe(true);
+      expect(count('d')).toBe(1);   // d.js already ran (t-ask): not again
+    });
+    it('css() adds a stylesheet once', async () => {
+      await SlopLoad.css('tests/shared/fixtures/load/style.css');
+      await SlopLoad.css('tests/shared/fixtures/load/style.css');
+      expect(document.querySelectorAll('link[href$="fixtures/load/style.css"]').length).toBe(1);
+    });
+    it('SlopHub.loadScript goes through SlopLoad', async () => {
+      await SlopHub.loadScript('tests/shared/fixtures/load/b.js');
+      expect(count('b')).toBe(1);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

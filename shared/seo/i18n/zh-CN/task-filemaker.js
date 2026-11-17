@@ -1,0 +1,22 @@
+/* SEO copy, zh-CN: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'seo.task.code.open-filemaker-file.crumb': '打开 FileMaker 文件',
+  'seo.task.code.open-filemaker-file.title': '在线打开 FileMaker 文件：查看 .fmp12 和 .fp7 表',
+  'seo.task.code.open-filemaker-file.description': '在浏览器中打开 FileMaker 数据库（.fmp12、.fp7、.fp5、.fp3），无需 FileMaker 即可读取表和记录。可搜索，可导出为 CSV 或 JSON。无需上传。',
+  'seo.task.code.open-filemaker-file.h1': '在线打开 FileMaker 文件',
+  'seo.task.code.open-filemaker-file.lead': 'FileMaker 文件里是记录表，通常需要 FileMaker 才能查看。把文件拖到 Slop Code，表就会以网格打开，可滚动、搜索和导出，无需安装任何软件。',
+  'seo.task.code.open-filemaker-file.steps.0': '打开 Slop Code，把 .fmp12、.fp7、.fp5 或 .fp3 文件拖到页面上，或从 Slop Drive 中选择。',
+  'seo.task.code.open-filemaker-file.steps.1': '文件以只读网格打开。从列表中选一张表：行随滚动加载，所以大文件也很流畅。',
+  'seo.task.code.open-filemaker-file.steps.2': '用搜索框在表中查找，或选择一种文本类型（IP 地址、电子邮件地址、密钥），跳到下一个包含它的行。',
+  'seo.task.code.open-filemaker-file.steps.3': '选择“导出”，把表保存为 CSV 或 JSON，或在其他应用中打开。',
+  'seo.task.code.open-filemaker-file.body.0': '页面自己读取文件格式：FileMaker Pro 3 至 6 的文件（.fp3、.fp5、.fmp），Pro 7 至 12 的文件（.fp7、.fmp12），以及 FileMaker 写出的表导出文件（.fmpxml）。读取器是开源 fmptools 的 JavaScript 移植版。',
+  'seo.task.code.open-filemaker-file.body.1': '你会看到表、列名和记录。容器字段中的图片和文件、布局、脚本、关系和值列表不会被读取，加密的文件需要先在 FileMaker 中打开。',
+  'seo.task.code.open-filemaker-file.faq.0.0': '打开文件需要 FileMaker 吗？',
+  'seo.task.code.open-filemaker-file.faq.0.1': '不需要。页面在浏览器中读取文件并显示其表和行，不会运行数据库或其脚本。',
+  'seo.task.code.open-filemaker-file.faq.1.0': '我的文件会被上传吗？',
+  'seo.task.code.open-filemaker-file.faq.1.1': '不会。文件在本设备上读取，不会向 Slopographic 或任何人发送任何内容。',
+  'seo.task.code.open-filemaker-file.faq.2.0': '可以修改数据吗？',
+  'seo.task.code.open-filemaker-file.faq.2.1': '不可以。文件以只读方式显示，绝不会被修改。若要在其他应用中处理数据，请把表导出为 CSV 或 JSON。',
+  'seo.task.code.open-filemaker-file.faq.3.0': '可以打开哪些 FileMaker 文件？',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'FileMaker Pro 3 至 12 的文件（.fp3、.fp5、.fp7、.fmp12），以及 FMPXMLRESULT 格式的表导出文件。更高版本 FileMaker 创建的较新 .fmp12 文件，只要未加密，也能以同样方式打开。',
+});

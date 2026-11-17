@@ -1,0 +1,22 @@
+/* SEO copy, tr: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'seo.task.code.open-filemaker-file.crumb': 'FileMaker dosyası aç',
+  'seo.task.code.open-filemaker-file.title': 'FileMaker dosyasını çevrimiçi aç: .fmp12 ve .fp7 tablolarını gör',
+  'seo.task.code.open-filemaker-file.description': 'FileMaker veritabanını (.fmp12, .fp7, .fp5, .fp3) tarayıcıda açın, tablolarını FileMaker olmadan okuyun. Arayın, CSV veya JSON dışa aktarın. Yükleme yok.',
+  'seo.task.code.open-filemaker-file.h1': 'FileMaker dosyasını çevrimiçi aç',
+  'seo.task.code.open-filemaker-file.lead': 'Bir FileMaker dosyası kayıt tabloları içerir ve bunları görmek için normalde FileMaker gerekir. Dosyayı Slop Code üzerine bırakın; tabloları kaydırabileceğiniz, arayabileceğiniz ve dışa aktarabileceğiniz bir ızgara olarak açılır, hiçbir şey kurmanız gerekmez.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Slop Code\'u açın ve .fmp12, .fp7, .fp5 veya .fp3 dosyasını sayfaya bırakın ya da Slop Drive\'dan seçin.',
+  'seo.task.code.open-filemaker-file.steps.1': 'Dosya salt okunur bir ızgara olarak açılır. Listeden bir tablo seçin: satırlar kaydırdıkça yüklenir, bu yüzden büyük bir dosya da hızlı kalır.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Tabloda arama kutusuyla arayın ya da bir metin türü (IP adresi, e-posta adresi, anahtar) seçerek onu içeren sonraki satıra atlayın.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Tabloyu CSV veya JSON olarak kaydetmek için Dışa aktar\'ı seçin ya da başka bir uygulamada açın.',
+  'seo.task.code.open-filemaker-file.body.0': 'Sayfa dosya biçimini kendisi okur: FileMaker Pro 3 ile 6 dosyaları (.fp3, .fp5, .fmp), Pro 7 ile 12 dosyaları (.fp7, .fmp12) ve FileMaker\'ın yazdığı tablo dışa aktarımı (.fmpxml). Okuyucu, açık kaynaklı fmptools\'un JavaScript uyarlamasıdır.',
+  'seo.task.code.open-filemaker-file.body.1': 'Tabloları, sütun adlarını ve kayıtları görürsünüz. Kapsayıcı alanlardaki resimler ve dosyalar, düzenler, komut dosyaları, ilişkiler ve değer listeleri okunmaz; şifreli bir dosya önce FileMaker\'da açılmalıdır.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'Dosyayı açmak için FileMaker gerekir mi?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'Hayır. Sayfa dosyayı tarayıcınızda okur ve tablolarını ile satırlarını gösterir. Veritabanını veya komut dosyalarını çalıştırmaz.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'Dosyam yükleniyor mu?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'Hayır. Dosya bu cihazda okunur ve Slopographic\'e ya da başka kimseye hiçbir şey gönderilmez.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'Verileri değiştirebilir miyim?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'Hayır. Dosya salt okunur gösterilir ve asla değiştirilmez. Verilerle başka bir uygulamada çalışmak için bir tabloyu CSV veya JSON olarak dışa aktarın.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'Hangi FileMaker dosyalarını açabilir?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'FileMaker Pro 3 ile 12 dosyaları (.fp3, .fp5, .fp7, .fmp12) ve FMPXMLRESULT biçimindeki tablo dışa aktarımları. FileMaker\'ın sonraki sürümlerinde oluşturulan yeni .fmp12 dosyaları, şifreli olmadıkça aynı şekilde açılır.',
+});

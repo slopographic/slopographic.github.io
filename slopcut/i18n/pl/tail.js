@@ -1,0 +1,27 @@
+/* Slop Cut (SlopEdit), Polish: the short counts, the template and render notes, and the export size notes. Same keys as
+ * slopcut/i18n/en/tail.js. Terms: shared/i18n/glossary-pl.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'slopedit.render.step_drop': 'Upuść wideo, dźwięk lub zdjęcia',
+  'slopedit.insp.n_clips': '{n} klipów',
+  'slopedit.insp.n_clips#one': '{n} klip',
+  'slopedit.insp.n_clips#few': '{n} klipy',
+  'slopedit.insp.n_clips#many': '{n} klipów',
+  'slopedit.insp.n_tracks': '{n} ścieżek',
+  'slopedit.insp.n_tracks#one': '{n} ścieżka',
+  'slopedit.insp.n_tracks#few': '{n} ścieżki',
+  'slopedit.insp.n_tracks#many': '{n} ścieżek',
+  'slopedit.insp.n_markers': '{n} znaczników',
+  'slopedit.insp.n_markers#one': '{n} znacznik',
+  'slopedit.insp.n_markers#few': '{n} znaczniki',
+  'slopedit.insp.n_markers#many': '{n} znaczników',
+  'slopedit.tpl.reflowed': 'klipy zachowane i przeułożone',
+  'slopedit.tpl.filled': 'Wypełniono miejsc: {k} z {n}',
+  'slopedit.tpl.filled#one': 'Wypełniono miejsc: {k} z {n}',
+  'slopedit.tpl.filled#few': 'Wypełniono miejsc: {k} z {n}',
+  'slopedit.tpl.filled#many': 'Wypełniono miejsc: {k} z {n}',
+  'slopedit.exp.about': 'około {size}',
+  'slopedit.rnd.cells': '{name} ({n} komórek)',
+  'slopedit.rnd.cells#one': '{name} ({n} komórka)',
+  'slopedit.rnd.cells#few': '{name} ({n} komórki)',
+  'slopedit.rnd.cells#many': '{name} ({n} komórek)',
+});

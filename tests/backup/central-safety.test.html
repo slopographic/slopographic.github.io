@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Backup · Export everything: rollback, secrets and the envelope</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>   <!-- the language choice (SlopI18n.set) -->
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="util.js"></script>
+  <script src="../../shared/backup/index.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+
+  describe('all or nothing', () => {
+    it('a file with one broken app section changes nothing: the earlier apps are rolled back', async () => {
+      const C = await BK.central();
+      await BK.eraseData();
+      await SlopData.store.put('customers', { name: 'Ada' });
+      await BK.seedDrive();
+      const env = await BK.envelopeOf(C);
+      // The file's Drive section has a record without its key: the write fails inside the Drive transaction.
+      delete env.apps.drive.data.stores.files.records[0].v.id;
+      // The live state differs from the file, so a rollback is visible.
+      await SlopData.store.put('customers', { name: 'Zed' });
+      const before = await BK.counts();
+      expect(before).toEqual({ customers: 2, files: 2, folders: 1 });
+      const p = await C.plan(BK.blob(JSON.stringify(env)));
+      expect(p.ok).toBe(true);
+      const r = await C.apply(p);
+      expect(r.ok).toBe(false);
+      expect(r.rolledBack).toBe(true);
+      expect(r.errors[0]).toMatch(/Nothing was changed/);
+      expect(await BK.counts()).toEqual(before);
+      expect(await (await BK.driveFile('f1')).blob.text()).toBe('hello');
+    });
+
+    it('a section that fails the shape check is refused before anything is written', async () => {
+      const C = await BK.central();
+      await BK.seedDrive();
+      const env = await BK.envelopeOf(C);
+      env.apps.drive.data.blobs = ['not base64!!'];
+      const before = await BK.counts();
+      const p = await C.plan(BK.blob(JSON.stringify(env)));
+      expect(p.ok).toBe(false);
+      expect(p.errors[0]).toMatch(/^[^:]+: files and folders: /);   // the Drive section, under the build's name for it (here Slop Drive)
+      expect((await C.apply(p)).ok).toBe(false);
+      expect(await BK.counts()).toEqual(before);
+    });
+  });
+
+  describe('secrets', () => {
+    it('sync tokens and consent are not in the file, and are listed as excluded', async () => {
+      const C = await BK.central();
+      await BK.deleteDb('slop-sync');
+      const d = await C.idb.openDb('slop-sync', 1, (db) => db.createObjectStore('kv'));
+      await new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put({ access: 'SECRET-TOKEN-XYZ' }, 'tokens'); t.oncomplete = res; t.onerror = () => rej(t.error); });
+      d.close();
+      localStorage.setItem('slop-consent', '{"token":"CONSENT-SECRET-QRS"}');
+      localStorage.setItem('slop-sync', '{"clientId":"SYNC-ID-123"}');
+      const ex = await C.exportEverything();
+      const text = await ex.blob.text();
+      for (const s of ['SECRET-TOKEN-XYZ', 'CONSENT-SECRET-QRS', 'SYNC-ID-123']) expect(text).not.toContain(s);
+      const listed = ex.excluded.map((x) => x.source).join(' | ');
+      expect(listed).toMatch(/Sync sign-in tokens \(IndexedDB /);   // here: Slop Sync sign-in tokens
+      expect(listed).toMatch(/Consent record/);
+      localStorage.removeItem('slop-consent'); localStorage.removeItem('slop-sync');
+      await BK.deleteDb('slop-sync');
+    });
+
+    it('a file with a secret-looking key is refused', async () => {
+      const C = await BK.central();
+      const env = await BK.envelopeOf(C);
+      env.apps.data.data.collections.customers = env.apps.data.data.collections.customers || [];
+      env.apps.profile = { version: 1, data: { access_token: 'LEAK' } };
+      const p = await C.plan(BK.blob(JSON.stringify(env)));
+      expect(p.ok).toBe(false);
+      expect(p.errors[0]).toMatch(/secret/);
+    });
+  });
+
+  describe('the envelope is checked first', () => {
+    it('a wrong format, an unknown key, a newer version and bad JSON are refused, and nothing changes', async () => {
+      const C = await BK.central();
+      const env = await BK.envelopeOf(C);
+      const before = await BK.counts();
+      const bad = [
+        { ...env, format: 'something-else' },
+        { ...env, surprise: true },
+        { ...env, version: 3 },
+      ];
+      for (const b of bad) {
+        const p = await C.plan(BK.blob(JSON.stringify(b)));
+        expect(p.ok).toBe(false);
+        expect((await C.apply(p)).ok).toBe(false);
+      }
+      expect((await C.plan(BK.blob('{not json'))).errors[0]).toMatch(/not valid JSON/);
+      expect((await C.plan(BK.blob('{"format":"slop-backup","version":2,"created":"2026-01-01T00:00:00Z","apps":{"x":{"version":1,"data":{"__proto__":{"a":1}}}},"settings":{},"registry":[],"excluded":[]}'))).ok).toBe(false);
+      expect(await BK.counts()).toEqual(before);
+    });
+
+    it('a file that is not a backup at all is refused with a plain message', async () => {
+      const C = await BK.central();
+      const p = await C.plan(BK.blob('{"hello":"world"}'));
+      expect(p.ok).toBe(false);
+      expect(p.errors[0]).toMatch(/not a Slopographic backup/);
+    });
+
+    // Covers: shared/backup/central-format.js, shared/backup/central.js, shared/i18n/ui/en/backup.js, shared/i18n/ui/sv/backup.js
+    it('the refusals and the excluded list are in the chosen language (keys ui.backup.*, read when made)', async () => {
+      const C = await BK.central();
+      const switched = (code) => new Promise((res) => { addEventListener('slopi18n', () => res(), { once: true }); SlopI18n.set(code); });
+      await switched('sv');
+      try {
+        expect((await C.plan(BK.blob('{"hello":"world"}'))).errors[0]).toBe('Det här är inte en säkerhetskopia från Slopographic.');
+        expect((await C.plan(BK.blob('{not json'))).errors[0]).toMatch(/^Det här är inte en säkerhetskopia från Slopographic: filen är inte giltig JSON/);
+        expect(C.EXCLUDED[0].reason).toBe('hemligheter: de lämnar aldrig webbläsaren');
+        expect(SlopBackup.registeredApps().find((a) => a.id === 'drive').label).toBe('Slop Drive: filer och mappar');
+      } finally { await switched('en'); }
+      expect((await C.plan(BK.blob('{"hello":"world"}'))).errors[0]).toBe('This is not a Slopographic backup file.');
+      expect(SlopBackup.registeredApps().find((a) => a.id === 'drive').label).toBe('Slop Drive: files and folders');
+    });
+  });
+
+  describe('per-app versions and migrations', () => {
+    it('registerApp refuses a version above 1 that has no migration', async () => {
+      expect(() => SlopBackup.registerApp('no-migration', { version: 2, exportData() {}, importData() {} })).toThrow(/migrations\[2\]/);
+    });
+
+    it('an app section from an older version runs its migrations before importData', async () => {
+      const C = await BK.central();
+      const seen = {};
+      SlopBackup.registerApp('mig-test', {
+        version: 2, label: 'Migration test',
+        exportData: () => ({ a: 1 }),
+        importData: async (data, from) => { seen.data = data; seen.from = from; },
+        migrations: { 2: (d) => ({ ...d, upgraded: true }) },
+      });
+      const env = await BK.envelopeOf(C);
+      env.apps['mig-test'] = { version: 1, data: { a: 1 } };
+      const p = await C.plan(BK.blob(JSON.stringify(env)));
+      expect(p.ok).toBe(true);
+      const row = p.rows.find((r) => r.id === 'mig-test');
+      expect(row.from).toBe(1);
+      expect(row.version).toBe(2);
+      expect((await C.apply(p)).ok).toBe(true);
+      expect(seen.from).toBe(1);
+      expect(seen.data).toEqual({ a: 1, upgraded: true });
+    });
+
+    it('a section from a newer version than this browser reads is refused', async () => {
+      const C = await BK.central();
+      const env = await BK.envelopeOf(C);
+      env.apps['mig-test'] = { version: 3, data: { a: 1 } };
+      const p = await C.plan(BK.blob(JSON.stringify(env)));
+      expect(p.ok).toBe(false);
+      expect(p.errors[0]).toMatch(/newer version/);
+    });
+  });
+  run({ name: 'Backup · Export everything: rollback, secrets and the envelope' });
+  </script>
+</body>
+</html>

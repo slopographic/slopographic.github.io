@@ -1,0 +1,25 @@
+/* Slop Press, Italian: the Tools panel, the colour chips and popover, Create Guides.
+ * Keys start with press.tool., press.kit. and press.guide. Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'press.tool.undo_fill': 'Riempimento',
+  'press.tool.undo_stroke': 'Contorno',
+  'press.tool.fill_tip': 'Riempimento (clicca per scegliere)',
+  'press.tool.fill_label': 'Colore di riempimento',
+  'press.tool.stroke_tip': 'Contorno (clicca per scegliere)',
+  'press.tool.stroke_label': 'Colore del contorno',
+  'press.tool.title_key': '{name} ({key})',
+  'press.kit.colour': 'Colore',
+  'press.kit.custom_colour': 'Colore personalizzato…',
+  'press.kit.mode': 'Modalità',
+  'press.kit.mode_cmyk': 'CMYK (processo, stampa)',
+  'press.kit.ink.c': 'Ciano',
+  'press.kit.ink.m': 'Magenta',
+  'press.kit.ink.y': 'Giallo',
+  'press.kit.ink.k': 'Nero',
+  'press.guide.title': 'Crea guide',
+  'press.guide.margins': 'Margini',
+  'press.guide.page': 'Pagina',
+  'press.guide.selection': 'Selezione',
+  'press.guide.undo_create': 'Crea guide',
+  'press.guide.undo_clear': 'Cancella guide',
+});

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <title>Buddy · Clippy tips and the AI power-up</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="boot.js"></script>
+  <script type="module">
+  import { TIPS, tipsFor } from '../../shared/buddy/tips.js';
+  import { tr } from '../../shared/buddy/lines.js';
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { openApp, turnOn, prefs } = BuddyTest;
+  const bubble = (S) => S.M.bubble;
+
+  describe('tips per app', () => {
+    it('has tips for every app in the registry (or the default set)', () => {
+      expect(tr(tipsFor('label')[0].text)).toContain('label');
+      expect(tr(tipsFor('pdf')[0].text)).toContain('redacting a PDF');
+      expect(tipsFor('photoslop').some((x) => /Guides panel/.test(tr(x.text)))).toBe(true);
+      expect(tipsFor('drive').length).toBeGreaterThan(0);
+      expect(tipsFor('no-such-app')).toBe(TIPS.default);
+    });
+    it('shows a tip with a button that runs the app command, plus an opt-out', async () => {
+      const win = await openApp('?cmd=1', { clear: true });
+      const S = await turnOn(win);
+      await sleep(2600);
+      expect(S.tips.maybeTip(true)).toBe(true);
+      const btns = [...bubble(S).querySelectorAll('.say-actions button')].map((b) => b.textContent);
+      expect(btns[btns.length - 1]).toBe("Don't show tips again");
+      const tip = S.tips.context();
+      if (/barcode/i.test(tip)) {
+        expect(btns[0]).toBe('Add barcode');
+        bubble(S).querySelector('.say-actions button').click();
+        expect(win.cmdRuns).toEqual(['barcode.add']);
+      }
+    });
+    it('"Don\'t show tips again" turns tips off for good', async () => {
+      const win = await openApp('?cmd=1');
+      const S = await turnOn(win);
+      await sleep(2600);
+      S.tips.maybeTip(true);
+      const btns = [...bubble(S).querySelectorAll('.say-actions button')];
+      btns[btns.length - 1].click();
+      expect(prefs().tips).toBe(false);
+      expect(S.tips.maybeTip(true)).toBe(false);
+      localStorage.setItem('slop.buddy', JSON.stringify(Object.assign(prefs(), { tips: true })));
+    });
+    it('"Ask Sloppo" without AI searches the app\'s commands', async () => {
+      const win = await openApp('?cmd=1');
+      const S = await turnOn(win);
+      expect(await S.power.answer('print')).toBe('commands');
+      const b = bubble(S).querySelector('.say-actions button');
+      expect(b.textContent).toBe('Print');
+      b.click();
+      expect(win.cmdRuns).toContain('print');
+      expect(await S.power.answer('zzzz')).toBe('canned');
+    });
+  });
+
+  describe('AI power-up (stub SlopAI)', () => {
+    it('stays a normal Sloppo while the AI is not ready, and powers up when it becomes ready', async () => {
+      const win = await openApp('?ai=1');
+      const S = await turnOn(win);
+      expect(S.M.powered).toBeFalsy();
+      win.SlopAI._wake();
+      await waitFor(() => S.M.powered === true, { timeout: 3000 });
+      expect(S.M.el.classList.contains('is-powered')).toBe(true);
+      await waitFor(() => S.M.svg.querySelector('.m-brain').children.length > 0, { timeout: 2000 });
+    });
+    it('answers questions by streaming SlopAI.ask with the Sloppo persona', async () => {
+      const win = await openApp('?ai=ready');
+      const S = await turnOn(win);
+      await waitFor(() => S.M.powered === true, { timeout: 3000 });
+      const text = await S.power.answer('what is slop?');
+      expect(text).toBe('SLURP. I am the slop.');
+      expect(bubble(S).textContent).toContain('I am the slop.');
+      const [prompt, opts] = win.aiAsks.find((a) => a[0] === 'what is slop?');
+      expect(opts.persona).toBe('sloppo');
+    });
+    it('comments on the current app now and then', async () => {
+      const win = await openApp('?ai=ready');
+      const S = await turnOn(win);
+      await waitFor(() => S.M.powered === true, { timeout: 3000 });
+      expect(S.power.maybeComment(true)).toBe(true);
+      await waitFor(() => win.aiAsks.some((a) => a[0] === 'comment' && /SlopLabel|label/.test(a[1])), { timeout: 2000 });
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: the formatted view</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/fmtpane.js, code/js/editor.js, code/js/ui.js, code/js/commands.js
+  // The formatted view is a read-only copy beside the editor. It follows the text, says why it cannot format, and never writes to
+  // the document: the text and the saved state stay as they were, and Save is not needed.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H, textOf, view, toEnd } = CT;
+  let w;
+  const current = () => w.SlopCode.docs.current();
+  const paneText = () => { const p = w.document.querySelector('#cd-fmt-body .cm-content'); return p ? p.innerText : ''; };
+  const note = () => w.document.getElementById('cd-fmt-note');
+  async function open(name, body) {
+    const id = await H().put(text(body), { name, from: 'test' });
+    await w.SlopCode.openRecord(await H().get(id));
+    await waitFor(() => current() && current().name === name);
+  }
+
+  describe('Slop Code: the formatted view', () => {
+    it('is hidden at first, and shows a tidy copy of a JSON file when switched on', async () => {
+      w = await frame('../../code/');
+      await open('data.json', '{"a":1,"b":[1,2,3],"c":{"d":"x"}}');
+      expect(w.document.getElementById('cd-fmt').hidden).toBe(true);
+      expect(w.SlopCode.actions.fmtview()).toBe(true);
+      await waitFor(() => !w.document.getElementById('cd-fmt').hidden && paneText().includes('"c": {'), { timeout: 8000 });
+      expect(paneText().split('\n').length > 3).toBe(true);
+      expect(w.document.getElementById('cd-fmt-title').textContent).toBe('Formatted view: JSON');
+      expect(textOf(w)).toBe('{"a":1,"b":[1,2,3],"c":{"d":"x"}}'); // the file's own text is as it was
+      expect(current().dirty).toBe(false);
+    }, { timeout: 40000 });
+    it('follows what is typed, and explains an error without blanking the pane', async () => {
+      toEnd(w);
+      w.document.execCommand('insertText', false, ',');
+      await waitFor(() => !note().hidden, { timeout: 5000 });
+      expect(note().textContent).toContain('Cannot format');
+      expect(note().textContent).toContain('Unexpected text after the JSON value (line 1)'); // the message is the table's English, with the line
+      expect(paneText()).toContain('"c": {'); // the last good copy stays
+      w.document.execCommand('delete');
+      await waitFor(() => note().hidden, { timeout: 5000 });
+    });
+    it('says so for a file it has no view for, and does not touch the file', async () => {
+      await open('script.py', 'print( 1 )\n');
+      await waitFor(() => !note().hidden && note().textContent.includes('no formatted view'), { timeout: 5000 });
+      expect(textOf(w)).toBe('print( 1 )\n');
+    });
+    it('Copy takes the formatted text; Close hides the pane and the choice is kept', async () => {
+      await open('rows.csv', 'name,qty\nbolt,10\nnut,200\n');
+      await waitFor(() => paneText().includes('│'), { timeout: 5000 });
+      let copied = null;
+      Object.defineProperty(w.navigator, 'clipboard', { value: { writeText: async (s) => { copied = s; } }, configurable: true });
+      w.document.getElementById('cd-fmt-copy').click();
+      await waitFor(() => copied !== null);
+      expect(copied).toContain('bolt');
+      expect(copied).toContain('│');
+      w.document.getElementById('cd-fmt-close').click();
+      await waitFor(() => w.document.getElementById('cd-fmt').hidden);
+      expect(JSON.parse(w.localStorage.getItem('slop-code.display')).data.fmt).toBe(false);
+    });
+    it('the helper switch turns the feature off', async () => {
+      w.SlopCode.actions.fmtview();
+      await waitFor(() => !w.document.getElementById('cd-fmt').hidden);
+      w.document.getElementById('cd-ext-fmtview').click();
+      await waitFor(() => w.document.getElementById('cd-fmt').hidden);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: the formatted view' });
+  </script>
+</body>
+</html>

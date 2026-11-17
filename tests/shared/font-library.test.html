@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · Font picker and Get more</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } #host { padding: 8px; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <div id="host"><select id="pick" aria-label="Font family"></select></div>
+  <script>
+  // Covers: shared/library/get-more.js, shared/library/install.js
+  // Mock network: packs.json and the third-party pack files are served from memory and counted.
+  // The "third-party" font bytes are a real bundled WOFF2 (Lato 400), so FontFace can really load them.
+  const PACK_URL = 'https://raw.githubusercontent.com/example/test-fonts/main/ofl/testpack/TestPackSans-Regular.woff2';
+  const BAD_URL = 'https://raw.githubusercontent.com/example/test-fonts/main/ofl/badpack/BadPackSans-Regular.woff2';
+  const realFetch = window.fetch.bind(window);
+  window.__net = { packBytes: 0, bundledWoff2: 0 };
+  const hex = async (buf) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  window.__ready = (async () => {
+    const bytes = await (await realFetch('../../shared/fonts/library/lato/lato-400-normal.woff2')).arrayBuffer();
+    const wrong = new Uint8Array(bytes.byteLength); wrong.set(new Uint8Array(bytes)); wrong[100] ^= 0xff;
+    const sha = await hex(bytes), size = bytes.byteLength;
+    window.__bytes = bytes; window.__wrongBytes = wrong.buffer;
+    window.__manifest = {
+      note: 'test manifest', hosts: ['raw.githubusercontent.com'],
+      packs: [
+        { id: 'test-pack', name: 'Test Pack Sans', licence: 'OFL-1.1', description: 'Test only', size,
+          files: [{ name: 'TestPackSans-Regular.woff2', url: PACK_URL, size, sha256: sha, family: 'Test Pack Sans', weight: '400', style: 'normal' }] },
+        { id: 'bad-pack', name: 'Bad Pack Sans', licence: 'OFL-1.1', description: 'Bytes do not match the hash', size,
+          files: [{ name: 'BadPackSans-Regular.woff2', url: BAD_URL, size, sha256: sha, family: 'Bad Pack Sans', weight: '400', style: 'normal' }] }
+      ]
+    };
+  })();
+  window.fetch = async (input, init) => {
+    const url = String(input && input.url ? input.url : input);
+    if (/\/shared\/library\/packs\.json$/.test(url)) { await window.__ready; return new Response(JSON.stringify(window.__manifest), { status: 200, headers: { 'content-type': 'application/json' } }); }
+    if (url === PACK_URL) { window.__net.packBytes++; await window.__ready; return new Response(window.__bytes, { status: 200 }); }
+    if (url === BAD_URL) { window.__net.packBytes++; await window.__ready; return new Response(window.__wrongBytes, { status: 200 }); }
+    if (/\.woff2$/.test(url)) window.__net.bundledWoff2++;
+    return realFetch(input, init);
+  };
+  </script>
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, ms = 10000) {
+    const t0 = Date.now();
+    for (;;) { let v = null; try { v = await fn(); } catch (e) { v = null; } if (v) return v; if (Date.now() - t0 > ms) throw new Error('timed out waiting'); await sleep(50); }
+  }
+  const sel = document.getElementById('pick');
+  const groupNames = (label) => { const g = sel.querySelector(`optgroup[label="${label}"]`); return g ? [...g.children].map((o) => o.value) : []; };
+  const facesOf = (name) => [...document.fonts].filter((f) => f.family.replace(/"/g, '') === name);
+  const dialog = () => document.querySelector('.slop-lib');
+  const btnIn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+  const picker = SlopFonts.attach(sel, { value: 'Georgia', legacy: ['Georgia', 'Arial'] }); // a standard name: no bundled face loads until one is picked
+  const getMore = picker.button;
+
+  describe('Bundled fonts in the picker', () => {
+    it('lists the 12 bundled families under "Bundled (offline)" and the standard names under "Standard"', async () => {
+      await until(() => groupNames('Bundled (offline)').length === 12);
+      const names = groupNames('Bundled (offline)');
+      for (const n of ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Playfair Display', 'Merriweather', 'Oswald', 'Source Sans 3', 'Nunito', 'Raleway', 'Space Mono']) expect(names.includes(n)).toBe(true);
+      expect(groupNames("Standard")).toEqual(["Georgia", "Arial"]);
+    });
+    it('keeps bundled faces off the network until one is picked', async () => {
+      // The mock reads Lato once as the pack's bytes, so that one request is expected; no other bundled file may load.
+      expect(performance.getEntriesByType('resource').some((e) => /\/fonts\/library\/.*\.woff2$/.test(e.name) && !e.name.endsWith('/lato/lato-400-normal.woff2'))).toBe(false);
+    });
+    it('picking a bundled family registers it with FontFace and loads it', async () => {
+      sel.value = 'Lato';
+      sel.dispatchEvent(new Event('change'));
+      await until(() => facesOf('Lato').some((f) => f.status === 'loaded'));
+      expect(facesOf('Lato').length >= 1).toBe(true);
+    });
+    it('the Get more button is there and says nothing is downloaded until clicked', async () => {
+      expect(getMore.textContent).toBe('Get more…');
+      expect(getMore.title.includes('only when you click')).toBe(true);
+      expect(window.__net.packBytes).toBe(0);
+    });
+  });
+
+  describe('Get more (opt-in packs)', () => {
+    it('opening the dialog lists packs with licence and size and downloads nothing', async () => {
+      getMore.click();
+      await until(() => dialog() && dialog().textContent.includes('Test Pack Sans'));
+      const text = dialog().textContent;
+      expect(text.includes('SIL Open Font License 1.1')).toBe(true);
+      expect(text.includes('Bad Pack Sans')).toBe(true);
+      expect(window.__net.packBytes).toBe(0);
+    });
+    it('Download asks for confirmation that shows the licence and size, and still downloads nothing', async () => {
+      const row = [...dialog().querySelectorAll('.pk')].find((r) => r.textContent.includes('Test Pack Sans'));
+      btnIn(row, 'Download').click();
+      await until(() => dialog().textContent.includes('Confirm download'));
+      const text = dialog().textContent;
+      expect(text.includes('Licence: SIL Open Font License 1.1 (OFL-1.1)')).toBe(true);
+      expect(text.includes('Size: ')).toBe(true);
+      expect(window.__net.packBytes).toBe(0);
+    });
+    it('Cancel at the confirmation downloads nothing', async () => {
+      btnIn(dialog(), 'Cancel').click();
+      await until(() => dialog().querySelector('.pk'));
+      expect(window.__net.packBytes).toBe(0);
+    });
+    it('confirming downloads, verifies and stores the pack; its font then shows in the picker', async () => {
+      const row = [...dialog().querySelectorAll('.pk')].find((r) => r.textContent.includes('Test Pack Sans'));
+      btnIn(row, 'Download').click();
+      await until(() => dialog().textContent.includes('Confirm download'));
+      btnIn(dialog(), 'Download ').click();
+      await until(() => dialog() && dialog().textContent.includes('is installed'));
+      expect(window.__net.packBytes).toBe(1);
+      const rec = await new Promise((res, rej) => { const r = indexedDB.open('slop-library'); r.onsuccess = () => { const q = r.result.transaction('packs').objectStore('packs').get('test-pack'); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }; r.onerror = () => rej(r.error); });
+      expect(rec.files[0].sha256.length).toBe(64);
+      expect(Object.keys(localStorage).filter((k) => /slop-library|font/i.test(k)).length).toBe(0);
+      await until(() => groupNames('Downloaded').includes('Test Pack Sans'));
+      sel.value = 'Test Pack Sans';
+      sel.dispatchEvent(new Event('change'));
+      await until(() => facesOf('Test Pack Sans').some((f) => f.status === 'loaded'));
+    });
+    it('a file that fails its SHA-256 is refused and nothing is stored', async () => {
+      const row = [...dialog().querySelectorAll('.pk')].find((r) => r.textContent.includes('Bad Pack Sans'));
+      btnIn(row, 'Download').click();
+      await until(() => dialog().textContent.includes('Confirm download'));
+      btnIn(dialog(), 'Download ').click();
+      await until(() => dialog() && dialog().querySelector('[role="status"]') && dialog().querySelector('[role="status"]').textContent.includes('Nothing was stored'));
+      expect(dialog().querySelector('[role="status"]').textContent.includes('SHA-256 does not match')).toBe(true);
+      expect(groupNames('Downloaded').includes('Bad Pack Sans')).toBe(false);
+      btnIn(dialog(), 'Close').click();
+    });
+  });
+
+  SlopTest.run({ name: 'Shared · font picker and Get more' });
+  </script>
+</body>
+</html>

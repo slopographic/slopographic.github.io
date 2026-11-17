@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: file tree</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/ui.js, code/js/main.js (the Explorer drawer at 390 px)
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, view, doc, textOf, rec, tabNames, dialog, dialogButtons, clickButton, waitFor, sleep } = CT;
+  let w, folder, page, readme;
+  const row = (key) => w.document.querySelector(`#cd-tree-list [data-key="${key}"]`);
+  const rowsText = () => [...w.document.querySelectorAll('#cd-tree-list .cd-row')].map((b) => b.textContent.trim());
+  const menuLabels = () => [...w.document.querySelectorAll('.sui-menu[data-level="0"] .sui-lbl')].map((x) => x.textContent);
+  const rightClick = (el) => el.dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200, detail: 1 }));
+  const menuItem = (label) => [...w.document.querySelectorAll('.sui-menu[data-level="0"] .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === label);
+
+  describe('Slop Code: the Slop Drive tree', () => {
+    it('lists folders and files as Drive shows them, and the Trash is hidden', async () => {
+      folder = await H().createFolder('Site');
+      page = await H().put(text('<p>hi</p>', 'text/html'), { name: 'page.html', from: 'test', folderId: folder });
+      readme = await H().put(text('# readme\n', 'text/markdown'), { name: 'readme.md', from: 'test' });
+      const gone = await H().put(text('x'), { name: 'old.txt', from: 'test' });
+      await H().update(gone, { trashedAt: Date.now() });
+      w = await frame('../../code/');
+      await waitFor(() => row('d:' + folder) && row('f:' + readme), { timeout: 8000 });
+      expect(row('f:' + gone)).toBe(null);
+      expect(row('f:' + page)).toBe(null); // inside a folder that is closed
+      expect(rowsText().join('|')).toContain('Site');
+    });
+
+    it('a click on a folder opens it and shows its files', async () => {
+      row('d:' + folder).click();
+      await waitFor(() => row('f:' + page), { timeout: 5000 });
+      expect(row('d:' + folder).getAttribute('aria-expanded')).toBe('true');
+      expect(row('f:' + page).style.paddingLeft).toBe('22px');
+    });
+
+    it('a click on a file opens it in a tab', async () => {
+      row('f:' + page).click();
+      await waitFor(() => doc(w) && doc(w).id === page, { timeout: 8000 });
+      expect(tabNames(w)).toEqual(['page.html']);
+      expect(row('f:' + page).getAttribute('aria-current')).toBe('true');
+    });
+
+    it('right-click on a file shows Open, New, Rename, Move to, Copy path and Delete', async () => {
+      rightClick(row('f:' + readme));
+      await waitFor(() => menuItem('Rename…'), { timeout: 3000 });
+      expect(menuLabels()).toEqual(['Open', 'New', 'Rename…', 'Move to…', 'Copy path', 'Delete…']);
+      w.SlopUI.closeMenu();
+    });
+
+    it('Rename changes the Drive name', async () => {
+      rightClick(row('f:' + readme));
+      await waitFor(() => menuItem('Rename…'), { timeout: 3000 });
+      menuItem('Rename…').click();
+      await waitFor(() => w.document.querySelector('.sui-dlg input'), { timeout: 3000 });
+      const input = w.document.querySelector('.sui-dlg input');
+      input.value = 'README.md';
+      clickButton(w, 'Rename');
+      await waitFor(async () => (await H().get(readme)).name === 'README.md', { timeout: 5000 });
+      await waitFor(() => row('f:' + readme) && row('f:' + readme).textContent.includes('README.md'), { timeout: 5000 });
+    });
+
+    it('Copy path puts the path on the clipboard', async () => {
+      rightClick(row('f:' + page));
+      await waitFor(() => menuItem('Copy path'), { timeout: 3000 });
+      menuItem('Copy path').click();
+      await sleep(200);
+      const p = await w.navigator.clipboard.readText().catch(() => null);
+      expect(p === '/Site/page.html' || p === null).toBe(true);
+    });
+
+    it('Delete asks in a SlopUI dialog, then moves the file to the Trash', async () => {
+      rightClick(row('f:' + readme));
+      await waitFor(() => menuItem('Delete…'), { timeout: 3000 });
+      menuItem('Delete…').click();
+      await waitFor(() => dialog(w) && dialog(w).querySelector('.sui-title').textContent.startsWith('Delete'), { timeout: 3000 });
+      clickButton(w, 'Delete');
+      await waitFor(() => !row('f:' + readme), { timeout: 5000 });
+      expect((await H().get(readme)).trashedAt).toBeTruthy();
+    });
+
+    it('New on the empty space offers File and Folder', async () => {
+      w.document.querySelector('#cd-tree-list').dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 150, clientY: 150, detail: 1 }));
+      await waitFor(() => menuItem('New'), { timeout: 3000 });
+      expect(menuLabels()).toEqual(['New']);
+      w.SlopUI.closeMenu();
+    });
+  });
+
+  describe('Slop Code: phone width', () => {
+    it('at 390 px there is no sideways scroll, and the tree is a drawer from the left (SlopSheet)', async () => {
+      close(w);
+      w = await frame('../../code/', { width: 390, height: 844 });
+      const D = w.document;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(D.body.scrollWidth).toBeLessThanOrEqual(390);
+      const tree = D.getElementById('cd-tree'), btn = D.getElementById('cd-files');
+      const esc = () => D.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(tree.getBoundingClientRect().right).toBeLessThanOrEqual(1);
+      btn.click();
+      expect([tree.classList.contains('ssh-on'), btn.getAttribute('aria-expanded'), Math.round(tree.getBoundingClientRect().left)]).toEqual([true, 'true', 0]);
+      btn.click();
+      expect(tree.classList.contains('ssh-on')).toBe(false);   // Files again closes it
+      btn.focus(); btn.click(); D.querySelector('#cd-tree > .ssh-x').click();
+      expect([tree.classList.contains('ssh-on'), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc();
+      expect(tree.classList.contains('ssh-on')).toBe(false);
+      btn.click(); D.querySelector('.cd-main').dispatchEvent(new w.PointerEvent('pointerdown', { bubbles: true }));
+      expect(tree.classList.contains('ssh-on')).toBe(false);   // a tap outside
+      w.SlopCode.actions.files();   // Ctrl+B still toggles it
+      expect(tree.classList.contains('ssh-on')).toBe(true);
+      w.SlopCode.actions.files();
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: tree and phone' });
+  </script>
+</body>
+</html>

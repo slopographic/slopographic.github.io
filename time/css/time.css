@@ -1,0 +1,109 @@
+/* Slop Time: colours come from the shared Slop theme (--sl-* set by shared/theme/theme.js); the fallbacks are the Dark look.
+ * Then the tabs and the panels. One column at phone width (390 px); the grids open at 640 px. */
+:root {
+  --st-bg: var(--sl-background, #0e0e10); --st-panel: var(--sl-surface, #17171b); --st-line: var(--sl-border, #2c2c34);
+  --st-fg: var(--sl-text, #f1ede4); --st-dim: color-mix(in srgb, var(--st-fg) 75%, transparent); --st-faint: color-mix(in srgb, var(--st-fg) 65%, transparent);
+  --st-accent: var(--sl-accent, #d4ff3a); --st-on: color-mix(in srgb, var(--st-accent) 14%, transparent);
+  --st-hover: color-mix(in srgb, var(--st-fg) 7%, transparent); --st-ink: var(--sl-on-accent, #10180a);
+  --st-danger: #ff7b7b; --st-warn-bg: #3a3000; --st-warn-fg: #ffe59a; --st-ok: #b8e994;
+  --st-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --st-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"], :root[data-slop-theme="classic"] {
+  --st-danger: #b3261e; --st-warn-bg: #fff4d6; --st-warn-fg: #5b4300; --st-ok: #2b6e1c;
+  color-scheme: light;
+}
+/* SlopUI dialogs, menus and toasts follow the Time tokens (the shared --s-* fallbacks are fixed greys) */
+:root {
+  --sui-bg: var(--st-panel); --sui-bg2: var(--st-bg); --sui-input: var(--st-bg); --sui-line: var(--st-line);
+  --sui-fg: var(--st-fg); --sui-dim: var(--st-dim); --sui-faint: var(--st-faint); --sui-hover: var(--st-hover);
+  --sui-sel: var(--st-on); --sui-accent: var(--st-accent); --sui-accent-ink: var(--st-ink);
+}
+[hidden] { display: none !important; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--st-bg); color: var(--st-fg); font: 14px/1.4 var(--st-sans); }
+button, input, select { font: inherit; color: inherit; }
+h2 { font-size: 16px; margin: 20px 0 8px; }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 15px; margin: 0; }
+.st-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Under the menu bar: the tabs, with this device's zone at the end of their row; the panels below. */
+.st-app { width: 100%; max-width: 1000px; margin: 0 auto; padding: 8px 16px 40px; box-sizing: border-box;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "tabs device" "main main"; }
+.st-tabs { grid-area: tabs; }
+.st-main { grid-area: main; }
+.st-brand { display: flex; align-items: center; gap: 8px; }
+.st-brand h1 { margin: 0; font-size: 17px; }
+.st-logo { width: 18px; height: 18px; border-radius: 5px; background: var(--st-accent); box-shadow: inset -5px -5px 0 rgba(0, 0, 0, .18); }
+.st-device { grid-area: device; display: flex; align-items: center; margin: 0 0 14px; padding: 0 0 4px 12px; border-bottom: 1px solid var(--st-line); color: var(--st-faint); font-size: 12px; }
+
+.st-tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; border-bottom: 1px solid var(--st-line); margin-bottom: 14px; scrollbar-width: thin; }
+.st-tabs button { flex: 0 0 auto; padding: 9px 12px; border: 0; border-bottom: 3px solid transparent; background: transparent; cursor: pointer; color: var(--st-dim); min-height: 40px; }
+.st-tabs button[aria-selected="true"] { color: var(--st-fg); border-bottom-color: var(--st-accent); font-weight: 700; }
+.st-tabs button:focus-visible, .st-btn:focus-visible, input:focus-visible, select:focus-visible, .st-result:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 1px; }
+
+.st-main { min-width: 0; }
+/* At phone width the six tabs are a 3 × 2 grid (nothing hides off the edge) and the device's zone goes under them. */
+@media (max-width: 560px) {
+  .st-app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "tabs" "device" "main"; }
+  .st-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
+  .st-tabs button { padding: 8px 4px; }
+  .st-device { padding: 0; border: 0; margin: -6px 0 12px; }
+}
+.st-panel { min-width: 0; }
+.st-field { display: grid; gap: 4px; margin-bottom: 10px; min-width: 0; }
+.st-field label, .st-note, .st-caption { color: var(--st-dim); font-size: 12px; }
+.st-field input, .st-field select, .st-prefs input[type="number"], .st-row input { width: 100%; box-sizing: border-box; min-height: 40px; padding: 8px 10px; background: var(--st-panel); border: 1px solid var(--st-line); border-radius: 9px; }
+.st-row input { flex: 1; min-width: 0; }
+.st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.st-grid2, .st-grid3 { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .st-grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .st-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.st-btn { min-height: 40px; padding: 8px 14px; border: 1px solid var(--st-line); border-radius: 9px; background: var(--st-panel); cursor: pointer; }
+.st-btn:hover:not(:disabled) { background: var(--st-hover); }
+.st-btn:disabled { opacity: .45; cursor: default; }
+.st-primary { background: var(--st-accent); color: var(--st-ink); border-color: transparent; font-weight: 700; }
+.st-small { min-height: 32px; padding: 4px 10px; font-size: 12px; }
+.st-err { color: var(--st-danger); font-size: 13px; margin: 4px 0; min-height: 1em; }
+.st-msg { font-size: 15px; margin: 10px 0; }
+.st-empty, .st-note { color: var(--st-dim); font-size: 13px; margin: 10px 0; }
+.st-warn { background: var(--st-warn-bg); color: var(--st-warn-fg); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+
+.st-prefs { border: 1px solid var(--st-line); border-radius: 12px; padding: 12px; margin: 0 0 16px; background: var(--st-panel); }
+.st-prefs legend { padding: 0 6px; font-weight: 700; }
+.st-days { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 4px; }
+.st-days label { display: flex; align-items: center; gap: 4px; min-height: 36px; }
+
+.st-results, .st-cards, .st-windows, .st-chips, .st-laps { list-style: none; margin: 8px 0; padding: 0; }
+.st-results:empty { display: none; }
+.st-results li + li { border-top: 1px solid var(--st-line); }
+.st-result { width: 100%; text-align: left; padding: 8px 10px; background: transparent; border: 0; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.st-result:hover { background: var(--st-hover); }
+.st-cards { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .st-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.st-card { background: var(--st-panel); border: 1px solid var(--st-line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.st-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.st-zone { display: block; color: var(--st-faint); font-size: 12px; overflow-wrap: anywhere; }
+.st-time { font: 300 34px/1.1 var(--st-mono); margin: 6px 0 2px; }
+.st-sec { font-size: 18px; color: var(--st-dim); }
+.st-day { margin: 0; color: var(--st-dim); font-size: 13px; }
+.st-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.st-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--st-line); }
+.st-badge.st-ok { color: var(--st-ok); border-color: var(--st-ok); }
+.st-badge.st-off { color: var(--st-dim); }
+
+.st-windows li { padding: 8px 0; border-top: 1px solid var(--st-line); overflow-wrap: anywhere; }
+.st-win-head { margin: 0; font-weight: 700; }
+.st-win-each { margin: 2px 0 0; color: var(--st-dim); font-size: 13px; }
+.st-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-chip { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border: 1px solid var(--st-line); border-radius: 999px; background: var(--st-panel); }
+
+.st-tablewrap { overflow-x: auto; border: 1px solid var(--st-line); border-radius: 10px; }
+.st-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.st-table th, .st-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--st-line); white-space: nowrap; }
+.st-table th[scope="col"] { color: var(--st-dim); font-size: 12px; font-weight: 600; }
+.st-conv-time { font-family: var(--st-mono); font-weight: 700; }
+
+.st-big { font: 300 44px/1.1 var(--st-mono); margin: 8px 0; font-variant-numeric: tabular-nums; }
+.st-laps li { font-family: var(--st-mono); font-size: 13px; padding: 2px 0; }

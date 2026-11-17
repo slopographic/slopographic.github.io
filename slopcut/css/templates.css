@@ -1,0 +1,44 @@
+/* SlopCut: Templates tab and Random edit dialog. Colours come from the theme tokens (themes.css). */
+.tp-panel { display: grid; gap: 6px; padding-bottom: 12px; }
+.tp-note { margin: 0 2px; font-size: 11px; line-height: 1.45; color: var(--faint); }
+.tp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.tp-tile { display: grid; gap: 4px; justify-items: start; padding: 6px; border: 1px solid var(--line-2); border-radius: var(--radius-s); background: var(--panel-2); color: var(--fg); text-align: left; cursor: pointer; touch-action: manipulation; }
+.tp-tile:hover { border-color: var(--accent-line); }
+.tp-tile.on { border-color: var(--accent-line); background: var(--accent-soft); }
+.tp-tile b { font-size: 11.5px; }
+.tp-tile small { font-size: 10px; color: var(--faint); }
+.tp-thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 3px; background: var(--line); }
+.tp-thumb.portrait { width: 60%; aspect-ratio: 9 / 16; margin: 0 auto; }
+.tp-reg { position: absolute; box-sizing: border-box; display: grid; place-items: center; border: 1px solid var(--bg, #000); background: var(--accent-line); opacity: .75; font: 700 9px var(--mono); color: var(--fg); }
+.tp-reg:nth-child(n+2) { opacity: .55; }
+.tp-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 5px; }
+.tp-slots.portrait { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tp-slot { display: grid; gap: 2px; min-height: 44px; padding: 5px 6px; border: 1px dashed var(--line-2); border-radius: var(--radius-s); background: var(--panel-2); cursor: grab; touch-action: manipulation; }
+.tp-slot.empty { cursor: default; color: var(--faint); }
+.tp-slot.main { border-style: solid; }
+.tp-slot.over { border-color: var(--accent); background: var(--accent-soft); }
+.tp-num { font: 700 10px var(--mono); color: var(--accent-line); }
+.tp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.tp-slotctl { display: grid; gap: 6px; }
+.tp-row { display: grid; gap: 3px; }
+.tp-lbl { font-size: 10.5px; font-weight: 700; color: var(--dim); }
+.tp-ctl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 4px; }
+.tp-sel { min-width: 0; width: 100%; font-size: 11px; }
+.tp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tp-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 26px; padding: 3px 7px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--panel-2); color: var(--fg); font-size: 11px; cursor: grab; touch-action: manipulation; }
+.tp-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+.tp-chip .ic { width: 13px; height: 13px; flex: none; color: var(--accent-line); }
+.rd { display: grid; gap: 8px; min-width: min(460px, 80vw); }
+.rd-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.rd-src, .rd-note { margin: 0; font-size: 11.5px; }
+.rd-sum { margin: 0; font: 600 11.5px var(--mono); color: var(--accent-line); }
+.rd-list { max-height: 220px; overflow: auto; margin: 0; padding: 6px 6px 6px 28px; border: 1px solid var(--line-2); border-radius: var(--radius-s); font: 11px var(--mono); color: var(--dim); }
+.rd-list li { padding: 1px 0; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .rd { min-width: 0; width: 100%; } }
+/* Three bin tabs must fit the phone width. */
+.bin-tab { padding: 0 8px; }
+@media (max-width: 760px) { .bin-tab { padding: 0 6px; font-size: 11px; } .bin-tabs .bin-info { display: none; } }
+/* The Slop Drive link (shared/drive-link.js) is about 96 px and does not fit the phone topbar; hidden under
+   760 px. File ▸ Import from Slop Drive still works on phones. */
+@media (max-width: 760px) { .topbar .sdl { display: none; } }

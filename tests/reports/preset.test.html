@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Reports presets from a task page's link: ?report=sales-tax opens that report</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px" src="../../reports/index.html?report=sales-tax"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: reports/js/app.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const W = () => document.getElementById('app').contentWindow;
+  const $ = (id) => W().document.getElementById(id);
+  describe('Slop Reports presets', () => {
+    it('opens the built-in report named in the address', async () => {
+      await waitFor(() => $('report') && $('report').options.length > 0 && W().SlopReports.presetOf, { timeout: 20000 });
+      expect($('report').value).toBe('sales-tax');
+    });
+    it('presetOf: built-in report ids only', async () => {
+      const P = W().SlopReports.presetOf;
+      expect(P('?report=profit-by-month')).toEqual({ report: 'profit-by-month' });
+      expect(P('?report=nope')).toEqual({});
+      expect(P('?report=<b>')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+  });
+  SlopTest.run({ name: 'Slop Reports presets' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive guard and picker tests</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W;
+  const dlg = () => W.document.querySelector('.sui-back:not(.sui-out) [data-guard]');
+  const live = (sel) => W.document.querySelector('.sui-back:not(.sui-out) ' + sel);
+  const btn = (box, label) => [...box.querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+  const press = (key, opts) => { const e = DT.key(key, opts); W.document.body.dispatchEvent(e); return e; };
+
+  describe('hard reload guard', () => {
+    it('boots with the guard script', async () => {
+      W = await DT.frame('frame.html', (w) => w.SlopGuard);
+      W.localStorage.removeItem('slop-guard-off');
+      W.reloads = 0; W.SlopGuard.reload = () => { W.reloads++; };
+      expect(W.SlopGuard.isHardReload({ key: 'R', ctrlKey: true, shiftKey: true })).toBe(true);
+      expect(W.SlopGuard.isHardReload({ key: 'r', metaKey: true, shiftKey: true })).toBe(true);
+      expect(W.SlopGuard.isHardReload({ key: 'F5', ctrlKey: true })).toBe(true);
+      expect(W.SlopGuard.isHardReload({ key: 'r', ctrlKey: true })).toBe(false);
+      expect(W.SlopGuard.isHardReload({ key: 'F5' })).toBe(false);
+    });
+    it('Ctrl+Shift+R is stopped and shows the honest dialog', async () => {
+      const e = press('R', { ctrlKey: true, shiftKey: true });
+      expect(e.defaultPrevented).toBe(true);
+      const box = await waitFor(dlg);
+      expect(box.textContent).toContain('A hard reload is safe, but clearing browser data or site data deletes it all. Export a backup first?');
+      expect([...box.querySelectorAll('.sui-btn')].map((b) => b.textContent)).toEqual(['Export backup', 'Reload anyway', 'Cancel']);
+      expect(box.querySelector('input[type=checkbox]')).toBeTruthy();
+      btn(box, 'Cancel').click();
+      await waitFor(() => !dlg());
+      expect(W.reloads).toBe(0);
+    });
+    it('Ctrl+F5 and Cmd+Shift+R open it too; a plain Ctrl+R does not', async () => {
+      expect(press('F5', { ctrlKey: true }).defaultPrevented).toBe(true);
+      await waitFor(dlg); dlg().querySelector('.sui-x').click(); await waitFor(() => !dlg());
+      expect(press('r', { metaKey: true, shiftKey: true }).defaultPrevented).toBe(true);
+      await waitFor(dlg); dlg().querySelector('.sui-x').click(); await waitFor(() => !dlg());
+      expect(press('r', { ctrlKey: true }).defaultPrevented).toBe(false);
+      await sleep(150);
+      expect(dlg()).toBe(null);
+    });
+    it('Export backup downloads a backup and keeps the dialog open', async () => {
+      press('R', { ctrlKey: true, shiftKey: true });
+      const box = await waitFor(dlg);
+      btn(box, 'Export backup').click();
+      await waitFor(() => /Saved slopographic-backup-/.test(box.textContent) && box.textContent.includes(W.SlopBackup.EXT), { timeout: 15000 });
+      expect(!!dlg()).toBe(true);
+      btn(box, 'Reload anyway').click();
+      await waitFor(() => W.reloads === 1);
+    });
+    it('"Don’t show this again" lets later hard reloads through', async () => {
+      const p = W.SlopGuard.show();
+      const box = await waitFor(dlg);
+      box.querySelector('input[type=checkbox]').click();
+      btn(box, 'Cancel').click();
+      expect(await p).toBe('cancel');
+      expect(W.SlopGuard.enabled()).toBe(false);
+      expect(press('R', { ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(false);
+      W.SlopGuard.setEnabled(true);
+      expect(W.SlopGuard.enabled()).toBe(true);
+    });
+    it('beforeunload asks only while an app reports unsaved work', () => {
+      const ev = () => { const e = new W.Event('beforeunload', { cancelable: true }); W.dispatchEvent(e); return e.defaultPrevented; };
+      expect(ev()).toBe(false);
+      W.SlopGuard.setUnsaved('doc-1', true);
+      expect(W.SlopGuard.hasUnsaved()).toBe(true);
+      expect(ev()).toBe(true);
+      W.SlopGuard.setUnsaved('doc-1', false);
+      expect(ev()).toBe(false);
+    });
+    it('works on a page that owns a different window.SlopUI', async () => {
+      const F = await DT.frame('frame.html?foreign=1', (w) => w.SlopGuard);
+      F.localStorage.removeItem('slop-guard-off');
+      F.document.body.dispatchEvent(DT.key('R', { ctrlKey: true, shiftKey: true }));
+      const box = await waitFor(() => F.document.querySelector('[data-guard]'));
+      expect(typeof F.SlopUI.randSeed).toBe('function');
+      expect(F.SlopUI.dialog).toBe(undefined);
+      expect(getComputedStyle(box.parentElement).position).toBe('fixed');
+      box.querySelector('.sui-x').click();
+      F.__frame.remove();
+    });
+  });
+
+  describe('Drive picker in other apps', () => {
+    it('navigates folders with breadcrumbs and returns the chosen file', async () => {
+      const H = W.SlopHub;
+      await H.clear();
+      const a = await H.createFolder('Work'), b = await H.createFolder('Labels', a);
+      await H.put(DT.text('x,y', 'text/csv'), { name: 'data.csv', folderId: b });
+      await H.put(await DT.png(), { name: 'pic.png', folderId: b });
+      await H.put(DT.text('root'), { name: 'root.txt' });
+      const p = H.pickFromDrive({ accept: ['text/csv'] });
+      let box = await waitFor(() => W.document.querySelector('.hub-grid .hub-item') && W.document.querySelector('.hub-grid'));
+      expect([...box.querySelectorAll('.hub-item b')].map((x) => x.textContent)).toEqual(['Work']);
+      box.querySelector('[data-folder]').click();
+      await waitFor(() => W.document.querySelector('.hub-crumbs').textContent.includes('Work'));
+      W.document.querySelector('.hub-grid [data-folder]').click();
+      await waitFor(() => W.document.querySelector('.hub-grid [data-id]'));
+      expect(W.document.querySelector('.hub-crumbs').textContent).toBe('Slop Drive›Work›Labels');
+      expect(W.document.querySelectorAll('.hub-grid [data-id]').length).toBe(1);
+      W.document.querySelector('.hub-crumbs button').click();
+      await waitFor(() => !W.document.querySelector('.hub-grid [data-id]') && W.document.querySelector('.hub-crumbs').textContent === 'Slop Drive');
+      const s = W.document.querySelector('.hub-search'); s.value = 'data'; s.dispatchEvent(new W.Event('input'));
+      await waitFor(() => W.document.querySelector('.hub-grid [data-id]'));
+      W.document.querySelector('.hub-grid [data-id]').click();
+      const rec = await p;
+      expect(rec.name).toBe('data.csv');
+      expect((await H.get(rec.id)).opened).toBeGreaterThan(0);
+    });
+    it('saveToDrive asks for a folder (root by default) and can make a new one', async () => {
+      const H = W.SlopHub;
+      const p1 = H.saveToDrive(DT.text('1'), 'one.txt');
+      let box = await waitFor(() => live('.hub-rows'));
+      [...box.closest('.sui-dlg').querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Save here').click();
+      const id1 = await p1;
+      expect((await H.get(id1)).folderId).toBe(null);
+      const p2 = H.saveToDrive(DT.text('2'), 'two.txt');
+      box = await waitFor(() => live('.hub-rows [data-folder]'));
+      box.click();
+      await waitFor(() => live('.hub-crumbs').textContent.includes('Work'));
+      [...live('.sui-dlg').querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Save here').click();
+      const id2 = await p2;
+      expect((await H.getFolder((await H.get(id2)).folderId)).name).toBe('Work');
+      const p3 = H.pickFolder({});
+      await waitFor(() => live('.hub-rows'));
+      live('.sui-dlg .sui-x').click();
+      expect(await p3).toBe(undefined);
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive: guard and picker' });
+  </script>
+</body>
+</html>

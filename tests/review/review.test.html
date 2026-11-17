@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopReview: open, confirm, cancel</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/review/review.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/review/model.js"></script>
+  <script src="../../shared/review/review.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  const RV = window.SlopReview;
+  const dlg = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sr-dlg')].pop();
+  const btn = (text) => [...dlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === text);
+  const confirmBtn = () => dlg().querySelector('.sui-foot .sui-primary');
+  const rows = () => [...dlg().querySelectorAll('.sr-row input')];
+  const sumText = () => dlg().querySelector('.sr-sum').textContent;
+  const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  const ITEMS = () => [
+    { id: 'a', label: 'one.png', detail: 'Pictures', size: 1024, checked: true },
+    { id: 'b', label: 'two.png', detail: 'Pictures', size: 2048, checked: false },
+    { id: 'c', label: 'three.png', detail: 'Old', size: 1024 * 1024, group: 'Copies', checked: true },
+  ];
+  const open = (o = {}) => RV.open({ title: 'Trash duplicates?', intro: 'Check first.', items: ITEMS(), confirmLabel: (n) => 'Trash ' + RV.model.plural(n, 'file'), ...o });
+  // Waits for the window to be drawn. (Not awaiting the promise: it resolves only when the window closes.)
+  const ready = () => waitFor(() => dlg() && rows().length);
+
+  describe('review: open and confirm', () => {
+    afterEach(() => document.querySelectorAll('.sui-back').forEach((b) => b.remove()));
+    it('resolves with the ids left checked, in list order, and never the unticked ones', async () => {
+      const p = open(); await ready();
+      expect(rows().map((r) => r.checked)).toEqual([true, false, true]);
+      confirmBtn().click();
+      expect(await p).toEqual(['a', 'c']);
+    });
+    it('a plain string confirm label is used as it is', async () => {
+      const p = open({ confirmLabel: 'Apply' }); await ready();
+      expect(confirmBtn().textContent).toBe('Apply');
+      confirmBtn().click();
+      await p;
+    });
+    it('the confirm label carries the count and follows the ticks', async () => {
+      const p = open(); await ready();
+      expect(confirmBtn().textContent).toBe('Trash 2 files');
+      rows()[0].click();
+      expect(confirmBtn().textContent).toBe('Trash 1 file');
+      confirmBtn().click();
+      expect(await p).toEqual(['c']);
+    });
+    it('the footer counts the checked items and their total size, and updates live', async () => {
+      const p = open(); await ready();
+      expect(sumText()).toContain('2 of 3 checked');
+      expect(sumText()).toContain('1.0 MB');
+      rows()[1].click();
+      expect(sumText()).toContain('3 of 3 checked');
+      expect(sumText()).toContain('1.0 MB');
+      btn('Cancel').click();
+      await p;
+    });
+    it('select all, select none and invert change every item', async () => {
+      const p = open(); await ready();
+      btn('Select none').click();
+      expect(rows().map((r) => r.checked)).toEqual([false, false, false]);
+      expect(confirmBtn().disabled).toBe(true);
+      btn('Select all').click();
+      expect(rows().map((r) => r.checked)).toEqual([true, true, true]);
+      expect(sumText()).toContain('3 of 3 checked');
+      btn('Invert').click();
+      expect(rows().map((r) => r.checked)).toEqual([false, false, false]);
+      btn('Invert').click();
+      btn('Select none').click();
+      btn('Invert').click();
+      expect(rows().map((r) => r.checked)).toEqual([true, true, true]);
+      btn('Cancel').click();
+      await p;
+    });
+    it('a group gets one heading before its items', async () => {
+      const p = open(); await ready();
+      const heads = [...dlg().querySelectorAll('.sr-group')].map((h) => h.textContent);
+      expect(heads).toEqual(['Copies · 1 item']);
+      expect(dlg().querySelector('.sr-text small').textContent).toBe('Pictures');
+      btn('Cancel').click();
+      await p;
+    });
+    it('the rows are real checkboxes, so Space toggles them', async () => {
+      const p = open(); await ready();
+      expect(rows().every((r) => r.type === 'checkbox')).toBe(true);
+      btn('Cancel').click();
+      await p;
+    });
+  });
+
+  describe('review: cancel paths', () => {
+    afterEach(() => document.querySelectorAll('.sui-back').forEach((b) => b.remove()));
+    it('Cancel resolves null', async () => {
+      const p = open(); await ready();
+      rows()[0].click();
+      btn('Cancel').click();
+      expect(await p).toBe(null);
+    });
+    it('Escape resolves null', async () => {
+      const p = open(); await ready();
+      key(rows()[0], 'Escape');
+      expect(await p).toBe(null);
+    });
+    it('the × button resolves null', async () => {
+      const p = open(); await ready();
+      dlg().querySelector('.sui-x').click();
+      expect(await p).toBe(null);
+    });
+    it('an empty list says so and resolves null on Close', async () => {
+      const p = RV.open({ title: 'Nothing', items: [] });
+      await waitFor(() => dlg());
+      expect(dlg().textContent).toContain('Nothing to change.');
+      btn('Close').click();
+      expect(await p).toBe(null);
+    });
+  });
+
+  describe('review: keys', () => {
+    afterEach(() => document.querySelectorAll('.sui-back').forEach((b) => b.remove()));
+    it('arrows move between rows; Enter in the list does not confirm; Escape cancels', async () => {
+      const p = open(); await ready();
+      rows()[0].focus();
+      key(rows()[0], 'ArrowDown');
+      expect(document.activeElement).toBe(rows()[1]);
+      key(rows()[1], 'ArrowDown');
+      key(rows()[2], 'ArrowDown');
+      expect(document.activeElement).toBe(rows()[2]);
+      key(rows()[2], 'Home');
+      expect(document.activeElement).toBe(rows()[0]);
+      key(rows()[0], 'End');
+      expect(document.activeElement).toBe(rows()[2]);
+      key(rows()[2], 'Enter');
+      expect(!!dlg()).toBe(true);
+      key(rows()[2], 'Escape');
+      expect(await p).toBe(null);
+    });
+  });
+
+  describe('review: a long list', () => {
+    afterEach(() => document.querySelectorAll('.sui-back').forEach((b) => b.remove()));
+    it('draws a long list in parts, scrolls in more, and still selects every item', async () => {
+      const many = Array.from({ length: 1200 }, (_, i) => ({ id: 'i' + i, label: 'File ' + i, detail: 'Folder ' + (i % 7), size: 10, group: 'Group ' + (i % 4), checked: true }));
+      const p = RV.open({ title: 'Many', items: many, confirmLabel: (n) => 'Go ' + n });
+      await waitFor(() => dlg() && rows().length);
+      const first = rows().length;
+      expect(first).toBeLessThan(1200);
+      expect(first).toBeGreaterThan(150);
+      const list = dlg().querySelector('.sr-list');
+      list.scrollTop = list.scrollHeight;
+      list.dispatchEvent(new Event('scroll'));
+      await waitFor(() => rows().length > first);
+      btn('Select none').click();
+      expect(confirmBtn().disabled).toBe(true);
+      btn('Select all').click();
+      expect(sumText()).toContain('1,200 of 1,200 checked');
+      confirmBtn().click();
+      expect((await p).length).toBe(1200);
+    }, { timeout: 30000 });
+  });
+
+  describe('review: the caller changes only what is left checked', () => {
+    afterEach(() => document.querySelectorAll('.sui-back').forEach((b) => b.remove()));
+    it('an unticked item is not changed by the confirm', async () => {
+      const store = { a: 'kept', b: 'kept', c: 'kept' };
+      const p = open(); await ready();
+      rows()[0].click(); // untick a, tick b
+      rows()[1].click();
+      confirmBtn().click();
+      const ids = await p;
+      for (const id of ids) store[id] = 'trashed';
+      expect(store).toEqual({ a: 'kept', b: 'trashed', c: 'trashed' });
+    });
+  });
+
+  run({ name: 'SlopReview: open, confirm, cancel, keys' });
+  </script>
+</body>
+</html>

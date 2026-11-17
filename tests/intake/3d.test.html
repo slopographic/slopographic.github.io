@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop 3D: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: 3d/js/app/files.js, 3d/js/app/configio.js, 3d/js/app/outliner.js
+  // Slop 3D on the one intake: File ▸ Import, a drop on the view and a paste add to the scene; File ▸ Open, Open from Slop
+  // Drive (a scene stays linked) and ?drive=<id> (launch) open; all reach the same reader with the whole batch.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, F, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 16; c.height = 8; c.getContext('2d').fillRect(0, 0, 16, 8);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const roots = () => W.Slop3D.state.s.doc.roots.length;
+  async function through(tag, start) { const k = seen.length; await start(); await waitFor(() => seen.length === k + 1, { timeout: 15000 }); expect(seen[k]).toBe(tag); }
+  describe('Slop 3D: one way in', () => {
+    it('Import, a drop on the view and a paste add to the scene', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../3d/index.html';
+      await waitFor(() => { try { return fr.contentDocument.body.dataset.ready === '1' && fr.contentWindow.SlopIntake.spec('3d'); } catch (e) { return false; } }, { timeout: 30000 });
+      W = fr.contentWindow; D = W.document; F = W.Slop3D.files;
+      const s = W.SlopIntake.spec('3d'), reader = s.processAll;
+      s.processAll = (files, ctx) => { seen.push(ctx.source + ':' + (ctx.mode || 'import')); return reader(files, ctx); };
+      const n = roots(), f = await png('a.png');
+      W.SlopUI.pickFiles = async () => [f];
+      await through('picker:import', () => F.importDialog());
+      await through('drop:import', async () => D.getElementById('view').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([await png('b.png')]) })));
+      await through('paste:import', async () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('c.png')]) })));
+      await waitFor(() => roots() >= n + 3);
+    }, { timeout: 60000 });
+    it('Open, Open from Slop Drive (linked) and ?drive=<id> open', async () => {
+      W.SlopUI.confirm = async () => true;
+      const scene = F.sceneBlob();
+      W.SlopUI.pickFiles = async () => [new W.File([scene], 'Mine.s3d', { type: scene.type })];
+      await through('picker:open', () => F.openDialog());
+      W.SlopHub.pickFromDrive = async () => ({ id: 'd1', name: 'Linked.s3d', type: scene.type, blob: scene, folderId: null });
+      await through('drive:open', () => F.openFromDrive());
+      await waitFor(() => W.Slop3D.state.s.file.driveId === 'd1');
+      W.SlopHub.consumeLaunch = async () => ({ id: 'd2', name: 'Sent.s3d', type: scene.type, blob: scene, folderId: null });
+      await through('launch:open', () => W.SlopIntake.launch({ to: '3d', mode: 'open' }));
+      await waitFor(() => W.Slop3D.state.s.file.driveId === 'd2');
+    });
+  });
+  run({ name: 'Shared intake: Slop 3D' });
+</script>
+</body>
+</html>

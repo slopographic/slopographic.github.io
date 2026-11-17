@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Admin: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: admin/js/ui/commands.js, shared/data/ai-records-apps.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('admin.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slop Admin: assistant commands', () => {
+    it('set_company, set_numbering (forward only), export_backup; the rollback puts the profile back', async () => {
+      f.src = '../../admin/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopAdmin && f.contentWindow.SlopAdmin.app && f.contentDocument.getElementById('boot').hidden && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('view.data'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await W.SlopData.store.ready();
+      await C.prepare();
+      const back = C.checkpoint();
+      await run('set-company', { name: 'Bee Farm Ltd', currency: 'eur', default_tax_rate: '7.5', doc_language: 'sv' });
+      let st = (await W.SlopData.store.get('settings', 'main')).value;
+      expect([st.companyName, st.defaultCurrency, st.defaultTaxRate, st.docLang]).toEqual(['Bee Farm Ltd', 'EUR', 750, 'sv']);   // docLang: the documents' language
+      const r = await run('set-numbering', { sequence: 'invoice', prefix: 'BF-', next: 42 });
+      expect(r.value).toMatch(/BF-0042/);
+      expect((await C.exec('admin.ai.set-numbering', { sequence: 'invoice', next: 3 })).ok).toBe(false);
+      const e = await run('export-backup', {});
+      const json = JSON.parse(await (await W.SlopHub.get(/id ([^)\s]+)\)/.exec(e.value)[1])).blob.text());
+      expect(JSON.stringify(json)).toContain('Bee Farm Ltd');
+      back();
+      let name = 'Bee Farm Ltd';
+      for (let i = 0; i < 40 && name === 'Bee Farm Ltd'; i++) { await new Promise((res) => setTimeout(res, 100)); name = (await W.SlopData.store.get('settings', 'main')).value.companyName; }
+      expect(name).not.toBe('Bee Farm Ltd');
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop Admin: assistant commands' });
+  </script>
+</body>
+</html>

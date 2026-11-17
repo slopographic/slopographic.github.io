@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="slop-test-touch">
+<title>Slop Press · touch</title>
+<!-- Slop Press with a finger (tests/run.mjs --touch: an iPad in WebKit, an Android tablet in Chromium; and the desktop run).
+     Covers: press/js/edit/tools.js, press/js/edit/select.js, press/js/edit/text.js (the caret above the on-screen keyboard) -->
+<style>html, body { margin: 0; height: 100%; overflow: hidden; background: #111; } iframe { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const view = () => W.document.getElementById('view');
+  /** Frame client point (the iframe sits at 0,0) of a world point. */
+  const scr = (wx, wy) => { const p = PR.view.toScreen(wx, wy), c = view().getBoundingClientRect(); return { x: c.left + p.x, y: c.top + p.y }; };
+  const centre = (it) => { const v = PR.view.active(); return scr(v.x + it.x + it.w / 2, v.y + it.y + it.h / 2); };
+  /** Draws an item with the tool, as a mouse would (the set-up, not what is tested). */
+  function draw(tool, x0, y0, x1, y1) {
+    PR.tools.set(tool);
+    const c = view().getBoundingClientRect(), ev = (type, x, y) => view().dispatchEvent(new W.PointerEvent(type, { bubbles: true, cancelable: true, clientX: c.left + x, clientY: c.top + y, pointerId: 9, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' ? 0 : 1 }));
+    ev('pointerdown', x0, y0); ev('pointermove', (x0 + x1) / 2, (y0 + y1) / 2); ev('pointermove', x1, y1); ev('pointerup', x1, y1);
+    const it = PR.selected()[0];
+    if (PR.state.text) PR.textEdit.exit();
+    PR.tools.set('select');
+    return it;
+  }
+  let rect, frame;
+
+  describe('Slop Press by touch', () => {
+    it('boots with the touch layer, and the canvas is a touch surface', async () => {
+      await bootPress();
+      await waitFor(() => W.SlopTouch && W.SlopTouch.ready, { timeout: 20000 });
+      expect(view().getAttribute('data-touch-surface')).toBe('nav');
+      expect(W.getComputedStyle(view()).touchAction).toBe('none');
+      freshDoc({ pages: 1, facing: false }); PR.view.fitPage(); await sleep(50);
+      const c = view().getBoundingClientRect();
+      rect = draw('rect', c.width * 0.3, c.height * 0.3, c.width * 0.4, c.height * 0.42);
+      frame = draw('text', c.width * 0.5, c.height * 0.5, c.width * 0.65, c.height * 0.62);
+      expect(rect.type).toBe('rect');
+      expect(frame.type).toBe('text');
+      PR.select([]);
+    });
+    it('a tap selects an object, a tap on the empty page clears it', async () => {
+      await TouchKit.tap(centre(rect));
+      expect(PR.selected().map((x) => x.id)).toEqual([rect.id]);
+      const c = view().getBoundingClientRect();
+      await TouchKit.tap({ x: c.left + c.width * 0.15, y: c.top + c.height * 0.15 });
+      expect(PR.selected().length).toBe(0);
+    });
+    it('a drag moves the object', async () => {
+      const x0 = rect.x, y0 = rect.y;
+      await TouchKit.drag(centre(rect), 60, 40);
+      expect(rect.x).toBeGreaterThan(x0);
+      expect(rect.y).toBeGreaterThan(y0);
+    });
+    it('a finger grabs a handle from 15 px away (44 px hit area) and resizes', async () => {
+      PR.select([rect.id]); PR.view.request(); await sleep(30);
+      const v = PR.view.active(), w0 = rect.w, se = scr(v.x + rect.x + rect.w, v.y + rect.y + rect.h);
+      await TouchKit.drag({ x: se.x + 14, y: se.y + 14 }, 40, 0);
+      expect(rect.w).toBeGreaterThan(w0);
+    });
+    it('a double tap on a text frame starts typing in it', async () => {
+      await TouchKit.tap(centre(frame)); await sleep(350);
+      await TouchKit.doubleTap(centre(frame));
+      await waitFor(() => PR.state.text, { timeout: 3000 });
+      expect(PR.state.text.frame === frame.id || PR.state.text.frame === frame).toBeTruthy();
+      PR.textEdit.exit(); PR.tools.set('select');
+    });
+    it("typing with the on-screen keyboard up: the view pans the caret's line above it (shared/input/keyboard.js)", async () => {
+      await waitFor(() => W.SlopKeyboard, { timeout: 10000 });
+      // a stand-in visual viewport: the keyboard is it shrinking (Playwright cannot raise a real one)
+      const vv = new W.EventTarget(), H = W.document.documentElement.clientHeight;
+      Object.assign(vv, { width: W.innerWidth, height: H, offsetTop: 0, offsetLeft: 0, scale: 1 });
+      W.SlopKeyboard._viewport(vv);
+      PR.textEdit.enter(frame, 0); await sleep(50);
+      const before = PR.textEdit.caretBox().bottom;
+      vv.height = Math.round(H * 0.4); vv.dispatchEvent(new W.Event('resize')); await sleep(80);
+      const c = PR.textEdit.caretBox(), v = W.SlopKeyboard.visible();
+      expect(before > v.bottom).toBe(true);   // it was under the keyboard
+      expect(c.top >= v.top && c.bottom <= v.bottom).toBe(true);
+      vv.height = H; vv.dispatchEvent(new W.Event('resize'));
+      PR.textEdit.exit(); PR.tools.set('select'); PR.view.fitPage(); await sleep(50);
+    });
+    it('a long press opens the context menu, which stays open when the finger lifts', async () => {
+      W.SlopUI.closeMenu();
+      await TouchKit.longPress(centre(rect));
+      await waitFor(() => W.document.querySelector('.sui-menu'), { timeout: 3000 });
+      await sleep(200);
+      expect(!!W.document.querySelector('.sui-menu')).toBe(true);
+      W.SlopUI.closeMenu();
+    });
+    it('a pinch zooms the canvas, not the page', async () => {
+      PR.select([]);
+      const z0 = PR.view.zoom, c = view().getBoundingClientRect();
+      await TouchKit.pinch({ x: c.left + c.width * 0.45, y: c.top + c.height * 0.7 }, 2);
+      expect(PR.view.zoom).toBeGreaterThan(z0 * 1.3);
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      if (W.visualViewport) expect(W.visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+  });
+  SlopTest.run({ name: 'Slop Press touch' });
+  </script>
+</body>
+</html>

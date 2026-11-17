@@ -1,0 +1,27 @@
+/* SlopCut, Russian: the counts and notes in the Inspector, templates and export. Same keys as slopcut/i18n/en/tail.js.
+ * Terms: shared/i18n/glossary-ru.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'slopedit.render.step_drop': 'Перетащите видео, аудио или изображения',
+  'slopedit.insp.n_clips': '{n} клипов',
+  'slopedit.insp.n_clips#one': '{n} клип',
+  'slopedit.insp.n_clips#few': '{n} клипа',
+  'slopedit.insp.n_clips#many': '{n} клипов',
+  'slopedit.insp.n_tracks': '{n} дорожек',
+  'slopedit.insp.n_tracks#one': '{n} дорожка',
+  'slopedit.insp.n_tracks#few': '{n} дорожки',
+  'slopedit.insp.n_tracks#many': '{n} дорожек',
+  'slopedit.insp.n_markers': '{n} маркеров',
+  'slopedit.insp.n_markers#one': '{n} маркер',
+  'slopedit.insp.n_markers#few': '{n} маркера',
+  'slopedit.insp.n_markers#many': '{n} маркеров',
+  'slopedit.tpl.reflowed': 'клипы сохранены и перераспределены',
+  'slopedit.tpl.filled': 'заполнено ячеек: {k} из {n}',
+  'slopedit.tpl.filled#one': 'заполнена ячейка: {k} из {n}',
+  'slopedit.tpl.filled#few': 'заполнено ячеек: {k} из {n}',
+  'slopedit.tpl.filled#many': 'заполнено ячеек: {k} из {n}',
+  'slopedit.exp.about': 'примерно {size}',
+  'slopedit.rnd.cells': '{name} ({n} ячеек)',
+  'slopedit.rnd.cells#one': '{name} ({n} ячейка)',
+  'slopedit.rnd.cells#few': '{name} ({n} ячейки)',
+  'slopedit.rnd.cells#many': '{name} ({n} ячеек)',
+});

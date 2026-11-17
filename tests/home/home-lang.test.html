@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · app words in the chosen language</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  // Covers: shared/apps.js, shared/app-labels.js, shared/i18n/i18n.js, shared/i18n/apps/de.js, shared/i18n/apps/en.js, home/catalog.js, home/browse.js, home/globe/globe.js, home/globe/labels.js, home/globe/list.js, home/marquee.js, index.html
+  /* The owner's case: with the page in German the homepage showed the app cards' titles and taglines, the capability strip
+   * and the footer's round-up links in English. The words come from the SEO tables (shared/i18n/apps/<code>.js, written by
+   * tools/seo/apptables.mjs); a switch on the page follows, and switching back brings the English again. */
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let win, doc;
+  const reset = (w) => { try { w.SlopI18n.set(w.SlopI18n.DEFAULT_CHOICE); } catch (e) { /* storage blocked */ } };
+  const ready = HomeTest.openHome().then((w) => { win = w; doc = w.document; });
+  const brand = () => win.SLOP_NAMING !== 'plain';
+  // a card with the app's own one-liner (a converter line is not its tagline): the HTML to PDF converter's, else the first
+  const card = (id) => doc.querySelector(`.app-card[data-id="${id}"]:has([data-tag])`);
+  const pick = () => win.SLOP_APPS.find((a) => a.id === 'html2pdf' && card(a.id)) || win.SLOP_APPS.find((a) => a.kind === 'app' && card(a.id));
+  async function german() {
+    win.SlopI18n.set('de');
+    await win.SlopI18n.ready();
+    await waitFor(() => win.document.documentElement.lang === 'de');
+  }
+
+  describe('a switch to German on the page', () => {
+    it('a card shows the app\'s German title and tagline (not "HTML to PDF converter"), the brand name kept', async () => {
+      await ready;
+      const a = pick(), en = { title: card(a.id).querySelector('.app-title').textContent, tag: card(a.id).querySelector('[data-tag]').textContent };
+      await german();
+      const want = win.slopAppLabel(a, win.slopBrandNamesOn());
+      await waitFor(() => card(a.id).querySelector('.app-title').textContent === want);
+      expect(card(a.id).querySelector('[data-tag]').textContent).toBe(win.slopAppTagline(a));
+      if (brand() && !win.slopBrandNamesOn()) {
+        expect(want).toBe(win.SlopI18n.t('seo.reg.' + a.id + '.title'));
+        expect(want === en.title).toBe(false);
+        expect(card(a.id).querySelector('[data-tag]').textContent === en.tag).toBe(false);
+      }
+      expect(win.slopAppName('pdf')).toBe(win.SLOP_APPS.find((x) => x.id === 'pdf').name);
+      reset(win);
+    });
+    it('the capability strip and the footer\'s round-up links read German, and English again after switching back', async () => {
+      await ready;
+      const strip = doc.querySelector('.hx-marquee a[data-i18n^="seo.mq."]'), foot = doc.querySelector('.fnav a[data-i18n^="seo.foot.best."]');
+      const before = [strip, foot].map((n) => n && n.textContent);
+      await german();
+      for (const n of [strip, foot]) if (n) await waitFor(() => n.textContent === win.SlopI18n.t(n.getAttribute('data-i18n')));
+      if (brand()) expect(!!strip).toBe(true);
+      if (strip) expect(strip.textContent === before[0]).toBe(false);
+      if (foot) expect(foot.textContent === before[1]).toBe(false);
+      win.SlopI18n.set('en');
+      await win.SlopI18n.ready();
+      if (win.SlopI18n.DEFAULT_CHOICE === 'en') [strip, foot].forEach((n, i) => { if (n) expect(n.textContent).toBe(before[i]); });
+      reset(win);
+    });
+    it('the finder\'s list rows and the globe\'s names follow the language', async () => {
+      await ready;
+      await german();
+      const a = pick(), want = win.slopAppLabel(a, win.slopBrandNamesOn());
+      await waitFor(() => { const r = doc.querySelector(`.fd-row[data-id="${a.id}"] .app-title`); return !r || r.textContent === want; });
+      const icon = doc.querySelector(`.gx-i[data-id="${a.id}"]`);
+      if (icon) expect(icon.getAttribute('aria-label')).toBe(want);
+      reset(win);
+    });
+  });
+
+  describe('a page that starts in German', () => {
+    it('renders the cards and the strip in German from the first render', async () => {
+      await ready;
+      await german();   // stored as the visitor's choice: the next load starts in it
+      const w = await HomeTest.openHome({ fresh: false });
+      win = w; doc = w.document;
+      expect(w.SlopI18n.get()).toBe('de');
+      const a = pick();
+      expect(card(a.id).querySelector('.app-title').textContent).toBe(w.slopAppLabel(a, w.slopBrandNamesOn()));
+      if (brand() && !w.slopBrandNamesOn()) expect(card(a.id).querySelector('.app-title').textContent).toBe(w.SlopI18n.t('seo.reg.' + a.id + '.title'));
+      const strip = doc.querySelector('.hx-marquee a[data-i18n^="seo.mq."]');
+      if (strip) await waitFor(() => strip.textContent === w.SlopI18n.t(strip.getAttribute('data-i18n')));
+      reset(w);
+    });
+  });
+
+  ready.then(() => run({ name: 'Homepage · app words in the chosen language' }));
+  </script>
+</body>
+</html>

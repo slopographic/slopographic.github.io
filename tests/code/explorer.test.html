@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: Explorer sidebar</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const { frame, close, text, H, doc, typeText, key, tabNames, dialog, clickButton, waitFor, sleep } = CT;
+  let w, src, inner, dest, a, b, c;
+  const row = (k) => w.document.querySelector(`#cd-tree-list [data-key="${k}"]`);
+  const menuItem = (label) => [...w.document.querySelectorAll('.sui-menu[data-level="0"] .sui-row')].find((r) => r.querySelector('.sui-lbl').textContent === label);
+  const rightClick = (el) => el.dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 200, detail: 1 }));
+  const evt = (type, dt) => new w.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt });
+  /** Drag a row onto another row (or onto the empty list when `to` is null), the way a mouse does. */
+  function drag(from, to) {
+    const dt = new w.DataTransfer();
+    row(from).dispatchEvent(evt('dragstart', dt));
+    const target = to ? row(to) : w.document.getElementById('cd-tree-list');
+    target.dispatchEvent(evt('dragover', dt));
+    target.dispatchEvent(evt('drop', dt));
+    row(from) && row(from).dispatchEvent(evt('dragend', dt));
+  }
+  const stored = (k) => JSON.parse(w.localStorage.getItem(k));
+
+  describe('Slop Code: Explorer moves and selection', () => {
+    it('seeds folders and files, and boots the app', async () => {
+      src = await H().createFolder('Src', null);
+      inner = await H().createFolder('Inner', src);
+      dest = await H().createFolder('Dest', null);
+      a = await H().put(text('const a = 1;\n', 'text/javascript'), { name: 'a.js', from: 'test', folderId: null });
+      b = await H().put(text('p { }\n', 'text/css'), { name: 'b.css', from: 'test', folderId: src });
+      w = await frame('../../code/');
+      await waitFor(() => row('d:' + src) && row('f:' + a), { timeout: 8000 });
+    });
+
+    it('drag a file onto a folder moves it into the folder', async () => {
+      drag('f:' + a, 'd:' + dest);
+      await waitFor(async () => (await H().get(a)).folderId === dest, { timeout: 5000 });
+      await waitFor(() => row('f:' + a), { timeout: 5000 });
+    });
+
+    it('a folder cannot be dropped into itself or into one of its own folders', async () => {
+      if (!row('d:' + inner)) row('d:' + src).click();
+      await waitFor(() => row('d:' + inner), { timeout: 3000 });
+      drag('d:' + src, 'd:' + src);
+      drag('d:' + src, 'd:' + inner);
+      await sleep(150);
+      expect((await H().getFolder(src)).parentId ?? null).toBe(null);
+      expect((await H().getFolder(inner)).parentId).toBe(src);
+    });
+
+    it('drop on the empty list moves a file to the root', async () => {
+      if (!row('f:' + b)) row('d:' + src).click(); // open Src, unless the tree already shows it open
+      await waitFor(() => row('f:' + b), { timeout: 3000 });
+      drag('f:' + b, null);
+      await waitFor(async () => (await H().get(b)).folderId === null, { timeout: 5000 });
+    });
+
+    it('a name that is taken gets a free name when a file moves in', async () => {
+      c = await H().put(text('const a = 2;\n', 'text/javascript'), { name: 'a.js', from: 'test', folderId: null });
+      await waitFor(() => row('f:' + c), { timeout: 5000 });
+      drag('f:' + c, 'd:' + dest);
+      await waitFor(async () => (await H().get(c)).name === 'a (2).js', { timeout: 5000 });
+      expect((await H().get(c)).folderId).toBe(dest);
+    });
+
+    it('Move to… asks for a folder through the Drive picker and moves the file', async () => {
+      const pick = w.SlopHub.pickFolder;
+      w.SlopHub.pickFolder = async () => inner;
+      try {
+        rightClick(row('f:' + b));
+        await waitFor(() => menuItem('Move to…'), { timeout: 3000 });
+        menuItem('Move to…').click();
+        await waitFor(async () => (await H().get(b)).folderId === inner, { timeout: 5000 });
+      } finally { w.SlopHub.pickFolder = pick; }
+    });
+
+    it('a clicked folder is selected, and New folder makes its child', async () => {
+      row('d:' + dest).click();
+      await waitFor(() => row('d:' + dest).classList.contains('sel'), { timeout: 3000 });
+      expect(row('d:' + dest).getAttribute('aria-selected')).toBe('true');
+      const prompt = w.SlopUI.prompt;
+      w.SlopUI.prompt = async () => 'Made';
+      try { w.document.getElementById('cd-tree-folder').click(); } finally { w.SlopUI.prompt = prompt; }
+      await waitFor(async () => (await H().listFolders({ parentId: dest })).some((f) => f.name === 'Made'), { timeout: 5000 });
+    });
+  });
+
+  describe('Slop Code: Explorer sidebar layout', () => {
+    it('the width follows the arrow keys, is kept in slop-code.layout, and is back after a reload', async () => {
+      const handle = w.document.getElementById('cd-resize');
+      handle.focus();
+      for (let i = 0; i < 3; i++) key(w, 'ArrowRight');
+      expect(handle.getAttribute('aria-valuenow')).toBe('280');
+      const env = stored('slop-code.layout');
+      expect(env.v).toBe(1);
+      expect(env.data.width).toBe(280);
+      close(w);
+      w = await frame('../../code/');
+      await waitFor(() => row('d:' + dest), { timeout: 8000 });
+      const rect = w.document.getElementById('cd-tree').getBoundingClientRect().width;
+      expect(Math.abs(rect - 280)).toBeLessThanOrEqual(1);
+    });
+
+    it('the width stays within 160 to 480 px', async () => {
+      const handle = w.document.getElementById('cd-resize');
+      handle.focus();
+      for (let i = 0; i < 60; i++) key(w, 'ArrowLeft');
+      expect(handle.getAttribute('aria-valuenow')).toBe('160');
+      for (let i = 0; i < 60; i++) key(w, 'ArrowRight');
+      expect(handle.getAttribute('aria-valuenow')).toBe('480');
+      key(w, 'ArrowLeft');
+    });
+
+    it('a section collapses, and stays collapsed after a reload', async () => {
+      w.document.querySelector('[data-sec-toggle="open"]').click();
+      const sec = w.document.getElementById('cd-sec-open');
+      expect(sec.classList.contains('collapsed')).toBe(true);
+      expect(w.document.querySelector('[data-sec-toggle="open"]').getAttribute('aria-expanded')).toBe('false');
+      expect(stored('slop-code.layout').data.collapsed.open).toBe(true);
+      close(w);
+      w = await frame('../../code/');
+      await waitFor(() => row('d:' + dest), { timeout: 8000 });
+      expect(w.document.getElementById('cd-sec-open').classList.contains('collapsed')).toBe(true);
+      w.document.querySelector('[data-sec-toggle="open"]').click();
+      expect(w.document.getElementById('cd-sec-open').classList.contains('collapsed')).toBe(false);
+    });
+
+    it('Ctrl+B hides the sidebar and shows it again', async () => {
+      const app = w.document.getElementById('cd-app');
+      const was = app.classList.contains('cd-tree-hidden');
+      key(w, 'b', { ctrl: true });
+      expect(app.classList.contains('cd-tree-hidden')).toBe(!was);
+      key(w, 'b', { ctrl: true });
+      expect(app.classList.contains('cd-tree-hidden')).toBe(was);
+    });
+  });
+
+  describe('Slop Code: Open editors', () => {
+    it('lists the open files, marks the active one and the unsaved one, and closes from the list', async () => {
+      w.SlopCode.openRecord(await H().get(a));
+      await waitFor(() => doc(w) && doc(w).id === a, { timeout: 5000 });
+      await typeText(w, '// edited');
+      await w.SlopCode.openRecord(await H().get(b));
+      await waitFor(() => doc(w) && doc(w).id === b, { timeout: 5000 });
+      const items = () => [...w.document.querySelectorAll('#cd-open-list .cd-open-item')];
+      expect(items().length).toBe(2);
+      const aItem = items()[0];
+      expect(aItem.querySelector('.cd-dirty')).toBeTruthy();
+      expect(items()[1].classList.contains('on')).toBe(true);
+      aItem.querySelector('.cd-open-name').click();
+      await waitFor(() => doc(w).id === a, { timeout: 3000 });
+      items()[1].querySelector('.cd-open-x').click();
+      await waitFor(() => items().length === 1, { timeout: 3000 });
+      expect(tabNames(w)).toEqual(['a.js']);
+    });
+  });
+
+  describe('Slop Code: opening a file keeps the sidebar', () => {
+    it('clicking a file in the Explorer opens it and leaves the sidebar open', async () => {
+      const z = await H().put(text('zed\n', 'text/plain'), { name: 'zed.txt', from: 'test', folderId: null });
+      close(w);
+      w = await frame('../../code/');
+      await waitFor(() => row('f:' + z), { timeout: 8000 });
+      const app = w.document.getElementById('cd-app');
+      expect(app.classList.contains('cd-tree-hidden')).toBe(false);
+      row('f:' + z).click();
+      await waitFor(() => doc(w) && doc(w).id === z, { timeout: 5000 });
+      expect(app.classList.contains('cd-tree-hidden')).toBe(false);
+      expect(w.document.getElementById('cd-tree').getBoundingClientRect().width > 0).toBe(true);
+      expect(w.document.getElementById('cd-files').getAttribute('aria-expanded')).toBe('true');
+    });
+  });
+
+  describe('Slop Code: Explorer at phone width', () => {
+    it('at 390 px the drawer is the sidebar, there is no sideways scroll, and the resize handle is hidden', async () => {
+      close(w);
+      w = await frame('../../code/', { width: 390, height: 844 });
+      await waitFor(() => row('d:' + dest), { timeout: 8000 });
+      expect(w.document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(w.getComputedStyle(w.document.getElementById('cd-resize')).display).toBe('none');
+      expect(w.getComputedStyle(w.document.getElementById('cd-tree')).position).toBe('fixed');
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: Explorer sidebar' });
+  </script>
+</body>
+</html>

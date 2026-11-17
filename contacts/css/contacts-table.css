@@ -1,0 +1,40 @@
+/* Slop Contacts: the Cards / Table switch and the table view. The table fills the list column; with Table on, the card
+ * column and the splitter are hidden and the list column takes the width. The table scrolls sideways inside its own box,
+ * so the page never does. Colours are the --sl-* tokens (see contacts-panel.css). */
+.seg { display: inline-flex; flex: none; border: 1px solid var(--sl-border); border-radius: 8px; overflow: hidden; }
+.seg-btn { min-height: 28px; padding: 0 10px; border: 0; background: transparent; cursor: pointer; font-size: 13px; color: var(--sl-text); }
+.seg-btn + .seg-btn { border-left: 1px solid var(--sl-border); }
+.seg-btn.on { background: var(--sl-accent-soft); font-weight: 600; }
+
+.table-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.table-view[hidden] { display: none; }
+.tbl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 14px 0; padding: 6px 8px; border-radius: 9px; background: var(--sl-accent-soft); font-size: 13px; }
+.tbl-bar .bulk-n { font-weight: 600; margin-right: auto; }
+.tbl-bar .text-btn { color: var(--sl-text); }
+.tbl-bar .text-btn.danger { color: var(--sl-danger); }
+.tbl-scroll { flex: 1; min-height: 0; overflow: auto; margin-top: 8px; border-top: 1px solid var(--sl-border); }
+.tbl { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 760px; font-size: 14px; }
+.tbl th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 6px 10px; background: var(--sl-surface); border-bottom: 1px solid var(--sl-border); font-size: 12px; font-weight: 600; color: var(--sl-text-muted); white-space: nowrap; }
+.th-btn { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.th-btn:hover { color: var(--sl-text); }
+.sort-ind { display: inline-block; min-width: 1em; color: var(--sl-text); }
+.tbl td { padding: 7px 10px; border-bottom: 1px solid var(--sl-border); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+.tbl td[tabindex] { cursor: text; }
+.tbl td[tabindex]:focus-visible { outline: 2px solid var(--sl-text); outline-offset: -2px; }
+.tbl tbody tr:hover td { background: var(--sl-surface-2); }
+.tbl tbody tr.is-sel td { background: var(--sl-accent-soft); }
+.tbl .tc-check { width: 40px; text-align: center; padding-left: 14px; padding-right: 4px; }
+.tbl td.is-editing { padding: 3px 4px; white-space: normal; max-width: none; }
+.tc-input { width: 100%; min-height: 30px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--sl-text); background: var(--sl-surface); color: var(--sl-text); font: inherit; }
+textarea.tc-input { min-height: 72px; resize: vertical; }
+.table-view .empty { padding: 20px 16px; }
+
+/* Table on: the card and the splitter go; the list takes the width. */
+body.table-mode .cols { grid-template-columns: 210px minmax(0, 1fr); }
+body.table-mode .splitter, body.table-mode .col-card { display: none !important; }
+body.table-mode .bulkbar { display: none; }
+body.table-mode .list-count { display: none; }
+@media (max-width: 959px) {
+  body.table-mode .cols { grid-template-columns: minmax(0, 1fr); }
+  .seg { margin-left: auto; }
+}

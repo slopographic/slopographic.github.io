@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: free AI (badges, the Free filter, only free models, the free-key guide, a free tier's rate limit)</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script>
+  // Covers: shared/ai/cloud/free.js, shared/ai/cloud/free-guide.js, shared/ai/cloud/pick.js, shared/ai/cloud/connect.js,
+  //   shared/ai/model-menu.js, shared/ai/cloud/net.js, shared/ai/cloud/compat.js, shared/ai/picker.js, shared/ai/panel.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let P, F;
+  const q = (s) => P.document.querySelector(s), qa = (s) => [...P.document.querySelectorAll(s)];
+  const row = (id) => q(`.sap-pp-row[data-id="${id}"]`);
+  const shown = (el) => !!el && !el.closest('[hidden]') && el.checkVisibility() && !(el.closest('details:not([open]) > :not(summary)'));
+  const dialog = () => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.cloud/.test(k)) sessionStorage.removeItem(k);
+  }
+  async function settings() {
+    q('.sap-status').click();
+    (await waitFor(() => [...P.document.querySelectorAll('.smb-row')].find((r) => r.textContent === 'AI settings…'))).click();
+  }
+  async function open(provider, width = 900) {
+    if (P && P.__frame) P.__frame.remove();
+    P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width, height: 800 });
+    F = CU.install(P, provider);
+    P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+    if (!q('.sap-cloud')) await settings();
+    const box = await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+    if (!box.open) q('.sap-cloud summary').click();
+    await waitFor(() => q('.sap-pp-btn'));
+  }
+  async function pick(id) {
+    if (q('.sap-pp').hidden) q('.sap-pp-btn').click();
+    const s = q('.sap-pp-q'); s.value = id; s.dispatchEvent(new P.Event('input'));
+    row(id).click(); await sleep(40);
+  }
+  async function connect(id, key) {
+    await pick(id);
+    q('.sap-cloud-key').value = key;
+    q('.sap-cloud-msg').textContent = '';
+    q('.sap-cloud-test').click();
+    await waitFor(() => /^Connected to /.test(q('.sap-cloud-msg').textContent));
+  }
+  const visible = () => [...q('.sap-cloud-model').options].filter((o) => !o.hidden && !o.closest('optgroup[hidden]'));
+
+  describe('Free badges and the Free filter in the provider picker', () => {
+    it('free tiers, free models and trials carry a badge; the Free chip shows only them', async () => {
+      wipe(); await open('anthropic');
+      q('.sap-pp-btn').click();
+      expect(row('gemini').querySelector('.sap-pp-b.free').textContent).toBe('Free');
+      expect(row('openrouter').querySelector('.sap-pp-b.free').textContent).toBe('Free models');
+      expect(row('anthropic').querySelector('.sap-pp-b.free')).toBe(null);
+      const chip = q('.sap-pp-chip');
+      expect(chip.textContent).toBe('Free'); expect(chip.getAttribute('aria-pressed')).toBe('false');
+      chip.click();
+      expect(chip.getAttribute('aria-pressed')).toBe('true');
+      for (const id of ['gemini', 'openrouter', 'groq', 'mistral', 'ollama']) expect(shown(row(id))).toBe(true);
+      for (const id of ['anthropic', 'openai', 'together', 'huggingface']) expect(shown(row(id))).toBe(false);
+      expect(row('groq').querySelector('.sap-pp-b.free').textContent).toBe('Free');
+      expect(row('cerebras').querySelector('.sap-pp-b.free').textContent).toBe('Free trial');
+      expect(row('ollama').querySelector('.sap-pp-b.free').textContent).toBe('Free');
+      const s = q('.sap-pp-q'); s.value = 'groq'; s.dispatchEvent(new P.Event('input'));
+      expect(shown(row('groq'))).toBe(true); expect(shown(row('gemini'))).toBe(false);
+      s.value = ''; s.dispatchEvent(new P.Event('input'));
+      chip.click();
+      expect(shown(row('anthropic'))).toBe(true); expect(q('.sap-pp-g[data-group="fast"]').open).toBe(false);
+    }, { timeout: 30000 });
+  });
+
+  describe('the free-key guide', () => {
+    it('"Get a free key in 2 minutes" opens on Gemini, Groq and OpenRouter, with their sign-up links and data notes', async () => {
+      const g = q('.sap-free-guide');
+      expect(g.open).toBe(false); expect(g.querySelector('summary').textContent).toBe('Get a free key in 2 minutes');
+      g.querySelector('summary').click(); await sleep(30);
+      expect(qa('.sap-free-guide section').map((x) => x.dataset.provider)).toEqual(['gemini', 'groq', 'openrouter']);
+      const links = qa('.sap-free-guide .sap-free-link').map((a) => a.href);
+      expect(links).toEqual(['https://aistudio.google.com/app/apikey', 'https://console.groq.com/keys', 'https://openrouter.ai/keys']);
+      for (const a of qa('.sap-free-guide .sap-free-link')) { expect(shown(a)).toBe(true); expect(a.target).toBe('_blank'); }
+      expect(g.textContent).toContain('start with Gemini or Groq');
+      expect(g.textContent).toContain('EEA, Switzerland and the UK');
+      expect(g.textContent).toContain('the free model must support tools');
+      expect(g.textContent).toContain('50 a day');
+      q('.sap-free-guide section[data-provider="groq"] .sap-free-choose').click();
+      await waitFor(() => q('.sap-cloud-provider').value === 'groq');
+      expect(q('.sap-pp-btn').textContent).toContain('Groq');
+      await waitFor(() => q('.sap-cloud-help').textContent.includes('Free: Free plan'));
+    }, { timeout: 20000 });
+  });
+
+  describe('Show only free models', () => {
+    it('OpenRouter (its real /models, trimmed): free models marked, the toggle keeps only free ones that can use tools', async () => {
+      CU.MODELS.openrouter = await (await fetch('../node/ai-openrouter-models.json')).json();
+      wipe(); await open('openrouter');
+      await connect('openrouter', 'sk-or-v1-TEST0123456789');
+      const opt = (id) => [...q('.sap-cloud-model').options].find((o) => o.value === id);
+      expect(opt('google/gemma-4-31b-it:free').textContent).toContain('· Free');
+      expect(opt('anthropic/claude-sonnet-5.5').textContent).not.toContain('Free');
+      const fo = q('.sap-cloud-free-only');
+      expect(shown(fo)).toBe(true);
+      expect(fo.textContent).toBe('Show only free models that can use tools');   // "Control <app>" is on
+      fo.querySelector('input').click(); await sleep(30);
+      const ids = visible().map((o) => o.value);
+      expect(ids).toContain('google/gemma-4-31b-it:free'); expect(ids).toContain('openrouter/free');
+      expect(ids).not.toContain('anthropic/claude-sonnet-5.5');
+      expect(ids).not.toContain('nvidia/nemotron-3.5-content-safety:free');   // free, but no tools
+      expect(opt(q('.sap-cloud-model').value).dataset.free).toBe('1');          // a paid choice moved to a free one
+      fo.querySelector('input').click(); await sleep(30);
+      expect(visible().map((o) => o.value)).toContain('anthropic/claude-sonnet-5.5');
+      // without app control, a free model that cannot use tools is offered too
+      q('.sap-tools input').checked = false;
+      q('.sap-cloud-msg').textContent = '';
+      q('.sap-cloud-test').click();
+      await waitFor(() => /^Connected to /.test(q('.sap-cloud-msg').textContent));
+      expect(q('.sap-cloud-free-only').textContent).toBe('Show only free models');
+      q('.sap-cloud-free-only input').click(); await sleep(30);
+      expect(visible().map((o) => o.value)).toContain('nvidia/nemotron-3.5-content-safety:free');
+      q('.sap-tools input').checked = true;
+    }, { timeout: 40000 });
+
+    it('the header model menu marks the provider and its free model', async () => {
+      q('.sap-cloud-model').value = 'google/gemma-4-31b-it:free';
+      q('.sap-cloud-use').click();
+      await waitFor(() => q('.sap-status').classList.contains('cloud'));
+      q('.sap-status').click();
+      // the menu reads the connected providers again as it opens, and redraws (a new element), so look it up each time
+      const r = await waitFor(() => qa('.smb-row').find((x) => x.isConnected && x.dataset.value === 'use|openrouter|google/gemma-4-31b-it:free'), { timeout: 15000 });
+      expect(r.textContent).toContain('· Free');
+      expect(qa('.smb-h').some((x) => x.textContent === 'OpenRouter (many models, one key) · Free models')).toBe(true);
+      P.document.dispatchEvent(new P.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    }, { timeout: 20000 });
+  });
+
+  describe('a free tier at its rate limit', () => {
+    it('a 429 from Groq says when to retry and where else to go', async () => {
+      CU.MODELS.groq = { data: [{ id: 'openai/gpt-oss-120b' }] };
+      wipe(); await open('groq');
+      await connect('groq', 'gsk_TEST0123456789abcdef');
+      expect(q('.sap-cloud-model').selectedOptions[0].textContent).toContain('· Free');
+      q('.sap-cloud-use').click();
+      await waitFor(() => q('.sap-status').classList.contains('cloud'));
+      F.fail = { status: 429, body: { error: { message: 'Rate limit reached for model openai/gpt-oss-120b', type: 'tokens', code: 'rate_limit_exceeded' } }, headers: { 'retry-after': '20' } };
+      const done = P.SlopAIPanel.send('hi');
+      const d = await waitFor(dialog);
+      [...d.querySelectorAll('button')].find((b) => b.textContent === 'Continue').click();
+      await done;
+      const err = await waitFor(() => qa('.sap-msg.bad').pop());
+      expect(err.textContent).toContain('Groq says too many requests');
+      expect(err.textContent).toContain('Try again in about 20 seconds');
+      expect(err.textContent).toContain('about 30 requests a minute and 1,000 a day');
+      expect(err.textContent).toContain('another free provider (Gemini or OpenRouter)');
+      expect(err.textContent).toContain('a model on this device');
+      expect(err.textContent.includes('gsk_TEST')).toBe(false);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop AI: free AI' });
+  </script>
+</body>
+</html>

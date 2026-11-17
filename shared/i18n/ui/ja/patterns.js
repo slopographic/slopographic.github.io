@@ -1,0 +1,23 @@
+/* Shared components, Japanese: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'ui.patterns.ipv4': 'IPv4 アドレス',
+  'ui.patterns.ipv6': 'IPv6 アドレス',
+  'ui.patterns.mac': 'MAC アドレス',
+  'ui.patterns.email': 'メールアドレス',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS アクセスキー ID',
+  'ui.patterns.aws_secret': 'AWS シークレットキー',
+  'ui.patterns.github_token': 'GitHub トークン',
+  'ui.patterns.slack_token': 'Slack トークン',
+  'ui.patterns.stripe_key': 'Stripe キー',
+  'ui.patterns.google_api_key': 'Google API キー',
+  'ui.patterns.private_key': '秘密鍵',
+  'ui.patterns.bearer': 'Bearer トークン',
+  'ui.patterns.basic_auth_url': 'URL 内のパスワード',
+  'ui.patterns.secret_assignment': 'シークレットの代入',
+  'ui.patterns.hash': 'ハッシュ (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'クレジットカード番号',
+  'ui.patterns.iban': 'IBAN',
+});

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Settings: Storage (meter, Keep my files, the browser's limit, Connect a folder)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 1100px; height: 900px; }</style></head>
+<body>
+  <!-- Covers: settings/storage-keep.js, settings/storage.js, settings/settings.css, shared/storage/quota.js, drive/js/ui/folder-ui.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const FIREFOX = 'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0';
+  /** A page in a fresh iframe, once it is loaded. */
+  async function open(src, ready) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    SlopTest.english();   // the checks read the English copy (a build may start in another language)
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && ready(f.contentDocument); }, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const settings = () => open('../../settings/index.html', (D) => D.querySelector('#storage-box .storage-limit'));
+  const box = (w) => w.document.getElementById('storage-box');
+  /** Replaces a storage method of the page's navigator. */
+  const stub = (w, name, fn) => Object.defineProperty(w.navigator.storage, name, { value: fn, configurable: true, writable: true });
+  /** Draws the section again (settings/storage.js redraws on a language change). */
+  async function redraw(w) {
+    const before = box(w).firstChild;
+    w.dispatchEvent(new w.CustomEvent('slop-lang'));
+    await waitFor(() => box(w).firstChild !== before && box(w).querySelector('.storage-limit'));
+  }
+
+  describe('Settings: Storage', () => {
+    it('shows the meter, whether the files are kept, Keep my files, the limit and the folder link', async () => {
+      const w = await settings();
+      const b = box(w);
+      const meter = b.querySelector('.meter-bar');
+      expect(meter.getAttribute('role')).toBe('meter');
+      expect(meter.getAttribute('aria-label')).toBe('Storage used');
+      expect(b.querySelector('.storage-used').textContent).toMatch(/ of /);
+      expect(b.querySelector('.persist-note').textContent).toMatch(/Kept|Not kept yet/);
+      expect(b.querySelector('[data-act="persist"]').textContent).toMatch(/Keep my files|Files kept/);
+      const lim = b.querySelector('.storage-limit');
+      expect(lim.dataset.engine).toBe('chromium');
+      expect(lim.textContent).toContain('about 60% of your disk');
+      const link = lim.querySelector('[data-act="connect-folder"]');
+      expect(link.getAttribute('href')).toBe('../drive/#connect-folder');
+      expect(b.querySelector('.storage-acts')).toBeTruthy();
+    }, { timeout: 40000 });
+
+    it('Keep my files says the honest answer: a no from Chrome, then a yes', async () => {
+      const w = await settings();
+      stub(w, 'persisted', async () => false);
+      stub(w, 'persist', async () => false);
+      await redraw(w);
+      const btn = () => box(w).querySelector('[data-act="persist"]');
+      expect(btn().disabled).toBe(false);
+      btn().click();
+      await waitFor(() => w.document.getElementById('storage-note').textContent);
+      expect(w.document.getElementById('storage-note').textContent).toContain('Chrome and Edge decide this on their own');
+      // the answer also shows right under the button, where the person is looking, and stays after the redraw
+      await waitFor(() => box(w).querySelector('.storage-keep .persist-answer'));
+      expect(box(w).querySelector('.storage-keep .persist-answer').textContent).toContain('Chrome and Edge decide this on their own');
+      let kept = false;
+      stub(w, 'persisted', async () => kept);
+      stub(w, 'persist', async () => { kept = true; return true; });
+      await waitFor(() => !btn().disabled);
+      btn().click();
+      await waitFor(() => w.document.getElementById('storage-note').textContent.includes('will keep your files'));
+      await waitFor(() => btn().disabled && btn().textContent.includes('Files kept'));
+      expect(box(w).querySelector('.storage-keep').dataset.state).toBe('granted');
+      expect(w.localStorage.getItem('slop-pwa.persist')).toBe('granted');
+      w.localStorage.removeItem('slop-pwa.persist');
+    }, { timeout: 40000 });
+
+    it('in Firefox it explains the 10% / 10 GB limit and that a folder needs Chrome or Edge', async () => {
+      const w = await settings();
+      Object.defineProperty(w.navigator, 'userAgent', { get: () => FIREFOX, configurable: true });
+      w.showDirectoryPicker = undefined;
+      await redraw(w);
+      const lim = box(w).querySelector('.storage-limit');
+      expect(lim.dataset.engine).toBe('firefox');
+      expect(lim.textContent).toContain('10% of your disk or 10 GB');
+      expect(lim.textContent).toContain('needs Chrome or Edge');
+      expect(lim.querySelector('[data-act="connect-folder"]')).toBe(null);
+    }, { timeout: 40000 });
+
+    it('the text follows the chosen language', async () => {
+      const w = await settings();
+      expect(w.SlopI18n.set('es').ok).toBe(true);
+      try {
+        await waitFor(() => box(w).querySelector('[data-act="persist"]').textContent.match(/Conservar mis archivos|Archivos conservados/));
+        expect(box(w).querySelector('.storage-limit h3').textContent).toBe('Cuánto espacio tienes');
+      } finally { w.SlopI18n.set('en'); }
+    }, { timeout: 40000 });
+
+    it('the folder link opens Slop Drive with its Connect folder button pointed out', async () => {
+      const w = await open('../../drive/index.html#connect-folder', (D) => D.body.classList.contains('ready') && D.querySelector('#folderBox button'));
+      await waitFor(() => w.document.querySelector('#folderBox button[data-linked]'), { timeout: 10000 });
+      const b = w.document.querySelector('#folderBox button[data-linked]');
+      expect(b.textContent).toContain('Connect folder');
+      expect(b.classList.contains('primary')).toBe(true);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Settings: Storage' });
+  </script>
+</body>
+</html>

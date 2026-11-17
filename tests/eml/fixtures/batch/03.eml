@@ -1,0 +1,38 @@
+From: Ben Carter <ben@example.org>
+To: Ann Example <ann@example.com>
+Subject: Re: Invoice 2026-118
+Date: Mon, 16 Feb 2026 17:02:00 +0000
+Message-ID: <m2@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B2"
+
+--B2
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+SGkgQW5uLA0KDQpUaGUgaW52b2ljZSBpcyBhdHRhY2hlZC4gUGF5bWVudCBpcyBkdWUgaW4gMzAg
+ZGF5cy4NCg0KVGhhbmtzLA0KQmVu
+--B2
+Content-Type: application/octet-stream; name="Invoice 2026-118.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="Invoice 2026-118.pdf"
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1IDAgUiA+PiA+PiAvQ29udGVudHMgNCAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA1NCA+PgpzdHJlYW0KQlQgL0YxIDI0IFRm
+IDcyIDcwMCBUZCAoSW52b2ljZSAyMDI2LTExOCBwYWdlIDEpIFRqIEVUCmVuZHN0cmVhbQplbmRv
+YmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2
+ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAw
+MDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0
+MSAwMDAwMCBuIAowMDAwMDAwMzQ1IDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAx
+IDAgUiA+PgpzdGFydHhyZWYKNDE1CiUlRU9GCg==
+--B2
+Content-Type: image/png; name="logo.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAIAAABwJOjsAAAAJElEQVR4nGOQizoxIIhh1OJRi0ct
+HrV41OJRi0ctHrV45FgMAJsP6C7ehX4tAAAAAElFTkSuQmCC
+--B2--

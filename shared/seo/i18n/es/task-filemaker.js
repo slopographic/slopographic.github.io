@@ -1,0 +1,22 @@
+/* SEO copy, es: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'seo.task.code.open-filemaker-file.crumb': 'Abrir un archivo FileMaker',
+  'seo.task.code.open-filemaker-file.title': 'Abrir un archivo FileMaker online: ver tablas .fmp12 y .fp7',
+  'seo.task.code.open-filemaker-file.description': 'Abre una base FileMaker (.fmp12, .fp7, .fp5, .fp3) en el navegador y lee sus tablas y registros sin FileMaker. Busca y exporta a CSV o JSON. Sin subir nada.',
+  'seo.task.code.open-filemaker-file.h1': 'Abrir un archivo FileMaker online',
+  'seo.task.code.open-filemaker-file.lead': 'Un archivo FileMaker contiene tablas de registros y normalmente hace falta FileMaker para verlas. Suelta el archivo en Slop Code y sus tablas se abren como una cuadrícula para desplazar, buscar y exportar, sin instalar nada.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Abre Slop Code y suelta el archivo .fmp12, .fp7, .fp5 o .fp3 en la página, o elígelo desde Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'El archivo se abre como una cuadrícula de solo lectura. Elige una tabla de la lista: las filas se cargan al desplazarte, así que un archivo grande sigue siendo rápido.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Busca en la tabla con el cuadro de búsqueda, o elige un tipo de texto (una dirección IP, un correo electrónico, una clave) para saltar a la siguiente fila que lo contenga.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Elige Exportar para guardar la tabla como CSV o JSON, o ábrela en otra aplicación.',
+  'seo.task.code.open-filemaker-file.body.0': 'La página lee el formato del archivo por sí misma: archivos de FileMaker Pro 3 a 6 (.fp3, .fp5, .fmp), de Pro 7 a 12 (.fp7, .fmp12) y la exportación de tablas que escribe FileMaker (.fmpxml). El lector es un port a JavaScript de fmptools, de código abierto.',
+  'seo.task.code.open-filemaker-file.body.1': 'Ves las tablas, los nombres de columna y los registros. Las imágenes y archivos de los campos contenedor, los diseños, los scripts, las relaciones y las listas de valores no se leen, y un archivo cifrado debe abrirse antes en FileMaker.',
+  'seo.task.code.open-filemaker-file.faq.0.0': '¿Necesito FileMaker para abrir el archivo?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'No. La página lee el archivo en tu navegador y muestra sus tablas y filas. No ejecuta la base de datos ni sus scripts.',
+  'seo.task.code.open-filemaker-file.faq.1.0': '¿Se sube mi archivo?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'No. El archivo se lee en este dispositivo y no se envía nada a Slopographic ni a nadie más.',
+  'seo.task.code.open-filemaker-file.faq.2.0': '¿Puedo cambiar los datos?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'No. El archivo se muestra en solo lectura y nunca se modifica. Exporta una tabla como CSV o JSON para trabajar con los datos en otra aplicación.',
+  'seo.task.code.open-filemaker-file.faq.3.0': '¿Qué archivos FileMaker se pueden abrir?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'Archivos de FileMaker Pro 3 a 12 (.fp3, .fp5, .fp7, .fmp12) y exportaciones de tablas en formato FMPXMLRESULT. Los .fmp12 más nuevos creados por versiones posteriores de FileMaker se abren igual, salvo que estén cifrados.',
+});

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Upscale: the pipeline in the browser</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:upscale', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../upscale/js/core/tiling.js"></script>
+  <script src="../../upscale/js/core/lanczos.js"></script>
+  <script src="../../upscale/js/core/models.js"></script>
+  <script src="../../upscale/js/engine/engine.js"></script>
+  <script src="../../upscale/js/engine/pipeline.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const PL = window.SlopUpscalePipeline, MD = window.SlopUpscaleModels;
+
+  /** A 100 × 100 picture: a gradient with a red square and a blue disc. */
+  function picture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 100;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 100, 100);
+    g.addColorStop(0, '#203040'); g.addColorStop(1, '#d0c0a0');
+    x.fillStyle = g; x.fillRect(0, 0, 100, 100);
+    x.fillStyle = '#d02020'; x.fillRect(12, 14, 30, 30);
+    x.fillStyle = '#2050e0'; x.beginPath(); x.arc(70, 66, 20, 0, Math.PI * 2); x.fill();
+    return c;
+  }
+  const mean = (cv) => {
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let s = 0; for (let i = 0; i < d.length; i += 4) s += (d[i] + d[i + 1] + d[i + 2]) / 3;
+    return s / (d.length / 4);
+  };
+
+  describe('Slop Upscale: the pipeline', () => {
+    it('upscales a generated 100 × 100 picture 2× to 200 × 200 (Lanczos fallback, no model)', async () => {
+      const out = await PL.run(picture(), { scale: 2, model: null, tile: 64, overlap: 8 });
+      expect(out.width).toBe(200);
+      expect(out.height).toBe(200);
+      expect(Math.abs(mean(out) - mean(picture()))).toBeLessThan(2);
+    });
+
+    it('upscales a generated 100 × 100 picture 2× with the bundled Fast model to 200 × 200', async () => {
+      const src = picture();
+      const out = await PL.run(src, { scale: 2, model: 'fsrcnn-x2', tile: 64, overlap: 16 });
+      expect(out.width).toBe(200);
+      expect(out.height).toBe(200);
+      const m = mean(out);
+      expect(Math.abs(m - mean(src))).toBeLessThan(12);
+      const lz = await PL.run(src, { scale: 2, model: null, tile: 64, overlap: 16 });
+      expect(Math.abs(mean(lz) - m)).toBeLessThan(12);
+    });
+
+    it('runs the opt-in Real-ESRGAN file passed in as bytes (the Get more path), 4× to 160 × 160', async () => {
+      const res = await fetch('../../vendor/models/upscale/realesrgan-x4plus/model.onnx', { cache: 'no-store' });
+      // The weights are gitignored (64 MB, opt-in), so a checkout without them skips this check and says so.
+      if (!res.ok) { console.warn('skipped: the Real-ESRGAN weights are not installed in vendor/models'); return; }
+      const bytes = await res.arrayBuffer();
+      const c = document.createElement('canvas');
+      c.width = c.height = 40;
+      const x = c.getContext('2d');
+      x.fillStyle = '#806040'; x.fillRect(0, 0, 40, 40);
+      x.fillStyle = '#e0e0f0'; x.fillRect(10, 10, 20, 20);
+      const out = await PL.run(c, { scale: 4, model: 'realesrgan-x4plus', bytes, tile: 32, overlap: 8 });
+      expect(out.width).toBe(160);
+      expect(out.height).toBe(160);
+      expect(Math.abs(mean(out) - mean(c))).toBeLessThan(15);
+    }, { timeout: 240000 });
+
+    it('reports progress tile by tile and stops when cancelled', async () => {
+      const seen = [];
+      const signal = { cancelled: false };
+      let err = null;
+      try {
+        await PL.run(picture(), { scale: 2, model: null, tile: 32, overlap: 4, signal, onProgress: (d, t) => { seen.push([d, t]); if (d === 2) signal.cancelled = true; } });
+      } catch (e) { err = e; }
+      expect(err && err.message).toBe('Cancelled');
+      expect(seen.length).toBe(2);
+      expect(seen[0][1]).toBe(16);
+    });
+
+    it('refuses results over the size limit before doing any work', () => {
+      expect(PL.check(4000, 4000, 4)).toMatch(/megapixels|px/);
+      expect(PL.check(100, 100, 2)).toBe(null);
+    });
+
+    it('will not load a model that is not bundled (Quality needs Get more)', async () => {
+      window.SlopUpscaleEngine.cancel(); // a fresh worker: nothing is loaded yet
+      let err = null;
+      try { await window.SlopUpscaleEngine.load('realesrgan-x4plus', null); } catch (e) { err = e; }
+      expect(err && err.message).toMatch(/not installed/);
+    });
+  });
+
+  describe('Slop Upscale: the model registry matches the vendored index', () => {
+    it('sizes, hashes and scales agree with vendor/models/upscale/index.json', async () => {
+      const idx = await (await fetch('../../vendor/models/upscale/index.json', { cache: 'no-store' })).json();
+      for (const m of idx.models) {
+        const r = MD.get(m.id);
+        expect(r).toBeTruthy();
+        expect(r.bytes).toBe(m.bytes);
+        expect(r.sha256).toBe(m.sha256);
+        expect(r.scale).toBe(m.scale);
+        expect(r.bundled).toBe(m.bundled);
+        expect(r.licence).toBe(m.licence);
+      }
+    });
+  });
+
+  SlopTest.run({ name: 'Slop Upscale pipeline' });
+  </script>
+</body>
+</html>

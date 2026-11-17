@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables tabs</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const tabEls = () => [...W().document.querySelectorAll('#doc-tabs .sl-doctab')];
+
+  /** Load the app fresh (about:blank first, so a reload never reads the old page's ready flag). */
+  async function open() {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../tables/index.html';
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopTables && f.contentWindow.SlopTables.ready, { timeout: 30000 });
+    return W();
+  }
+
+  describe('Slop Tables tabs', () => {
+    it('two workbook tabs switch, and a reload brings both back with their cells', async () => {
+      // A clean start: no tabs stored from an earlier run of this page. Records are cleared, not the database,
+      // because a live frame still holds it open.
+      localStorage.removeItem('slop.doctabs.tables.v1');
+      await new Promise((res) => {
+        const r = indexedDB.open('slop-doctabs', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('docs');
+        r.onerror = r.onblocked = () => res();
+        r.onsuccess = () => { const d = r.result; const tx = d.transaction('docs', 'readwrite'); tx.objectStore('docs').clear(); tx.oncomplete = tx.onerror = tx.onabort = () => { d.close(); res(); }; };
+      });
+      let w = await open();
+      w.SlopTables.setCell('A1', 'first');
+      w.SlopTables.command('file.new'); // a new workbook in a second tab
+      await waitFor(() => tabEls().length === 2, { timeout: 5000 });
+      expect(w.SlopTables.value('A1')).toBe(null);
+      w.SlopTables.setCell('A1', 'second');
+      tabEls()[0].click(); // switch back to the first workbook
+      expect(w.SlopTables.value('A1')).toBe('first');
+      expect(tabEls()[0].getAttribute('aria-selected')).toBe('true');
+      await w.SlopTables.flushTabs();
+
+      // Reload: both tabs, the first workbook on screen.
+      w = await open();
+      await waitFor(() => tabEls().length === 2, { timeout: 5000 });
+      expect(w.SlopTables.value('A1')).toBe('first');
+      tabEls()[1].click();
+      expect(w.SlopTables.value('A1')).toBe('second');
+      tabEls()[0].click();
+      expect(w.SlopTables.value('A1')).toBe('first');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'Slop Tables tabs' });
+  </script>
+</body>
+</html>

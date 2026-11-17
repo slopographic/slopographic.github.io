@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopFinder · the reusable finder</title>
+  <link rel="stylesheet" href="../../shared/finder/finder.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 14px system-ui; } #host { width: 760px; }</style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/urlstate/urlstate.js"></script>
+  <script src="../../shared/finder/model.js"></script>
+  <script src="../../shared/finder/finder.js"></script>
+  <script src="../../shared/ui/list.js"></script>
+  <script>
+  // Covers: shared/finder/finder.js, shared/finder/model.js, shared/ui/list.js, shared/i18n/ui/en/finder.js, shared/i18n/ui/sv/finder.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const ITEMS = [
+    { id: 'pdf', name: 'PDF', tag: 'Organise PDFs.', feats: ['Merge and split'], kind: 'Documents', types: ['PDF'], live: true, size: 10 },
+    { id: 'inv', name: 'Invoices', tag: 'Gapless invoices.', feats: ['Payments'], kind: 'Business', types: ['No upload'], live: false, size: 3 },
+    { id: 'iso', name: 'Quill Isolate', tag: 'Remove backgrounds.', feats: ['Cut-out'], kind: 'Creative', types: ['Images'], live: true, size: 7 },
+    { id: 'cafe', name: 'Café Notes', tag: 'Notebooks and résumés.', feats: [], kind: 'Documents', types: ['Text'], live: true, size: 1 },
+  ];
+  const SPEC = {
+    fields: [
+      { key: 'name', label: 'Name', get: (a) => a.name },
+      { key: 'tag', label: 'Description', get: (a) => a.tag },
+      { key: 'feats', label: 'Features', get: (a) => a.feats },
+    ],
+    facets: [
+      { key: 'kind', label: 'Section', values: (a) => [a.kind] },
+      { key: 'types', label: 'File types', values: (a) => a.types },
+      { key: 'status', label: 'Status', values: (a) => [a.live ? 'Ready' : 'In development'] },
+    ],
+    columns: [
+      { key: 'name', label: 'App', get: (a) => a.name },
+      { key: 'kind', label: 'Section', get: (a) => a.kind },
+      { key: 'open', label: 'Open', sortable: false, get: () => '', render: (a) => { const x = document.createElement('a'); x.href = '#' + a.id; x.textContent = 'Open'; return x; } },
+    ],
+    row: (a) => { const d = document.createElement('div'); d.className = 'fd-row'; d.dataset.id = a.id; d.innerHTML = `<b>${a.name}</b><span>${a.kind}</span><span>${a.tag}</span>`; return d; },
+    card: (a) => { const d = document.createElement('div'); d.className = 'app-card'; d.dataset.id = a.id; d.textContent = a.name; return d; },
+    searchKeys: ['name', 'tag', 'feats'],
+  };
+  const host = () => document.getElementById('host');
+  const mountIt = (extra = {}) => { host().replaceChildren(); return SlopFinder.mount(host(), { ...SPEC, items: ITEMS, noun: 'apps', ...extra }); };
+  const $ = (s) => host().querySelector(s);
+  const $$ = (s) => [...host().querySelectorAll(s)];
+  /** Ticks exactly the values named (the finder's facets are tick lists). The list is redrawn on every tick, so each
+   *  checkbox is looked up again before it is clicked. */
+  function onlyTicked(label, ...keep) {
+    const fieldset = () => $$('fieldset.fd-facet').find((f) => f.querySelector('legend').textContent.trim().startsWith(label));
+    const names = [...fieldset().querySelectorAll('.fd-check-text')].map((x) => x.textContent);
+    for (const name of names) {
+      const row = () => [...fieldset().querySelectorAll('.fd-check')].find((l) => l.querySelector('.fd-check-text').textContent === name);
+      const want = keep.some((k) => name.startsWith(k));
+      if (row().querySelector('input').checked !== want) row().querySelector('input').click();
+    }
+  }
+  const typeIn = (text) => { const i = $('.fd-input'); i.value = text; i.dispatchEvent(new Event('input', { bubbles: true })); };
+  const shownIds = () => $$('.fd-cards > [data-id]').map((c) => c.dataset.id);
+
+  describe('finder: search', () => {
+    it('noun can be [one, many]: the count reads "1 app" and "N apps"', () => {
+      mountIt({ noun: ['app', 'apps'], items: ITEMS.slice(0, 1) });
+      expect($('.fd-count').textContent).toBe('1 app');
+      mountIt({ noun: ['app', 'apps'] });
+      expect($('.fd-count').textContent).toBe(`${ITEMS.length} apps`);
+    });
+    it('matches as you type, ignoring case and accents, and every word must match', () => {
+      const f = mountIt();
+      expect(shownIds()).toEqual(['pdf', 'inv', 'iso', 'cafe']);
+      typeIn('CAFE');
+      expect(shownIds()).toEqual(['cafe']);
+      typeIn('cafe resumes');
+      expect(shownIds()).toEqual(['cafe']);
+      typeIn('cafe invoices');
+      expect(shownIds()).toEqual([]);
+      expect($('.fd-empty').hidden).toBe(false);
+      f.destroy();
+    });
+    it('searches the fields listed in searchKeys, and nothing else', () => {
+      const f = mountIt({ searchKeys: ['name'] });
+      typeIn('gapless');
+      expect(shownIds()).toEqual([]);
+      typeIn('isolate');
+      expect(shownIds()).toEqual(['iso']);
+      f.destroy();
+    });
+  });
+
+  describe('finder: facets and chips', () => {
+    it('a facet narrows the list, shows counts, and its value becomes a removable chip', () => {
+      const f = mountIt();
+      const docs = $$('.fd-check').find((l) => l.textContent.startsWith('Documents'));
+      expect(docs.querySelector('.fd-n').textContent.trim()).toBe('2');
+      expect(docs.querySelector('input').checked).toBe(true); // every value is ticked by default
+      onlyTicked('Section', 'Documents');
+      expect(shownIds()).toEqual(['pdf', 'cafe']);
+      expect($$('.fd-chip').length).toBe(1);
+      expect($('.fd-chip').textContent).toContain('Section: Documents');
+      expect(f.getFilter().facets).toEqual({ kind: ['Documents'] });
+      $('.fd-chip').click();
+      expect(shownIds()).toEqual(['pdf', 'inv', 'iso', 'cafe']);
+      expect($('.fd-chips').hidden).toBe(true);
+      f.destroy();
+    });
+    it('values inside one facet combine with OR, facets combine with AND', () => {
+      const f = mountIt();
+      onlyTicked('Section', 'Documents', 'Business');
+      expect(shownIds()).toEqual(['pdf', 'inv', 'cafe']);
+      onlyTicked('Status', 'Ready');
+      expect(shownIds()).toEqual(['pdf', 'cafe']);
+      const images = $$('.fd-check').find((l) => l.textContent.startsWith('Images'));
+      expect(images.querySelector('.fd-n').textContent.trim()).toBe('0');
+      expect($$('.fd-chip').length).toBe(3);
+      f.destroy();
+    });
+    it('Clear empties the search and facets, and the empty state has its own Clear button', () => {
+      const f = mountIt();
+      typeIn('zzz');
+      const clear = $('.fd-empty .fd-btn');
+      expect(clear.textContent).toBe('Clear filters');
+      clear.click();
+      expect(shownIds().length).toBe(4);
+      expect($('.fd-input').value).toBe('');
+      expect(f.getFilter().q).toBe('');
+      f.destroy();
+    });
+  });
+
+  describe('finder: views and table', () => {
+    it('the list view shows every matching item, and the table view its columns', () => {
+      const f = mountIt();
+      $('.fd-view[data-fd-view="list"]').click();
+      expect($$('.fd-row').length).toBe(4);
+      expect($('.fd-view[data-fd-view="list"]').getAttribute('aria-pressed')).toBe('true');
+      typeIn('pdf');
+      expect($$('.fd-row').map((r) => r.dataset.id)).toEqual(['pdf']);
+      $('.fd-view[data-fd-view="table"]').click();
+      expect($$('.fd-table th').map((th) => th.textContent.trim())).toEqual(['App', 'Section', 'Open']);
+      expect($$('.fd-table tbody tr').length).toBe(1);
+      f.destroy();
+    });
+    it('the table sorts by a column: ascending, then descending, and shows aria-sort', () => {
+      const f = mountIt({ columns: SPEC.columns });
+      $('.fd-view[data-fd-view="table"]').click();
+      const names = () => $$('.fd-table tbody tr td:first-child').map((td) => td.textContent);
+      expect(names()).toEqual(['PDF', 'Invoices', 'Quill Isolate', 'Café Notes']);
+      $$('.fd-sort').find((b) => b.textContent.startsWith('App')).click();
+      expect(names()).toEqual(['Café Notes', 'Invoices', 'PDF', 'Quill Isolate']);
+      expect($$('.fd-table th')[0].getAttribute('aria-sort')).toBe('ascending');
+      $$('.fd-sort').find((b) => b.textContent.startsWith('App')).click();
+      expect(names()).toEqual(['Quill Isolate', 'PDF', 'Invoices', 'Café Notes']);
+      expect($$('.fd-table th')[0].getAttribute('aria-sort')).toBe('descending');
+      expect(f.getFilter().sort).toEqual({ key: 'name', dir: 'desc' });
+      f.destroy();
+    });
+    it('a column with sortable: false has no sort button', () => {
+      const f = mountIt({ columns: SPEC.columns });
+      $('.fd-view[data-fd-view="table"]').click();
+      expect($$('.fd-table th')[2].querySelector('button')).toBe(null);
+      f.destroy();
+    });
+  });
+
+  describe('finder: API and events', () => {
+    it('onChange gets the shown items and the filter; setItems and clear work; destroy empties the host', () => {
+      let last = null;
+      const f = mountIt({ onChange: (list, st) => { last = { ids: list.map((a) => a.id), st }; } });
+      expect(last.ids.length).toBe(4);
+      typeIn('pdf');
+      expect(last.ids).toEqual(['pdf']);
+      expect(last.st.q).toBe('pdf');
+      f.setItems(ITEMS.slice(0, 2));
+      expect(last.ids).toEqual(['pdf']);
+      f.clear();
+      expect(last.ids).toEqual(['pdf', 'inv']);
+      f.destroy();
+      expect(host().children.length).toBe(0);
+    });
+    it('the filter is kept in the URL under the prefix, and read back on mount', async () => {
+      const f = mountIt({ urlPrefix: 'ftest' });
+      typeIn('notes');
+      expect(location.search).toContain('ftest.q=notes');
+      $('.fd-view[data-fd-view="list"]').click();
+      expect(location.search).toContain('ftest.view=list');
+      f.destroy();
+      const g = mountIt({ urlPrefix: 'ftest' });
+      expect($('.fd-input').value).toBe('notes');
+      expect(g.getFilter().view).toBe('list');
+      g.clear();
+      $('.fd-view[data-fd-view="cards"]').click();
+      expect(location.search).not.toContain('ftest.');
+      g.destroy();
+    });
+    it('the focus call focuses the search box', () => {
+      const f = mountIt({ suggest: { max: 5, href: (a) => '#' + a.id, label: (a) => a.name, hint: (a) => a.kind } });
+      f.focus();
+      expect(document.activeElement).toBe($('.fd-input'));
+      typeIn('pd');
+      expect($$('.fd-suggest li').length).toBe(1);
+      expect($('.fd-suggest a').getAttribute('href')).toBe('#pdf');
+      f.destroy();
+    });
+    it('the big search box: Enter opens the first result shown (its link is clicked); empty search does nothing', () => {
+      const card = (a) => { const d = document.createElement('div'); d.dataset.id = a.id; const x = document.createElement('a'); x.href = '#open-' + a.id; x.textContent = a.name; d.append(x); return d; };
+      const f = mountIt({ big: true, card });
+      const opened = [];
+      host().addEventListener('click', (e) => { const a = e.target.closest('a'); if (a) { e.preventDefault(); opened.push(a.getAttribute('href')); } });
+      const enter = () => $('.fd-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      enter();
+      expect(opened.length).toBe(0);
+      typeIn('invoic');
+      enter();
+      expect(opened).toEqual(['#open-inv']);
+      f.destroy();
+    });
+  });
+
+  describe('finder: the count line in the chosen language, with plural forms', () => {
+    const I = window.SlopI18n;
+    /** The homepage's count: plural keys of the chrome (finder.count, finder.count_of), not "{n} {noun}". */
+    const HOME = { count: (n) => I.t('finder.count', { n }), countOf: (shown, n) => I.t('finder.count_of', { shown, n }) };
+    async function lang(code) { I.set(code); await I.ready(); await waitFor(() => document.documentElement.lang === code, { timeout: 10000 }); }
+    it('n = 1 and n = 2 read their own forms in English and in Swedish, and a live switch redraws the count', async () => {
+      mountIt({ ...HOME, items: ITEMS.slice(0, 1) });
+      expect($('.fd-count').textContent).toBe('1 app');
+      const f = mountIt({ ...HOME, items: ITEMS.slice(0, 2) });
+      expect($('.fd-count').textContent).toBe('2 apps');
+      try {
+        await lang('sv');
+        await waitFor(() => $('.fd-count').textContent === '2 appar', { timeout: 5000 });
+        expect($('.fd-view[data-fd-view="list"]').textContent).toBe('Lista');   // the marked labels follow too
+        typeIn('pdf');
+        expect($('.fd-count').textContent).toBe('1 av 2 appar matchar');
+        expect($('.fd-chip').textContent).toContain('Sök: ”pdf”');
+        mountIt({ ...HOME, items: ITEMS.slice(0, 1) });
+        expect($('.fd-count').textContent).toBe('1 app');
+        mountIt({ items: ITEMS.slice(0, 2), noun: undefined });
+        expect($('.fd-count').textContent).toBe('2 objekt');   // no count of the caller's: the shared default
+      } finally { f.destroy(); await lang('en'); localStorage.removeItem('slop-profile'); SlopTest.english(); }
+    });
+    it('SlopList counts with the app\'s plural key (a function or a key), else "N items"', async () => {
+      const box = document.createElement('div'), sum = document.createElement('p');
+      document.body.append(box, sum);
+      const L = SlopList.mount(box, { summary: sum, count: (n) => I.t('ui.shell.folder_aria', { name: 'X', n }) });
+      L.set([{ id: 1 }]);
+      expect(sum.textContent).toBe('X, folder with 1 app');
+      L.set([{ id: 1 }, { id: 2 }]);
+      expect(sum.textContent).toBe('X, folder with 2 apps');
+      SlopList.mount(box, { summary: sum, count: 'ui.list.count' }).set([{ id: 1 }]);
+      expect(sum.textContent).toBe('1 item');
+      SlopList.mount(box, { summary: sum }).set([{ id: 1 }, { id: 2 }]);
+      expect(sum.textContent).toBe('2 items');
+      box.remove(); sum.remove();
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

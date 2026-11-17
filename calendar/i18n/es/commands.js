@@ -1,0 +1,22 @@
+/* Slop Calendar, Spanish: the palette. Same keys as calendar/i18n/en/commands.js. Terms: shared/i18n/glossary-es.md. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'calendar.cmd.g_cal': 'Calendario',
+  'calendar.cmd.g_goto': 'Ir a',
+  'calendar.cmd.prev': 'Calendario: periodo anterior',
+  'calendar.cmd.next': 'Calendario: periodo siguiente',
+  'calendar.cmd.today': 'Calendario: ir a hoy',
+  'calendar.cmd.year': 'Calendario: vista de año',
+  'calendar.cmd.month': 'Calendario: vista de mes',
+  'calendar.cmd.split': 'Calendario: vista dividida',
+  'calendar.cmd.undo': 'Calendario: deshacer el último movimiento',
+  'calendar.cmd.week': 'Calendario: vista de semana',
+  'calendar.cmd.day': 'Calendario: vista de día',
+  'calendar.cmd.agenda': 'Calendario: agenda',
+  'calendar.cmd.new': 'Calendario: nuevo evento',
+  'calendar.cmd.tasks': 'Calendario: mostrar u ocultar pendientes',
+  'calendar.cmd.import': 'Calendario: importar .ics',
+  'calendar.cmd.export': 'Calendario: exportar .ics',
+  'calendar.cmd.todo': 'Ir a Slop To-do',
+  'calendar.cmd.reminders': 'Ir a Slop Reminders',
+  'calendar.cmd.crm': 'Ir a Slop CRM',
+});

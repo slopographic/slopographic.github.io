@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop repair tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, win;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  /** Client point for a document point (the viewport is at 100 % for these small documents). */
+  const scr = (x, y) => { const r = W.V.el.getBoundingClientRect(); return { x: r.left + W.V.ox + x * W.V.zoom, y: r.top + W.V.oy + y * W.V.zoom }; };
+  function ptr(type, x, y, opts = {}) {
+    W.V.el.dispatchEvent(new win.PointerEvent(type, Object.assign({ clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 9, pointerType: 'mouse', bubbles: true, cancelable: true }, opts)));
+  }
+  /** A drag through document points (first point = pointer down, last = pointer up). */
+  function drag(pts, opts = {}) {
+    const a = scr(...pts[0]); ptr('pointerdown', a.x, a.y, opts);
+    for (const q of pts.slice(1)) { const b = scr(...q); ptr('pointermove', b.x, b.y, opts); }
+    const z = scr(...pts[pts.length - 1]); ptr('pointerup', z.x, z.y, opts);
+  }
+  /** Pixel [r,g,b,a] of the active layer at a document point. */
+  const pix = (x, y) => { const L = W.activeLayer(); return [...L.canvas.getContext('2d', { willReadFrequently: true }).getImageData(x - L.x, y - L.y, 1, 1).data]; };
+  /** Pixel values of a square (document points, inclusive of x0..x1-1) of the active layer, as luma. */
+  const lumaOf = (x0, y0, x1, y1) => {
+    const L = W.activeLayer(), d = L.canvas.getContext('2d', { willReadFrequently: true }).getImageData(x0 - L.x, y0 - L.y, x1 - x0, y1 - y0).data, out = [];
+    for (let i = 0; i < d.length; i += 4) out.push(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+    return out;
+  };
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  const sd = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((v) => (v - m) ** 2))); };
+  /** A new document whose active layer is `paint(g)` on a fresh canvas. */
+  function scene(name, w, h, paint) {
+    W.newDocTab(w, h, '#ffffff', name); W.actualPixels(); W.selectTool('move'); W.setColor('fg', '#000000');
+    const c = W.mkCanvas(w, h), g = W.cx(c); paint(g, c);
+    W.addLayer({ name: 'Scene', canvas: c }, 'Add Scene');
+    return W.activeLayer();
+  }
+  const openDlg = () => [...win.document.querySelectorAll('.sui-dlg.sui-filter')].pop();
+  const dlgButton = (label) => [...openDlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === label);
+  const dlgValue = (label) => { const el = openDlg().querySelector(`input[type=range][aria-label="${label}"], input[type=checkbox][aria-label="${label}"]`); return el.type === 'checkbox' ? el.checked : +el.value; };
+  const setRange = (label, v) => { const r = openDlg().querySelector(`input[type=range][aria-label="${label}"]`); r.value = String(v); r.dispatchEvent(new win.Event('input', { bubbles: true })); };
+  /** Runs a filter through its dialog and presses OK; resolves when the history has a new step. */
+  async function filterWithDialog(id, before) {
+    const p = W.runFilter(id);
+    await waitFor(() => openDlg(), { timeout: 5000 });
+    await sleep(60);
+    dlgButton('OK').click();
+    await waitFor(() => W.Hist.idx === before + 1, { timeout: 8000 });
+    await sleep(20);
+    return p;
+  }
+
+  describe('Repair tools and filters', () => {
+    it('boots', async () => {
+      win = document.getElementById('app').contentWindow;
+      await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.healPatch).toBe('function');
+      expect(W.TOOL.heal.name).toBe('Healing Brush Tool');
+    }, { timeout: 40000 });
+
+    it('healing brush: a dark spot on flat grey takes the surrounding brightness and the source texture, one undo step', async () => {
+      let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      const L = scene('Heal', 200, 160, (g) => {
+        g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, 200, 160);
+        g.fillStyle = 'rgb(30,30,30)'; g.beginPath(); g.arc(100, 80, 6, 0, Math.PI * 2); g.fill();
+        const img = g.getImageData(130, 50, 60, 60), d = img.data;
+        for (let i = 0; i < d.length; i += 4) { const v = 128 + (rnd() - 0.5) * 50; d[i] = d[i + 1] = d[i + 2] = v; }
+        g.putImageData(img, 130, 50);
+      });
+      W.selectTool('heal'); Object.assign(W.T.heal, { size: 30, hardness: 0.8, opacity: 1, aligned: true, sampleAll: false });
+      const before = W.Hist.idx, dark = pix(100, 80);
+      expect(dark[0]).toBe(30);
+      // Alt-click the textured source at (160, 80), then paint over the spot.
+      const s = scr(160, 80); ptr('pointerdown', s.x, s.y, { altKey: true }); ptr('pointerup', s.x, s.y, { altKey: true });
+      drag([[100, 80], [103, 80]]);
+      expect(W.Hist.idx).toBe(before + 1);
+      const core = [];
+      for (let y = 77; y <= 83; y++) for (let x = 97; x <= 103; x++) core.push(...pix(x, y).slice(0, 3));
+      const lum = []; for (let i = 0; i < core.length; i += 3) lum.push((core[i] + core[i + 1] + core[i + 2]) / 3);
+      expect(Math.abs(mean(lum) - 128)).toBeLessThan(6);       // brightness of the surroundings
+      expect(sd(lum)).toBeGreaterThan(2.5);                    // the source texture was added
+      expect(pix(100, 62)).toEqual([128, 128, 128, 255]);      // outside the brush: untouched
+      W.undo();
+      expect(pix(100, 80)).toEqual(dark);                      // one undo step restores the spot
+    });
+
+    it('spot healing: a small dot on a uniform background disappears without a source, one undo step', async () => {
+      scene('Spot', 200, 120, (g) => {
+        g.fillStyle = 'rgb(200,200,200)'; g.fillRect(0, 0, 200, 120);
+        g.fillStyle = 'rgb(40,40,40)'; g.beginPath(); g.arc(80, 60, 4, 0, Math.PI * 2); g.fill();
+      });
+      W.selectTool('spot'); Object.assign(W.T.spot, { size: 24, hardness: 0.5, opacity: 1 });
+      const before = W.Hist.idx;
+      drag([[80, 60], [82, 60]]);
+      expect(W.Hist.idx).toBe(before + 1);
+      const v = lumaOf(74, 54, 87, 67);
+      expect(Math.abs(mean(v) - 200)).toBeLessThan(6);
+      expect(Math.min(...v)).toBeGreaterThan(190);
+      W.undo();
+      expect(pix(80, 60)[0]).toBe(40);
+    });
+
+    it('red-eye tool: a drawn region darkens a pure red pupil and leaves a white catchlight unchanged, one undo step', async () => {
+      scene('Eye', 200, 120, (g) => {
+        g.fillStyle = '#fff'; g.fillRect(0, 0, 200, 120);
+        g.fillStyle = 'rgb(220,20,20)'; g.beginPath(); g.arc(60, 60, 20, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.arc(66, 54, 4, 0, Math.PI * 2); g.fill();
+      });
+      W.selectTool('redeye');
+      const before = W.Hist.idx;
+      drag([[30, 30], [90, 90]]);
+      expect(W.Hist.idx).toBe(before + 1);
+      const p = pix(60, 60);
+      expect(p[0]).toBeLessThan(80);          // the red is pulled down
+      expect(p[1]).toBe(20);                  // green and blue are kept
+      expect(p[2]).toBe(20);
+      expect(pix(66, 54)).toEqual([255, 255, 255, 255]); // the catchlight
+      W.undo();
+      expect(pix(60, 60)[0]).toBe(220);
+    });
+
+    it('red-eye filter works on the selection only', async () => {
+      scene('EyeSel', 200, 120, (g) => {
+        g.fillStyle = '#fff'; g.fillRect(0, 0, 200, 120);
+        g.fillStyle = 'rgb(220,20,20)'; g.beginPath(); g.arc(60, 60, 20, 0, Math.PI * 2); g.fill();
+      });
+      const m = W.mkCanvas(200, 120), mg = W.cx(m); mg.fillStyle = '#000'; mg.fillRect(0, 0, 50, 120);
+      W.D.sel = W.makeSel(m); W.commit('Select');
+      const before = W.Hist.idx;
+      await filterWithDialog('redeye', before);
+      expect(pix(45, 60)[0]).toBeLessThan(80);   // inside the selection
+      expect(pix(75, 60)).toEqual([220, 20, 20, 255]); // outside: untouched
+      W.D.sel = null; W.commit('Deselect');
+    });
+
+    it('auto enhance widens a low-contrast range, reports its values, resets, and is one undo step', async () => {
+      scene('Auto', 240, 120, (g) => {
+        const img = g.createImageData(240, 120);
+        for (let y = 0; y < 120; y++) for (let x = 0; x < 240; x++) { const v = 110 + (x / 239) * 40, i = (y * 240 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+        g.putImageData(img, 0, 0);
+      });
+      const before = W.Hist.idx, lo0 = Math.min(...lumaOf(0, 0, 240, 120));
+      const p = W.runFilter('autoenhance');
+      await waitFor(() => openDlg(), { timeout: 5000 });
+      await sleep(60);
+      // The reported values: black and white points from the percentiles, neutral balance on grey, no EV change.
+      expect(Math.abs(dlgValue('Black point') - 110)).toBeLessThan(4);
+      expect(Math.abs(dlgValue('White point') - 150)).toBeLessThan(4);
+      expect(dlgValue('White balance: red')).toBe(1);
+      expect(dlgValue('White balance: blue')).toBe(1);
+      expect(Math.abs(dlgValue('Exposure'))).toBeLessThan(0.1);
+      expect(dlgValue('Saturation lift')).toBeGreaterThan(0); // grey has no chroma, the lift is still reported
+      expect(dlgValue('Protect skin tones')).toBe(true);
+      // Adjust one value, then reset to the analysed ones.
+      setRange('Black point', 130); expect(dlgValue('Black point')).toBe(130);
+      dlgButton('Reset to auto').click(); await sleep(60);
+      expect(Math.abs(dlgValue('Black point') - 110)).toBeLessThan(4);
+      dlgButton('OK').click();
+      await waitFor(() => W.Hist.idx === before + 1, { timeout: 8000 });
+      await p;
+      const lum = lumaOf(0, 0, 240, 120);
+      expect(Math.min(...lum)).toBeLessThan(lo0 - 60);   // shadows pulled down
+      expect(Math.max(...lum)).toBeGreaterThan(245);     // highlights pushed up
+      W.undo();
+      expect(Math.min(...lumaOf(0, 0, 240, 120))).toBeGreaterThan(lo0 - 2);
+    });
+
+    it('Filter menu: Auto Enhance and Repair are registered', async () => {
+      const top = W.MENUS.find((m) => m[0] === 'Filter')[1];
+      expect(top.some((it) => it.label === 'Auto Enhance…')).toBe(true);
+      const rep = top.find((it) => it.label === 'Repair');
+      expect(rep.sub.map((it) => it.label)).toContain('Healing Brush');
+      expect(rep.sub.map((it) => it.label)).toContain('Spot Healing Brush');
+      expect(rep.sub.map((it) => it.label)).toContain('Red-Eye Removal…');
+    });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop repair tools' });
+  </script>
+</body>
+</html>

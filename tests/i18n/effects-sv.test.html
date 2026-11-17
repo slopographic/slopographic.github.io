@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Effects in Swedish</title>
+  <!-- Covers: effects/i18n/index.js, effects/js/model/defs.js, effects/js/main.js, effects/js/app/cmd.js, effects/js/app/io.js,
+       effects/js/app/actions.js, effects/js/app/actions-keys.js, effects/js/ui/menus.js, effects/js/ui/props.js, effects/js/ui/props-fx.js,
+       effects/js/ui/graph.js, effects/js/ui/timeline.js, effects/js/ui/timeline-keys.js, effects/js/ui/transport.js, effects/js/ui/dom.js,
+       effects/js/ui/render-dialog.js, effects/js/render/export.js, shared/tour/tours/effects.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The app in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../effects/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && (f.contentWindow.SlopEffects && f.contentWindow.SlopEffects.app) && f.contentWindow.SlopShell && f.contentWindow.SlopShell.currentApp, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])(effects|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  /** Text a person sees or hears in the page: the body text, the labelling attributes and the options. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    for (const o of doc.querySelectorAll('option')) out.push(o.textContent);
+    return out.join('\n');
+  }
+  const txt = (doc, sel) => doc.querySelector(sel).textContent.trim();
+  /** The tour's words, read the way SlopTour reads them: keys <ns>.tour.title, <ns>.tour.<step>_title in the app tables. */
+  function tour(f) {
+    const w = f.contentWindow, got = [], keep = w.SlopTour;
+    w.SlopTour = { define: (t) => got.push(t) };
+    return new Promise((res, rej) => {
+      const s = f.contentDocument.createElement('script');
+      s.src = '../shared/tour/tours/effects.js';
+      s.onload = () => { w.SlopTour = keep; const d = got[0], say = (k) => w.SlopI18n.t((d.ns || d.app) + '.tour.' + k); res({ title: say('title'), steps: d.steps.map((x) => ({ title: say(x.id.replace(/-/g, '_') + '_title') })) }); };
+      s.onerror = rej;
+      f.contentDocument.head.append(s);
+    });
+  }
+
+  describe('Slop Effects in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows Swedish menus, tabs, panels, transport and palette titles, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(txt(doc, '#fx-comp')).toBe('Komposition');
+      expect([...doc.querySelectorAll('#fx-tabs [role=tab]')].map((b) => b.textContent.trim())).toEqual(['Lager', 'Effekter', 'Rörelse']);
+      expect(txt(doc, '#fx-render')).toBe('Rendera…');
+      expect(txt(doc, '[data-panel="layer"] .fx-empty')).toBe('Välj ett lager i tidslinjen, eller lägg till ett.');
+      expect(doc.querySelector('#fx-transport').textContent).toContain('Upprepa');
+      expect(w.SlopCmd.get('fx.comp').title).toBe('Kompositionsinställningar');
+      w.SlopEffects.app.act.addLayer('text', { size: 120 });
+      await waitFor(() => doc.querySelector('[data-panel="layer"] h3'), { timeout: 5000 });
+      expect([...doc.querySelectorAll('[data-panel="layer"] h3')].map((x) => x.textContent)).toContain('Transformering vid uppspelningshuvudet');
+      expect(doc.getElementById('fx-undo').title).toContain('Ångra');
+      const t = await tour(f);
+      expect(t.title).toBe('Rundtur i Slop Effects');
+      expect(t.steps[0].title).toBe('Förhandsgranskning');
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, w = f.contentWindow, I = w.SlopI18n;
+      I.set('en');
+      await waitFor(() => txt(doc, '#fx-comp') === 'Composition' && doc.querySelector('#fx-transport').textContent.includes('Loop'), { timeout: 20000 });
+      expect(doc.documentElement.getAttribute('lang')).toBe('en');
+      expect(txt(doc, '[data-panel="layer"] .fx-empty')).toBe('Select a layer in the timeline, or add one.');
+      expect(w.SlopCmd.get('fx.comp').title).toBe('Composition settings');
+      I.set('sv');
+      await waitFor(() => txt(doc, '#fx-comp') === 'Komposition' && w.SlopCmd.get('fx.comp').title === 'Kompositionsinställningar', { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px Swedish fits with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      await waitFor(() => doc.documentElement.getAttribute('lang') === 'sv', { timeout: 20000 });
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Effects in Swedish' });
+  </script>
+</body>
+</html>

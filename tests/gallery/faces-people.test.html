@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery tests: faces, badges and groups</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real Gallery in a same-origin iframe. The detector is STUBBED (the width of a picture decides its faces: 50 px
+       gives two faces at x 2 and 14, 40 px one face at x 2) and so is the recogniser: a face's embedding depends on its x
+       only, so the two faces at x 2 are the same person and the face at x 14 is another. No model is needed. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const T = GT;
+  let W = null, G = null, D = null;
+  const stub = () => ({ detect: async (src) => {
+    const n = src.width >= 50 ? 2 : 1;
+    return Array.from({ length: n }, (_, i) => ({ x: 2 + i * 12, y: 2, w: 8, h: 8, score: 0.9, kps: [[3, 3], [7, 3], [5, 5], [3, 8], [7, 8]].map(([x, y]) => [x + 2 + i * 12, y + 2]) }));
+  } });
+  const fakeEmbed = async (src, f) => { const v = new Array(128).fill(0); v[Math.round(f.x) % 128] = 1; return v; };
+
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = 'about:blank';
+    await sleep(40);
+    fr.src = '../../gallery/index.html?db=' + T.dbName + '-people';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.SlopGallery && fr.contentWindow.SlopGallery.ready, { timeout: 30000 });
+    W = fr.contentWindow; G = W.SlopGallery; D = W.document;
+    await G.library.load();
+    await G.db.destroy();
+    G.library._reset();
+    await G.library.load();
+    await W.SlopFaces.cache.clear();
+    W.SlopProfile.reset('faces');
+    W.localStorage.removeItem('slop-faces-photos');
+    W.localStorage.removeItem('slop-faces-view');
+    W.SlopFaces.setBackend(stub());
+    W.SlopFaces.setEmbedder(fakeEmbed);
+    W.SlopFaces.setEnabled(true);
+    const r = await G.importer.run([
+      { file: await T.jpegFile('a.jpg', 50, 30, { colour: '#3a7bd5' }), name: 'a.jpg' },
+      { file: await T.jpegFile('b.jpg', 40, 30, { colour: '#d53a7b' }), name: 'b.jpg' },
+    ]);
+    expect(r.added).toBe(2);
+    await waitFor(() => G.people.stats().checked === 2, { timeout: 20000 });
+    return W;
+  }
+  const photo = (name) => G.library.list().find((m) => m.name === name);
+  const ids = () => G.library.list().map((m) => m.id);
+  const rects = () => D.querySelectorAll('.v-pic svg.face-ov rect').length;
+  const badge = () => D.querySelector('.v-top .face-badge');
+  const setCheck = (el, on) => { el.checked = on; el.dispatchEvent(new W.Event('change')); };
+  const btn = (text, scope = D) => [...scope.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+
+  describe('Gallery: one photo\'s faces, and groups that merge', () => {
+    it('the badge shows the count; its click draws that photo\'s boxes only, and the choice is kept per photo', async () => {
+      await boot();
+      const a = photo('a.jpg'), b = photo('b.jpg');
+      G.viewer.open(ids(), ids().indexOf(a.id));
+      await waitFor(() => badge() && badge().textContent === '2 faces', { timeout: 8000 });
+      expect(rects()).toBe(0); // hidden by default
+      expect(badge().getAttribute('aria-pressed')).toBe('false');
+      badge().click();
+      await waitFor(() => rects() === 2, { timeout: 8000 });
+      expect(badge().getAttribute('aria-pressed')).toBe('true');
+      const env = JSON.parse(W.localStorage.getItem('slop-faces-photos'));
+      expect(env.v).toBe(1);
+      expect(env.data['gallery:' + a.id]).toBe(true);
+      expect(env.data['gallery:' + b.id]).toBe(undefined);
+      // The next photo has its own choice: hidden, with its own badge.
+      G.viewer.open(ids(), ids().indexOf(b.id));
+      await waitFor(() => badge() && badge().textContent === '1 face', { timeout: 8000 });
+      expect(rects()).toBe(0);
+      // Back to the first: still shown, the choice was remembered.
+      G.viewer.open(ids(), ids().indexOf(a.id));
+      await waitFor(() => rects() === 2, { timeout: 8000 });
+      badge().click();
+      await waitFor(() => rects() === 0, { timeout: 8000 });
+      expect(JSON.parse(W.localStorage.getItem('slop-faces-photos')).data['gallery:' + a.id]).toBe(false);
+      G.viewer.close();
+    }, { timeout: 60000 });
+
+    it('"Boxes on photos" draws the boxes on every photo; a photo\'s own choice still wins; "Off" hides the badge too', async () => {
+      W.SlopFaces.view.setMode('boxes');
+      const a = photo('a.jpg'), b = photo('b.jpg');
+      G.viewer.open(ids(), ids().indexOf(b.id)); // no choice stored for b: the mode decides
+      await waitFor(() => rects() === 1, { timeout: 8000 });
+      expect(badge().getAttribute('aria-pressed')).toBe('true');
+      badge().click(); // hides b's boxes for b only
+      await waitFor(() => rects() === 0, { timeout: 8000 });
+      expect(JSON.parse(W.localStorage.getItem('slop-faces-photos')).data['gallery:' + b.id]).toBe(false);
+      G.viewer.open(ids(), ids().indexOf(a.id)); // a's choice was "hidden" (set in the first test): it stays hidden
+      await waitFor(() => badge() && badge().textContent === '2 faces', { timeout: 8000 });
+      await sleep(150);
+      expect(rects()).toBe(0);
+      expect(badge().getAttribute('aria-pressed')).toBe('false');
+      W.SlopFaces.view.setMode('off');
+      await sleep(100);
+      expect(badge()).toBe(null);
+      expect(rects()).toBe(0);
+      G.viewer.close();
+      W.SlopFaces.view.setMode('count');
+    });
+
+    it('a merge keeps every face once: two groups become one, with one name, and undo takes it back', async () => {
+      G.facesUi.open();
+      await waitFor(() => D.querySelectorAll('.fp-card').length === 2, { timeout: 15000 });
+      const P = W.SlopFaces.peopleFor('gallery');
+      const before = P.faces().length;
+      expect(before).toBe(3);
+      // The All faces tab lists every face, with its photo.
+      const tabAll = [...D.querySelectorAll('.faces-tab')].find((b) => b.textContent === 'All faces');
+      tabAll.click();
+      await waitFor(() => D.querySelectorAll('.faces-all .fc').length === 3, { timeout: 8000 });
+      expect([...D.querySelectorAll('.faces-all .fc-cap')].map((e) => e.textContent).sort()).toEqual(['a.jpg', 'a.jpg', 'b.jpg']);
+      [...D.querySelectorAll('.faces-tab')].find((b) => b.textContent === 'People').click();
+      await waitFor(() => D.querySelectorAll('.fp-card').length === 2, { timeout: 8000 });
+      const picks = [...D.querySelectorAll('.fp-pick input')];
+      setCheck(picks[0], true);
+      setCheck(picks[1], true);
+      const name = D.querySelector('.faces-merge-name');
+      name.value = 'Ann';
+      btn('Merge').click();
+      await waitFor(() => D.querySelectorAll('.fp-card').length === 1, { timeout: 8000 });
+      const groups = P.list();
+      expect(groups.length).toBe(1);
+      expect(groups[0].name).toBe('Ann');
+      const refs = groups[0].refs;
+      expect(new Set(refs).size).toBe(refs.length); // no face twice
+      expect(refs.length).toBe(before); // no face lost
+      expect(P.faces().length).toBe(before);
+      expect(JSON.parse(JSON.stringify(P.state())).out).toEqual({});
+      btn('Undo').click();
+      await waitFor(() => D.querySelectorAll('.fp-card').length === 2, { timeout: 8000 });
+      expect(P.list().flatMap((x) => x.refs).length).toBe(before);
+      expect(new Set(P.list().flatMap((x) => x.refs)).size).toBe(before);
+      W.SlopFaces.panel.close();
+    });
+  });
+  SlopTest.run({ name: 'Slop Gallery · faces, badges and groups (stubbed)' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CRM · the list first, sorting, density and adding a tag, at 390 px</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Covers: crm/js/ui/app.js, crm/js/ui/layout.js, crm/css/crm.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:820px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../crm/index.html';   // no hash: the list is the start screen
+  document.body.append(frame);
+  const win = () => frame.contentWindow;
+  const doc = () => frame.contentDocument;
+  const $ = (id) => doc().getElementById(id);
+  const ready = () => win() && win().SlopCrm && doc() && doc().getElementById('boot').hidden && !doc().getElementById('view-customers').hidden;
+  const errors = [];
+  const S = () => win().SlopData;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const customerNamed = async (name) => (await S().store.list('customers')).value.find((c) => c.name === name);
+  const rowNames = () => [...doc().querySelectorAll('#cRows .row')].map((r) => r.dataset.name);
+  const headBtn = (key) => doc().querySelector(`#cSortHead [data-sort="${key}"]`);
+
+  describe('the list comes first on a phone', () => {
+    it('opens on the Customers list, not the pipeline or a detail page, with no sideways scroll', async () => {
+      await waitFor(ready, { timeout: 20000 });
+      win().addEventListener('error', (e) => errors.push(e.message));
+      expect($('view-pipeline').hidden).toBe(true);
+      expect($('view-customer').hidden).toBe(true);
+      expect(doc().getElementById('tab-customers').getAttribute('aria-selected')).toBe('true');
+      expect(doc().querySelectorAll('.tab')[0].dataset.view).toBe('customers');
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+
+    it('a customer opens as a bottom sheet over the list, Edit details at its foot works, and × closes it', async () => {
+      for (const [name, stage] of [['Cy Sort', 'lost'], ['Ada Sort', 'customer'], ['Ben Sort', 'lead']]) {
+        const r = await win().SlopCrm.customers.save(null, { name, stage });
+        expect(r.ok).toBe(true);
+      }
+      await waitFor(() => doc().querySelectorAll('#cRows .row').length === 3, { timeout: 8000 });
+      doc().querySelector('#cRows .row[data-name="Ben Sort"] .row-open').click();
+      const rec = $('view-customer');
+      await waitFor(() => !rec.hidden && rec.classList.contains('ssh-on') && rec.querySelector('.sf-p-foot'), { timeout: 4000 });
+      await sleep(320);   // it slides up
+      expect($('view-customers').hidden).toBe(false);   // the list stays under the sheet
+      expect($('main').classList.contains('split')).toBe(false);
+      const foot = rec.querySelector('.sf-p-foot').getBoundingClientRect();
+      expect(Math.round(foot.bottom)).toBe(820);
+      expect(rec.getBoundingClientRect().top).toBeGreaterThan(40);
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      [...rec.querySelectorAll('.sf-p-foot button')].find((b) => b.textContent === 'Edit details').click();
+      await waitFor(() => doc().querySelector('.sui-dlg'), { timeout: 4000 });
+      [...doc().querySelectorAll('.sui-dlg button')].find((b) => b.textContent.trim() === 'Cancel').click();
+      await waitFor(() => !doc().querySelector('.sui-dlg'), { timeout: 4000 });
+      rec.querySelector('.ssh-x').click();
+      await waitFor(() => rec.hidden && !rec.classList.contains('ssh-on'), { timeout: 4000 });
+      expect($('view-customers').hidden).toBe(false);
+      expect(win().SlopCrm.state.current).toBe(null);
+    });
+
+    it('a click on a column header sorts by it, and a second click turns it round', async () => {
+      // the list starts sorted by name A to Z, so the first click on Name turns it round
+      headBtn('name').click();
+      await waitFor(() => rowNames().join() === 'Cy Sort,Ben Sort,Ada Sort', { timeout: 4000 });
+      expect(headBtn('name').parentElement.getAttribute('aria-sort')).toBe('descending');
+      headBtn('name').click();
+      await waitFor(() => rowNames().join() === 'Ada Sort,Ben Sort,Cy Sort', { timeout: 4000 });
+      headBtn('stage').click();
+      await waitFor(() => rowNames().join() === 'Ben Sort,Ada Sort,Cy Sort', { timeout: 4000 });
+      expect(JSON.parse(win().localStorage.getItem('slop-crm.sort')).key).toBe('stage');
+    });
+
+    it('the Sort box does the same on a phone, and the density switch makes the rows compact', async () => {
+      $('cSort').value = 'name:asc';
+      $('cSort').dispatchEvent(new (win().Event)('change', { bubbles: true }));
+      await waitFor(() => rowNames().join() === 'Ada Sort,Ben Sort,Cy Sort', { timeout: 4000 });
+      expect($('cRows').classList.contains('compact')).toBe(false);
+      doc().querySelector('[data-density="compact"]').click();
+      await waitFor(() => $('cRows').classList.contains('compact'), { timeout: 4000 });
+      expect(doc().querySelector('[data-density="compact"]').getAttribute('aria-checked')).toBe('true');
+      expect(win().localStorage.getItem('slop-crm.density')).toBe('"compact"');
+      doc().querySelector('[data-density="comfortable"]').click();
+      await waitFor(() => !$('cRows').classList.contains('compact'), { timeout: 4000 });
+    });
+  });
+
+  describe('adding a tag to a customer', () => {
+    it('a tag made in the tag manager has a colour and is listed in the sidebar', async () => {
+      const tagsHead = [...doc().querySelectorAll('#cSide .side-h')].find((h) => h.textContent.startsWith('Tags'));
+      tagsHead.querySelector('.side-manage').click();
+      await waitFor(() => doc().querySelector('.lab-dlg input[aria-label="New tag name"]'), { timeout: 4000 });
+      doc().querySelector('.lab-dlg input[aria-label="New tag name"]').value = 'VIP';
+      doc().querySelector('.lab-dlg select[aria-label="New tag colour"]').value = 'red';
+      [...doc().querySelectorAll('.lab-dlg button')].find((b) => b.textContent === 'Add tag').click();
+      await waitFor(async () => (await S().store.list('customerTags')).value.some((t) => t.name === 'VIP'), { timeout: 8000 });
+      await waitFor(() => [...doc().querySelectorAll('#cSide .side-item')].some((b) => b.textContent.includes('VIP')), { timeout: 8000 });
+      doc().querySelector('.lab-dlg .sui-primary').click();
+      await waitFor(() => !doc().querySelector('.lab-dlg'), { timeout: 4000 });
+    });
+
+    it('a tag is added to a customer in the detail panel, saved, and shows as a coloured chip in the list', async () => {
+      const ben = await customerNamed('Ben Sort');
+      win().SlopCrm.app.show('customer', ben.id);
+      // wait for this customer's panel, with the new tag in its picker (the panel is redrawn from the store)
+      const hasVip = () => [...($('dBody').querySelector('select[aria-label="Add a tag"]') || { options: [] }).options].some((o) => o.textContent === 'VIP');
+      await waitFor(() => $('dBody').querySelector('.h2') && $('dBody').querySelector('.h2').textContent === 'Ben Sort' && hasVip(), { timeout: 8000 });
+      const tag = (await S().store.list('customerTags')).value.find((t) => t.name === 'VIP');
+      const pick = $('dBody').querySelector('select[aria-label="Add a tag"]');
+      pick.value = tag.id;
+      [...$('dBody').querySelectorAll('.lp button')].find((b) => b.textContent === 'Add').click();
+      await waitFor(async () => ((await customerNamed('Ben Sort')).tagIds || []).includes(tag.id), { timeout: 8000 });
+      await waitFor(() => $('dBody').querySelector('.tag-chip.tg-red'), { timeout: 8000 });
+      expect($('dBody').querySelector('.tag-chip.tg-red').textContent).toContain('VIP');
+      win().SlopCrm.app.close();
+      await waitFor(() => doc().querySelector('#cRows .row[data-name="Ben Sort"] .tag-chip.tg-red'), { timeout: 8000 });
+      expect(doc().querySelector('#cRows .row[data-name="Ben Sort"] .tag-chip').textContent).toBe('VIP');
+    });
+
+    it('the sidebar filter by that tag shows its customers alone, with the count', async () => {
+      const side = () => [...doc().querySelectorAll('#cSide .side-item')].find((b) => b.textContent.includes('VIP'));
+      side().click();
+      await waitFor(() => rowNames().join() === 'Ben Sort', { timeout: 4000 });
+      expect(side().getAttribute('aria-pressed')).toBe('true');
+      expect(side().querySelector('.side-count').textContent).toBe('1');
+      expect([...doc().querySelectorAll('#cSide .side-item')][0].getAttribute('aria-pressed')).toBe('false');
+      side().click();
+      await waitFor(() => rowNames().length === 3, { timeout: 4000 });
+    });
+  });
+
+  describe('the local-only rule', () => {
+    it('no error reached the page, and the page does not scroll sideways', async () => {
+      await sleep(100);
+      expect(errors).toHaveLength(0);
+      expect(doc().documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    });
+  });
+
+  run({ name: 'Slop CRM · list first, sorting and tags on a phone' });
+  </script>
+</body>
+</html>

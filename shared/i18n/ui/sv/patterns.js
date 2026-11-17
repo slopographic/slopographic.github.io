@@ -1,0 +1,23 @@
+/* Shared components, sv: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'ui.patterns.ipv4': 'IPv4-adress',
+  'ui.patterns.ipv6': 'IPv6-adress',
+  'ui.patterns.mac': 'MAC-adress',
+  'ui.patterns.email': 'E-postadress',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS-åtkomstnyckel-ID',
+  'ui.patterns.aws_secret': 'Hemlig AWS-nyckel',
+  'ui.patterns.github_token': 'GitHub-token',
+  'ui.patterns.slack_token': 'Slack-token',
+  'ui.patterns.stripe_key': 'Stripe-nyckel',
+  'ui.patterns.google_api_key': 'Google API-nyckel',
+  'ui.patterns.private_key': 'Privat nyckel',
+  'ui.patterns.bearer': 'Bearer-token',
+  'ui.patterns.basic_auth_url': 'Lösenord i URL',
+  'ui.patterns.secret_assignment': 'Tilldelning av hemlighet',
+  'ui.patterns.hash': 'Hash (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Kreditkortsnummer',
+  'ui.patterns.iban': 'IBAN',
+});

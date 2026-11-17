@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop layer options tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // The Layer Style dialog: a double-click on a layer opens it at its sections; OK writes the style as one undo step,
+  // Cancel leaves the layer as it was, and Preview off shows the document unchanged until OK.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, W;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const q = (sel) => win.document.querySelector(sel);
+  const qa = (sel) => [...win.document.querySelectorAll(sel)];
+  const layer = (id) => W.D.layers.find((l) => l.id === id);
+  const types = (L) => (L.fx || []).map((e) => e.type);
+  /** Opens the dialog by double-clicking the active layer's thumbnail (the way a person does). */
+  async function openByDoubleClick() {
+    const th = q('.layer.active .lp-thumb') || q('.layer .lp-thumb');
+    th.dispatchEvent(new win.MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    await waitFor(() => q('.ls-dialog .ls-list'), { timeout: 3000 });
+  }
+  const footBtn = (label) => qa('.ls-dialog .sui-foot button').find((b) => b.textContent.trim().startsWith(label));
+  const closeDialog = async () => { await waitFor(() => !q('.ls-dialog .sui-foot'), { timeout: 3000 }).catch(() => null); };
+  function fresh(name) {
+    W.newDocTab(300, 200, '#ffffff', name); W.selectTool('move');
+    const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#000'; g.fillRect(60, 40, 180, 120);
+    W.addLayer({ name: 'Shape', canvas: c }, 'Add Shape');
+    return W.activeLayer().id;
+  }
+
+  describe('PhotoSlop layer options (Layer Style dialog)', () => {
+    it('boots', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      win = frame.contentWindow;
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.openLayerStyle).toBe('function');
+    }, { timeout: 40000 });
+
+    it('a double-click on a layer opens the Layer Style dialog with its sections and a preview', async () => {
+      const id = fresh('Style open');
+      await openByDoubleClick();
+      expect(q('.ls-dialog .sui-title').textContent).toBe('Layer Style · Shape');
+      const titles = qa('.ls-item').map((e) => e.textContent.trim());
+      expect(titles).toEqual(['Blending Options', 'Drop Shadow', 'Inner Shadow', 'Outer Glow', 'Stroke', 'Color Overlay', 'Gradient Overlay', 'Opacity and Fill']);
+      expect(!!q('.ls-prev')).toBe(true);
+      expect(layer(id).fx).toBe(undefined);
+      footBtn('Cancel').click();
+      await closeDialog();
+    });
+
+    it('Cancel leaves the layer unchanged and writes no history step', async () => {
+      const id = fresh('Style cancel');
+      const before = W.Hist.idx;
+      await openByDoubleClick();
+      q('.ls-item[data-section="shadow"]').click(); await sleep(30);
+      q('.ls-enable input').click(); await sleep(30);
+      expect(types(layer(id))).toEqual(['shadow']);   // the preview is on, so the document follows the edit
+      q('.ls-item[data-section="opacity"]').click(); await sleep(30);
+      const range = qa('.ls-page input[type=range]')[0];
+      range.value = 40; range.dispatchEvent(new win.Event('input'));
+      expect(layer(id).opacity).toBe(0.4);
+      footBtn('Cancel').click();
+      await closeDialog();
+      expect(types(layer(id))).toEqual([]);
+      expect(layer(id).opacity).toBe(1);
+      expect(W.Hist.idx).toBe(before);
+    });
+
+    it('OK writes the style as one history step, and undo takes it back', async () => {
+      const id = fresh('Style ok');
+      const before = W.Hist.idx;
+      await openByDoubleClick();
+      q('.ls-item[data-section="glow"]').click(); await sleep(30);
+      q('.ls-enable input').click(); await sleep(30);
+      q('.ls-item[data-section="opacity"]').click(); await sleep(30);
+      const range = qa('.ls-page input[type=range]')[0];
+      range.value = 70; range.dispatchEvent(new win.Event('input'));
+      footBtn('OK').click();
+      await closeDialog();
+      expect(types(layer(id))).toEqual(['glow']);
+      expect(layer(id).opacity).toBe(0.7);
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Layer Style');
+      W.undo();
+      expect(types(layer(id))).toEqual([]);
+      expect(layer(id).opacity).toBe(1);
+    });
+
+    it('Preview off keeps the document unchanged until OK, and Cancel then restores the layer', async () => {
+      const id = fresh('Style preview');
+      await openByDoubleClick();
+      footBtn('Preview').click(); await sleep(30);
+      expect(footBtn('Preview').getAttribute('aria-pressed')).toBe('false');
+      q('.ls-item[data-section="stroke"]').click(); await sleep(30);
+      q('.ls-enable input').click(); await sleep(30);
+      expect(types(layer(id))).toEqual([]);
+      footBtn('Cancel').click();
+      await closeDialog();
+      expect(types(layer(id))).toEqual([]);
+    });
+
+    it('Fill fades the layer’s pixels: with no effect on it works like opacity, and OK keeps it', async () => {
+      const id = fresh('Style fill');
+      await openByDoubleClick();
+      q('.ls-item[data-section="opacity"]').click(); await sleep(30);
+      const fill = qa('.ls-page input[type=range]')[1];
+      fill.value = 50; fill.dispatchEvent(new win.Event('input'));
+      footBtn('OK').click();
+      await closeDialog();
+      expect(layer(id).fillOp).toBe(0.5);
+      expect(W.layerAlpha(layer(id))).toBe(0.5);
+      expect(layer(id).opacity).toBe(1);
+      // Black at 50% over the white background: the red channel is about 128.
+      const r = W.flattenCanvas().getContext('2d').getImageData(100, 100, 1, 1).data[0];
+      expect(Math.abs(r - 128) <= 2).toBe(true);
+    });
+
+    it('Layer ▸ Layer Style ▸ an effect opens its section in the same dialog', async () => {
+      const id = fresh('Style menu');
+      W.addStyleEffect('overlay');
+      await waitFor(() => q('.ls-dialog .ls-list'), { timeout: 3000 });
+      expect(q('.ls-item.on').textContent.trim()).toBe('Color Overlay');
+      footBtn('Cancel').click();
+      await closeDialog();
+      expect(types(layer(id))).toEqual([]);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop layer options' });
+  </script>
+</body>
+</html>

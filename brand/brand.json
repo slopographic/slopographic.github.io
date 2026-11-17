@@ -1,0 +1,54 @@
+{
+  "name": "Slopographic",
+  "tagline": "Office and creative software for businesses. Offline, free, and no subscription.",
+  "logo": "brand/logo-128.webp",
+  "home": "",
+  "colors": {
+    "ink": "#0a0a0a",
+    "paper": "#f1ede4",
+    "accent": "#d4ff3a"
+  },
+  "footer": "© 2026 Slopographic.",
+  "links": {
+    "patreon": "https://www.patreon.com/c/Slopographic?vanity=user",
+    "support": "",
+    "reddit": "",
+    "x": "https://x.com/Slopographic",
+    "tiktok": "",
+    "gumroad": "https://slopographic.gumroad.com",
+    "github": "https://github.com/slopographic"
+  },
+  "appOrder": [
+    "photoslop",
+    "vector",
+    "pdf",
+    "label",
+    "cutout",
+    "clean",
+    "ai",
+    "docs",
+    "tables",
+    "slides",
+    "press",
+    "remix",
+    "slopedit",
+    "contacts",
+    "inventory",
+    "orders",
+    "invoices",
+    "convert",
+    "crm",
+    "ledger",
+    "admin",
+    "drive",
+    "code",
+    "gallery",
+    "3d",
+    "music"
+  ],
+  "support": {
+    "exportCard": true,
+    "donate": true,
+    "ads": true
+  }
+}

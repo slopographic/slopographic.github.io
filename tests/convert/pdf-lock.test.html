@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: Protect PDF with a password, Remove PDF password</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); localStorage.setItem('slop-consent', JSON.stringify({ v: 1, ads: false, analytics: false, t: Date.now() })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/core/pdf-lock.js, convert/js/core/pdf-lock-pages.js, convert/js/ui/file-opts.js, convert/js/ui/options.js
+  // Covers: convert/js/ui/tool-chain.js, convert/js/preview/model.js, convert/js/preview/controller.js, convert/js/core/catalog.js
+  import { protectPdf, unlockPdf, crypto } from '../../convert/js/core/pdf-lock.js';
+  import { conversionById } from '../../convert/js/core/catalog.js';
+  import { buildPreview } from '../../convert/js/preview/model.js';
+  import { changed } from '../../convert/js/ui/file-opts.js';
+  import { PAGES } from '../../convert/js/core/pages.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let C, L, F, W, D, T;
+  const $ = (s) => D.querySelector(s);
+  const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
+  const failure = (p) => p.then(() => '', (e) => e.message);
+
+  async function samplePdf() {
+    const d = await L.PDFDocument.create();
+    d.addPage([300, 200]).drawText('Payslip October', { x: 20, y: 100, size: 14, font: await d.embedFont(L.StandardFonts.Helvetica) });
+    return d.save();
+  }
+  async function open(src) {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.src = src; document.body.append(F);
+    await waitFor(() => F.contentWindow && F.contentWindow.document.querySelector('[data-convert-root]') && F.contentWindow.document.querySelector('[data-convert-root]').convertTool, { timeout: 30000 });
+    W = F.contentWindow; D = W.document; T = $('[data-convert-root]').convertTool;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+  }
+  const type = (el, value) => { el.value = value; el.dispatchEvent(new W.Event('input', { bubbles: true })); el.dispatchEvent(new W.Event('change', { bubbles: true })); };
+
+  describe('the conversions', () => {
+    it('are in the catalog, marked secret and never in a route; the pages name them', async () => {
+      C = await crypto(); L = window.PDFLib;
+      const p = conversionById('pdf-protect'), u = conversionById('pdf-unlock');
+      expect([p.secret, p.chain, u.secret, u.chain, p.ext, u.from[0]]).toEqual([true, false, true, false, 'pdf', 'pdf']);
+      expect(p.options.filter((o) => o.type === 'password').map((o) => o.key)).toEqual(['password', 'confirm']);
+      expect(PAGES.find((x) => x.slug === 'password-protect-pdf').conv).toBe('pdf-protect');
+      expect(PAGES.find((x) => x.slug === 'remove-password-from-pdf').conv).toBe('pdf-unlock');
+    });
+    it('Protect: AES-256 with the chosen permissions; a missing or mismatched password is refused', async () => {
+      const src = await samplePdf();
+      expect(await failure(protectPdf(src, { password: '', confirm: '' }))).toContain('Type a password');
+      expect(await failure(protectPdf(src, { password: 'a', confirm: 'b' }))).toContain('not the same');
+      const out = await protectPdf(src, { password: 'kiwi', confirm: 'kiwi', allowPrint: false, allowCopy: true, allowEdit: false });
+      const i = await C.inspect(out);
+      expect([i.bits, i.needsPassword, i.permissions.print, i.permissions.copy, i.permissions.modify, i.permissions.annotate, i.permissions.fillForms]).toEqual([256, true, false, true, false, false, true]);
+      expect(await failure(protectPdf(out, { password: 'x', confirm: 'x' }))).toContain('already has a password');
+    });
+    it('Remove: the right password gives a plain PDF; a wrong one, none, or an unprotected file say so', async () => {
+      const out = await protectPdf(await samplePdf(), { password: 'kiwi', confirm: 'kiwi' });
+      const plain = await unlockPdf(out, { password: 'kiwi' });
+      expect(C.isEncrypted(plain)).toBe(false);
+      expect((await L.PDFDocument.load(plain)).getPageCount()).toBe(1);
+      expect(await failure(unlockPdf(out, { password: 'Kiwi' }))).toContain('Wrong password');
+      expect(await failure(unlockPdf(out, {}))).toContain('needs its password');
+      expect(await failure(unlockPdf(await samplePdf(), {}))).toContain('no password to remove');
+    });
+    it('the summary of the options never shows a password, and the preview does not run them', async () => {
+      const p = conversionById('pdf-protect');
+      const sum = changed(p, { password: 'hunter2', confirm: 'hunter2', allowPrint: false });
+      expect(sum).toContain('password set'); expect(sum.includes('hunter2')).toBe(false);
+      const file = new File([await samplePdf()], 'a.pdf', { type: 'application/pdf' });
+      const pv = await buildPreview(p, [{ name: 'a.pdf', file, kind: 'pdf', size: file.size }], { password: 'x', confirm: 'x' });
+      expect([pv.secret, pv.outputs, pv.after.kind]).toEqual([true, null, 'info']);
+    });
+  });
+
+  describe('the Password protect PDF page', () => {
+    it('masked fields; Convert makes a protected PDF, then the password fields are empty and the values gone', async () => {
+      await open('../../convert/password-protect-pdf/index.html');
+      await T.addFiles([new W.File([await samplePdf()], 'Payslip.pdf', { type: 'application/pdf' })]);
+      const it0 = T.items[0], pw = $(`#cv-o-${it0.id}-password`), again = $(`#cv-o-${it0.id}-confirm`);
+      expect([pw.type, again.type, pw.getAttribute('autocomplete')]).toEqual(['password', 'password', 'new-password']);
+      type(pw, 'mango 42'); type(again, 'mango 42');
+      $(`#cv-o-${it0.id}-allowCopy`).click();
+      expect(D.querySelector('.cv-file-opts-sum').textContent.includes('mango')).toBe(false);
+      expect($('[data-convert-preview]').querySelector('button[disabled]') !== null).toBe(true);
+      await T.run();
+      expect(T.outputs.length).toBe(1);
+      expect(T.outputs[0].name).toBe('Payslip-protected.pdf');
+      const out = await bytesOf(T.outputs[0].blob), info = await C.inspect(out);
+      expect([info.needsPassword, info.permissions.copy, info.permissions.print]).toEqual([true, false, true]);
+      expect((await L.PDFDocument.load(await C.decryptPdf(out, 'mango 42'))).getPageCount()).toBe(1);
+      expect($(`#cv-o-${it0.id}-password`).value).toBe('');
+      expect($(`#cv-o-${it0.id}-confirm`).value).toBe('');
+      expect(JSON.stringify(it0.opts).includes('mango')).toBe(false);
+      expect(it0.opts['pdf-protect'].allowCopy).toBe(false);   // the other choices stay
+    }, { timeout: 40000 });
+  });
+
+  describe('the Remove password from PDF page', () => {
+    it('Convert with the password gives an unlocked copy; a wrong password shows on the card', async () => {
+      await open('../../convert/remove-password-from-pdf/index.html');
+      const locked = await protectPdf(await samplePdf(), { password: 'plum', confirm: 'plum' });
+      await T.addFiles([new W.File([locked], 'Locked.pdf', { type: 'application/pdf' })]);
+      const it0 = T.items[0];
+      type($(`#cv-o-${it0.id}-password`), 'pear');
+      await T.run();
+      expect(T.outputs.length).toBe(0);
+      expect(it0.error).toContain('Wrong password');
+      type($(`#cv-o-${it0.id}-password`), 'plum');
+      await T.run();
+      expect(T.outputs[0].name).toBe('Locked-unlocked.pdf');
+      expect(C.isEncrypted(await bytesOf(T.outputs[0].blob))).toBe(false);
+      expect($(`#cv-o-${it0.id}-password`).value).toBe('');
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'File convert: PDF passwords' });
+  </script>
+</body>
+</html>

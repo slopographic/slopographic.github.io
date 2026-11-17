@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=true; mascot=builtin">
+  <title>Consent · the mascot and the Accept button</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frames.js"></script>
+  <script src="../home/boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { reset } = ConsentTest;
+
+  describe('the mascot never covers the consent buttons', () => {
+    it('while he is perched, the Accept button is the element under its centre', async () => {
+      reset();
+      const w = await HomeTest.openHome();
+      const doc = w.document, S = w.SlopMascot;
+      const strip = () => doc.getElementById('slopc-banner');
+      const accept = () => strip().querySelector('[data-act="accept"]');
+      const stripTop = () => strip().getBoundingClientRect().top;
+      const hitsAccept = () => {
+        const b = accept().getBoundingClientRect();
+        const hit = doc.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return !!hit && accept().contains(hit);
+      };
+      const perchedNow = () => waitFor(() => S.M.mode === 'perched', { timeout: 4000 }).then(() => true, () => false);
+      await waitFor(() => strip() && accept());
+      await HomeTest.settled(w);   // he has arrived and is standing somewhere
+      const max = Math.max(0, doc.documentElement.scrollHeight - w.innerHeight);
+
+      // The hard case: a perch under the strip, with his feet at the buttons' height and his body over the Accept button.
+      const acc = accept().getBoundingClientRect(), cx = acc.left + acc.width / 2;
+      let target = null;
+      for (const el of doc.querySelectorAll('[data-perch]')) {
+        const r = el.getBoundingClientRect();
+        const want = w.scrollY + r.top - (stripTop() + 30);
+        if (r.width < 40 || r.left + 30 > cx || r.right - 30 < cx || want < 0 || want > max) continue;
+        w.scrollTo({ top: want, behavior: 'instant' });
+        await sleep(50);
+        if (Math.abs(el.getBoundingClientRect().top - (stripTop() + 30)) < 2) { target = el; break; }
+      }
+      expect(target).toBeTruthy();
+      // Stand him there (the model's own perch state), no idle hops, then let a few frames run.
+      Object.assign(S.M, { perch: { el: target, frac: 0.5, off: cx - target.getBoundingClientRect().left }, mode: 'perched', hop: null, vx: 0, vy: 0, nextIdle: Infinity });
+      await sleep(400);
+      if (await perchedNow()) expect(hitsAccept()).toBe(true);
+
+      // And at other scroll positions, whenever he is perched.
+      let checked = 0;
+      for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        w.scrollTo({ top: Math.round(max * f), behavior: "instant" });
+        await sleep(250);
+        if (!(await perchedNow())) continue;
+        checked++;
+        expect(hitsAccept()).toBe(true);
+      }
+      expect(checked).toBeGreaterThan(0);
+    });
+  });
+
+  run({ name: 'Consent and the mascot' });
+  </script>
+</body>
+</html>

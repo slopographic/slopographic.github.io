@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Notes export tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. SlopUI.download is replaced inside it, so each export's file is read here. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const SRC = '../../notes/index.html';
+  const NOTE = '# Trip\n\nPlan for **Friday**, see [the map](https://example.com/map).\n\n- [x] book\n- [ ] pack';
+
+  async function open(src = SRC) {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = src;
+    const want = new URL(src, location.href).pathname;
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname === want && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    return W();
+  }
+  const menuLabels = () => qa('.sui-menu .sui-lbl').map((x) => x.textContent);
+  async function pick(label) {
+    const lbl = await waitFor(() => qa('.sui-menu .sui-lbl').find((x) => x.textContent === label), { timeout: 2000 });
+    lbl.closest('.sui-row').click();
+  }
+  const topDlg = () => [...W().document.querySelectorAll('.sui-dlg')].filter((d) => !d.closest('.sui-back').classList.contains('sui-out')).pop();
+  async function fill(values) {
+    await waitFor(() => topDlg() && topDlg().querySelector('input, textarea'), { timeout: 4000 });
+    const fields = [...topDlg().querySelectorAll('input, textarea')];
+    values.forEach((v, i) => { if (v != null) fields[i].value = v; });
+    topDlg().querySelector('.sui-primary').click();
+  }
+  /** Replaces the app's download with a recorder, so each export is a Blob the test can read. */
+  function recordDownloads() {
+    const got = [];
+    W().SlopUI.download = (blob, name) => got.push({ blob, name });
+    return got;
+  }
+  /** Opens the Export button's menu, then clicks the choice with this label. */
+  async function exportAs(label) {
+    q('#nt-export').click();
+    await waitFor(() => menuLabels().includes(label), { timeout: 2000 });
+    await pick(label);
+  }
+  const bytes = async (blob, n = 2) => [...new Uint8Array(await blob.slice(0, n).arrayBuffer())];
+
+  describe('Slop Notes: export', () => {
+    it('the Export menu offers each format once, then the whole notebook as a zip', async () => {
+      await open();
+      q('#nt-new').click();
+      await waitFor(() => !q('#nt-note').hidden, { timeout: 4000 });
+      q('#nt-title').value = 'Trip';
+      q('#nt-title').dispatchEvent(new (W().Event)('input', { bubbles: true }));
+      q('#nt-body').value = NOTE;
+      q('#nt-body').dispatchEvent(new (W().Event)('input', { bubbles: true }));
+      q('#nt-export').click();
+      await waitFor(() => menuLabels().length, { timeout: 2000 });
+      const labels = menuLabels();
+      for (const l of ['Export as Markdown (.md)', 'Export as HTML (.html)', 'Export as plain text (.txt)', 'Export as PDF (print view)', 'Export as Word (.doc)', 'Whole notebook as Markdown (.zip)', 'Whole notebook as HTML (.zip)']) expect(labels).toContain(l);
+      expect(labels.filter((l) => l.startsWith('Export as Markdown')).length).toBe(1);
+      W().SlopUI.closeMenu();
+    });
+
+    it('a table block exported as HTML gives a standalone page that contains the table', async () => {
+      const got = recordDownloads();
+      q('#nt-body').focus();
+      q('#nt-body').setSelectionRange(q('#nt-body').value.length, q('#nt-body').value.length);
+      q('#nt-insert').click();
+      await waitFor(() => menuLabels().includes('Table…'), { timeout: 2000 });
+      await pick('Table…');
+      await fill(['2', '2']);
+      await waitFor(() => q('#nt-body').value.includes('| Column 1 | Column 2 |'), { timeout: 3000 });
+      await exportAs('Export as HTML (.html)');
+      expect(got.length).toBe(1);
+      expect(got[0].name).toBe('Trip.html');
+      const html = await got[0].blob.text();
+      expect(html).toMatch(/^<!doctype html>/);
+      expect(html).toContain('<table>');
+      expect(html).toContain('<th>Column 1</th>');
+      expect(html).toContain('<th>Column 2</th>');
+      expect(html).toContain('<strong>Friday</strong>');
+      expect(html).toContain('<style>');
+    });
+
+    it('exports plain text, Word (.doc), Markdown and the whole notebook as a zip', async () => {
+      const got = recordDownloads();
+      await exportAs('Export as plain text (.txt)');
+      const txt = await got[got.length - 1].blob.text();
+      expect(got[got.length - 1].name).toBe('Trip.txt');
+      expect(txt).toContain('Plan for Friday, see the map (https://example.com/map).');
+      expect(txt).toContain('[x] book');
+      expect(txt).not.toContain('**');
+
+      await exportAs('Export as Word (.doc)');
+      const doc = got[got.length - 1];
+      expect(doc.name).toBe('Trip.doc');
+      expect(doc.blob.type).toBe('application/msword');
+      expect(await doc.blob.text()).toContain('urn:schemas-microsoft-com:office:word');
+
+      await exportAs('Export as Markdown (.md)');
+      expect(await got[got.length - 1].blob.text()).toContain('# Trip');
+
+      q('#nt-export').click();
+      await waitFor(() => menuLabels().length, { timeout: 2000 });
+      await pick('Whole notebook as Markdown (.zip)');
+      await waitFor(() => got.some((g) => g.name.endsWith('.zip')), { timeout: 8000 });
+      const zip = got.find((g) => g.name.endsWith('.zip'));
+      expect(zip.name).toMatch(/\(Markdown\)\.zip$/);
+      expect(await bytes(zip.blob)).toEqual([0x50, 0x4b]);
+      const { readZip } = await import('../../shared/office/zip.js');
+      const files = await readZip(zip.blob);
+      expect([...files.keys()].some((k) => /Trip\.md$/.test(k))).toBe(true);
+    }, { timeout: 30000 });
+
+    it('the PDF choice opens the print view: the note in a hidden frame, with its table', async () => {
+      const before = qa('iframe').length;
+      await exportAs('Export as PDF (print view)');
+      await waitFor(() => qa('iframe').length > before, { timeout: 3000 });
+      const frame = qa('iframe').find((x) => x !== f && x.srcdoc && x.srcdoc.includes('<table>'));
+      expect(!!frame).toBe(true);
+      expect(frame.srcdoc).toContain('@page{size:A4');
+      expect(frame.srcdoc).toContain('<h1>Trip</h1>');
+    });
+  });
+
+  run({ name: 'Slop Notes export' });
+  </script>
+</body>
+</html>

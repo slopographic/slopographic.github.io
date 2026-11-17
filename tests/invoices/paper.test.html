@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoices · edit on the page and export the PDF</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../invoices/index.html#new" title="Slop Invoices"></iframe>
+  <script>
+  // Covers: invoices/js/ui/page.js, invoices/js/ui/editor.js, shared/docs/doc-editor.js, shared/docs/doc-page.js, shared/docs/doc-app.js
+  // Covers (the document language: a Swedish company's invoice in Swedish on an English page, and a per-document override):
+  // shared/docs/doc-view.js, shared/docs/doc-pdf.js, shared/docs/paper.js, invoices/js/core/context.js, invoices/js/core/invoices.js,
+  // invoices/js/ui/preview.js, shared/biz/biz.js, shared/biz/i18n/sv/print.js, shared/i18n/i18n.js
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const W = () => frame.contentWindow;
+  const $ = (sel) => frame.contentDocument.querySelector(sel);
+  const $$ = (sel) => [...frame.contentDocument.querySelectorAll(sel)];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  const button = (text) => $$('button').find((b) => b.textContent.trim() === text);
+  const saveButton = () => button('Save') || button('Save draft');
+  const enter = (el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  /** Types into the input the paper just opened for a field, and presses Enter (the same as a person would). */
+  async function editOnPage(sel, text) {
+    const btn = await until(() => $(sel), sel);
+    btn.click();
+    const input = await until(() => $('#ePage .pe-input'), 'the input for ' + sel);
+    input.value = text;
+    enter(input);
+    await sleep(60);
+  }
+
+  let customerId = null;
+  describe('Slop Invoices: edit on the page', () => {
+    it('opens a new invoice as a page, with a layout note and the form available as a fallback', async () => {
+      await until(() => W().SlopData && $('#ePage .paper'), 'the paper view');
+      expect($('#ePage .paper .pe[data-edit="description"]')).toBeTruthy();
+      expect($('#eLayout').textContent).toMatch(/Layout: /);
+      expect(button('Form')).toBeTruthy();
+    });
+
+    it('clicking the customer, the description and the price on the page edits them; the form follows', async () => {
+      const c = (await W().SlopData.store.put('customers', { name: 'Acme Ltd', email: 'ap@acme.test', stage: 'customer' })).value;
+      customerId = c.id;
+      await W().SlopInvoices.views.edit.onShow(null);
+      await until(() => $('#ePage .pe[data-edit="customer"]'), 'the customer on the page');
+      $('#ePage .pe[data-edit="customer"]').click();
+      const sel = await until(() => $('#ePage select.pe-input'), 'the customer select');
+      sel.value = customerId;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(60);
+      expect($('#ePage .pp-name').textContent).toBe('Acme Ltd');
+
+      await editOnPage('#ePage .pe[data-edit="description"][data-index="0"]', 'Widget');
+      expect($('#eLines [data-f="description"]').value).toBe('Widget');
+      await editOnPage('#ePage .pe[data-edit="unitPrice"][data-index="0"]', '10.00');
+      expect($('#eLines [data-f="unitPrice"]').value).toBe('10.00');
+      expect($('#ePage').textContent).toContain('$10.00');
+    });
+
+    it('a wrong value on the page gets the form\'s message and is not saved', async () => {
+      await editOnPage('#ePage .pe[data-edit="qty"][data-index="0"]', '1.5');
+      expect($('#eMsg').textContent).toContain('quantity must be a whole number');
+      await editOnPage('#ePage .pe[data-edit="qty"][data-index="0"]', '2');
+      expect($('#eLines [data-f="qty"]').value).toBe('2');
+    });
+
+    it('the layout can be picked and the page shows it; Save draft stores the edits and the seed', async () => {
+      const sel = $('#eLayout select');
+      sel.value = 'bold';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(60);
+      expect($('#eLayout').textContent).toContain('Bold header');
+      button('Save draft').click();
+      const saved = await until(async () => (await W().SlopData.store.list('invoices')).value.find((r) => r.lines && r.lines[0] && r.lines[0].description === 'Widget'), 'the saved draft');
+      expect(saved.lines[0].unitPrice).toBe(1000);
+      expect(saved.lines[0].qty).toBe(2);
+      expect(saved.pdfLayout).toBe('bold');
+      expect(Number.isInteger(saved.pdfSeed)).toBeTruthy();
+    });
+
+    it('Export PDF downloads a real PDF of the page', async () => {
+      const NSI = W().SlopInvoices;
+      await until(() => !NSI.editor.isDirty() && NSI.editor.id() && button('Export PDF'), 'the saved invoice');
+      const blobs = [];
+      const make = W().URL.createObjectURL;
+      W().URL.createObjectURL = (b) => { blobs.push(b); return make.call(W().URL, b); };
+      try {
+        button('Export PDF').click();
+        const blob = await until(() => blobs[0], 'the PDF download');
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+        expect(blob.type).toBe('application/pdf');
+      } finally {
+        W().URL.createObjectURL = make;
+      }
+    });
+
+    it('Export PDF clicked while a save is in flight waits for the save, then downloads a PDF of the saved invoice', async () => {
+      const NSI = W().SlopInvoices;
+      await until(() => !NSI.editor.isDirty() && NSI.editor.id() && button('Export PDF'), 'the saved invoice');
+      await editOnPage('#ePage .pe[data-edit="description"][data-index="0"]', 'Gizmo');
+      expect(NSI.editor.isDirty()).toBeTruthy();
+      const realSave = NSI.invoices.saveDraft;
+      let saves = 0;
+      NSI.invoices.saveDraft = async (form) => { saves++; await sleep(900); return realSave(form); };   // a slow save in flight
+      const blobs = [];
+      const make = W().URL.createObjectURL;
+      W().URL.createObjectURL = (b) => { blobs.push(b); return make.call(W().URL, b); };
+      try {
+        saveButton().click();
+        await until(() => $('#eMsg').textContent === 'Saving…', 'the saving status');
+        button('Export PDF').click();
+        await until(() => $('#eMsg').textContent.includes('Waiting for the save'), 'the waiting status');
+        expect(blobs.length).toBe(0);                       // nothing downloads before the save is done
+        const blob = await until(() => blobs[0], 'the PDF download', 15000);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+        expect(saves).toBe(1);                              // the export did not start a second save
+        const stored = (await W().SlopData.store.list('invoices')).value.find((r) => r.id === NSI.editor.id());
+        expect(stored.lines[0].description).toBe('Gizmo');  // the PDF is of the saved invoice
+        expect(NSI.editor.isDirty()).toBeFalsy();
+      } finally {
+        NSI.invoices.saveDraft = realSave;
+        W().URL.createObjectURL = make;
+      }
+    });
+
+    it('a new invoice clicked Save twice while the first save is in flight makes one draft, not two', async () => {
+      const NSI = W().SlopInvoices;
+      const before = (await W().SlopData.store.list('invoices')).value.length;
+      const realSave = NSI.invoices.saveDraft;
+      NSI.invoices.saveDraft = async (form) => { await sleep(700); return realSave(form); };
+      try {
+        NSI.views.edit.onShow(null);
+        await until(() => button('Save draft'), 'the new invoice page');   // a new invoice has no number yet, so its button says Save draft
+        await until(() => $('#ePage .pe[data-edit="customer"]'), 'the customer on the page');
+        $('#ePage .pe[data-edit="customer"]').click();
+        const sel = await until(() => $('#ePage select.pe-input'), 'the customer select');
+        sel.value = customerId;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        await sleep(60);
+        await editOnPage('#ePage .pe[data-edit="description"][data-index="0"]', 'Sprocket');
+        await editOnPage('#ePage .pe[data-edit="unitPrice"][data-index="0"]', '5.00');
+        button('Save draft').click();
+        button('Save draft').click();
+        await sleep(2500);
+      } finally {
+        NSI.invoices.saveDraft = realSave;
+      }
+      const after = (await W().SlopData.store.list('invoices')).value.length;
+      expect(after - before).toBe(1);
+    });
+  });
+
+  describe('Slop Invoices: the document language', () => {
+    /** Waits for an async condition (until() takes a sync one). */
+    async function settle(fn, label) {
+      const t0 = Date.now();
+      while (!(await fn())) { if (Date.now() - t0 > 12000) throw new Error(`timed out waiting for ${label}`); await sleep(60); }
+    }
+    /** A Swedish company (settings.docLang sv) and a new draft for the customer from above. */
+    async function swedishDraft(description) {
+      const S = W().SlopData;
+      const cur = (await S.store.get('settings', 'main')).value || S.schema.DEFAULT_SETTINGS;
+      await S.store.put('settings', { ...cur, docLang: 'sv', companyName: 'Acme AB', taxNumber: 'SE556677889901' });
+      const today = S.ledger.today();
+      return (await S.store.put('invoices', { customerId, date: today, dueDate: S.ledger.addDays(today, 30),
+        lines: [{ description, qty: 2, unitPrice: 50000, taxRate: 2500 }] })).value;
+    }
+
+    it('a Swedish company prints a Swedish invoice while the page stays English; stored text stays as written', async () => {
+      const S = W().SlopData, NSI = W().SlopInvoices;
+      const d = await swedishDraft('Konsulttimme');
+      await NSI.views.edit.onShow(d.id);
+      await until(() => $('#ePage .paper[lang="sv"]') && $('#ePage .paper').textContent.includes('FAKTURA'), 'the page in Swedish');
+      const page = $('#ePage .paper').textContent;
+      for (const word of ['FAKTURA', 'Fakturanummer', 'Förfallodatum', 'Betalningsvillkor', 'Moms 25 %', 'Momsreg.nr SE556677889901', 'Konsulttimme', 'Acme Ltd']) expect(page).toContain(word);
+      expect(page).not.toContain('Due ');
+      expect(W().SlopI18n.get()).toBe('en');
+      expect(button('Export PDF')).toBeTruthy();   // the page's own controls stay English
+      expect($('#eDocLang').value).toBe('');         // the company default
+      expect($('#eDocLang').options[0].textContent).toBe('Company default (Svenska)');
+      expect((await S.billing.issue(d.id)).ok).toBe(true);
+      const ctx = (await NSI.context.load(d.id)).value;
+      const view = NSI.pdf.viewOf(ctx);
+      expect(view.title).toBe('Faktura');
+      expect(view.totals.map((x) => x.label)).toContain('Att betala');
+      expect(view.totals.map((x) => x.label)).toContain('Summa exkl. moms');
+      expect((await NSI.pdf.invoicePdf(ctx)).ok).toBe(true);
+      await NSI.preview.show(d.id);   // the print sheet
+      const sheet = $('#pSheet').textContent;
+      for (const word of ['FAKTURA', 'Att betala', 'Förfallodatum', 'UTFÄRDAD']) expect(sheet).toContain(word);
+    });
+
+    it('a per-document Document language overrides the company default, on the page and in the stored invoice', async () => {
+      const S = W().SlopData, NSI = W().SlopInvoices;
+      const d = await swedishDraft('Design');
+      await NSI.views.edit.onShow(d.id);
+      await until(() => $('#ePage .paper[lang="sv"]') && $('#ePage .paper').textContent.includes('FAKTURA'), 'the page in Swedish');
+      const sel = $('#eDocLang');
+      expect([...sel.options].map((o) => o.value)).toEqual(['', ...W().SlopI18n.shipped('biz')]);
+      sel.value = 'en';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await until(() => $('#ePage .paper[lang="en"]') && $('#ePage .paper').textContent.includes('INVOICE'), 'the page in English');
+      expect($('#ePage .paper').textContent).toContain('INVOICE');
+      expect($('#ePage .paper').textContent).toContain('Due ');
+      saveButton().click();
+      await settle(async () => (await S.store.get('invoices', d.id)).value.docLang === 'en', 'the stored override');
+      expect(NSI.pdf.viewOf((await NSI.context.load(d.id)).value).title).toBe('Invoice');
+      sel.value = '';   // back to the company's: the override is removed
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      saveButton().click();
+      await settle(async () => !(await S.store.get('invoices', d.id)).value.docLang, 'the override removed');
+      expect(NSI.pdf.viewOf((await NSI.context.load(d.id)).value).title).toBe('Faktura');
+    });
+  });
+
+  run({ name: 'Slop Invoices · paper' });
+  </script>
+</body>
+</html>

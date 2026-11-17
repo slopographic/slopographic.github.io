@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · the yearly savings line and its list</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../brand-facts.js"></script>
+  <script src="hero-boot.js"></script>
+  <script type="module">
+  // Covers: home/savings.js, shared/savings/data.mjs, shared/savings/i18n/index.js, home/hero.css, home/home.css
+  /* The hero's savings line (shared/savings/data.mjs SHOWN) in the page's language, its asterisk opening the list below,
+   * the list: one row per plan with its yearly price, terms and pricing page, then the total. A profile with
+   * "savings": false has neither (tests/brand-facts.js). */
+  import { PLANS, SHOWN, TOTAL, yearly } from '../../shared/savings/data.mjs';
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let win, doc;
+  const ready = HeroTest.open({ width: 1280 }).then((w) => { win = w; doc = w.document; });
+
+  describe('savings', () => {
+    it('the line shows the rounded total, formatted for the language, on one line in the hero', async () => {
+      await ready;
+      const line = doc.querySelector('.hx-save');
+      if (!BRAND_FACTS.savings) { expect(line).toBe(null); expect(doc.getElementById('savings')).toBe(null); return; }
+      expect(line.closest('#hero') !== null).toBe(true);
+      expect(line.textContent).toContain(win.SlopI18n.num(SHOWN));
+      expect(line.getBoundingClientRect().height).toBeLessThan(60);
+      win.SlopI18n.set('sv');
+      await win.SlopI18n.ready();
+      await waitFor(() => line.textContent.includes('US-dollar'));
+      expect(line.textContent).toContain(win.SlopI18n.num(SHOWN));   // 1 700 in Swedish
+      win.SlopI18n.set('en');
+      await waitFor(() => line.textContent.includes('$' + SHOWN.toLocaleString('en')));
+    });
+    it('the asterisk opens the list: every plan with its price and source, then the total', async () => {
+      await ready;
+      if (!BRAND_FACTS.savings) return;
+      const how = doc.getElementById('savings-how');
+      expect(how.open).toBe(false);
+      await waitFor(() => doc.querySelector('#savings-list table'));
+      doc.querySelector('.hx-save-star').click();
+      expect(how.open).toBe(true);
+      const rows = [...doc.querySelectorAll('#savings-list tbody tr')];
+      expect(rows.length).toBe(PLANS.length);
+      rows.forEach((r, i) => {
+        expect(r.querySelector('th b').textContent).toBe(PLANS[i].name);
+        expect(r.querySelector('.num').textContent).toBe(win.SlopI18n.money(yearly(PLANS[i]), 'USD'));
+        expect(r.querySelector('a').getAttribute('href')).toBe(PLANS[i].source);
+      });
+      expect(doc.querySelector('#savings-list tfoot .num').textContent).toBe(win.SlopI18n.money(TOTAL, 'USD'));
+      how.open = false;
+    });
+  });
+
+  ready.then(() => run({ name: 'Homepage · the yearly savings line and its list' }));
+  </script>
+</body>
+</html>

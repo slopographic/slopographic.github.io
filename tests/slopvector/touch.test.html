@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>SlopVector · touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; overflow: hidden; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- SlopVector with a finger and a pen (tests/run.mjs --touch: an iPad in WebKit, an Android tablet in Chromium).
+       Covers: slopvector/js/tools/pointer.js, slopvector/js/tools/select.js, slopvector/js/tools/draw.js,
+       slopvector/js/tools/pen.js, slopvector/js/core/hittest.js, shared/nav/engine.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  localStorage.removeItem('slop-nav'); // the default Slop preset: pinch zooms, two fingers pan
+  let W, SV, S, stage, rect, text;
+  const booted = (w) => { try { return !!(w && w.document.getElementById('app').classList.contains('ready') && w.SV && w.SlopTouch && w.SlopTouch.ready); } catch (e) { return false; } };
+  /** A stage point for a document point (TouchKit target). */
+  const at = (x, y) => { const s = SV.toScreen({ x, y }); return { el: stage, x: s.x, y: s.y }; };
+  const centre = (o) => { const b = SV.objBBox ? SV.objBBox(o) : null; return b ? at(b.x + b.w / 2, b.y + b.h / 2) : at(o.x + o.w / 2, o.y + o.h / 2); };
+  const obj = (id) => SV.getObj(id);
+  const menu = () => W.document.querySelector('.sui-menu');
+
+  async function setup() {
+    SV.loadDoc(SV.newDoc(1200, 800, 'Touch'), { fit: false });
+    S.view.zoom = 0.5; S.view.x = 40; S.view.y = 40; // all of it on the stage of a small tablet too SV.requestRender(true);
+    rect = SV.mk.rect(100, 100, 200, 150, 0, { fill: '#f00', stroke: null, sw: 0 }, 'Rect');
+    SV.insertObj(rect);
+    text = SV.mk.text(500, 300, 'Hello', { size: 48 }, { fill: '#000', stroke: null, sw: 0 }, 'Text');
+    SV.insertObj(text);
+    SV.resetHistory(); SV.select([]); SV.setTool('select');
+    await sleep(100);
+  }
+
+  describe('SlopVector · touch', () => {
+    it('boots with the touch layer, and the stage is a touch surface left to the navigation engine', async () => {
+      f.src = '../../slopvector/index.html';
+      await waitFor(() => booted(f.contentWindow), { timeout: 40000 });
+      await sleep(500); // the saved view restores after boot
+      W = f.contentWindow; SV = W.SV; S = SV.state; stage = W.document.getElementById('stage');
+      expect(stage.getAttribute('data-touch-surface')).toBe('nav');
+      expect(W.getComputedStyle(stage).touchAction).toBe('none');
+      await setup();
+    }, { timeout: 60000 });
+    it('a tap selects a shape, and a tap on the empty artboard clears the selection', async () => {
+      await TouchKit.tap(centre(rect));
+      expect(S.sel).toEqual([rect.id]);
+      await sleep(400); // not a double tap with the next
+      await TouchKit.tap(at(150, 600)); // empty artboard
+      expect(S.sel).toEqual([]);
+    });
+    it('a drag moves the shape under the finger', async () => {
+      await sleep(400);
+      const x0 = SV.objBBox(obj(rect.id)).x;
+      await TouchKit.drag(centre(obj(rect.id)), 60, 40, 10);
+      expect(S.sel).toEqual([rect.id]);
+      expect((SV.objBBox(obj(rect.id)).x - x0) * S.view.zoom).toBeCloseTo(60, 3);
+    });
+    it('a finger 12 px off the corner handle still grabs it (a finger-sized handle) and scales the shape', async () => {
+      await sleep(400);
+      SV.select([rect.id]); SV.requestRender(true);
+      const b0 = SV.objBBox(obj(rect.id)), se = SV.toScreen({ x: b0.x + b0.w, y: b0.y + b0.h });
+      await TouchKit.drag({ el: stage, x: se.x + 12, y: se.y + 12 }, 50, 30, 10);
+      const b1 = SV.objBBox(obj(rect.id));
+      expect((b1.w - b0.w) * S.view.zoom).toBeGreaterThan(45); // the corner follows the finger (it was grabbed 12 px out)
+      expect((b1.w - b0.w) * S.view.zoom).toBeLessThan(70);
+      expect(b1.x).toBeCloseTo(b0.x, 1);
+    });
+    it('a double tap on text opens it for editing', async () => {
+      await sleep(400);
+      await TouchKit.doubleTap(centre(obj(text.id)));
+      await waitFor(() => S.editing, { timeout: 3000 });
+      expect(S.editing.id).toBe(text.id);
+      SV.commitTextEdit();
+      await sleep(200);
+    });
+    it('a long press opens the canvas menu with the shape selected, and lifting does not pick an item', async () => {
+      SV.select([]);
+      await sleep(400);
+      await TouchKit.longPress(centre(obj(rect.id)));
+      await waitFor(() => menu(), { timeout: 3000 });
+      await sleep(300);
+      expect(!!menu()).toBe(true); // still open: the lift's click was not an item's
+      expect(S.sel).toEqual([rect.id]);
+      SV.ui.closeMenus();
+      await sleep(100);
+    });
+    it('a pinch zooms the stage about the fingers, not the page', async () => {
+      await sleep(400);
+      const z0 = S.view.zoom;
+      await TouchKit.pinch({ el: stage, x: 500, y: 350 }, 2, 10);
+      await sleep(200);
+      expect(S.view.zoom / z0).toBeGreaterThan(1.6);
+      expect(S.view.zoom / z0).toBeLessThan(2.4);
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      expect(menu()).toBe(null); // the still finger of a pinch is not a long press
+    });
+    it('a pen stroke with the pencil keeps the pen\'s pressure, and a firm stroke is wider', async () => {
+      await setup();
+      SV.setTool('pencil');
+      const sw0 = SV.newStyle('pencil').sw;
+      await TouchKit.drag(at(150, 550), 200, 60, 16, { kind: 'pen', pressure: 0.9 });
+      expect(SV.lastPressure).toBeCloseTo(0.9, 0.02);
+      const made = obj(S.sel[0]);
+      expect(made.type).toBe('path');
+      expect(made.style.sw).toBeGreaterThan(sw0);
+      SV.setTool('select');
+    });
+  });
+  run({ name: 'SlopVector · touch' });
+  </script>
+</body>
+</html>

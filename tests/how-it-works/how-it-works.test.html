@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>How it works · audit page</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/landing/landing.css, tools/seo/landing.mjs, tools/seo/write.mjs, how-it-works/index.html
+  const { describe, it, expect, run } = SlopTest;
+
+  /* The audit page at /how-it-works/ is fetched from the server and parsed, then checked: one H1, the API table
+   * with its rows, and a link to each specification the page names. Its words are in the SEO tables
+   * (shared/seo/pages/how-it-works.html): the checks of its English words read the English page, which is the root
+   * page or, in a build whose root language is another, its English copy (the hreflang="en" alternate). A build that
+   * is not indexed (brand facts seoIndex false) has no language copies: there those checks read the page's own words
+   * by their structure instead (the API names, the captions, the questions of the plain-words part).
+   * Run: node tests/run.mjs how-it-works */
+  const ROOT = new URL('../../', location.href);
+  const SPECS = [
+    'https://wicg.github.io/file-system-access/',
+    'https://www.w3.org/TR/IndexedDB/',
+    'https://html.spec.whatwg.org/multipage/webstorage.html',
+    'https://www.w3.org/TR/service-workers/',
+    'https://w3c.github.io/ServiceWorker/#cache-objects',
+    'https://webassembly.github.io/spec/core/',
+    'https://www.w3.org/TR/webgpu/',
+    'https://registry.khronos.org/webgl/specs/latest/2.0/',
+  ];
+  const APIS = ['showDirectoryPicker', 'IndexedDB', 'localStorage', 'Service Workers', 'Cache Storage', 'WebAssembly', 'WebGPU', 'Web Workers'];
+
+  async function load(path) {
+    const url = new URL(path, ROOT).href;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`${url} answered HTTP ${res.status}`);
+    return new DOMParser().parseFromString(await res.text(), 'text/html');
+  }
+  let doc = null, en = null;
+  async function page() {
+    if (!doc) doc = await load('how-it-works/');
+    return doc;
+  }
+  async function english() {
+    if (!en) {
+      const d = await page(), alt = d.querySelector('link[rel="alternate"][hreflang="en"]');
+      en = d.documentElement.lang === 'en' ? d : alt ? await load(new URL(alt.getAttribute('href')).pathname.slice(1)) : null;
+    }
+    return en;
+  }
+  /** The English page, or the page itself when the build has no English copy (en false). */
+  async function words() { const e = await english(); return { d: e || await page(), en: !!e }; }
+
+  describe('/how-it-works/ audit page', () => {
+    it('is served and has exactly one H1', async () => {
+      const d = await page();
+      expect(d.querySelectorAll('h1').length).toBe(1);
+      expect(d.querySelector('h1').textContent.trim().length > 0).toBeTruthy();
+    });
+
+    it('has a table of browser APIs with a row for each API the page names', async () => {
+      const { d, en } = await words();
+      const tables = [...d.querySelectorAll('table')], head = (t) => (t.querySelector('th') ? t.querySelector('th').textContent : '');
+      const apiTable = tables.find((t) => (en ? /Browser API/i.test(head(t)) : /showDirectoryPicker/.test(t.textContent)));
+      expect(!!apiTable).toBeTruthy();
+      const text = [...apiTable.querySelectorAll('tbody tr')].map((r) => r.textContent).join('\n');
+      for (const api of APIS) expect(text.includes(api)).toBeTruthy();
+    });
+
+    it('has a network table and a storage table', async () => {
+      const { d, en } = await words();
+      const captions = [...d.querySelectorAll('table caption')].map((c) => c.textContent);
+      if (!en) { expect(captions.length >= 3).toBe(true); return; }   // the API, storage and network tables, in the page's words
+      expect(captions.some((c) => /outbound|requests/i.test(c))).toBeTruthy();
+      expect(captions.some((c) => /storage/i.test(c))).toBeTruthy();
+    });
+
+    it('links to each official specification it names', async () => {
+      const d = await page();
+      const hrefs = [...d.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+      for (const spec of SPECS) expect(hrefs.includes(spec)).toBeTruthy();
+    });
+
+    it('looks like the other pages: the site stylesheet, the shared header and footer, and the shell', async () => {
+      const d = await page();
+      expect(!!d.querySelector('link[rel="stylesheet"][href="/shared/landing/landing.css"]')).toBe(true);
+      expect(d.querySelectorAll('style').length).toBe(0);
+      expect([...d.querySelectorAll('header.l-top nav a')].map((a) => a.getAttribute('href'))).toEqual(['/', '/all-tools/', '/compare/', '/best/', '/how-it-works/', '/settings/']);
+      expect(!!d.querySelector('footer.l-foot a[href="https://github.com/slopographic/apps"]')).toBe(true);
+      expect(!!d.querySelector('main.l-doc')).toBe(true);
+      expect(!!d.querySelector('script[src*="shell/shell.js"]')).toBe(true);
+    });
+    it('says in plain words where files go, why something downloads, and that it works offline', async () => {
+      const { d, en } = await words(), t = d.getElementById('plain').parentElement.textContent;
+      if (!en) { expect((t.match(/[?؟？]/g) || []).length >= 3).toBe(true); return; }   // its three questions, in the page's words
+      for (const w of ['Where do my files go?', 'Why does an app sometimes download something?', 'Does it work offline?']) expect(t.includes(w)).toBe(true);
+    });
+    it('has a description of 120 to 160 characters', async () => {
+      const d = await page();
+      const desc = d.querySelector('meta[name="description"]');
+      expect(!!desc).toBeTruthy();
+      const n = desc.getAttribute('content').length;
+      expect(n >= 120 && n <= 160).toBeTruthy();
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

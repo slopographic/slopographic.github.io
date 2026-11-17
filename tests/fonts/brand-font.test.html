@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fonts · The site's type family: every style loads, the tokens name it, the picker and the typeface page show it</title>
+  <link rel="stylesheet" href="../../shared/fonts/fonts.css">
+  <link rel="stylesheet" href="../../style/base.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1100px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the picker's group names (shared/i18n/ui/<code>/fonts.js) -->
+  <script src="../../shared/fonts/picker.js"></script>
+  <script>
+  // Covers: shared/fonts/fonts.css, style/base.css, typeface/typeface.js, shared/fonts/picker.js, shared/fonts/catalog.js
+  // Generic: a white-label build runs it on its own family; a build without one checks that the tokens name the upstream fonts.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const UPSTREAM = { sans: 'Inter Tight', serif: 'Instrument Serif', mono: 'JetBrains Mono', cond: 'Archivo' };
+  const manifest = fetch('../../shared/fonts/brand/faces.json', { cache: 'no-cache' }).then((r) => r.json());
+  const first = (stack) => stack.split(',')[0].trim().replace(/^["']|["']$/g, '');
+
+  describe('Type family: the faces', () => {
+    it('every face of the manifest loads with the font loading API', async () => {
+      const m = await manifest;
+      for (const f of m.faces) {
+        const [lo, hi] = f.weight.split(' ').map(Number);
+        for (const w of [lo, hi || lo]) {
+          const sample = f.subset === 'latin' ? 'Råäö slop' : 'ŁŞŽ';
+          const got = await document.fonts.load(`${f.style} ${w} 32px "${f.family}"`, sample);
+          expect(got.length).toBeGreaterThan(0);
+          expect(got.every((ff) => ff.status === 'loaded')).toBe(true);
+        }
+      }
+    });
+    it('the Private Use Area marks draw (they take room in their family)', async () => {
+      const m = await manifest;
+      for (const g of m.pua) {
+        const fam = m.roles[g.roles[0]].family;
+        await document.fonts.load(`400 40px "${fam}"`, String.fromCodePoint(parseInt(g.code, 16)));
+        const span = document.createElement('span');
+        span.style.cssText = `font: 400 40px "${fam}", monospace; white-space: pre`;
+        span.textContent = String.fromCodePoint(parseInt(g.code, 16));
+        document.body.append(span);
+        expect(span.getBoundingClientRect().width).toBeGreaterThan(10);
+        span.remove();
+      }
+    });
+  });
+
+  describe('Type family: the tokens', () => {
+    it('--sans, --serif, --mono and --cond name the family first, or the upstream font without one', async () => {
+      const m = await manifest, root = getComputedStyle(document.documentElement);
+      for (const [role, up] of Object.entries(UPSTREAM)) {
+        const want = m.roles[role] ? m.roles[role].family : up;
+        expect(first(root.getPropertyValue('--' + role))).toBe(want);
+      }
+      const probe = document.createElement('p');
+      probe.style.fontFamily = 'var(--sans)';          // what the site's pages set on body (style/base.css)
+      document.body.append(probe);
+      expect(first(getComputedStyle(probe).fontFamily)).toBe(m.roles.sans ? m.roles.sans.family : UPSTREAM.sans);
+      probe.remove();
+    });
+    it('the body text is drawn in the family once it has loaded', async () => {
+      const m = await manifest;
+      if (!m.roles.sans) return;
+      await document.fonts.load(`400 15px "${m.roles.sans.family}"`, 'a');
+      expect(document.fonts.check(`400 15px "${m.roles.sans.family}"`, 'a')).toBe(true);
+    });
+  });
+
+  describe('Type family: the font picker and the typeface page', () => {
+    it('the picker lists the family and loads it', async () => {
+      const m = await manifest;
+      const index = await SlopFonts.bundledIndex();
+      for (const r of Object.values(m.roles)) {
+        expect(index.some((f) => f.family === r.family)).toBe(true);
+        expect(await SlopFonts.load(r.family)).toBe(true);
+      }
+    });
+    it('the catalogue marks the family as this site\'s, and a picker lists it in its own group', async () => {
+      const m = await manifest;
+      const fams = await SlopFonts.families();
+      for (const r of Object.values(m.roles)) expect(fams.some((f) => f.name === r.family && f.site === true)).toBe(true);
+      const sel = document.createElement('select');
+      SlopFonts.attach(sel, {});
+      await waitFor(() => !Object.keys(m.roles).length || [...sel.querySelectorAll('optgroup')].some((g) => g.label === 'This site\'s type'));
+      const group = [...sel.querySelectorAll('optgroup')].find((g) => g.label === 'This site\'s type');
+      expect(group ? group.querySelectorAll('option').length : 0).toBe(Object.keys(m.roles).length);
+    });
+    it('the typeface page shows every style, set, ligature and mark of the manifest', async () => {
+      const m = await manifest;
+      if (!m.faces.length) return;            // a build without a family has no typeface page
+      const frame = document.createElement('iframe');
+      frame.src = '../../typeface/';
+      document.body.append(frame);
+      await waitFor(() => frame.contentDocument && frame.contentDocument.documentElement.dataset.typeface === 'ready', { timeout: 15000 });
+      const d = frame.contentDocument;
+      expect(d.querySelector('[data-tf="family"]').textContent).toBe(m.family);
+      expect(d.querySelectorAll('.tf-style').length).toBe(Object.keys(m.roles).length);
+      expect(d.querySelectorAll('.tf-feature').length).toBe(m.features.reduce((n, f) => n + f.roles.length, 0));
+      expect(d.querySelectorAll('.tf-mark').length).toBe(m.pua.length);
+      expect(d.querySelector('[data-tf="download"]').getAttribute('href')).toBe('../shared/fonts/brand/' + m.download);
+      const res = await fetch('../../shared/fonts/brand/' + m.download);
+      expect(res.ok).toBe(true);
+      expect(d.documentElement.scrollWidth <= d.documentElement.clientWidth + 1).toBe(true);
+      frame.remove();
+    }, { timeout: 30000 });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

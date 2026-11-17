@@ -1,0 +1,7 @@
+/* Slop Invoices: what is its own in the workspace. The panes are shared/docs/workspace.css; the record bar over an open
+ * invoice is shared/biz/docbar.js. */
+
+/* The record bar (shared/biz/docbar.js): Print for an open invoice or its print view (Save is in the record panel's footer).
+ * New invoice is in the menu bar on every view. */
+.biz-doc-actions > #tbPrint { display: none; }
+body:has(.app[data-view="edit"]) #tbPrint, body:has(.app[data-view="print"]) #tbPrint { display: inline-flex; }

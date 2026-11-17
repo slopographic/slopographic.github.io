@@ -1,0 +1,63 @@
+/* Slop PDF — find bar, find highlights, the selectable text layer. New colours use --sl-* tokens with fallbacks. */
+
+/* Text layer: transparent text over the canvas. Only the spans take presses, so an empty part of the page still pans. */
+.pv-textlayer { position: absolute; left: 0; top: 0; overflow: hidden; line-height: 1; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; pointer-events: none; z-index: 1; }
+.pv-textlayer span, .pv-textlayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; pointer-events: auto; }
+.pv-textlayer ::selection { background: var(--sl-select, rgba(40, 110, 255, .32)); }
+/* pdf.js 5 sets each span's size and stretch as variables (--font-height, --scale-x) and leaves the sizing to the viewer CSS */
+.pv-textlayer { --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
+.pv-textlayer > span { --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height)); --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+.pv-page:not([data-tool="select"]) .pv-textlayer span { pointer-events: none; }
+/* The annotation overlay passes presses to the text and canvas beneath; its marks keep their own hit areas. */
+.pv-svg { pointer-events: none; }
+.pv-svg .an { pointer-events: visiblePainted; }
+
+/* Find highlights, under the text layer */
+.pv-hits { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.pv-hits rect { fill: var(--sl-find, rgba(255, 214, 0, .42)); }
+.pv-hits rect.cur { fill: var(--sl-find-cur, rgba(255, 110, 0, .6)); stroke: var(--sl-find-cur-edge, #c2410c); stroke-width: .6; }
+
+/* Find bar: pinned to the top right of the page view */
+.find-bar { position: absolute; top: 10px; right: 14px; z-index: 30; width: min(520px, calc(100% - 28px)); box-sizing: border-box; padding: 6px; border-radius: 10px; background: var(--sl-surface, #1d1d21); color: var(--sl-text, #f2f2f2); border: 1px solid var(--sl-border, #3a3a41); box-shadow: 0 6px 22px rgba(0, 0, 0, .35); font: 13px/1.2 system-ui, sans-serif; }
+.find-bar[hidden], .find-list[hidden] { display: none; }
+.find-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.find-input { flex: 1 1 140px; min-width: 0; height: 30px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--sl-border, #3a3a41); background: var(--sl-field, #121214); color: inherit; font: inherit; }
+.find-input:focus-visible { outline: 2px solid var(--sl-accent, #d4ff3a); outline-offset: 1px; }
+.find-opt, .find-nav { height: 30px; min-width: 30px; padding: 0 7px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; cursor: pointer; display: grid; place-items: center; }
+.find-opt[aria-pressed="true"] { background: var(--sl-accent-soft, rgba(212, 255, 58, .18)); border-color: var(--sl-accent, #d4ff3a); }
+.find-opt:hover, .find-nav:hover { background: var(--sl-hover, rgba(255, 255, 255, .08)); }
+.find-nav .ic { width: 15px; height: 15px; }
+.find-count { min-width: 72px; text-align: center; font-variant-numeric: tabular-nums; opacity: .85; white-space: nowrap; }
+.find-list { margin: 6px 0 0; padding: 0; list-style: none; max-height: 260px; overflow: auto; }
+.find-hit { display: flex; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.find-hit:hover { background: var(--sl-hover, rgba(255, 255, 255, .08)); }
+.find-hit.is-current { background: var(--sl-accent-soft, rgba(212, 255, 58, .18)); }
+.find-hit-page { flex: 0 0 auto; opacity: .7; font-variant-numeric: tabular-nums; }
+.find-hit-ctx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.find-hit-ctx mark { background: var(--sl-find, rgba(255, 214, 0, .42)); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+/* Replace dialog */
+.find-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: rgba(0, 0, 0, .45); padding: 16px; box-sizing: border-box; }
+.find-modal[hidden] { display: none; }
+.find-dialog { width: min(640px, 100%); max-height: min(78vh, 720px); display: flex; flex-direction: column; gap: 10px; padding: 16px; box-sizing: border-box; border-radius: 12px; background: var(--sl-surface, #1d1d21); color: var(--sl-text, #f2f2f2); border: 1px solid var(--sl-border, #3a3a41); box-shadow: 0 14px 40px rgba(0, 0, 0, .45); font: 13px/1.3 system-ui, sans-serif; }
+.find-title { margin: 0; font-size: 15px; }
+.find-fields { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.find-fields .find-input { flex: 1 1 160px; }
+.find-status { margin: 0; opacity: .8; }
+.find-rlist { margin: 0; padding: 0; list-style: none; overflow: auto; min-height: 60px; border: 1px solid var(--sl-border, #3a3a41); border-radius: 8px; }
+.find-rlist li { display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px; border-bottom: 1px solid var(--sl-border, #3a3a41); }
+.find-rlist li:last-child { border-bottom: 0; }
+.find-rlist li.is-unplaced { opacity: .6; }
+.find-rlist input[type="checkbox"] { margin-top: 3px; }
+.find-rlist .find-hit-ctx { white-space: normal; }
+.find-note { display: block; font-style: italic; opacity: .85; }
+.find-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.find-go, .find-cancel { height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--sl-border, #3a3a41); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.find-go { background: var(--sl-accent, #d4ff3a); color: #0a0a0a; border-color: transparent; font-weight: 600; }
+.find-go:disabled { opacity: .45; cursor: default; }
+
+/* Edit text in place: the run's editor and its font line */
+/* in place: no border or padding of its own (they would move the text); the dashed outline sits outside the box */
+.edit-run { position: absolute; box-sizing: border-box; margin: 0; padding: 0; border: 0; background: #fff; color: #000; outline: 1px dashed var(--sl-accent, #d4ff3a); outline-offset: 1px; z-index: 3; }
+.edit-info { position: absolute; z-index: 3; white-space: nowrap; padding: 3px 7px; border-radius: 6px; background: var(--sl-surface, #1d1d21); color: var(--sl-text, #f2f2f2); font: 11px/1.3 system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); pointer-events: none; }
+.viewer.edit-text .pv-page { cursor: text; }

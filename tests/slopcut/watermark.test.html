@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut watermark tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #app { width: 1280px; height: 760px; }</style>
+</head>
+<body>
+  <!-- The watermark module: off by default, shown in the monitor and in exports when turned on, saved with the project. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="slopedit.helpers.js"></script>
+  <script src="watermark.spec.js"></script>
+  <script>SlopTest.run({ name: 'SlopCut watermark' });</script>
+</body>
+</html>

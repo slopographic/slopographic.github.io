@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop Auto retouch</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <!-- Auto retouch on generated pictures, through the SlopCmd commands (the AI panel's, Ctrl+K's and the macros' way in):
+       a colour cast is neutralised, synthetic blemishes on skin are healed while a hard edge stays, an object brushed out
+       with the Remove Object tool is filled with the texture around it, a tilted horizon is levelled; each is one undo step.
+       Covers: photoslop/js/retouch/boot.js, photoslop/js/retouch/source.js, photoslop/js/retouch/enhance.js,
+       photoslop/js/retouch/portrait.js, photoslop/js/retouch/remove.js, shared/retouch/portrait.js, photoslop/js/retouch/tool.js,
+       photoslop/js/filters/enhance.js, photoslop/js/app/commands.js, photoslop/js/app/ai-tools.js, photoslop/js/ui/chrome.js,
+       shared/retouch/inpaint-worker.js, shared/retouch/patchmatch.js, shared/retouch/tone.js, shared/retouch/skin.js -->
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, win;
+  const scr = (x, y) => { const r = W.V.el.getBoundingClientRect(); return { x: r.left + W.V.ox + x * W.V.zoom, y: r.top + W.V.oy + y * W.V.zoom }; };
+  function ptr(type, x, y, opts = {}) {
+    W.V.el.dispatchEvent(new win.PointerEvent(type, Object.assign({ clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 7, pointerType: 'mouse', bubbles: true, cancelable: true }, opts)));
+  }
+  function drag(pts, opts) {
+    const a = scr(...pts[0]); ptr('pointerdown', a.x, a.y, opts);
+    for (const q of pts.slice(1)) { const b = scr(...q); ptr('pointermove', b.x, b.y, opts); }
+    const z = scr(...pts[pts.length - 1]); ptr('pointerup', z.x, z.y, opts);
+  }
+  /** The visible picture's pixels (all layers). */
+  const flat = () => { const c = W.flattenCanvas(); return { d: c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data, w: c.width }; };
+  const px = (F, x, y) => { const i = (y * F.w + x) * 4; return [F.d[i], F.d[i + 1], F.d[i + 2]]; };
+  const luma = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  /** A new document whose one picture layer is f(x, y) → [r, g, b]. */
+  function scene(name, w, h, f) {
+    W.newDocTab(w, h, '#ffffff', name); W.actualPixels(); W.selectTool('move');
+    const c = W.mkCanvas(w, h), g = c.getContext('2d'), img = g.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const [r, gg, b] = f(x, y), i = (y * w + x) * 4; img.data[i] = r; img.data[i + 1] = gg; img.data[i + 2] = b; img.data[i + 3] = 255; }
+    g.putImageData(img, 0, 0);
+    W.addLayer({ name: 'Photo', canvas: c }, 'Add Photo');
+  }
+  const exec = async (id, args) => { const r = await win.SlopCmd.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r.value; };
+
+  describe('PhotoSlop Auto retouch', () => {
+    it('boots with the retouch commands (argument schemas), the menus and the Remove Object tool', async () => {
+      ({ W, win } = await freshApp());
+      for (const id of ['ps.retouch.auto-enhance', 'ps.retouch.portrait', 'ps.retouch.remove-object', 'ps.retouch.straighten', 'ps.retouch.detect-tilt']) {
+        const c = win.SlopCmd.get(id);
+        expect(!!c).toBe(true);
+        expect(Array.isArray(c.args)).toBe(true);
+      }
+      expect(win.SlopCmd.get('ps.retouch.auto-enhance').tool).toBe('auto_enhance');
+      expect(win.SlopCmd.get('ps.retouch.dialog').title).toContain('Auto Retouch');
+      const filter = W.MENUS.find((m) => m[0] === 'Filter')[1], image = W.MENUS.find((m) => m[0] === 'Image')[1];
+      expect(filter.some((it) => it && it.label === 'Auto Retouch…')).toBe(true);
+      expect(image.some((it) => it && it.label === 'Straighten…')).toBe(true);
+      expect(filter.find((it) => it && it.label === 'Repair').sub.some((it) => it.label === 'Remove Object Tool')).toBe(true);
+      expect(W.TOOL.remove.key).toBe('J');
+      expect(!!win.document.querySelector('.tool[data-tool="remove"]')).toBe(true);
+    }, { timeout: 40000 });
+
+    it('auto enhance neutralises a blue cast (the grey patch ends grey), on a new layer, one undo step', async () => {
+      const cast = (r, g, b) => [r * 0.78, g, Math.min(255, b * 1.18)];
+      scene('Cast', 240, 160, (x, y) => {
+        const n = (rnd() - 0.5) * 6;
+        if (x < 80) return cast(120 + n, 120 + n, 120 + n);
+        if (x < 130) return cast(205, 205, 205);
+        return y < 80 ? cast(180, 70 + n, 55) : cast(60, 140 + n, 75);
+      });
+      const before = W.Hist.idx, n0 = W.D.layers.length, p0 = px(flat(), 40, 80);
+      expect(p0[2] - p0[0]).toBeGreaterThan(40);                 // the cast is there
+      const msg = await exec('ps.retouch.auto-enhance', { sharpen: 0, denoise: 'light' });
+      expect(msg).toContain('denoise light');
+      expect(msg).toContain('Auto Enhance');
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.D.layers.length).toBe(n0 + 1);
+      expect(W.activeLayer().name).toContain('Auto Enhance');
+      const g = []; const F = flat();
+      for (let y = 60; y < 100; y += 4) for (let x = 20; x < 60; x += 4) g.push(px(F, x, y));
+      const [r, gg, b] = [0, 1, 2].map((k) => mean(g.map((p) => p[k])));
+      expect(Math.abs(r - gg)).toBeLessThan(7);
+      expect(Math.abs(b - gg)).toBeLessThan(7);
+      W.undo();
+      expect(W.D.layers.length).toBe(n0);
+      expect(px(flat(), 40, 80)).toEqual(p0);
+    }, { timeout: 30000 });
+
+    it('portrait retouch heals synthetic blemishes on skin and keeps a hard edge, on masked layers, one undo step', async () => {
+      const spots = [[40, 40], [90, 60], [150, 45], [60, 130], [120, 150], [165, 110], [100, 100]];
+      scene('Skin', 260, 200, (x, y) => {
+        if (x >= 200) return [40, 40, 52];                       // dark background: the edge at x = 200
+        const n = (rnd() - 0.5) * 8; let r = 222 + n, g = 170 + n, b = 140 + n;
+        for (const [sx, sy] of spots) if (Math.hypot(x - sx, y - sy) <= 3) { r -= 50; g -= 65; b -= 60; }
+        return [r, g, b];
+      });
+      const before = W.Hist.idx, n0 = W.D.layers.length, F0 = flat();
+      for (const [sx, sy] of spots) expect(luma(px(F0, sx, sy))).toBeLessThan(130);
+      const msg = await exec('ps.retouch.portrait', { faces: 'off', subject: false, smoothing: 40 });
+      expect(W.Hist.idx).toBe(before + 1);
+      const names = W.D.layers.slice(n0).map((L) => L.name).join(', ');
+      expect(names).toContain('Blemishes');
+      expect(names).toContain('Skin Smoothing');
+      expect(W.D.layers.slice(n0).every((L) => !!L.mask)).toBe(true);
+      expect(msg).toContain('blemish');
+      const F = flat(), skin = [];
+      for (let y = 10; y < 190; y += 9) for (let x = 10; x < 190; x += 9) skin.push(luma(px(F, x, y)));
+      const ref = mean(skin);
+      for (const [sx, sy] of spots) expect(Math.abs(luma(px(F, sx, sy)) - ref)).toBeLessThan(14);
+      expect(luma(px(F, 196, 100))).toBeGreaterThan(150);          // the edge stays sharp
+      expect(luma(px(F, 203, 100))).toBeLessThan(60);
+      // the smoothing layer's mask is the skin, not the dark background
+      const sm = W.D.layers.find((L) => L.name.startsWith('Skin Smoothing')), md = sm.mask.canvas.getContext('2d').getImageData(0, 0, 260, 200).data;
+      expect(md[(100 * 260 + 100) * 4 + 3]).toBeGreaterThan(200);
+      expect(md[(100 * 260 + 230) * 4 + 3]).toBeLessThan(20);
+      W.undo();
+      expect(W.D.layers.length).toBe(n0);
+      expect(luma(px(flat(), 40, 40))).toBeLessThan(130);
+    }, { timeout: 30000 });
+
+    it('with faces (a stub detector, the opt-in on): red pupils are fixed and teeth whitened, each on its own layer', async () => {
+      const kps = [[90, 90], [150, 90], [120, 120], [100, 150], [140, 150]];
+      scene('Face', 240, 220, (x, y) => {
+        if ([kps[0], kps[1]].some(([ex, ey]) => Math.hypot(x - ex, y - ey) <= 6)) return [210, 25, 30];      // red pupils
+        if (Math.abs(x - 120) <= 14 && Math.abs(y - 150) <= 4) return [222, 205, 150];                         // yellowish teeth
+        return [224, 172, 140];
+      });
+      await W.psRetouch(); await W.rtFaceScripts();
+      win.SlopProfile.set('faces', 'detect', true);
+      win.SlopFaces.setBackend({ detect: async () => [{ x: 60, y: 50, w: 120, h: 140, score: 0.95, kps }] });
+      const n0 = W.D.layers.length, before = W.Hist.idx;
+      const msg = await exec('ps.retouch.portrait', { subject: false, teeth: 90, smoothing: 30 });
+      expect(W.Hist.idx).toBe(before + 1);
+      const names = W.D.layers.slice(n0).map((L) => L.name).join(', ');
+      expect(names).toContain('Red Eye');
+      expect(names).toContain('Teeth Whitening');
+      expect(msg).toContain('1 face');
+      const F = flat(), pupil = px(F, 90, 90), tooth = px(F, 120, 150);
+      expect(pupil[0]).toBeLessThan(110);
+      expect(tooth[2] - 150).toBeGreaterThan(20);           // less yellow
+      W.undo();
+      win.SlopFaces.setBackend(null); win.SlopProfile.set('faces', 'detect', false);
+    }, { timeout: 30000 });
+
+    it('the Remove Object tool fills a brushed-out object with the texture around it (no object colour left), one undo step', async () => {
+      scene('Remove', 300, 220, (x, y) => {
+        if (Math.hypot(x - 150, y - 110) <= 18) return [230, 30, 40];
+        const s = Math.floor((x + y) / 10) % 2, n = (rnd() - 0.5) * 10;
+        return s ? [70 + n, 150 + n, 80 + n] : [30 + n, 90 + n, 40 + n];
+      });
+      W.selectTool('remove'); W.T.remove.mode = 'brush'; W.T.remove.size = 46;
+      const before = W.Hist.idx;
+      drag([[140, 110], [150, 108], [160, 112]]);
+      await waitFor(() => W.Hist.idx === before + 1, { timeout: 30000 });
+      expect(W.activeLayer().name).toContain('Remove Object');
+      const F = flat(), inside = [];
+      let red = 0;
+      for (let y = 92; y <= 128; y++) for (let x = 132; x <= 168; x++) {
+        if (Math.hypot(x - 150, y - 110) > 18) continue;
+        const p = px(F, x, y); inside.push(luma(p));
+        if (p[0] > 150 && p[1] < 100) red++;
+      }
+      expect(red).toBe(0);
+      const m = mean(inside), sd = Math.sqrt(mean(inside.map((v) => (v - m) ** 2)));
+      expect(m).toBeGreaterThan(55); expect(m).toBeLessThan(140);   // the greens of the stripes, not red
+      expect(sd).toBeGreaterThan(8);                                // texture, not a flat smear
+      W.undo();
+      expect(px(flat(), 150, 110)).toEqual([230, 30, 40]);
+      W.selectTool('move');
+    }, { timeout: 40000 });
+
+    it('a big area asks: Fill on this device, or Edit with AI with your own key', async () => {
+      scene('Big', 200, 150, (x, y) => [100 + (x % 9) * 4, 120, 140]);
+      const m = W.mkCanvas(200, 150), g = m.getContext('2d'); g.fillRect(30, 20, 140, 110);
+      const p = W.psRetouch().then(() => W.rtRemoveObject(m, { ask: true }));
+      await waitFor(() => win.document.querySelector('.sui-dlg.rt-choice'), { timeout: 8000 });
+      const btns = [...win.document.querySelectorAll('.sui-dlg.rt-choice .sui-btn')].map((b) => b.textContent);
+      expect(btns).toContain('Fill on this device');
+      expect(btns.some((t) => /Edit with AI \(your key\)/.test(t))).toBe(true);
+      expect(win.document.querySelector('.sui-dlg.rt-choice').textContent).toContain('own API key');
+      [...win.document.querySelectorAll('.sui-dlg.rt-choice .sui-btn')].find((b) => b.textContent === 'Cancel').click();
+      expect(await p).toBe('');
+    });
+
+    it('straighten measures a tilted horizon and levels it (rotate and crop), one undo step', async () => {
+      const t = Math.tan((4 * Math.PI) / 180);
+      scene('Tilt', 320, 220, (x, y) => (y > 110 + t * (x - 160) ? [60, 90, 50] : [170, 200, 235]));
+      const v = await exec('ps.retouch.detect-tilt', {});
+      expect(v).toMatch(/Tilt (3\.[6-9]\d*|4(\.[0-4]\d*)?)°/);
+      const before = W.Hist.idx;
+      await exec('ps.retouch.straighten', {});
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.D.w).toBeLessThan(320);
+      expect(Math.abs(W.D.w / W.D.h - 320 / 220)).toBeLessThan(0.03);
+      const after = W.rtTilt(W.rtComposite());
+      expect(Math.abs(after.angle)).toBeLessThan(0.6);
+      W.undo();
+      expect(W.D.w).toBe(320);
+    }, { timeout: 30000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop Auto retouch' });
+  </script>
+</body>
+</html>

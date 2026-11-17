@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopSamples.media: sample tunes as WAV and a sample clip as WebM</title>
+</head>
+<body>
+  <script src="../../shared/samples/samples.js"></script>
+  <script src="../../shared/samples/media.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/samples/media.js, assets/samples/moon-landing.ogg
+  const { describe, it, expect } = SlopTest;
+  const M = SlopSamples.media;
+  /** The length a media element reports for a file. */
+  const lengthOf = (file, tag) => new Promise((resolve, reject) => {
+    const el = document.createElement(tag), url = URL.createObjectURL(file);
+    el.onloadedmetadata = () => { resolve(el.duration); URL.revokeObjectURL(url); };
+    el.onerror = () => reject(new Error('could not be read'));
+    el.src = url;
+  });
+  describe('SlopSamples.media', () => {
+    it('a melody is a valid 16-bit mono WAV of the asked length, named plainly', async () => {
+      const f = M.melody(2);
+      expect([f.name, f.type]).toEqual(['Sample morning chords.wav', 'audio/wav']);
+      const d = new DataView(await f.arrayBuffer()), tag = (o) => String.fromCharCode(...new Uint8Array(d.buffer, o, 4));
+      expect([tag(0), tag(8), tag(12), tag(36)]).toEqual(['RIFF', 'WAVE', 'fmt ', 'data']);
+      expect([d.getUint16(20, true), d.getUint16(22, true), d.getUint32(24, true), d.getUint16(34, true)]).toEqual([1, 1, 22050, 16]);
+      expect(d.getUint32(4, true)).toBe(f.size - 8);
+      expect(d.getUint32(40, true) / 2 / 22050).toBe(2);
+      let peak = 0;
+      for (let i = 44; i < f.size; i += 2) peak = Math.max(peak, Math.abs(d.getInt16(i, true)));
+      expect(peak > 8000 && peak < 32767).toBe(true); // audible, not clipped
+    });
+    it('the browser plays the melody for about as long as asked; three tunes, three names', async () => {
+      expect(Math.abs((await lengthOf(M.melody(3, { tune: 'night drive' }), 'audio')) - 3) < 0.05).toBe(true);
+      expect(M.melodies().map((f) => f.name)).toEqual(['Sample morning chords.wav', 'Sample night drive.wav', 'Sample little waltz.wav']);
+      expect(M.melody(1, { tune: 4 }).name).toBe('Sample night drive.wav');
+    });
+    it('a clip is a non-empty WebM whose length players know (or a still where MediaRecorder is missing)', async () => {
+      const f = await M.clip(1.2, { scene: 'sea', width: 160, height: 90, sound: false });
+      if (!window.MediaRecorder) { expect(f.name).toBe('Sample sea.jpg'); return; }
+      expect([f.name, f.type]).toEqual(['Sample sea.webm', 'video/webm']);
+      expect(f.size > 1000).toBe(true);
+      const dur = await lengthOf(f, 'video');
+      expect(isFinite(dur) && Math.abs(dur - 1.2) < 0.4).toBe(true);
+    });
+    it('withDuration writes the Duration into the Info; a file that is not WebM is left alone', () => {
+      // EBML header (empty), Segment (unknown size), Info { TimecodeScale 1000000 }, then a Cluster.
+      const b = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x80, 0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0x15, 0x49, 0xa9, 0x66, 0x87, 0x2a, 0xd7, 0xb1, 0x83, 0x0f, 0x42, 0x40, 0x1f, 0x43, 0xb6, 0x75, 0x80]);
+      const out = M.withDuration(b, 1500);
+      expect(out.length).toBe(b.length + 7 + 11);
+      const dv = new DataView(out.buffer);
+      expect(out[21]).toBe(1); // the Info size, now 8 bytes long
+      expect(dv.getUint32(25)).toBe(18);
+      expect([out[36], out[37], out[38], dv.getFloat64(39)]).toEqual([0x44, 0x89, 0x88, 1500]);
+      expect([...out.slice(-5)]).toEqual([0x1f, 0x43, 0xb6, 0x75, 0x80]);
+      expect(dv.getFloat64(39)).toBe(new DataView(M.withDuration(out, 900).buffer).getFloat64(39) + 600); // set in place the second time
+      expect(M.withDuration(new Uint8Array([1, 2, 3, 4, 5]), 10)).toBe(null);
+    });
+    it('the speech sample (NASA, public domain) is in assets/samples and the browser can read it', async () => {
+      const f = await SlopSamples.asset('moon-landing.ogg', 'Apollo 11 moon landing.ogg', 'audio/ogg');
+      expect(f.size).toBe(98702);
+      const dur = await lengthOf(f, 'audio');
+      expect(dur > 20 && dur < 30).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'SlopSamples.media' });
+  </script>
+</body>
+</html>

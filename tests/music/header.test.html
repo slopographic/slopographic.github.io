@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: the header (1440 and 390 wide)</title></head>
+<body>
+  <!-- Covers: music/index.html, music/css/music.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a frame of the given width, once the shell has put its buttons in the header. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${width}px;height:800px;border:0;display:block`;
+    f.src = '../../music/?t=' + Date.now();
+    document.body.append(f);
+    await waitFor(() => f.contentWindow.SlopMusic && f.contentDocument.querySelector('header .sh-switch') && f.contentDocument.querySelector('.mu-tools [data-sdl]'), { timeout: 15000 });
+    return f;
+  }
+  const box = (D, s) => D.querySelector(s).getBoundingClientRect();
+
+  describe('Slop Music header', () => {
+    it('has the brand home link and the app name', async () => {
+      const f = await open(1440), D = f.contentDocument;
+      const brand = D.querySelector('header.mu-top a.brand');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.querySelector('.brand-app')).toBeTruthy();
+      expect(D.querySelector('header h1').textContent).toBe('Slop Music');
+      f.remove();
+    });
+    it('draws Add files as a button at the height of the shell buttons, all on one row', async () => {
+      const f = await open(1440), D = f.contentDocument, W = f.contentWindow;
+      expect(W.getComputedStyle(D.getElementById('mu-add')).borderTopWidth).toBe('1px');
+      expect(W.getComputedStyle(D.getElementById('lib-search')).borderTopWidth).toBe('1px');
+      expect(box(D, '#mu-add').height).toBe(box(D, 'header .sh-switch').height);
+      expect(box(D, '#mu-add').top).toBe(box(D, 'header .sh-switch').top);
+      expect(box(D, 'header.mu-top').height).toBeLessThan(64);
+      f.remove();
+    });
+    it('fits 390px in two rows without sideways scroll', async () => {
+      const f = await open(390), D = f.contentDocument;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(box(D, 'header.mu-top').height).toBeLessThan(110);
+      expect(box(D, 'header .sn-bell').right).toBeLessThanOrEqual(390);
+      f.remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: header' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel drop strip layout tests</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; } #wide { width: 1280px; height: 800px; } #phone { width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <!-- The drop strip is part of the stage layout: it must sit beside the canvas, never over it, at desktop and phone widths. -->
+  <iframe id="wide" src="../../label/index.html"></iframe>
+  <iframe id="phone" src="../../label/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const boxOf = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
+  const bootFrame = async (id, width) => {
+    const frame = document.getElementById(id);
+    const win = frame.contentWindow;
+    await waitFor(() => win.document && win.document.body && win.document.body.classList.contains('ready'), { timeout: 30000 });
+    await waitFor(() => win.document.getElementById('lbDrop') && win.document.getElementById('lbDrop').querySelector('.sd-choose'), { timeout: 15000 });
+    // the phone frame sits below the fold: bring it into view so its layout and resize observer run, then let the canvas
+    // catch up with its stage area (the view resizes itself to the canvas area above the drop strip)
+    // the strip is hidden at rest (the stage takes drops); these checks are for when it shows the files being added
+    win.document.querySelector('#lbDrop .sd-status').textContent = 'Added 1 file';
+    frame.scrollIntoView({ block: 'start' });
+    await waitFor(() => win.document.getElementById('cv').getBoundingClientRect().bottom <= win.document.getElementById('lbDrop').getBoundingClientRect().top + 0.5, { timeout: 10000 });
+    return { win, doc: win.document, width };
+  };
+  const frames = {};
+  const layoutCase = (label, id, width) => describe(`drop strip at ${label}`, () => {
+    it(`does not overlap the label canvas at ${label}`, async () => {
+      const f = frames[id] || (frames[id] = await bootFrame(id, width));
+      const strip = f.doc.getElementById('lbDrop'), cv = f.doc.getElementById('cv');
+      expect(strip.getBoundingClientRect().height > 0).toBe(true);
+      expect(overlaps(boxOf(strip), boxOf(cv))).toBe(false);
+    }, { timeout: 40000 });
+    it(`keeps the drop strip inside the viewport width at ${label}`, async () => {
+      const f = frames[id] || (frames[id] = await bootFrame(id, width));
+      const strip = boxOf(f.doc.getElementById('lbDrop'));
+      expect(strip.left >= 0).toBe(true);
+      expect(strip.right <= f.win.innerWidth).toBe(true);
+    }, { timeout: 40000 });
+    it(`keeps the drop strip in the stage column, not absolutely positioned, at ${label}`, async () => {
+      const f = frames[id] || (frames[id] = await bootFrame(id, width));
+      const strip = f.doc.getElementById('lbDrop');
+      expect(f.win.getComputedStyle(strip).position).not.toBe('absolute');
+      expect(strip.parentElement.id).toBe('stage');
+    }, { timeout: 40000 });
+  });
+  layoutCase('1280 px', 'wide', 1280);
+  layoutCase('390 px', 'phone', 390);
+  </script>
+  <script>SlopTest.run({ name: 'SlopLabel drop strip' });</script>
+</body>
+</html>

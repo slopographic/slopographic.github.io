@@ -1,0 +1,22 @@
+/* Slop Press, Japanese: the menu titles and the submenus of the top bar. Same keys as press/i18n/en/menus.js. Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'press.menu.layout': 'レイアウト',
+  'press.menu.type': '文字',
+  'press.menu.object': 'オブジェクト',
+  'press.menu.window': 'ウィンドウ',
+  'press.menu.tools': 'ツール',
+  'press.menu.styles': 'スタイル',
+  'press.menu.send_to': '送る',
+  'press.menu.pages': 'ページ',
+  'press.menu.para_style': '段落スタイル',
+  'press.menu.char_style': '文字スタイル',
+  'press.menu.alignment': '配置',
+  'press.menu.special_char': '特殊文字を挿入',
+  'press.menu.composer': 'コンポーザー',
+  'press.menu.arrange': '重ね順',
+  'press.menu.fitting': '合わせ方',
+  'press.menu.text_wrap': 'テキストの回り込み',
+  'press.menu.theme': 'テーマ',
+  'press.menu.hub_unavailable': 'Slop Hub は利用できません',
+  'press.menu.none': '（なし）',
+});

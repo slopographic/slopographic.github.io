@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Upscale: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: upscale/js/app/main.js, upscale/js/app/output.js, upscale/js/app/drive.js
+  // Slop Upscale on the one intake: Open, the zone's Choose files, a drop on the stage, a paste, Open from Slop Drive,
+  // ?drive=<id> (launch), the sample and controller.open all reach the same reader (one file at a time) with the same
+  // events, and the first-use notice is the intake's, once per batch whichever source.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], notices = 0, events = [];
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = '../../upscale/index.html';
+    // SlopIntake is there before intake.js has given it spec(): ask only once it has
+    await waitFor(() => { try { return fr.contentWindow.SlopIntake.spec('upscale') && fr.contentWindow.document.querySelector('#up-drop .sd-choose'); } catch (e) { return false; } }, { timeout: 20000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('upscale'), reader = s.process;
+    s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+    W.SlopFirstRun = { once: async (id) => { expect(id).toBe('upscale'); notices++; return true; } };
+    for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+  }
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 40; c.height = 30;
+    c.getContext('2d').fillRect(0, 0, 40, 30);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const openName = () => (W.SlopUpscale.app.S.item || {}).name;
+  /** One source: the file reaches the reader once, with one notice and the events in order, and is the open item. */
+  async function through(source, start, name) {
+    seen = []; events = []; notices = 0;
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual([source]);
+    expect(events.map((e) => e[0])).toEqual(['before', 'file', 'after']);
+    expect(events.every((e) => e[1] === 'upscale' && e[2] === source)).toBe(true);
+    expect(notices).toBe(1);
+    if (name) expect(openName()).toBe(name);
+  }
+
+  describe('Slop Upscale: one way in', () => {
+    it('Open', async () => {
+      await boot();
+      const f = await png('a.png');
+      W.SlopUI.pickFiles = async () => [f];
+      await through('picker', () => D.getElementById('up-open').click(), 'a.png');
+    }, { timeout: 40000 });
+    it("the zone's Choose files takes several: each one joins the list, the last is shown", async () => {
+      const files = [await png('b.png'), await png('c.png')], before = W.SlopUpscale.app.S.items.length;
+      seen = []; events = [];
+      const i = D.querySelector('#up-drop input[type=file]'); i.files = dtOf(files).files; i.dispatchEvent(new W.Event('change'));
+      await waitFor(() => events.some((e) => e[0] === 'after'));
+      expect(seen).toEqual(['picker', 'picker']);
+      expect(W.SlopUpscale.app.S.items.length).toBe(before + 2);
+      expect(openName()).toBe('c.png');
+    });
+    it('a drop on the stage', async () => {
+      const f = await png('d.png');
+      await through('drop', () => D.getElementById('up-stage-wrap').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([f]) })), 'd.png');
+    });
+    it('a paste', async () => {
+      const f = await png('e.png');
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([f]) })), 'e.png');
+    });
+    it('Open from Slop Drive (the result keeps the Drive link)', async () => {
+      const blob = await png('drive.png');
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'drive.png', type: 'image/png', blob });
+      await through('drive', () => D.getElementById('up-drive').click(), 'drive.png');
+      expect(W.SlopUpscale.app.S.item.drive).toBe('x1');
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      const blob = await png('sent.png');
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x2', name: 'sent.png', type: 'image/png', blob });
+      await through('launch', () => W.SlopIntake.launch({ to: 'upscale' }), 'sent.png');
+    });
+    it('controller.open (the app API)', async () => {
+      const f = await png('api.png');
+      await through('api', () => W.SlopUpscale.controller.open(f), 'api.png');
+    });
+    it('the sample', async () => {
+      W.SlopUpscale.controller.clear();
+      const b = await waitFor(() => D.querySelector('#up-drop .sd-sample'));
+      await through('sample', () => b.click());
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Upscale' });
+</script>
+</body>
+</html>

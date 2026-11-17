@@ -1,0 +1,23 @@
+/* Shared components, es: the names of the kinds of text shared/patterns finds. Same keys as shared/i18n/ui/en/patterns.js. */
+window.SlopI18n && window.SlopI18n.add('es', {
+  'ui.patterns.ipv4': 'Dirección IPv4',
+  'ui.patterns.ipv6': 'Dirección IPv6',
+  'ui.patterns.mac': 'Dirección MAC',
+  'ui.patterns.email': 'Dirección de correo electrónico',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'ID de clave de acceso de AWS',
+  'ui.patterns.aws_secret': 'Clave secreta de AWS',
+  'ui.patterns.github_token': 'Token de GitHub',
+  'ui.patterns.slack_token': 'Token de Slack',
+  'ui.patterns.stripe_key': 'Clave de Stripe',
+  'ui.patterns.google_api_key': 'Clave de API de Google',
+  'ui.patterns.private_key': 'Clave privada',
+  'ui.patterns.bearer': 'Token Bearer',
+  'ui.patterns.basic_auth_url': 'Contraseña en la URL',
+  'ui.patterns.secret_assignment': 'Asignación de un secreto',
+  'ui.patterns.hash': 'Hash (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Número de tarjeta de crédito',
+  'ui.patterns.iban': 'IBAN',
+});

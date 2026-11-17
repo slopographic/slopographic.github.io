@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Expenses: record, list, void, copy, summary and CSV</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/biz/router.js, expenses/js/ui/app.js, expenses/js/ui/list.js, expenses/js/ui/editor.js, expenses/js/ui/summary.js, expenses/js/ui/commands.js, shared/biz/biz.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const set = (id, v) => { const e = $(id); e.value = v; e.dispatchEvent(new W.Event('input', { bubbles: true })); e.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const rows = () => [...D.querySelectorAll('#xRows .sl-row')];
+  async function boot(hash = '') {
+    const f = document.getElementById('app');
+    f.src = '../../expenses/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopExpenses && f.contentWindow.SlopExpenses.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  async function newExpense(o) {
+    W.SlopExpenses.app.go('new');
+    await waitFor(() => !$('view-edit').hidden && !$('eForm').hidden && $('eAccount').options.length > 1);
+    set('eSupplier', o.supplier); set('eDescription', o.description || ''); set('eRate', o.rate || '0'); set('eAmount', o.amount);
+    if (o.method) set('eMethod', o.method);
+  }
+
+  describe('Slop Expenses', () => {
+    it('opens with an empty list (fresh data)', async () => {
+      await boot();
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      await boot('#list');
+      await waitFor(() => $('xSummary').textContent === '0 expenses');
+      expect(D.querySelector('#xRows .sl-empty').hidden).toBe(false);
+      expect($('tab-edit').hidden).toBe(true);
+    });
+    it('the tax fills in from the rate; Record posts the expense and opens it, read only', async () => {
+      await newExpense({ supplier: 'City Taxi', description: 'Airport', rate: '20', amount: '24.00', method: 'card' });
+      expect($('eTax').value).toBe('4.00');
+      $('eRecord').click();
+      await waitFor(() => location.hash === '' && W.location.hash.startsWith('#e/') && !$('eView').hidden && $('eView').textContent.includes('City Taxi'));
+      expect($('eView').textContent).toContain('Recorded in the books');
+      expect($('eVoid').hidden).toBe(false);
+      expect($('eRecord').hidden).toBe(true);
+      const t = await W.SlopData.ledger.trialBalance();
+      expect(t.value.rows.find((r) => r.code === '5000').balance).toBe(2000);
+    });
+    it('a wrong amount is refused in plain words and nothing is recorded', async () => {
+      await newExpense({ supplier: 'Bad', amount: 'abc' });
+      $('eRecord').click();
+      await waitFor(() => $('eMsg').textContent.includes('Amount'));
+      expect($('eMsg').classList.contains('bad')).toBe(true);
+      expect((await W.SlopData.store.list('expenses')).value.length).toBe(1);
+    });
+    it('the list shows the expense with its amount, category and the total; the menu voids it', async () => {
+      W.SlopExpenses.app.go('list');
+      await waitFor(() => rows().length === 1);
+      expect(rows()[0].querySelector('.sl-title').textContent).toBe('City Taxi · Airport');
+      expect($('xTotal').textContent).toContain('24.00');
+      W.SlopUI.confirm = async () => true;
+      await W.SlopExpenses.listView.voidOne((await W.SlopData.store.list('expenses')).value[0]);
+      await waitFor(() => rows().length === 1 && rows()[0].classList.contains('is-void'));
+      expect(rows()[0].querySelector('.sl-chip.void').textContent).toBe('Void');
+      const t = await W.SlopData.ledger.trialBalance();
+      expect(t.value.rows.find((r) => r.code === '5000').balance).toBe(0);
+    });
+    it('a copy keeps the details with today\'s date; a new category is added to the chart', async () => {
+      const first = (await W.SlopData.store.list('expenses')).value[0];
+      W.SlopExpenses.app.go('new/' + first.id);
+      await waitFor(() => $('eSupplier').value === 'City Taxi' && $('eAmount').value === '24.00');
+      W.SlopUI.prompt = async () => 'Travel';
+      set('eAccount', '+');
+      await waitFor(() => [...$('eAccount').options].some((o) => o.textContent.includes('Travel') && o.selected));
+      $('eRecord').click();
+      await waitFor(() => W.location.hash.startsWith('#e/') && $('eView').textContent.includes('Travel'));
+      const acct = (await W.SlopData.store.get('accounts', $('eAccount').value)).value;
+      expect(acct.type).toBe('expense');
+    });
+    it('the summary shows this month\'s and this year\'s spend and the tax; the CSV holds every expense', async () => {
+      W.SlopExpenses.app.go('summary');
+      await waitFor(() => D.querySelectorAll('#sStats .stat').length === 3 && D.querySelectorAll('#sMonths tr').length === 1);
+      expect(D.querySelector('#sStats .stat b').textContent).toContain('24.00');
+      expect(D.querySelector('#sMonths tr').textContent).toContain('Travel');
+      let saved = null;
+      W.SlopUI.download = (blob, name) => { saved = { blob, name }; };
+      $('sCsv').click();
+      await waitFor(() => saved);
+      const text = await saved.blob.text();
+      expect(saved.name.startsWith('expenses-')).toBe(true);
+      expect(text.trim().split('\r\n').length).toBe(3);
+      expect(text).toContain('void');
+    });
+  });
+
+  const contrast = SlopTest.contrast;
+  describe('Slop Expenses: the site theme', () => {
+    it('in every theme, the form text and the list text read on their backgrounds (contrast 4.5 or more)', async () => {
+      for (const theme of ['light', 'dark', 'classic', 'lime']) {
+        W.SlopTheme.apply(theme);
+        W.SlopExpenses.app.go('new');
+        await waitFor(() => !$('eForm').hidden);
+        set('eSupplier', 'Contrast check');
+        const cs = W.getComputedStyle($('eSupplier'));
+        const fill = cs.webkitTextFillColor || cs.color;
+        expect(contrast(fill, cs.backgroundColor) >= 4.5).toBe(true, theme + ': input ' + fill + ' on ' + cs.backgroundColor);
+        const body = W.getComputedStyle(D.body);
+        expect(contrast(body.color, body.backgroundColor) >= 4.5).toBe(true, theme + ': page ' + body.color + ' on ' + body.backgroundColor);
+      }
+    });
+  });
+
+  run({ name: 'Slop Expenses' });
+  </script>
+</body>
+</html>

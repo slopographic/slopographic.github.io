@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: ?to= picks the format once the files allow it</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/ui/route.js
+import { pngOf } from './fixtures.js';
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+
+async function openHub(search) {
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:1024px;height:900px;border:0;display:block';
+  frame.src = '../../convert/index.html' + search;
+  document.body.append(frame);
+  await new Promise((r) => frame.addEventListener('load', r, { once: true }));
+  const doc = frame.contentDocument, win = frame.contentWindow;
+  await waitFor(() => doc.querySelector('[data-convert-root]') && doc.querySelector('[data-convert-root]').convertTool && doc.getElementById('cv-drop'));
+  const add = async (name) => {
+    const blob = await pngOf(8, 8);
+    await doc.querySelector('[data-convert-root]').convertTool.addFiles([new win.File([await blob.arrayBuffer()], name, { type: 'image/png' })]);
+    await sleep(50);
+  };
+  return { doc, win, add, target: () => doc.querySelector('[data-convert-root]').convertTool.target, close: () => frame.remove() };
+}
+
+describe('?to= from a task page link', () => {
+  it('waits for files: the format is picked when a PNG makes it available', async () => {
+    const hub = await openHub('?to=to-ico');
+    try {
+      expect(hub.target()).toBe('');
+      await hub.add('a.png');
+      await waitFor(() => hub.target() === 'to-ico');
+      expect(hub.win.location.search).toContain('to=to-ico');
+    } finally { hub.close(); }
+  }, { timeout: 30000 });
+  it('a format the files do not allow is ignored', async () => {
+    const hub = await openHub('?to=pdf-to-docx');
+    try {
+      await hub.add('a.png');
+      expect(hub.target()).not.toBe('pdf-to-docx');
+      expect(hub.target()).toBeTruthy();
+    } finally { hub.close(); }
+  }, { timeout: 30000 });
+});
+SlopTest.run({ name: 'File convert: ?to= link' });
+</script>
+</body>
+</html>

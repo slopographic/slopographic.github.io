@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs model: editing ops and Markdown</title></head>
+<body>
+<script src="../harness.js"></script>
+<script type="module">
+import * as O from '../../docs/js/model/ops.js';
+import { para, paraText, newDoc, normalizeDoc } from '../../docs/js/model/doc.js';
+import * as SD from '../../docs/js/io/sdoc.js';
+const { describe, it, expect } = SlopTest;
+const P = (t, extra) => Object.assign(para(t), extra || {});
+const at = (b, o) => ({ b, o });
+const cur = (b, o) => ({ a: at(b, o), f: at(b, o) });
+const texts = (blocks) => blocks.map((b) => (b.type === 'p' ? paraText(b) : '[' + b.type + ']'));
+
+describe('typing and Enter', () => {
+  it('inserts text at the caret and moves the caret after it', () => {
+    const r = O.replaceText([P('ab')], cur(0, 1), 'X');
+    expect(texts(r.blocks)).toEqual(['aXb']);
+    expect(r.pos).toEqual(at(0, 2));
+  });
+  it('replaces a selection', () => {
+    const r = O.replaceText([P('hello world')], { a: at(0, 6), f: at(0, 11) }, 'there');
+    expect(texts(r.blocks)).toEqual(['hello there']);
+    expect(r.pos).toEqual(at(0, 11));
+  });
+  it('splits the paragraph on a newline and keeps the style of both halves', () => {
+    const r = O.replaceText([P('Title text', { style: 'H1' })], cur(0, 5), '\n');
+    expect(texts(r.blocks)).toEqual(['Title', ' text']);
+    expect(r.blocks[0].style).toBe('H1');
+    expect(r.blocks[1].style).toBe('H1');
+    expect(r.pos).toEqual(at(1, 0));
+  });
+  it('starts Normal text after Enter at the end of a heading', () => {
+    const r = O.replaceText([P('Heading', { style: 'H1' })], cur(0, 7), '\n');
+    expect(r.blocks[1].style).toBe('Normal');
+  });
+  it('keeps list membership when Enter splits a list item', () => {
+    const r = O.replaceText([P('one', { props: { list: { id: 'bul', lvl: 0 } } })], cur(0, 3), '\n');
+    expect(r.blocks[1].props.list.id).toBe('bul');
+  });
+  it('gives every paragraph a new id on Enter', () => {
+    const r = O.replaceText([P('ab')], cur(0, 1), '\n');
+    expect(r.blocks[0].id).not.toBe(r.blocks[1].id);
+  });
+});
+
+describe('deleting', () => {
+  it('Backspace removes the character before the caret', () => {
+    const r = O.deleteBackward([P('abc')], cur(0, 2));
+    expect(texts(r.blocks)).toEqual(['ac']);
+    expect(r.pos).toEqual(at(0, 1));
+  });
+  it('Backspace at the start of a paragraph joins it to the one above', () => {
+    const r = O.deleteBackward([P('one'), P('two')], cur(1, 0));
+    expect(texts(r.blocks)).toEqual(['onetwo']);
+    expect(r.pos).toEqual(at(0, 3));
+  });
+  it('Backspace at the start of a list item removes the list first', () => {
+    const r = O.deleteBackward([P('one'), P('two', { props: { list: { id: 'num', lvl: 0 } } })], cur(1, 0));
+    expect(texts(r.blocks)).toEqual(['one', 'two']);
+    expect(r.blocks[1].props.list).toBeFalsy();
+  });
+  it('Delete at the end of a paragraph joins the next one', () => {
+    const r = O.deleteForward([P('one'), P('two')], cur(0, 3));
+    expect(texts(r.blocks)).toEqual(['onetwo']);
+  });
+  it('removes a whole surrogate pair (an emoji) in one Backspace', () => {
+    const r = O.deleteBackward([P('a😀b')], cur(0, 3));
+    expect(texts(r.blocks)).toEqual(['ab']);
+  });
+  it('deletes a selection across paragraphs and merges the ends', () => {
+    const r = O.replaceText([P('one'), P('two'), P('three')], { a: at(0, 1), f: at(2, 2) }, '');
+    expect(texts(r.blocks)).toEqual(['oree']);
+    expect(r.pos).toEqual(at(0, 1));
+  });
+  it('keeps tables that sit between the ends of a deleted range', () => {
+    const table = { type: 'table', id: 't1', cols: [468], rows: [], border: null };
+    const r = O.replaceText([P('a'), table, P('b')], { a: at(0, 0), f: at(2, 0) }, '');
+    expect(texts(r.blocks)).toEqual(['b', '[table]']);
+  });
+});
+
+describe('marks', () => {
+  it('bolds part of a run by splitting it, then merges the runs back when unbolded', () => {
+    let b = [P('abcdef')];
+    b = O.setMarks(b, { a: at(0, 2), f: at(0, 4) }, { b: true });
+    expect(b[0].runs.length).toBe(3);
+    expect(b[0].runs[1]).toEqual({ text: 'cd', b: true });
+    b = O.setMarks(b, { a: at(0, 0), f: at(0, 6) }, { b: null });
+    expect(b[0].runs.length).toBe(1);
+    expect(b[0].runs[0].b).toBeFalsy();
+    expect(paraText(b[0])).toBe('abcdef');
+  });
+  it('reports the marks before the caret for typing', () => {
+    const b = [P('x', { })];
+    const bold = O.setMarks([P('ab')], { a: at(0, 0), f: at(0, 2) }, { b: true });
+    expect(O.marksAt(bold[0], 2).b).toBeTruthy();
+    expect(O.marksAt(b[0], 1).b).toBeFalsy();
+  });
+  it('leaves the blocks alone when the caret is collapsed', () => {
+    const b = [P('')];
+    const out = O.setMarks(b, { a: at(0, 0), f: at(0, 0) }, { b: true });
+    expect(out).toBe(b);
+  });
+  it('clears every mark over a selection', () => {
+    const b = O.setMarks([P('abc', { })], { a: at(0, 0), f: at(0, 3) }, { b: true, i: true, size: 20, font: 'Arimo' });
+    const c = O.setMarks(b, { a: at(0, 0), f: at(0, 3) }, O.CLEAR_MARKS);
+    expect(c[0].runs[0]).toEqual({ text: 'abc' });
+  });
+  it('applies a mark to a multi-line selection without touching the paragraphs outside it', () => {
+    const b = [P('one'), P('two'), P('three')];
+    const out = O.setMarks(b, { a: at(0, 1), f: at(1, 2) }, { i: true });
+    expect(out[2]).toBe(b[2]);
+    expect(out[0].runs.map((r) => r.text)).toEqual(['o', 'ne']);
+    expect(out[0].runs[1].i).toBeTruthy();
+  });
+});
+
+describe('lists, styles and words', () => {
+  it('toggles a list on every selected paragraph, then off', () => {
+    const b = [P('a'), P('b'), P('c')];
+    const on = O.toggleList(b, { a: at(0, 0), f: at(1, 1) }, 'bul');
+    expect(on[0].props.list.id).toBe('bul');
+    expect(on[1].props.list.id).toBe('bul');
+    expect(on[2].props.list).toBeFalsy();
+    const off = O.toggleList(on, { a: at(0, 0), f: at(1, 1) }, 'bul');
+    expect(off[0].props.list).toBeFalsy();
+  });
+  it('moves by word', () => {
+    expect(O.wordLeft('one two, three', 9)).toBe(4);
+    expect(O.wordRight('one two, three', 0)).toBe(3);
+    expect(O.wordAt('one two', 5)).toEqual({ s: 4, e: 7 });
+  });
+  it('gives the text between two positions across paragraphs', () => {
+    expect(O.textBetween([P('one'), P('two')], { a: at(0, 1), f: at(1, 2) })).toBe('ne\ntw');
+  });
+  it('orders and compares positions', () => {
+    expect(O.ordered({ a: at(1, 0), f: at(0, 5) })[0]).toEqual(at(0, 5));
+    expect(O.collapsed(cur(2, 2))).toBeTruthy();
+  });
+});
+
+describe('.sdoc and Markdown', () => {
+  it('reads an .sdoc back into the same text', async () => {
+    const d = newDoc();
+    d.blocks = [P('Saved '), P('twice')];
+    d.blocks[0].runs = [{ text: 'Saved', b: true }, { text: ' ' }];
+    const blob = SD.sdocBlob(d);
+    expect(blob.type).toBe('application/x-slop-doc');
+    const back = SD.readSdoc(await blob.text());
+    expect(back.blocks.map(paraText)).toEqual(['Saved ', 'twice']);
+    expect(back.blocks[0].runs[0].b).toBeTruthy();
+  });
+  it('rejects text that is not a document', () => {
+    expect(() => SD.readSdoc('{"a":1}')).toThrow(/Not a Slop Docs file/);
+    expect(() => SD.readSdoc('not json')).toThrow(/JSON/);
+  });
+  it('imports Markdown headings, lists, quotes and inline marks', () => {
+    const d = SD.fromMarkdown('# Head\n\nA **bold** and *it* word.\n\n- one\n- two\n\n1. first\n\n> quoted\n');
+    expect(d.blocks.map(paraText)).toEqual(['Head', 'A bold and it word.', 'one', 'two', 'first', 'quoted']);
+    expect(d.blocks[0].style).toBe('H1');
+    expect(d.blocks[1].runs.some((r) => r.b && r.text === 'bold')).toBeTruthy();
+    expect(d.blocks[1].runs.some((r) => r.i && r.text === 'it')).toBeTruthy();
+    expect(d.blocks[2].props.list.id).toBe('bul');
+    expect(d.blocks[4].props.list.id).toBe('num');
+    expect(d.blocks[5].style).toBe('Quote');
+  });
+  it('exports Markdown that imports back to the same text', () => {
+    const md = '## Plan\n\n- ship it\n- test it\n\nSome **strong** text.\n';
+    const back = SD.fromMarkdown(SD.toMarkdown(SD.fromMarkdown(md)));
+    expect(back.blocks.map(paraText)).toEqual(['Plan', 'ship it', 'test it', 'Some strong text.']);
+  });
+  it('exports plain text one line per paragraph', () => {
+    expect(SD.toText(SD.fromText('a\nb\r\nc'))).toBe('a\nb\nc');
+  });
+  it('normalises a document that has no trailing paragraph', () => {
+    const d = normalizeDoc({ blocks: [{ type: 'table', id: 't', cols: [468], rows: [{ cells: [{ blocks: [] }] }] }] });
+    expect(d.blocks[d.blocks.length - 1].type).toBe('p');
+  });
+});
+SlopTest.run({ name: 'Slop Docs model' });
+</script>
+</body>
+</html>

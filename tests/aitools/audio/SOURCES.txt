@@ -1,0 +1,13 @@
+Speech clips for tests/aitools/whisper-real.test.html. Both are public domain (LibriVox recordings are dedicated to the
+public domain: https://librivox.org/pages/public-domain/ ; archive.org lists them under
+http://creativecommons.org/licenses/publicdomain/), and the texts are out of copyright.
+
+dickinson-en.ogg  The first 24 s of "Because I Could Not Stop For Death" by Emily Dickinson, from LibriVox
+                  "Short Poetry Collection 001": https://archive.org/details/short_poetry_001_librivox
+                  (because_I_could_not_stop_for_death_dickinson_64kb.mp3). English.
+nyblom-sv.ogg     14 s from 0:29 of "Ja och Nej" by Helena Nyblom, read by Lars Rolander, LibriVox:
+                  https://archive.org/details/ja_och_nej_0903_librivox (jaochnej_01_nyblom_64kb.mp3). Swedish:
+                  "Det var en gång en man och en hustru som hade fullt upp av allt gott, gårdar och gruvor och rykande
+                  smedjor. Mannen hette Rolf, och på grund av hans rikedomar kallades han vanligtvis för rike Rolf."
+
+Both were cut and re-encoded to 16 kHz mono Opus at 24 kbit/s with FFmpeg 7.0.2 (no other change).

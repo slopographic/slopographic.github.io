@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop saved view</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const isReady = (w) => w && w.document.body && w.document.body.classList.contains('ready');
+  /** Load a page in the iframe and wait until PhotoSlop has booted (body.ready). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('photoslop');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || isReady(f.contentWindow)), { timeout: 20000 });
+    return f.contentWindow;
+  }
+
+  describe('PhotoSlop saved view', () => {
+    it('keeps the zoom and hidden panels after leaving for Slop Drive and coming back', async () => {
+      // Start from an empty PhotoSlop store: tabs left by earlier runs would also count as unsaved work.
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slopshop'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../photoslop/index.html');
+      await W.autosave();
+      W.eval('D.dirty = false'); // saved to this device just now, so the leave-page prompt does not hold the navigation
+      W.setZoom(2);
+      W.dirty();
+      W.document.body.classList.add('no-panels');
+      await sleep(400);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../photoslop/index.html');
+      await waitFor(() => W.eval('typeof V') === 'object');
+      expect(W.eval('V.zoom')).toBeCloseTo(2, 1e-6);
+      expect(W.document.body.classList.contains('no-panels')).toBe(true);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'PhotoSlop · saved view' });
+  </script>
+</body>
+</html>

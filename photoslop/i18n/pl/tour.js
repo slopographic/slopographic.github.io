@@ -1,0 +1,20 @@
+/* PhotoSlop, Polish: the guided tour. Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-pl.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'photoslop.tour.title': 'Przewodnik po PhotoSlop',
+  'photoslop.tour.new_title': 'Rozpocznij plik',
+  'photoslop.tour.new_text': 'Nowy ustawia rozmiar, ustawienie wstępne i tło dokumentu (w menu Więcej ▾ przy wąskim oknie); Otwórz wczytuje PSD, ORA lub obraz. Każdy plik dostaje kartę.',
+  'photoslop.tour.menus_title': 'Pasek menu',
+  'photoslop.tour.menus_text': 'Plik, Edycja, Obraz, Warstwa, Zaznaczenie i Filtr są tutaj. Każde menu zawiera swoje polecenia.',
+  'photoslop.tour.tools_title': 'Narzędzia',
+  'photoslop.tour.tools_text': 'Pędzle, zaznaczanie, tekst i kadrowanie są w przyborniku. Wybierz jedno, a potem ustaw je na pasku opcji.',
+  'photoslop.tour.options_title': 'Opcje narzędzia',
+  'photoslop.tour.options_text': 'Pasek opcji zmienia się wraz z aktywnym narzędziem: rozmiar, krycie, tryb mieszania i więcej.',
+  'photoslop.tour.canvas_title': 'Płótno',
+  'photoslop.tour.canvas_text': 'Maluj, zaznaczaj i przekształcaj na płótnie. Pasek stanu pokazuje powiększenie i rozmiar.',
+  'photoslop.tour.panels_title': 'Warstwy i panele',
+  'photoslop.tour.panels_text': 'Warstwy, historia i właściwości są w tej kolumnie. Na telefonie pokazuje je przycisk Warstwy.',
+  'photoslop.tour.export_title': 'Eksport',
+  'photoslop.tour.export_text': 'Eksportuj PNG, JPEG, WebP lub PSD. Plik powstaje na Twoim urządzeniu; nic nie jest przesyłane.',
+  'photoslop.tour.theme_title': 'Motyw',
+  'photoslop.tour.theme_text': 'Przełączaj się między Pro, Jasnym i Paint ’98.',
+});

@@ -1,0 +1,22 @@
+/* SEO copy, sv: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'seo.task.code.open-filemaker-file.crumb': 'Öppna en FileMaker-fil',
+  'seo.task.code.open-filemaker-file.title': 'Öppna FileMaker-fil online: visa tabeller i .fmp12 och .fp7',
+  'seo.task.code.open-filemaker-file.description': 'Öppna en FileMaker-databas (.fmp12, .fp7, .fp5, .fp3) i webbläsaren och läs tabellerna utan FileMaker. Sök, exportera till CSV eller JSON. Ingen uppladdning.',
+  'seo.task.code.open-filemaker-file.h1': 'Öppna en FileMaker-fil online',
+  'seo.task.code.open-filemaker-file.lead': 'En FileMaker-fil innehåller tabeller med poster, och vanligtvis behöver man FileMaker för att se dem. Släpp filen på Slop Code så öppnas tabellerna som ett rutnät du kan rulla, söka i och exportera, utan att installera något.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Öppna Slop Code och släpp filen .fmp12, .fp7, .fp5 eller .fp3 på sidan, eller välj den från Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'Filen öppnas som ett skrivskyddat rutnät. Välj en tabell i listan: raderna läses in medan du rullar, så även en stor fil går snabbt.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Sök i tabellen med sökrutan, eller välj en sorts text (en IP-adress, en e-postadress, en nyckel) för att hoppa till nästa rad som innehåller en.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Välj Exportera för att spara tabellen som CSV eller JSON, eller öppna den i en annan app.',
+  'seo.task.code.open-filemaker-file.body.0': 'Sidan läser filformatet själv: filer från FileMaker Pro 3 till 6 (.fp3, .fp5, .fmp), Pro 7 till 12 (.fp7, .fmp12) och den tabellexport som FileMaker skriver (.fmpxml). Läsaren är en JavaScript-portning av öppen källkod-verktyget fmptools.',
+  'seo.task.code.open-filemaker-file.body.1': 'Du ser tabellerna, kolumnnamnen och posterna. Bilder och filer i behållarfält, layouter, skript, relationer och värdelistor läses inte, och en krypterad fil måste först öppnas i FileMaker.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'Behöver jag FileMaker för att öppna filen?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'Nej. Sidan läser filen i webbläsaren och visar tabeller och rader. Den kör inte databasen eller dess skript.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'Laddas min fil upp?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'Nej. Filen läses på den här enheten och ingenting skickas till Slopographic eller någon annan.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'Kan jag ändra data?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'Nej. Filen visas skrivskyddad och ändras aldrig. Exportera en tabell som CSV eller JSON för att arbeta med datan i en annan app.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'Vilka FileMaker-filer kan den öppna?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'Filer från FileMaker Pro 3 till 12 (.fp3, .fp5, .fp7, .fmp12) och tabellexporter i formatet FMPXMLRESULT. Nyare .fmp12-filer från senare FileMaker-versioner öppnas på samma sätt om de inte är krypterade.',
+});

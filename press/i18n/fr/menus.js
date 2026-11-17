@@ -1,0 +1,22 @@
+/* Slop Press, français : les titres des menus (ui/menus.js). Mêmes clés que press/i18n/en/menus.js. Termes : shared/i18n/glossary-fr.md. */
+window.SlopI18n && window.SlopI18n.add('fr', {
+  'press.menu.layout': 'Mise en page',
+  'press.menu.type': 'Texte',
+  'press.menu.object': 'Objet',
+  'press.menu.window': 'Fenêtre',
+  'press.menu.tools': 'Outils',
+  'press.menu.styles': 'Styles',
+  'press.menu.send_to': 'Envoyer vers',
+  'press.menu.pages': 'Pages',
+  'press.menu.para_style': 'Style de paragraphe',
+  'press.menu.char_style': 'Style de caractère',
+  'press.menu.alignment': 'Alignement',
+  'press.menu.special_char': 'Insérer un caractère spécial',
+  'press.menu.composer': 'Composition',
+  'press.menu.arrange': 'Disposition',
+  'press.menu.fitting': 'Ajustement',
+  'press.menu.text_wrap': 'Renvoi à la ligne',
+  'press.menu.theme': 'Thème',
+  'press.menu.hub_unavailable': 'Slop Hub indisponible',
+  'press.menu.none': '(aucun)',
+});

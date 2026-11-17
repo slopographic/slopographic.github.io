@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopRaw: camera RAW detection, embedded previews and the LibRaw engine (notice, checksum, 404, a real DNG)</title>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/raw/raw.js, shared/raw/engine.js, shared/library/install.js, shared/raw/worker.js, shared/raw/tiff.js, shared/raw/detect.js, shared/raw/preview.js
+  // The engine's cdn files are served by the real network (the release tag in shared/cdn/assets.js) unless window.__mode says otherwise:
+  // 'bad' gives wrong bytes for libraw.wasm (checksum mismatch), '404' a missing file. Requests are counted in __net.
+  const realFetch = window.fetch.bind(window);
+  window.__mode = 'real';
+  window.__net = { engine: 0 };
+  window.fetch = async (input, init) => {
+    const url = String(input && input.url ? input.url : input);
+    if (window.SlopCdn && new RegExp(`${window.SlopCdn.REPO}[@/].*/engines/libraw/`).test(url)) {   // jsDelivr (cdn@tag) or GitHub (cdn/tag); the build's repository (here slopographic/cdn)
+      window.__net.engine++;
+      if (window.__mode === '404') return new Response('not found', { status: 404 });
+      if (window.__mode === 'bad' && url.endsWith('.wasm')) return new Response(new Uint8Array(1417725), { status: 200 });
+    }
+    return realFetch(input, init);
+  };
+  </script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="build.js"></script>
+  <script src="../../shared/raw/tiff.js"></script>
+  <script src="../../shared/raw/detect.js"></script>
+  <script src="../../shared/raw/preview.js"></script>
+  <script src="../../shared/raw/raw.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const R = window.SlopRaw, B = window.RawBuild;
+  const dialog = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const press = (label) => [...dialog().querySelectorAll('button')].find((b) => b.textContent === label).click();
+  const fixture = async () => new Uint8Array(await (await realFetch('fixtures/canon-5d3-crop.dng')).arrayBuffer());
+  const freshEngine = async () => { const E = await R.engine(); await E.forget(); try { localStorage.removeItem('slop-firstrun:raw-engine'); } catch (e) { /* none */ } return E; };
+  /** A real, decodable JPEG (red left half, blue right half) inside a NEF-like TIFF with orientation 6. */
+  async function nefWithPreview() {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 32;
+    const g = c.getContext('2d'); g.fillStyle = '#f00'; g.fillRect(0, 0, 32, 32); g.fillStyle = '#00f'; g.fillRect(32, 0, 32, 32);
+    const jpg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95))).arrayBuffer());
+    return B.tiff({ ifd0: [[0x10f, 2, 'NIKON CORPORATION'], [0x112, 3, 6], [0x201, 4, { blob: 'p' }], [0x202, 4, { len: 'p' }]], blobs: { p: jpg } });
+  }
+
+  describe('detection and the embedded preview (no engine)', () => {
+    it('isRaw reads a File by content and name; a JPEG is not RAW', async () => {
+      const nef = await nefWithPreview();
+      expect(await R.isRaw(new File([nef], 'DSC_1.NEF'))).toBe(true);
+      expect(await R.isRaw(new File([await fixture()], 'x.dng'))).toBe(true);
+      expect(await R.isRaw(new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0])], 'a.jpg'))).toBe(false);
+      expect(R.sniff(nef, 'x.nef').label).toBe('Nikon NEF');
+      expect(R.sniff(nef, 'x')).toBe(null);   // no CFA image or SubIFDs: the name has to say it
+    });
+    it('preview gives the JPEG; previewCanvas draws it upright (orientation 6 turns 64 × 32 into 32 × 64)', async () => {
+      const nef = await nefWithPreview();
+      const blob = await R.preview(nef);
+      expect(blob.type).toBe('image/jpeg');
+      const p = await R.previewCanvas(nef);
+      expect(p.width).toBe(32);
+      expect(p.height).toBe(64);
+      const top = SlopTest.pixel(p.canvas, 16, 8), bottom = SlopTest.pixel(p.canvas, 16, 56);
+      expect(top[0]).toBeGreaterThan(200);    // the red half is on top after a 90° clockwise turn
+      expect(bottom[2]).toBeGreaterThan(200);
+      expect(window.__net.engine).toBe(0);
+    });
+    it('settingsFor maps the develop options to LibRaw', async () => {
+      const E = await R.engine();
+      expect(E.settingsFor({}).useCameraWb).toBe(true);
+      expect(E.settingsFor({ wb: 'auto' }).useAutoWb).toBe(true);
+      const day = E.settingsFor({ wb: 'daylight', exposure: 1, highlights: 'rebuild', bits: 16, half: true });
+      expect(day.useCameraWb).toBe(false); expect(day.useAutoWb).toBe(false);
+      expect(day.bright).toBe(2); expect(day.highlight).toBe(5); expect(day.outputBps).toBe(16); expect(day.halfSize).toBe(true);
+      expect(E.settingsFor({ exposure: -9 }).bright).toBe(0.125);
+      expect(E.settingsFor({}).userFlip).toBe(-1);
+    });
+  });
+
+  describe('the engine download', () => {
+    it('asks first; Cancel downloads nothing and rejects as declined', async () => {
+      await freshEngine();
+      window.__net.engine = 0;
+      const r = R.decode(await fixture(), {});
+      await waitFor(dialog);
+      expect(dialog().textContent).toContain('camera RAW engine');
+      expect(dialog().textContent).toContain('LGPL-2.1');
+      press('Cancel');
+      let code = '';
+      try { await r; } catch (e) { code = e.code; }
+      expect(code).toBe('declined');
+      expect(window.__net.engine).toBe(0);
+    });
+    it('ask: false never shows the notice', async () => {
+      let code = '';
+      try { await R.decode(await fixture(), { ask: false }); } catch (e) { code = e.code; }
+      expect(code).toBe('declined');
+      expect(dialog()).toBe(null);
+    });
+    it('a checksum mismatch is refused and nothing is stored', async () => {
+      const E = await freshEngine();
+      window.__mode = 'bad';
+      const r = R.decode(await fixture(), {});
+      await waitFor(dialog); press('Continue');
+      await expect(r).rejects(/SHA-256 does not match/);
+      expect(await E.installed()).toBe(false);
+      window.__mode = 'real';
+    }, { timeout: 60000 });
+    it('a 404 is refused with the reason', async () => {
+      const E = await freshEngine();
+      window.__mode = '404';
+      const r = R.decode(await fixture(), {});
+      await waitFor(dialog); press('Continue');
+      await expect(r).rejects(/HTTP 404/);
+      expect(await E.installed()).toBe(false);
+      window.__mode = 'real';
+    });
+    it('the real engine from the cdn develops a real DNG in a worker', async () => {
+      const E = await freshEngine();
+      const steps = [];
+      const r = R.decode(await fixture(), { wb: 'camera' }, (t) => steps.push(t));
+      await waitFor(dialog); press('Continue');
+      const out = await r;
+      expect(out.width).toBe(1920);
+      expect(out.height).toBe(818);
+      expect(out.bits).toBe(8);
+      expect(out.imageData.data.length).toBe(1920 * 818 * 4);
+      let sum = 0; for (let i = 0; i < out.data.length; i += 4000) sum += out.data[i];
+      expect(sum).toBeGreaterThan(1000);
+      expect(out.meta.model).toContain('5D Mark III');
+      expect(out.meta.iso).toBe(200);
+      expect(steps.join(' ')).toContain('Developing');
+      expect(await E.installed()).toBe(true);
+    }, { timeout: 90000 });
+    it('once installed: no notice, no download; 16-bit and half size; image() falls back to the engine without a preview', async () => {
+      window.__net.engine = 0;
+      const half = await R.decode(await fixture(), { bits: 16, half: true });
+      expect(half.bits).toBe(16);
+      expect(half.data.constructor.name).toBe('Uint16Array');
+      expect(half.data.length).toBe(half.width * half.height * 3);
+      expect(half.width).toBe(960);
+      const img = await R.image(new Blob([await fixture()]), { mode: 'preview', maxEdge: 320 });
+      expect(img.from).toBe('engine');
+      expect(img.canvas.width).toBe(320);
+      expect(window.__net.engine).toBe(0);
+      expect(dialog()).toBe(null);
+    }, { timeout: 60000 });
+    it('a broken file rejects with a plain message, and the engine keeps working', async () => {
+      const bad = B.tiff({ ifd0: [[0xc612, 1, [1, 4, 0, 0]]] });
+      await expect(R.decode(bad, {})).rejects(/could not|RAW/i);
+      const ok = await R.decode(await fixture(), { half: true });
+      expect(ok.width).toBe(960);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

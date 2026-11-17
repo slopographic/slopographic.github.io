@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Font: from SVG, a traced picture, a handwriting sheet and an opened font</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style></head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script src="helpers.js"></script>
+<script>
+// Covers: fontcreator/js/io/svg-ui.js, fontcreator/js/io/trace-ui.js, fontcreator/js/io/sheet-ui.js, fontcreator/js/io/files.js, fontcreator/js/io/woff2.js
+// Covers: fontcreator/js/io/woff2-worker.js, fontcreator/js/core/trace.js, fontcreator/js/core/sheet.js, fontcreator/js/core/import.js, fontcreator/js/main.js
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+let W, D, FC;
+const S = () => FC.state, P = () => W.SlopFont.paths, M = () => W.SlopFont.model;
+const primary = () => [...D.querySelectorAll('.sui-dlg .sui-primary')].pop();
+const fileOf = async (url, name, type) => new W.File([await (await fetch(url)).arrayBuffer()], name, { type });
+/** A picture of a letter in black on white, as the app's realm File. */
+async function letter(ch, size = 200) {
+  const c = document.createElement('canvas'); c.width = size; c.height = size;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, size, size); x.fillStyle = '#000';
+  x.font = `bold ${Math.round(size * 0.8)}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(ch, size / 2, size / 2);
+  return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], ch + '.png', { type: 'image/png' });
+}
+describe('Slop Font: bringing things in', () => {
+  it('Draw from SVG: an SVG with a transformed group, fitted to the cap height', async () => {
+    ({ W, D, FC } = await FT.open(document.getElementById('app')));
+    S().select('H');
+    FC.svgUi.open('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g transform="translate(10 0)"><rect x="0" y="0" width="20" height="100"/><rect x="60" y="0" width="20" height="100"/><rect x="0" y="40" width="80" height="20"/></g></svg>');
+    expect(D.getElementById('fc-svg-text').value).toContain('<rect');
+    primary().click();
+    await waitFor(() => S().view().contours.length === 3);
+    const b = P().bbox(S().view().contours);
+    expect([Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h)]).toEqual([50, 0, 560, 700]);
+    expect(S().view().advance).toBe(660);
+    FC.svgUi.apply({ text: 'M0 0 L100 0 L100 100 Z', fit: 'font', add: true });
+    expect(S().view().contours.length).toBe(4);
+    FC.svgUi.apply({ text: '<svg viewBox="0 0 1000 1000"><circle cx="500" cy="200" r="100"/></svg>', fit: 'em' });
+    const e = P().bbox(S().view().contours);
+    expect([Math.round(e.y), Math.round(e.h), S().view().advance]).toEqual([500, 200, 1000]);
+  }, { timeout: 40000 });
+
+  it('an SVG file dropped on the page goes to Draw from SVG', async () => {
+    const svg = new W.File(['<svg viewBox="0 0 10 10"><path d="M0 0H10V10H0Z"/></svg>'], 'box.svg', { type: 'image/svg+xml' });
+    await W.SlopIntake.take([svg], { to: 'fontcreator' });
+    const box = () => [...D.querySelectorAll('textarea.fc-svg-text')].find((t) => t.value.includes('M0 0H10'));
+    await waitFor(() => box());
+    box().closest('.sui-dlg').querySelector('.sui-x').click();
+  });
+
+  it('Trace a picture: a drawn O becomes an outline with a hole', async () => {
+    S().select('O');
+    await W.SlopIntake.take([await letter('O')], { to: 'fontcreator' });
+    await waitFor(() => D.getElementById('fc-trace-preview') && D.querySelector('#fc-trace-preview svg path'));
+    primary().click();
+    await waitFor(() => S().view().contours.length === 2);
+    const cs = P().orient(S().view().contours);
+    expect(cs.some((c) => P().area(c) < 0)).toBe(true);
+    expect(Math.round(P().bbox(cs).h)).toBe(700);
+  }, { timeout: 20000 });
+
+  it('the handwriting sheet: a PDF of the boxes, and a filled sheet read back, each box its glyph', async () => {
+    S().set({ sheetSet: 'upper' });
+    const L = FC.sheetUi.lay('upper', 'a4');
+    expect(L.pages.length).toBe(1);
+    const pdf = await FC.sheetUi.pdf(L);
+    expect(pdf.type).toBe('application/pdf');
+    expect(new TextDecoder().decode(new Uint8Array(await pdf.slice(0, 5).arrayBuffer()))).toBe('%PDF-');
+    const page = FC.sheetUi.draw(L, 0), x = page.getContext('2d');
+    x.fillStyle = '#111';
+    for (const cell of L.pages[0].cells.slice(0, 3)) {   // A, B and C written on their baselines
+      const h = cell.lines.base - cell.lines.cap;
+      x.font = `bold ${Math.round(h * 1.38)}px sans-serif`; x.textBaseline = 'alphabetic';
+      x.fillText(cell.label, cell.area.x + 20, cell.lines.base);
+    }
+    const shot = document.createElement('canvas'); shot.width = 900; shot.height = 1300;   // a smaller, skewed "photo"
+    const s = shot.getContext('2d'); s.fillStyle = '#ddd'; s.fillRect(0, 0, 900, 1300);
+    s.setTransform(0.68, 0.02, -0.015, 0.7, 40, 30); s.drawImage(page, 0, 0);
+    const img = s.getImageData(0, 0, 900, 1300);
+    const r = FC.sheetUi.readInto(img, { set: 'upper', page: 1, paper: 'a4' });
+    expect(r.glyphs).toBe(3);
+    for (const ch of 'ABC') {
+      const g = M().find(S().project(), ch), b = P().bbox(g.contours);
+      expect(g.contours.length).toBeGreaterThan(0);
+      expect(Math.abs(b.y)).toBeLessThan(40);
+      expect(Math.abs(b.y + b.h - 700)).toBeLessThan(80);
+    }
+    const d = M().find(S().project(), 'D');
+    expect(!d || d.contours.length === 0).toBe(true);   // an empty box makes no glyph
+  }, { timeout: 40000 });
+
+  it('an OFL font opens to edit: names, licence, glyphs; Undo goes back to the drawn font', async () => {
+    const before = S().project().glyphs.length;
+    await W.SlopIntake.take([await fileOf('../../shared/fonts/archivo/ttf/Archivo-Regular.ttf', 'Archivo-Regular.ttf', 'font/ttf')], { to: 'fontcreator' });
+    await waitFor(() => S().project().info.family === 'Archivo');
+    expect(S().project().glyphs.length).toBeGreaterThan(200);
+    expect(S().project().info.license).toContain('Open Font License');
+    expect(S().cur()).toBe('u0041');
+    expect(D.getElementById('fc-info-family').value).toBe('Archivo');
+    S().undo();
+    expect(S().project().glyphs.length).toBe(before);
+  }, { timeout: 20000 });
+
+  it('a WOFF2 opens through the worker, with its GPOS kerning', async () => {
+    await W.SlopIntake.take([await fileOf('../../shared/fonts/archivo/archivo-var-normal-latin.woff2', 'archivo.woff2', 'font/woff2')], { to: 'fontcreator' });
+    await waitFor(() => /Archivo/.test(S().project().info.family) && Object.keys(S().project().kerning).length > 100, { timeout: 20000 });
+    expect(M().find(S().project(), 'å').contours.length).toBeGreaterThan(0);
+  }, { timeout: 30000 });
+
+  it('a saved project (.sfont) opens as it was; an empty one from Slop Drive\'s New ▸ Font is a new font', async () => {
+    const p = M().create({ family: 'Saved' }); const g = M().ensure(p, 0x41); g.contours = P().rect(0, 0, 100, 100);
+    await W.SlopIntake.take([new W.File([JSON.stringify(p)], 'saved.sfont', { type: 'application/x-slop-font' })], { to: 'fontcreator' });
+    await waitFor(() => S().project().info.family === 'Saved');
+    expect(M().find(S().project(), 'A').contours.length).toBe(1);
+    await W.SlopIntake.take([new W.File([], 'Untitled font.sfont', { type: 'application/x-slop-font' })], { to: 'fontcreator' });
+    await waitFor(() => S().project().info.family === 'My Font');
+    const bad = await W.SlopIntake.take([new W.File(['{"x":1}'], 'bad.sfont', { type: '' })], { to: 'fontcreator' });
+    expect(bad.added.length).toBe(0);
+  }, { timeout: 20000 });
+});
+SlopTest.run({ name: 'Slop Font import' });
+</script>
+</body>
+</html>

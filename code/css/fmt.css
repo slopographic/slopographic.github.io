@@ -1,0 +1,16 @@
+/* Slop Code: the formatted view, a read-only pane beside the editor. The editor and the pane share one box (.cd-split). */
+.cd-split { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
+.cd-split.cd-fmt-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.cd-fmt { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; border-left: 1px solid var(--cd-line); background: var(--cd-bg); }
+.cd-fmt[hidden] { display: none; }
+.cd-fmt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--cd-line); background: var(--cd-panel); font-size: 12px; color: var(--cd-dim); }
+.cd-fmt-btns { display: flex; gap: 6px; }
+.cd-fmt-note { margin: 0; padding: 6px 10px; font-size: 12px; color: var(--cd-err); background: color-mix(in srgb, var(--cd-err) 8%, transparent); border-bottom: 1px solid var(--cd-line); }
+.cd-fmt-body { min-height: 0; min-width: 0; position: relative; overflow: hidden; }
+.cd-fmt-body .cm-editor { height: 100%; background: var(--cd-bg); color: var(--cd-fg); font: var(--cd-size, 14px)/1.55 var(--cd-mono); }
+.cd-fmt-body .cm-scroller { font-family: inherit; overflow: auto; }
+.cd-fmt-body .cm-gutters { background: var(--cd-panel); color: var(--cd-faint); border-right: 1px solid var(--cd-line); }
+@media (max-width: 719px) {
+  .cd-split.cd-fmt-open { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+  .cd-fmt { border-left: 0; border-top: 1px solid var(--cd-line); }
+}

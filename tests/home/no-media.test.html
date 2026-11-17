@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="media=false">
+  <title>Homepage · a build without media shows no screenshots, clips or videos</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- The other side of the media switch (brand profile "media": false): the registry has no shot or video, and every card
+       keeps its generated tile. With media: tests/home/clips.test.html. -->
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  describe('no media', () => {
+    it('the registry has no screenshot or video, and the homepage cards load none', async () => {
+      expect(BRAND_FACTS.media).toBe(false);
+      const win = await HomeTest.openHome();
+      expect(win.SLOP_APPS.filter((a) => a.shot || a.video).map((a) => a.id)).toEqual([]);
+      await waitFor(() => win.document.querySelectorAll('.app-card .shot-ph').length > 10, { timeout: 15000 });
+      expect(win.document.querySelectorAll('.app-card .shot img, .app-card video').length).toBe(0);
+      const media = win.performance.getEntriesByType('resource').filter((e) => /assets\/(shots|clips|video)\//.test(e.name));
+      expect(media.map((e) => e.name)).toEqual([]);
+      expect(win.document.querySelector('a[href*="youtube.com"], iframe[src*="youtube"]')).toBe(null);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

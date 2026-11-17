@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector: the look (menu bar at 1440, 1024 and 390 wide, the first theme)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: slopvector/css/chrome.css, slopvector/css/responsive.css, slopvector/js/ui/init.js, slopvector/js/ui/dock.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** The app in a fresh iframe of this width, once the menus and the shell's, Drive's and View's buttons are in. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../slopvector/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.querySelector('#menus .menu-btn') && D.querySelector('.menubar .sh-switch') && D.querySelector('.menubar .sdl') && D.querySelector('.menubar .slopvm-btn'); }, { timeout: 40000 });
+    await sleep(400);   // shared/ui/hbtn.js settles the labels on the next frame
+    return f;
+  }
+  const visible = (D, sel) => [...D.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  /** A CSS colour as its relative luminance, read through a canvas. */
+  const lum = (css) => {
+    cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = css; cx.fillRect(0, 0, 1, 1);
+    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const d = cx.getImageData(0, 0, 1, 1).data;
+    return 0.2126 * f(d[0]) + 0.7152 * f(d[1]) + 0.0722 * f(d[2]);
+  };
+
+  describe('SlopVector: the look', () => {
+    it('with no theme saved, the menu text reads on the menu bar (the app keeps the theme theme.js painted)', async () => {
+      try { localStorage.removeItem('slopvector.theme'); } catch (e) { /* storage blocked: nothing saved anyway */ }
+      const f = await open(1440), D = f.contentDocument, W = f.contentWindow;
+      const a = lum(W.getComputedStyle(D.querySelector('.menu-btn')).color), b = lum(W.getComputedStyle(D.querySelector('.menubar')).backgroundColor);
+      expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThan(4.5);
+      f.remove();
+    }, { timeout: 60000 });
+
+    for (const w of [1440, 1024]) {
+      it(`at ${w}px the menus are whole, nothing passes the right edge, and the shared buttons sit together, as tall as the icon buttons`, async () => {
+        const f = await open(w), D = f.contentDocument;
+        const bar = D.querySelector('.menubar'), menus = D.getElementById('menus');
+        expect(bar.scrollWidth).toBeLessThanOrEqual(bar.clientWidth);
+        expect(menus.scrollWidth).toBeLessThanOrEqual(menus.clientWidth + 1);
+        const own = D.getElementById('panelsToggle').getBoundingClientRect();
+        const list = visible(D, '.menubar .slop-hbtn');
+        for (const n of list) {
+          const r = n.getBoundingClientRect();
+          expect(r.right).toBeLessThanOrEqual(w + 0.5);
+          expect(r.height).toBe(own.height);
+          expect(r.top).toBe(own.top);
+        }
+        // the View button follows the bell, not the far end of an empty stretch
+        const bell = D.querySelector('.menubar .sn-bell').getBoundingClientRect();
+        expect(D.querySelector('.slopvm-btn').getBoundingClientRect().left - bell.right).toBeLessThan(24);
+        f.remove();
+      }, { timeout: 60000 });
+    }
+
+    it('at 390px nothing scrolls sideways and the shared buttons stay inside the window', async () => {
+      const f = await open(390), D = f.contentDocument;
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      for (const n of visible(D, '.menubar .slop-hbtn')) expect(n.getBoundingClientRect().right).toBeLessThanOrEqual(390.5);
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('at 1280px Export ▾ sits at the foot of the dock on the right and lists the File ▸ Export commands', async () => {
+      const f = await open(1280), D = f.contentDocument, dock = D.getElementById('dock'), b = D.getElementById('dockExport');
+      expect(b.closest('.sf-p-foot').parentNode).toBe(dock);
+      expect(dock.getBoundingClientRect().left).toBeGreaterThan(640);
+      expect(Math.round(b.getBoundingClientRect().bottom)).toBeLessThanOrEqual(Math.round(dock.getBoundingClientRect().bottom));
+      b.click();
+      const rows = await waitFor(() => { const r = [...D.querySelectorAll('.smb-menu[role="menu"] .smb-row')].map((x) => x.textContent.trim()); return r.length ? r : null; });
+      expect(rows.some((t) => /SVG/.test(t))).toBe(true);
+      expect(rows.some((t) => /PDF/.test(t))).toBe(true);
+      f.remove();
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'SlopVector: the look' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+/* Slop Orders: only what is its own. The base (theme tokens, inputs, buttons, chips, tabs, toolbars, cards, forms) is
+ * shared/biz/app.css; the order rows are SlopList (shared/ui/list.css); line cards, totals and the paper view are
+ * shared/docs/lines.css. */
+.view-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

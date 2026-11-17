@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shell · the brand profile's promo line: hidden without one, shown in the places it names</title></head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shared/promo/promo.js, shared/promo/i18n/index.js, shared/promo/i18n/en/promo.js, shared/promo/i18n/sv/promo.js
+  // A brand profile's promo (brand/README.md "A promo line"): this site has none (a white-label build may), so the slots stay hidden and empty; with
+  // one, each slot the profile names shows the line in the page's language and a plain link that opens a new tab with no
+  // referrer, and Hide keeps it away on this device. No request goes anywhere until the link is followed.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const PROMO = { text: { en: 'Need parts? Compare prices at example.com', sv: 'Behöver du delar? Jämför på example.com' }, url: 'https://example.com/?from=tools', where: ['home', 'settings'] };
+  /** A bare page with two slots, the promo (undefined: the source's own value) and a language, then promo.js. */
+  async function page(promo, lang) {
+    const f = document.createElement('iframe');
+    const stub = (promo === undefined ? '' : `window.SLOP_PROMO = ${JSON.stringify(promo)};`)
+      + (lang ? `window.SlopI18n = { get: () => ${JSON.stringify(lang)}, t: (k) => k, on(fn) { window.langChange = fn; } };` : '');
+    f.srcdoc = `<!doctype html><html><head></head><body><main><h1>Home</h1>
+      <div id="home" data-promo-slot="home" hidden></div><div id="settings" data-promo-slot="settings" hidden></div></main>
+      <script>${stub}<\/script><script src="../../shared/promo/promo.js"><\/script><script>window.done = true;<\/script></body></html>`;
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.done && f.contentDocument.readyState === 'complete');
+    return f;
+  }
+  const clear = () => { try { localStorage.removeItem('slop-promo-hidden'); } catch (e) { /* blocked */ } };
+
+  describe('without a promo', () => {
+    it("the build's own value: none on this site (slots hidden), or the profile's line in the slots it names", async () => {
+      clear();
+      const f = await page(undefined), D = f.contentDocument, W = f.contentWindow, p = W.SlopPromo.info();
+      if (!p) {
+        expect(D.getElementById('home').hidden).toBe(true);
+        expect(D.getElementById('settings').hidden).toBe(true);
+      } else {   // a white-label build with a promo: its marker holds the profile's value
+        expect(/^https:\/\//.test(p.url)).toBe(true);
+        const where = p.where && p.where.length ? p.where : ['home', 'settings'];
+        for (const id of ['home', 'settings']) expect(D.getElementById(id).hidden).toBe(!where.includes(id));
+        expect(D.querySelector('.promo-text').textContent).toBe(W.SlopPromo.text('en'));
+      }
+      f.remove();
+    });
+    it('the slots stay hidden and empty, and no style is added', async () => {
+      const f = await page(null), D = f.contentDocument, W = f.contentWindow;
+      expect(W.SlopPromo.info()).toBe(null);
+      expect(D.getElementById('home').hidden).toBe(true);
+      expect(D.getElementById('home').childNodes.length).toBe(0);
+      expect(D.getElementById('settings').hidden).toBe(true);
+      expect(D.getElementById('promo-style')).toBe(null);
+      expect(W.SlopPromo.mount()).toBe(0);
+      f.remove();
+    });
+    it('a promo without an https address or a line is no promo', async () => {
+      for (const bad of [{ text: 'x', url: 'http://example.com' }, { text: '', url: 'https://example.com' }, { text: {}, url: 'https://example.com' }, null]) {
+        const f = await page(bad);
+        expect(f.contentWindow.SlopPromo.info()).toBe(null);
+        expect(f.contentDocument.getElementById('home').hidden).toBe(true);
+        f.remove();
+      }
+    });
+  });
+
+  describe('with a promo', () => {
+    it('each slot shows the line and a plain link that opens a new tab without a referrer', async () => {
+      clear();
+      const f = await page(PROMO), D = f.contentDocument;
+      for (const id of ['home', 'settings']) {
+        const slot = D.getElementById(id), a = slot.querySelector('a');
+        expect(slot.hidden).toBe(false);
+        expect(slot.querySelector('.promo-text').textContent).toBe(PROMO.text.en);
+        expect(a.getAttribute('href')).toBe(PROMO.url);
+        expect(a.target).toBe('_blank');
+        expect(a.rel).toBe('noopener noreferrer');
+        expect(slot.querySelector('aside').getAttribute('aria-label')).toBe('A note from us');
+      }
+      expect(D.querySelectorAll('img, iframe, script[src*="example.com"]').length).toBe(0);
+      const sent = f.contentWindow.performance.getEntriesByType('resource').filter((e) => e.name.includes('example.com'));
+      expect(sent.length).toBe(0);
+      f.remove();
+    });
+    it('the line is in the page\'s language, again when it changes; a language the profile lacks reads English', async () => {
+      clear();
+      const f = await page(PROMO, 'sv'), D = f.contentDocument, W = f.contentWindow;
+      expect(D.querySelector('#home .promo-text').textContent).toBe(PROMO.text.sv);
+      expect(W.SlopPromo.text('de')).toBe(PROMO.text.en);
+      expect(W.SlopPromo.text('sv-SE')).toBe(PROMO.text.sv);
+      W.SlopI18n.get = () => 'en';
+      W.langChange();
+      expect(D.querySelector('#settings .promo-text').textContent).toBe(PROMO.text.en);
+      f.remove();
+    });
+    it('one line for every language, and only the places the profile names', async () => {
+      clear();
+      const f = await page({ text: 'One line', url: 'https://example.com', where: ['settings'] }), D = f.contentDocument;
+      expect(D.getElementById('home').hidden).toBe(true);
+      expect(D.getElementById('settings').hidden).toBe(false);
+      expect(D.querySelector('#settings .promo-text').textContent).toBe('One line');
+      f.remove();
+    });
+    it('Hide takes it away and keeps it away on this device, until the line changes', async () => {
+      clear();
+      let f = await page(PROMO);
+      f.contentDocument.querySelector('#home button').click();
+      expect(f.contentDocument.getElementById('home').hidden).toBe(true);
+      expect(f.contentDocument.getElementById('settings').hidden).toBe(true);
+      f.remove();
+      f = await page(PROMO);
+      expect(f.contentDocument.getElementById('home').hidden).toBe(true);
+      f.remove();
+      f = await page(Object.assign({}, PROMO, { url: 'https://example.com/new' }));
+      expect(f.contentDocument.getElementById('home').hidden).toBe(false);
+      f.remove();
+      clear();
+    });
+  });
+  run({ name: 'Promo line' });
+</script>
+</body>
+</html>

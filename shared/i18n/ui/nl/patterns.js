@@ -1,0 +1,23 @@
+/* Shared components, Dutch: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'ui.patterns.ipv4': 'IPv4-adres',
+  'ui.patterns.ipv6': 'IPv6-adres',
+  'ui.patterns.mac': 'MAC-adres',
+  'ui.patterns.email': 'E-mailadres',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS-toegangssleutel-ID',
+  'ui.patterns.aws_secret': 'AWS-geheime sleutel',
+  'ui.patterns.github_token': 'GitHub-token',
+  'ui.patterns.slack_token': 'Slack-token',
+  'ui.patterns.stripe_key': 'Stripe-sleutel',
+  'ui.patterns.google_api_key': 'Google API-sleutel',
+  'ui.patterns.private_key': 'Privésleutel',
+  'ui.patterns.bearer': 'Bearer-token',
+  'ui.patterns.basic_auth_url': 'Wachtwoord in URL',
+  'ui.patterns.secret_assignment': 'Toewijzing van een geheim',
+  'ui.patterns.hash': 'Hash (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Creditcardnummer',
+  'ui.patterns.iban': 'IBAN',
+});

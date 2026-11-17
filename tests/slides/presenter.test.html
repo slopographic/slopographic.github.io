@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides: presenter view</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <!-- The real editor runs in one iframe; the presenter view is built in a second, empty iframe handed to it (a real
+       second window in use). Keys in either window move both; notes, counter, next slide, timer and black screen follow.
+       Covers: slides/js/ui/presenter.js, slides/js/ui/presenter-view.js, slides/js/ui/present.js, slides/js/ui/commands.js -->
+  <script src="../harness.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let w = null, pv = null, view = null;
+  function second() {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:1000px;height:640px;border:0';
+    document.body.append(f);
+    return f.contentWindow;
+  }
+  const $ = (sel) => pv.document.querySelector(sel);
+  const key = (win, k) => win.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  const lit = (cv) => { const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; const c = new Set(); for (let i = 0; i < px.length; i += 4 * 53) c.add(px[i] + ',' + px[i + 1] + ',' + px[i + 2]); return c.size; };
+
+  describe('presenter view', () => {
+    it('opens beside the show with the current and next slide, the notes, the counter and a timer', async () => {
+      w = await ST.open('../../slides/');
+      const S = w.SS, d = S.model.newDeck({ title: 'Talk' });
+      ['One', 'Two', 'Three'].forEach((t, i) => {
+        const s = i ? S.model.addSlide(d, 'title-only') : d.slides[0];
+        s.objects[0].text.paras = [{ runs: [{ t }] }];
+        s.notes = i === 1 ? '' : 'Notes for ' + t;
+      });
+      S.tabs.open(d, { name: 'Talk.sslide' });
+      pv = second();
+      view = S.presenter.start({ win: pv });
+      expect(S.present.on).toBe(true);
+      expect(!!view).toBe(true);
+      expect($('.pv-count').textContent).toBe('Slide 1 of 3');
+      expect($('.pv-notes').textContent).toBe('Notes for One');
+      expect($('.pv-next').hidden).toBe(false);
+      await waitFor(() => lit($('.pv-cur')) > 3 && lit($('.pv-next')) > 3, { timeout: 8000 });
+      expect($('.pv-timer').textContent).toMatch(/^\d\d:\d\d$/);
+    }, { timeout: 30000 });
+
+    it('keys in the presenter window move the show, and keys in the show move the presenter view', async () => {
+      key(pv, 'ArrowRight');
+      expect(w.SS.present.n).toBe(1);
+      expect($('.pv-count').textContent).toBe('Slide 2 of 3');
+      expect($('.pv-notes').textContent).toBe('No notes for this slide.');
+      key(w, 'ArrowRight');
+      expect($('.pv-count').textContent).toBe('Slide 3 of 3');
+      expect($('.pv-end').hidden).toBe(false);
+      expect($('.pv-next').hidden).toBe(true);
+      key(pv, 'Home');
+      expect(w.SS.present.n).toBe(0);
+      [...pv.document.querySelectorAll('.pv-foot button')].find((b) => b.textContent === 'Next').click();
+      expect(w.SS.present.n).toBe(1);
+    });
+
+    it('B blacks the audience screen out in both windows; Pause stops the timer', async () => {
+      key(pv, 'b');
+      expect(w.SS.present.black).toBe(true);
+      expect(w.document.querySelector('.present').classList.contains('black')).toBe(true);
+      expect($('.pv-black').hidden).toBe(false);
+      key(w, 'b');
+      expect($('.pv-black').hidden).toBe(true);
+      view.timer.start -= 65000;
+      [...pv.document.querySelectorAll('.pv-head button')].find((b) => b.textContent === 'Pause').click();
+      const t = $('.pv-timer').textContent;
+      expect(t).toMatch(/^01:0\d$/);
+      expect($('.pv-timer').classList.contains('paused')).toBe(true);
+      [...pv.document.querySelectorAll('.pv-head button')].find((b) => b.textContent === 'Reset').click();
+      expect($('.pv-timer').textContent).toBe('00:00');
+    });
+
+    it('Escape in the presenter window ends the show, and the view says so', async () => {
+      key(pv, 'Escape');
+      expect(w.SS.present.on).toBe(false);
+      expect(w.SS.app.mode).toBe('edit');
+      expect(w.SS.app.idx).toBe(1);
+      expect($('.pv-count').textContent).toBe('The show has ended');
+      expect(w.SS.presenter.view).toBe(null);
+    });
+
+    it('as a real second window: it opens with the show and closes when the show ends', async () => {
+      const win = w.SS.presenter.start();
+      const popup = w.SS.presenter.view.win;
+      expect(popup.document.querySelector('.pv-count').textContent).toBe('Slide 2 of 3');
+      expect(!!win).toBe(true);
+      w.SS.present.stop();
+      expect(popup.closed).toBe(true);
+      ST.close(w);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

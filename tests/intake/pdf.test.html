@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop PDF: every way in is the same path</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script src="../pdf/pdf.helpers.js"></script>
+<script>
+  // Covers: pdf/js/ui/drop.js, pdf/js/ui/main.js, pdf/js/ui/actions.js, pdf/js/ui/panes-ui.js, pdf/js/ui/exports.js
+  // Covers: pdf/js/editor/annots.js, pdf/js/editor/paste-image.js, pdf/js/tools/watermark-panel.js, pdf/js/macro/ui-steps.js
+  // Slop PDF, a reference app of the one intake: Open (the picker), Insert pages from file (mode add, no question), a drop
+  // on the tab strip (a new tab, no question), Open with a document open (the one Add or New question), Open from Slop
+  // Drive (the document keeps the Drive id), the Convert dialog's PDFs, and the parts with files of their own (a picture
+  // on the page, the watermark logo, Images to PDF) all come in through SlopIntake, with the same events, and the
+  // first-use notice is shown once per batch.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let events = [], notices = 0, files = [];
+  const pdfFile = async (name, pages) => new PT.win.File([await PT.makePdf(pages)], name, { type: 'application/pdf' });
+  async function pngFile(name) {
+    const c = PT.win.document.createElement('canvas'); c.width = 40; c.height = 20;
+    c.getContext('2d').fillRect(0, 0, 40, 20);
+    return new PT.win.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const choice = () => PT.win.document.querySelector('.sui-dlg.si-choose');
+  const click = (root, label) => [...root.querySelectorAll('.sui-foot .sui-btn')].find((b) => b.textContent === label).click();
+  const tabs = () => PT.SP.docs.list().length;
+  async function batch(app, source, start) {
+    events = []; notices = 0;
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after' && e[1] === app), { timeout: 30000 });
+    const mine = events.filter((e) => e[1] === app);
+    expect(mine[0]).toEqual(['before', app, source]);
+    expect(mine[mine.length - 1]).toEqual(['after', app, source]);
+    await waitFor(() => !PT.A.isLocked(), { timeout: 20000 });
+  }
+
+  describe('Slop PDF: one way in', () => {
+    it('boots with its spec and parts', async () => {
+      await PT.boot();
+      const SI = PT.win.SlopIntake;
+      expect(!!SI.spec('pdf') && !!SI.spec('pdf.image')).toBe(true);
+      SI.spec('pdf').notice = { title: 'First use', lines: ['test'] };
+      PT.win.SlopFirstRun = { once: async () => { notices++; return true; } };
+      for (const t of ['before', 'file', 'after']) SI.on(t, (d) => { events.push([t, d.app, d.source]); });
+      PT.win.SlopUI.pickFiles = async () => files;
+    }, { timeout: 40000 });
+    it('Open with nothing open opens the files here (one notice for two files)', async () => {
+      PT.reset();
+      files = [await pdfFile('a.pdf', [{ text: 'a' }]), await pdfFile('b.pdf', [{ text: 'b' }])];
+      await batch('pdf', 'picker', () => PT.A.openDialog());
+      await waitFor(() => PT.E.state.pages.length === 2);
+      expect(notices).toBe(1);
+    }, { timeout: 60000 });
+    it('Insert pages from file adds at the place asked for, with no question', async () => {
+      files = [await pdfFile('c.pdf', [{ text: 'c' }])];
+      await batch('pdf', 'picker', () => PT.A.insertFromFile());
+      await waitFor(() => PT.E.state.pages.length === 3);
+      expect(choice()).toBe(null);
+    }, { timeout: 60000 });
+    it('Open with a document open asks Add to current or Create new; Create new opens a tab', async () => {
+      const t0 = tabs();
+      files = [await pdfFile('d.pdf', [{ text: 'd' }])];
+      await batch('pdf', 'picker', async () => {
+        const p = PT.A.openDialog();
+        const d = await waitFor(() => choice(), { timeout: 15000 });
+        expect([...d.querySelectorAll('.sui-foot .sui-btn')].map((b) => b.textContent)).toEqual(['Cancel', 'Create new', 'Add to current']);
+        click(d, 'Create new');
+        await p;
+      });
+      await waitFor(() => tabs() === t0 + 1 && PT.E.state.pages.length === 1, { timeout: 30000 });
+    }, { timeout: 60000 });
+    it('a drop on the tab strip opens a new tab with no question', async () => {
+      const t0 = tabs();
+      const dt = new PT.win.DataTransfer(); dt.items.add(await pdfFile('e.pdf', [{ text: 'e' }]));
+      await batch('pdf', 'drop', () => PT.win.document.getElementById('tabs').dispatchEvent(new PT.win.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })));
+      await waitFor(() => tabs() === t0 + 1, { timeout: 30000 });
+      expect(choice()).toBe(null);
+    }, { timeout: 60000 });
+    it('Open from Slop Drive into an empty tab keeps the Drive id', async () => {
+      PT.A.newTab(); PT.reset();
+      const f = await pdfFile('drive.pdf', [{ text: 'drive' }]);
+      PT.win.SlopHub.pickFromDrive = async () => ({ id: 'drv-1', name: 'drive.pdf', type: 'application/pdf', blob: f });
+      await batch('pdf', 'drive', () => PT.A.openFromDrive());
+      await waitFor(() => PT.E.state.pages.length === 1);
+      expect(PT.A.driveId).toBe('drv-1');
+    }, { timeout: 60000 });
+    it("the Convert dialog's PDFs come back through the intake, in a new tab", async () => {
+      const t0 = tabs();
+      const f = await pdfFile('made.pdf', [{ text: 'm' }]);
+      await batch('pdf', 'convert', () => PT.A.openConverted([{ name: 'made.pdf', blob: f }], ['made.svg']));
+      await waitFor(() => tabs() === t0 + 1, { timeout: 30000 });
+    }, { timeout: 60000 });
+    it('a picture for the page (the image tool) is a part of its own: it goes on the page', async () => {
+      PT.reset();
+      await PT.open(await PT.makePdf([{ text: 'p' }]), 'pic.pdf');
+      const pid = PT.E.state.pages[0].id;
+      PT.A.openPage(pid);
+      await waitFor(() => PT.SP.editor.pid === pid, { timeout: 8000 });
+      files = [await pngFile('pic.png')];
+      await batch('pdf.image', 'picker', () => PT.SP.editor.pickImage());
+      await waitFor(() => (PT.E.state.pages[0].annots || []).some((a) => a.type === 'image'), { timeout: 8000 });
+      PT.SP.editor.setTool('select');
+    }, { timeout: 60000 });
+    it('the watermark logo and Images to PDF are parts of their own', async () => {
+      PT.A.setTool('watermark');
+      await waitFor(() => PT.win.document.querySelector('.pdf-wm .swp'));
+      files = [await pngFile('logo.png')];
+      const dt = new PT.win.DataTransfer(); dt.items.add(files[0]);
+      await batch('pdf.logo', 'drop', () => PT.win.document.querySelector('.pdf-wm .swp').dispatchEvent(new PT.win.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })));
+      await waitFor(() => ((PT.E.state.stamps.wm || {}).layers || []).some((L) => L.kind === 'logo' && L.logo), { timeout: 8000 });
+      const cap = PT.captureDownloads();
+      try {
+        files = [await pngFile('one.png'), await pngFile('two.png')];
+        await batch('pdf.images-to-pdf', 'picker', () => PT.A.imagesToPdf({ size: 'fit' }));
+        await waitFor(() => cap.list.length === 1, { timeout: 20000 });
+        expect(cap.list[0].name).toBe('images.pdf');
+      } finally { cap.restore(); }
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Shared intake: Slop PDF' });
+</script>
+</body>
+</html>

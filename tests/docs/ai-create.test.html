@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Docs assistant: making documents</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1100px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: docs/js/ui/ai-create.js, docs/js/ui/ai-commands.js, docs/js/model/build.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, E, S, C;
+  const texts = () => S.doc.blocks.filter((b) => b.type === 'p').map((b) => E.M.paraText(b));
+  const run = async (id, args) => { const r = await C.exec('docs.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+  let PDFJS = null;
+  async function readPdf(blob) {
+    const base = new URL('../../vendor/pdfjs/', location.href).href;
+    PDFJS = PDFJS || await import(base + 'pdf.min.js');
+    PDFJS.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+    return PDFJS.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), standardFontDataUrl: base + 'standard_fonts/' }).promise;
+  }
+  async function pngBlob(color) {
+    const c = document.createElement('canvas'); c.width = 40; c.height = 20;
+    const g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, 40, 20);
+    return new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+
+  describe('Slop Docs assistant: making documents', () => {
+    it('loads docs/; the create commands have schemas and none is destructive', async () => {
+      const frame = document.createElement('iframe');
+      const loaded = new Promise((res) => frame.addEventListener('load', res, { once: true }));
+      frame.src = '../../docs/index.html';
+      document.body.append(frame);
+      await loaded;
+      win = frame.contentWindow;
+      await waitFor(() => win.SlopDocs && win.SlopDocs.ready && win.SlopDocEngine && win.SlopCmd, { timeout: 15000 });
+      E = win.SlopDocEngine; S = win.SlopDocs; C = win.SlopCmd;
+      await C.prepare();
+      for (const id of ['new-document', 'build-document', 'insert-list', 'insert-table', 'insert-image', 'insert-page-break', 'set-alignment', 'export-document']) {
+        const c = C.get('docs.ai.' + id);
+        expect(!!c).toBe(true);
+        expect(c.destructive).toBe(false);
+      }
+      const js = SlopCmdArgs.jsonSchema(C.get('docs.ai.insert-table').args);
+      expect(js.properties.rows.type).toBe('array');
+      expect(js.properties.rows.items.type).toBe('array');
+    }, { timeout: 30000 });
+
+    it('new_document opens a new tab with the page size and title', async () => {
+      const n = S.tabsApi().tabs().length;
+      await run('new-document', { title: 'Plan', page: 'Letter' });
+      expect(S.tabsApi().tabs().length).toBe(n + 1);
+      expect(S.doc.section.size).toBe('Letter');
+      expect(texts()).toEqual(['Plan']);
+      expect(S.doc.blocks[0].style).toBe('Title');
+    });
+
+    it('insert_list, insert_table, insert_page_break, set_alignment: one undo step each', async () => {
+      await run('insert-list', { items: ['Milk', '  Oat milk', 'Bread'], kind: 'bullets' });
+      expect(texts()).toEqual(['Plan', 'Milk', 'Oat milk', 'Bread']);
+      expect(S.doc.blocks[2].props.list).toEqual({ id: 'bul', lvl: 1 });
+      expect(!!S.doc.lists.bul).toBe(true);
+      await run('insert-list', { items: '- one\n- two', kind: 'numbered' });
+      expect(S.doc.blocks[4].props.list.id).toBe('num');
+      expect(texts().slice(4)).toEqual(['one', 'two']);
+      const r = await run('insert-table', { rows: [['Item', 'Price'], ['Tea', '3'], ['Cake', '4']] });
+      expect(r.value).toMatch(/3 rows × 2 columns/);
+      const t = S.doc.blocks.find((b) => b.type === 'table');
+      expect(t.rows[0].header).toBe(true);
+      expect(S.doc.blocks[S.doc.blocks.length - 1].type).toBe('p');
+      await run('set-alignment', { align: 'center', paragraph: 1 });
+      expect(S.doc.blocks[0].props.align).toBe('center');
+      await run('insert-page-break', {});
+      S.undo();
+      expect(S.doc.blocks.some((b) => b.runs && b.runs.some((x) => x.obj === 'pb'))).toBe(false);
+      S.undo();
+      expect(S.doc.blocks[0].props.align).toBe(undefined);
+    });
+
+    it('insert_image from Slop Drive and from this site; other sites are refused', async () => {
+      await win.SlopHub.put(await pngBlob('#00ff00'), { name: 'green.png' });
+      await run('insert-image', { file: 'green.png', width: 200 });
+      const img = S.doc.blocks.flatMap((b) => b.runs || []).find((r) => r.obj === 'img');
+      expect([img.w, img.h]).toEqual([200, 100]);
+      expect(img.src.startsWith('data:image/png')).toBe(true);
+      await run('insert-image', { url: '/og-share.png', width: 120 });
+      expect(S.doc.blocks.flatMap((b) => b.runs || []).filter((r) => r.obj === 'img').length).toBe(2);
+      expect((await C.exec('docs.ai.insert-image', { url: 'https://example.com/a.png' })).ok).toBe(false);
+    }, { timeout: 20000 });
+
+    it('build_document from an outline, then DOCX and PDF to Slop Drive, read back', async () => {
+      const r = await run('build-document', { title: 'Garden report', blocks: [
+        { type: 'heading', text: 'Summary', level: 1 }, { type: 'paragraph', text: 'Tomatoes did well this year.' },
+        { type: 'bullets', items: ['Basil', 'Mint'] }, { type: 'table', rows: [['Plant', 'Kg'], ['Tomato', '12']] },
+        { type: 'heading', text: 'Next year', level: 2 }, { type: 'numbered', items: ['Compost', 'Water'] }] });
+      expect(r.value).toMatch(/Garden report/);
+      expect(texts().slice(0, 5)).toEqual(['Garden report', 'Summary', 'Tomatoes did well this year.', 'Basil', 'Mint']);
+      expect(S.doc.blocks.filter((b) => b.style === 'H1' || b.style === 'H2').length).toBe(2);
+      const d = await run('export-document', { format: 'docx' });
+      const rec = await win.SlopHub.get(driveId(d));
+      expect(rec.name).toBe('Garden report.docx');
+      const Z = await import('../../shared/office/zip.js'), xml = Z.readText(await Z.readZip(rec.blob), 'word/document.xml');
+      for (const t of ['Garden report', 'Tomatoes did well', 'Basil', 'Tomato', 'Compost']) expect(xml).toContain(t);
+      const p = await run('export-document', { format: 'pdf', name: 'garden' });
+      const prec = await win.SlopHub.get(driveId(p));
+      const pdf = await readPdf(prec.blob);
+      expect(pdf.numPages).toBe(1);
+      const text = (await (await pdf.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ');
+      for (const t of ['Garden report', 'Summary', 'Mint', 'Compost']) expect(text).toContain(t);
+    }, { timeout: 60000 });
+
+    it('build_document from Markdown; the rollback closes the tabs the assistant opened', async () => {
+      const T = S.tabsApi().current(), n = S.tabsApi().tabs().length;
+      const back = C.checkpoint();
+      await run('build-document', { markdown: '# Notes\n\n- a\n- b', page: 'A5' });
+      expect(texts()).toEqual(['Notes', 'a', 'b']);
+      expect(S.doc.section.size).toBe('A5');
+      expect(S.tabsApi().tabs().length).toBe(n + 1);
+      back();
+      await waitFor(() => S.tabsApi().current() === T);
+      expect(S.tabsApi().tabs().length).toBe(n);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

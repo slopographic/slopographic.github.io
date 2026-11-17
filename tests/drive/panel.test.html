@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: details panel width</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, D, grip, info;
+  const KEY = 'slop-drive.info-width';
+  const ptr = (target, type, x, y, extra = {}) => target.dispatchEvent(new W.PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1, pointerId: 7, pointerType: 'mouse', isPrimary: true }, extra)));
+  const keyOn = (el, k) => { const ev = DT.key(k); el.dispatchEvent(ev); return ev; };
+  const width = () => Math.round(info.getBoundingClientRect().width);
+  const val = () => Number(grip.getAttribute('aria-valuenow'));
+
+  describe('details panel: width', () => {
+    it('boots the app with a clean width', async () => {
+      try { localStorage.removeItem(KEY); localStorage.removeItem('slop-drive.prefs'); } catch (e) { /* blocked */ }
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; D = W.document; grip = D.getElementById('infoGrip'); info = D.getElementById('info');
+      await W.SlopHub.clear(); await DR.refresh();
+      await W.SlopHub.put(DT.text('hello'), { name: 'note.txt', from: 'upload' });
+      await DR.refresh(); DR.go(null);
+      expect(!!grip).toBe(true);
+      DR.toggleInfo(true); DR.select(['f:' + [...DR.S.files.keys()][0]]);
+      expect(info.hidden).toBe(false);
+      expect(grip.parentElement).toBe(info);
+    });
+
+    it('clamps the width to 260 px and to 60% of the window', () => {
+      expect(DR.setInfoWidth(100)).toBe(260);
+      expect(D.documentElement.style.getPropertyValue('--info-w')).toBe('260px');
+      expect(DR.setInfoWidth(2000)).toBe(768);            // 60% of 1280
+      expect(DR.setInfoWidth(420)).toBe(420);
+      expect(width()).toBe(420);
+      expect(val()).toBe(420);
+      expect(grip.getAttribute('aria-valuemax')).toBe('768');
+    });
+
+    it('remembers the width in localStorage', () => {
+      expect(localStorage.getItem(KEY)).toBe('420');
+    });
+
+    it('a narrow width collapses the panel to a rail; 300 px and wider are expanded', () => {
+      DR.setInfoWidth(280);
+      expect(info.classList.contains('rail')).toBe(true);
+      expect(width()).toBe(56);
+      DR.setInfoWidth(300);
+      expect(info.classList.contains('rail')).toBe(false);
+      expect(width()).toBe(300);
+    });
+
+    it('the grip resizes with the arrow keys; Home and End go to the limits', () => {
+      DR.setInfoWidth(400);
+      grip.focus();
+      const ev = keyOn(grip, 'ArrowLeft');
+      expect(ev.defaultPrevented).toBe(true);
+      expect(val()).toBe(416);
+      keyOn(grip, 'ArrowRight'); keyOn(grip, 'ArrowRight');
+      expect(val()).toBe(384);
+      keyOn(grip, 'Home'); expect(val()).toBe(260);
+      keyOn(grip, 'ArrowRight'); expect(info.classList.contains('rail')).toBe(true);
+      keyOn(grip, 'ArrowLeft'); expect(val()).toBe(300);  // from the rail, widening opens it to 300
+      expect(info.classList.contains('rail')).toBe(false);
+      keyOn(grip, 'End'); expect(val()).toBe(768);
+      expect(DR.S.sel.size).toBe(1);                     // the arrows did not move the file focus
+    });
+
+    it('dragging the grip sets the width from the window edge and stores it on release', () => {
+      DR.setInfoWidth(300);
+      const r = grip.getBoundingClientRect();
+      ptr(grip, 'pointerdown', r.left + 2, 300);
+      ptr(grip, 'pointermove', 1280 - 500, 300); // the grip holds pointer capture, so its moves come to it
+      expect(width()).toBe(500);
+      ptr(grip, 'pointerup', 1280 - 500, 300);
+      expect(localStorage.getItem(KEY)).toBe('500');
+      ptr(grip, 'pointerdown', r.left + 2, 300);
+      ptr(grip, 'pointermove', 1280 - 50, 300);
+      ptr(grip, 'pointerup', 1280 - 50, 300);
+      expect(val()).toBe(260);
+    });
+
+    it('double-click resets to 300 px', () => {
+      DR.setInfoWidth(640);
+      grip.dispatchEvent(new W.MouseEvent('dblclick', { bubbles: true }));
+      expect(val()).toBe(300);
+      expect(width()).toBe(300);
+    });
+
+    it('the width survives a reload', async () => {
+      DR.setInfoWidth(412);
+      W.__frame.remove();
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      DR = W.DR; D = W.document; grip = D.getElementById('infoGrip'); info = D.getElementById('info');
+      expect(D.documentElement.style.getPropertyValue('--info-w')).toBe('412px');
+      expect(val()).toBe(412);
+    });
+
+    it('a window that shrinks re-clamps the width', () => {
+      DR.setInfoWidth(700);
+      W.__frame.style.width = '600px'; // 60% of 600 px is 360
+      DR.clampInfoWidth();
+      expect(val()).toBe(360);
+      expect(localStorage.getItem(KEY)).toBe('700'); // the stored choice is kept for a wider window
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: details panel width' });
+  </script>
+</body>
+</html>

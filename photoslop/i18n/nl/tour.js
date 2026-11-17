@@ -1,0 +1,20 @@
+/* PhotoSlop, Dutch (the guided tour, shared/tour/tours/photoslop.js). Same keys as photoslop/i18n/en/tour.js. Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'photoslop.tour.title': 'Rondleiding PhotoSlop',
+  'photoslop.tour.new_title': 'Een bestand starten',
+  'photoslop.tour.new_text': 'Nieuw stelt het formaat, de voorinstelling en de achtergrond van een document in (onder Meer ▾ bij een smal venster); Openen laadt een PSD, ORA of afbeelding. Elk bestand krijgt een tabblad.',
+  'photoslop.tour.menus_title': 'Menubalk',
+  'photoslop.tour.menus_text': 'Bestand, Bewerken, Afbeelding, Laag, Selecteren en Filter staan hier. Elk menu toont zijn opdrachten.',
+  'photoslop.tour.tools_title': 'Tools',
+  'photoslop.tour.tools_text': 'Penselen, selectie, tekst en bijsnijden staan in de gereedschapskist. Kies er één en stel hem in op de optiebalk.',
+  'photoslop.tour.options_title': 'Gereedschapsopties',
+  'photoslop.tour.options_text': 'De optiebalk verandert met het actieve gereedschap: grootte, dekking, mengmodus en meer.',
+  'photoslop.tour.canvas_title': 'Het canvas',
+  'photoslop.tour.canvas_text': 'Schilder, selecteer en transformeer op het canvas. De statusbalk toont zoom en grootte.',
+  'photoslop.tour.panels_title': 'Lagen en deelvensters',
+  'photoslop.tour.panels_text': 'Lagen, geschiedenis en eigenschappen staan in deze kolom. Op een telefoon tonen de knop Lagen ze.',
+  'photoslop.tour.export_title': 'Exporteren',
+  'photoslop.tour.export_text': 'Exporteer PNG, JPEG, WebP of PSD. Het bestand wordt op je apparaat gemaakt; er wordt niets geüpload.',
+  'photoslop.tour.theme_title': 'Thema',
+  'photoslop.tour.theme_text': 'Wissel tussen Pro, Licht en Paint ’98.',
+});

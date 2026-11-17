@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Consent · default, accept, revoke, blocked storage</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frames.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, sleep, run } = SlopTest;
+  const { open, stubLoader, reset, lastUpdate, thirdPartyScripts, GA, ADS, ALL_DENIED } = ConsentTest;
+  const IDS = { ga4MeasurementId: GA, adsensePublisherId: ADS };
+  const GA_URL = 'https://www.googletagmanager.com/gtag/js?id=' + GA;
+  const ADS_URL = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + ADS;
+
+  describe('default is denied', () => {
+    beforeEach(reset);
+    it('every category is off for a visitor with no record', async () => {
+      const w = await open({ cfg: IDS });
+      expect(w.SlopConsent.state()).toEqual({ necessary: true, analytics: false, ads: false, rates: false });
+    });
+    it('sets every consent type to denied as the first dataLayer entry, before any tag', async () => {
+      const w = await open({ cfg: IDS });
+      const first = Array.from(w.dataLayer[0]);
+      expect(first[0]).toBe('consent');
+      expect(first[1]).toBe('default');
+      expect(Object.keys(first[2]).length).toBe(ALL_DENIED.length);
+      for (const k of ALL_DENIED) expect(first[2][k]).toBe('denied');
+      for (const e of Array.from(w.dataLayer).slice(1)) expect(Array.from(e)[0] === 'consent').toBe(true);
+    });
+    it('loads no third-party script while denied, even with the IDs set', async () => {
+      const w = await open({ cfg: IDS });
+      await sleep(300);
+      expect(thirdPartyScripts(w.document).length).toBe(0);
+    });
+  });
+
+  describe('accept loads only what is allowed', () => {
+    beforeEach(reset);
+    it('loads gtag only when an ID is set and analytics is granted', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: { ga4MeasurementId: GA } });
+      expect(calls.length).toBe(0);
+      expect(w.SlopConsent.grant('analytics')).toBe(true);
+      expect(calls).toEqual([GA_URL]);
+      expect(lastUpdate(w).analytics_storage).toBe('granted');
+      expect(lastUpdate(w).ad_storage).toBe('denied');
+    });
+    it('never loads gtag without an ID, even when analytics is granted', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: { ga4MeasurementId: '' } });
+      w.SlopConsent.grant('analytics');
+      expect(calls.length).toBe(0);
+      expect(w['ga-disable-' + GA]).toBe(undefined);
+    });
+    it('loads AdSense only when a publisher ID is set and ads is granted', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: { ga4MeasurementId: GA, adsensePublisherId: '' } });
+      w.SlopConsent.grant('ads');
+      expect(calls.length).toBe(0); // ads granted but no publisher ID
+      const w2 = await open({ cfg: { adsensePublisherId: ADS } });
+      w2.SlopConsent.grant('ads');
+      expect(calls).toEqual([ADS_URL]);
+      expect(lastUpdate(w2).ad_user_data).toBe('granted');
+    });
+    it('treats malformed IDs as empty', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: { ga4MeasurementId: '"><img src=x>', adsensePublisherId: 'nope' } });
+      expect(w.SLOP_CONSENT_CONFIG.ga4MeasurementId).toBe('');
+      expect(w.SLOP_CONSENT_CONFIG.adsensePublisherId).toBe('');
+      w.SlopConsent.setChoices({ analytics: true, ads: true });
+      expect(calls.length).toBe(0);
+    });
+    it('accept all loads both scripts once', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: IDS });
+      w.SlopConsent.setChoices({ analytics: true, ads: true });
+      expect(calls.sort()).toEqual([ADS_URL, GA_URL].sort());
+      w.SlopConsent.setChoices({ analytics: true, ads: true });
+      expect(calls.length).toBe(2);
+    });
+    it('a saved choice loads the scripts on the next visit, once each', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: IDS });
+      w.SlopConsent.setChoices({ analytics: true, ads: true });
+      const before = calls.length;
+      await open({ cfg: IDS });
+      expect(calls.length - before).toBe(2);
+      expect(calls.slice(before).sort()).toEqual([ADS_URL, GA_URL].sort());
+    });
+  });
+
+  describe('revoke', () => {
+    beforeEach(reset);
+    it('sets consent to denied, sets ga-disable, and keeps the same page', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: { ga4MeasurementId: GA } });
+      w.SlopConsent.grant('analytics');
+      w.__marker = 'kept';
+      expect(w.SlopConsent.revoke('analytics')).toBe(true);
+      expect(w.__marker).toBe('kept');
+      expect(w['ga-disable-' + GA]).toBe(true);
+      expect(w.SlopConsent.state().analytics).toBe(false);
+      expect(lastUpdate(w).analytics_storage).toBe('denied');
+      expect(calls.length).toBe(1);
+    });
+    it('stops future loads: a later visit does not load gtag', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: { ga4MeasurementId: GA } });
+      w.SlopConsent.grant('analytics');
+      w.SlopConsent.revoke('analytics');
+      const n = calls.length;
+      const w2 = await open({ cfg: { ga4MeasurementId: GA } });
+      expect(calls.length).toBe(n);
+      expect(w2.SlopConsent.state().analytics).toBe(false);
+    });
+  });
+
+  describe('blocked storage', () => {
+    beforeEach(reset);
+    it('does not throw, acts as denied and asks nothing', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: IDS, block: true });
+      expect(w.__errors).toEqual([]);
+      expect(w.SlopConsentState.available()).toBe(false);
+      expect(w.SlopConsent.state()).toEqual({ necessary: true, analytics: false, ads: false, rates: false });
+      expect(w.SlopConsentState.needsChoice()).toBe(false);
+      expect(w.SlopConsent.grant('analytics')).toBe(false);
+      expect(calls.length).toBe(0);
+      expect(w.document.getElementById('slopc-banner')).toBe(null);
+      expect(w.__errors).toEqual([]);
+    });
+  });
+
+  run({ name: 'Consent core' });
+  </script>
+</body>
+</html>

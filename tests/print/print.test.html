@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopPrint (print dialog)</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/commands/commands.css">
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'en' } } })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the dialog's words (shared/i18n/ui/en/print.js) -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/commands/commands.js"></script>
+  <script src="../../vendor/dompurify/purify.min.js"></script>
+  <script src="../../shared/sanitize/sanitize.js"></script>
+  <script src="../../shared/print/print.js"></script>
+  <div id="source"><h1 class="title">Quarterly report</h1><p>Total: 42</p><script>window.__ran = true</script><img src="https://example.com/x.png" alt="remote"><a href="https://example.com/" onclick="x()">link</a></div>
+  <script>
+  // Covers: shared/print/print.js, shared/sanitize/sanitize.js, shared/i18n/ui/en/print.js, shared/i18n/ui/sv/print.js
+  const { describe, it, beforeEach, expect, waitFor, sleep, run } = SlopTest;
+  const U = window.SlopUI;
+  const P = window.SlopPrint;
+  const dlg = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop();
+  const btn = (label) => [...dlg().querySelectorAll('.sui-foot button')].find((b) => b.textContent === label);
+  const field = (label) => [...dlg().querySelectorAll('.sui-field')].find((f) => f.querySelector('.sui-label').textContent === label).querySelector('select, input');
+  const preview = () => dlg().querySelector('.sp-frame');
+  const closeAll = async () => { for (const x of document.querySelectorAll('.sui-back:not(.sui-out) .sui-x')) x.click(); await waitFor(() => U.openDialogs === 0); await sleep(180); };
+  /** Waits for the preview iframe to load its srcdoc and returns its document. */
+  const previewDoc = () => waitFor(() => { const d = preview() && preview().contentDocument; return d && d.querySelector('.sp-root') && d; });
+  const pageRules = (doc) => [...doc.styleSheets].flatMap((s) => [...s.cssRules]).filter((r) => r instanceof doc.defaultView.CSSPageRule);
+
+  describe('open()', () => {
+    beforeEach(closeAll);
+    it('shows the dialog with the paper, orientation, margins, scale, page range and copies', async () => {
+      P.open({ title: 'Report', html: '<p>Hi</p>', paper: 'Letter', orientation: 'landscape', pages: '1-3, 5' });
+      expect(U.openDialogs).toBe(1);
+      expect(dlg().getAttribute('aria-label')).toBe('Report');
+      expect(field('Paper').value).toBe('Letter');
+      expect(field('Orientation').value).toBe('landscape');
+      expect(field('Margins').value).toBe('normal');
+      expect(field('Scale').value).toBe('fit');
+      expect(field('Pages').value).toBe('1-3, 5');
+      expect(field('Copies').value).toBe('1');
+      expect(dlg().querySelector('.sp-help').textContent).toContain('1-3, 5');
+      expect([...dlg().querySelectorAll('.sui-foot button')].map((b) => b.textContent)).toEqual(['Cancel', 'Save as PDF', 'Print']);
+      btn('Cancel').click();
+      await waitFor(() => U.openDialogs === 0);
+    });
+    it('puts the paper size, orientation and page range in the preview @page rule', async () => {
+      P.open({ title: 'Report', html: '<p>Hi</p>', paper: 'Letter', orientation: 'landscape', pages: '1-3, 5' });
+      const doc = await previewDoc();
+      const rule = pageRules(doc).pop();
+      expect(rule).toBeTruthy();
+      expect(rule.cssText).toContain('letter landscape');
+      expect(doc.documentElement.dataset.spPages).toBe('1-3, 5');
+      expect(preview().srcdoc).toContain('@page{size:letter landscape;margin:15mm;/* pages: 1-3, 5 */}');
+    });
+    it('updates the @page rule when the paper size changes', async () => {
+      P.open({ title: 'Report', html: '<p>Hi</p>', paper: 'A4' });
+      await previewDoc();
+      field('Paper').value = 'Legal';
+      field('Paper').dispatchEvent(new Event('change'));
+      await waitFor(async () => { const d = await previewDoc(); return pageRules(d).pop().cssText.includes('legal'); });
+      // the rule as written (the browser shortens its own copy: Chromium reads "legal portrait" back as "legal")
+      expect(preview().srcdoc).toContain('@page{size:legal portrait;');
+    });
+    it('Escape closes the dialog', async () => {
+      P.open({ title: 'Esc', html: '<p>x</p>' });
+      expect(U.openDialogs).toBe(1);
+      dlg().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await waitFor(() => U.openDialogs === 0);
+      expect(document.querySelector('.sui-back:not(.sui-out)')).toBe(null);
+    });
+    it('keeps the dialog open when the page range is invalid', async () => {
+      P.open({ title: 'Range', html: '<p>x</p>', pages: 'abc' });
+      btn('Print').click();
+      await sleep(30);
+      expect(U.openDialogs).toBe(1);
+      expect(dlg().querySelector('.sp-help').classList.contains('sp-err')).toBe(true);
+      await closeAll();
+    });
+    it('shows a PDF blob in the viewer and disables the page-setup fields', async () => {
+      P.open({ title: 'Doc', blob: new Blob(['%PDF-1.4'], { type: 'application/pdf' }) });
+      expect(field('Paper').disabled).toBe(true);
+      expect(preview().getAttribute('src')).toMatch(/^blob:/);
+      await closeAll();
+    });
+  });
+
+  describe('fromElement()', () => {
+    beforeEach(closeAll);
+    it('clones the element without scripts, remote images or inline handlers', async () => {
+      P.fromElement(document.getElementById('source'));
+      const doc = await previewDoc();
+      expect(doc.querySelector('.title').textContent).toBe('Quarterly report');
+      expect(doc.querySelector('script')).toBe(null);
+      expect(doc.querySelector('img').hasAttribute('src')).toBe(false);
+      expect(doc.querySelector('a').hasAttribute('href')).toBe(false);
+      expect(doc.querySelector('a').hasAttribute('onclick')).toBe(false);
+      expect(doc.defaultView.__ran).toBe(undefined);
+      await closeAll();
+    });
+    it('markup that tries to run script gets none, and the preview frame is sandboxed without scripts', async () => {
+      window.__printXss = undefined;
+      P.open({ title: 'Bad', html: '<p>Kept</p><noscript><p title="</noscript><img src=x onerror=parent.__printXss=1>"></p></noscript>' +
+        '<svg><animate attributeName="href" values="javascript:parent.__printXss=2"/></svg><img src=x onerror="parent.__printXss=3">' +
+        '<math><mtext><table><mglyph><style><img src=x onerror=parent.__printXss=4></style></mglyph></table></mtext></math>' });
+      const doc = await previewDoc();
+      await sleep(150);
+      expect(doc.body.textContent).toContain('Kept');
+      expect(preview().getAttribute('sandbox')).toBe('allow-same-origin');
+      expect(doc.querySelectorAll('[onerror]').length).toBe(0);
+      expect(doc.querySelector('animate')).toBe(null);
+      expect(window.__printXss).toBe(undefined);
+      await closeAll();
+    });
+    it('copies the page print CSS into the frame', async () => {
+      const style = document.createElement('style');
+      style.textContent = '.copied-marker { color: rgb(1, 2, 3); }';
+      document.head.append(style);
+      P.open({ title: 'CSS', html: '<p class="copied-marker">x</p>' });
+      const doc = await previewDoc();
+      expect(doc.head.innerHTML).toContain('copied-marker');
+      style.remove();
+      await closeAll();
+    });
+  });
+
+  describe('register() and print(appId)', () => {
+    beforeEach(closeAll);
+    it('print(appId) uses the registered provider', async () => {
+      P.register('demo', () => ({ title: 'Demo doc', html: '<p>demo</p>' }));
+      await P.print('demo');
+      expect(U.openDialogs).toBe(1);
+      expect(dlg().getAttribute('aria-label')).toBe('Demo doc');
+      await closeAll();
+    });
+    it('print(appId) does nothing for an unknown app', async () => {
+      await P.print('no-such-app');
+      expect(U.openDialogs).toBe(0);
+    });
+    it('the Print command is registered and enabled only with a provider', () => {
+      const cmd = SlopCmd.get('print.open');
+      expect(cmd).toBeTruthy();
+      const off = P.register('cmd-app', () => ({ html: '<p>x</p>' }));
+      expect(cmd.when()).toBe(true);
+      off();
+      expect(cmd.when()).toBe(false);
+    });
+  });
+
+  describe('Ctrl+P', () => {
+    beforeEach(closeAll);
+    const ctrlP = () => { const e = new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true, cancelable: true }); document.body.dispatchEvent(e); return e; };
+    it('opens the dialog for the page provider and takes the key', async () => {
+      P.register('keys', () => ({ title: 'Keyed', html: '<p>k</p>' }));
+      const e = ctrlP();
+      expect(e.defaultPrevented).toBe(true);
+      await waitFor(() => U.openDialogs === 1);
+      expect(dlg().getAttribute('aria-label')).toBe('Keyed');
+      await closeAll();
+    });
+    it('leaves the browser print alone when the page has no provider', async () => {
+      const off = P.register('bare', () => ({ html: '<p>x</p>' }));
+      off();
+      const e = ctrlP();
+      await sleep(30);
+      expect(e.defaultPrevented).toBe(false);
+      expect(U.openDialogs).toBe(0);
+    });
+  });
+
+  describe('in Swedish', () => {
+    beforeEach(closeAll);
+    it('the dialog and the Print command speak the chosen language (they were English in every language)', async () => {
+      await new Promise((res) => { addEventListener('slopi18n', () => res(), { once: true }); SlopI18n.set('sv'); });
+      expect(SlopCmd.get('print.open').title).toBe('Skriv ut…');
+      P.open({ title: 'Doc', html: '<p>x</p>' });
+      await waitFor(() => U.openDialogs === 1);
+      expect([...dlg().querySelectorAll('.sui-foot button')].map((b) => b.textContent)).toEqual(['Avbryt', 'Spara som PDF', 'Skriv ut']);
+      expect(field('Orientering').value).toBe('portrait');
+      await closeAll();
+      await new Promise((res) => { addEventListener('slopi18n', () => res(), { once: true }); SlopI18n.set('en'); });
+      expect(SlopCmd.get('print.open').title).toBe('Print…');
+    });
+  });
+
+  run({ name: 'SlopPrint' });
+  </script>
+</body>
+</html>

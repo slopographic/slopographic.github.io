@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The shared watermark panel, My watermarks across apps, and old workflow files</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/watermark/panel.css">
+  <style>body { margin: 0; } .host { width: 320px; display: inline-block; vertical-align: top; margin: 8px; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <div class="host" id="a"></div><div class="host" id="b"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/db/query.js"></script>
+  <script src="../../shared/db/db.js"></script>
+  <script src="../../shared/watermark/spec.js"></script>
+  <script src="../../shared/watermark/spec-layout.js"></script>
+  <script src="../../shared/watermark/spec-convert.js"></script>
+  <script src="../../shared/watermark/core.js"></script>
+  <script src="../../shared/watermark/apply.js"></script>
+  <script src="../../shared/watermark/saved.js"></script>
+  <script src="../../shared/watermark/panel-fields.js"></script>
+  <script src="../../shared/watermark/panel-saved.js"></script>
+  <script src="../../shared/watermark/panel.js"></script>
+  <script type="module">
+  // Covers: shared/watermark/panel.js, shared/watermark/panel-fields.js, shared/watermark/panel-saved.js, shared/watermark/saved.js
+  // Covers: shared/ops/watermark.js, convert/js/ui/options.js, shared/ops/registry.js
+  import * as R from '../../shared/ops/all.js';
+  import { renderOptions, readOptions } from '../../convert/js/ui/options.js';
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const S = window.SlopWatermarkSpec, P = window.SlopWatermarkPanel, Saved = window.SlopWatermarkSaved;
+  const ev = (el, name) => el.dispatchEvent(new Event(name, { bubbles: true }));
+  const type = (root, text) => { const t = root.querySelector('input[aria-label="Watermark text"]'); t.value = text; ev(t, 'input'); };
+  const button = (root, label) => [...root.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+  async function clearSaved() { for (const r of await Saved.list()) await Saved.remove(r.id); }
+  /** Opens a menu button and picks the row with this label. */
+  async function pick(btn, label) {
+    btn.click();
+    const row = await waitFor(() => [...document.querySelectorAll('.smb-row')].find((r) => r.textContent.trim() === label && !r.closest('[hidden]')));
+    row.click();
+  }
+
+  describe('the panel, mounted twice on one page', () => {
+    it('each panel keeps its own watermark, and tells only its own app', async () => {
+      const got = { a: [], b: [] };
+      const A = P.mount(document.getElementById('a'), { value: S.defaults(), onChange: (sp, how) => got.a.push([sp, how]) });
+      const B = P.mount(document.getElementById('b'), { value: S.normalize({ layers: [{ text: 'Second' }] }), onChange: (sp, how) => got.b.push([sp, how]), media: { pages: true, time: true } });
+      type(A.el, 'First');
+      expect(A.get().layers[0].text).toBe('First');
+      expect(B.get().layers[0].text).toBe('Second');
+      expect([got.a.length, got.b.length]).toEqual([1, 0]);
+      expect(got.a[0][1]).toEqual({ label: 'Edit watermark text', key: 'wm:' + A.get().layers[0].id + ':text' });
+      const ids = [...document.querySelectorAll('.swp [id]')].map((n) => n.id);
+      expect(new Set(ids).size).toBe(ids.length);   // every label still points at its own field
+      expect([A.el.querySelector('.swp-pages').hidden, B.el.querySelector('.swp-pages').hidden, B.el.querySelector('.swp-time').hidden]).toEqual([true, false, false]);
+      A.destroy(); B.destroy();
+    });
+    it('layers: add, select, move, duplicate, hide and remove, each one change', async () => {
+      const seen = [];
+      const A = P.mount(document.getElementById('a'), { value: S.defaults(), onChange: (sp, how) => seen.push(how.label) });
+      button(A.el, '+ Text').click();
+      type(A.el, 'Top');
+      expect(A.get().layers.map((L) => L.text)).toEqual(['© Your name', 'Top']);
+      button(A.el, 'Down').click();
+      expect(A.get().layers.map((L) => L.text)).toEqual(['Top', '© Your name']);
+      button(A.el, 'Duplicate').click();
+      expect(A.get().layers.length).toBe(3);
+      const cb = A.el.querySelector('.swp-row input[type="checkbox"]'); cb.checked = false; ev(cb, 'change');
+      button(A.el, 'Remove').click();
+      expect(seen).toEqual(['Add text layer', 'Edit watermark text', 'Move layer down', 'Duplicate layer', 'Hide layer', 'Remove layer']);
+      A.el.querySelector('.swp-cell[data-pos="tc"]').click();
+      expect(A.get().layers.find((L) => L.id === A.selected()).position).toBe('tc');
+      A.destroy();
+    });
+    it('an app’s switch and buttons sit in the panel', async () => {
+      let on = false, acted = 0;
+      const A = P.mount(document.getElementById('a'), { toggle: { get: () => on, set: (v) => { on = v; } }, actions: [{ label: 'Save as default', act: () => acted++ }] });
+      const sw = A.el.querySelector('.swp-switch input'); sw.checked = true; ev(sw, 'change');
+      button(A.el, 'Save as default').click();
+      expect([on, acted]).toEqual([true, 1]);
+      A.destroy();
+    });
+  });
+
+  describe('My watermarks', () => {
+    it('a watermark saved in one panel shows in the other at once, and picking it uses it', async () => {
+      await clearSaved();
+      const A = P.mount(document.getElementById('a'), { value: S.normalize({ layers: [{ text: 'Studio', position: 'tl' }, { text: 'Two' }] }) });
+      const B = P.mount(document.getElementById('b'), { value: S.defaults() });
+      const prompt = window.SlopUI.prompt;
+      window.SlopUI.prompt = async () => 'Studio mark';
+      try { await pick(A.el.querySelector('.swp-saved'), 'Save this watermark…'); } finally { window.SlopUI.prompt = prompt; }
+      await waitFor(async () => (await Saved.list()).some((r) => r.name === 'Studio mark'));
+      await sleep(50);
+      await pick(B.el.querySelector('.swp-saved'), 'Studio mark');
+      expect(B.get().layers.map((L) => [L.text, L.position])).toEqual([['Studio', 'tl'], ['Two', 'br']]);
+      A.destroy(); B.destroy();
+    });
+    it('the saved watermark is in another app (PhotoSlop) and in the Workflows step', async () => {
+      const f = document.createElement('iframe');
+      f.src = '../../photoslop/index.html';
+      localStorage.setItem('photoslop.tourShown', '1');
+      document.body.append(f);
+      const W = await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready') && f.contentWindow, { timeout: 30000 });
+      W.eval("newDocument(400, 300, '#202020', 'Saved test')");
+      const btn = W.document.querySelector('#panel-watermark .swp-saved');
+      btn.click();
+      const row = await waitFor(() => [...W.document.querySelectorAll('.smb-row')].find((r) => r.textContent.trim() === 'Studio mark'), { timeout: 10000 });
+      row.click();
+      expect(W.eval('wmState().spec.layers.map((L) => L.text).join()')).toBe('Studio,Two');
+      f.remove();
+      // the Workflows step: its "My watermarks" option lists it, and choosing it gives the whole spec
+      const op = R.byId('watermark.apply'), box = document.createElement('div');
+      document.body.append(box);
+      renderOptions(box, op.options, {}, 't-');
+      const sel = box.querySelector('#cv-o-t-spec');
+      const opt = await waitFor(() => [...sel.options].find((o) => o.textContent === 'Studio mark'));
+      sel.value = opt.value; ev(sel, 'change');
+      const spec = JSON.parse(readOptions(box, op.options, 't-').spec);
+      expect(spec.layers.map((L) => L.text)).toEqual(['Studio', 'Two']);
+      box.remove();
+    }, { timeout: 60000 });
+  });
+
+  describe('workflow files made before the spec', () => {
+    it('an old .slopflow Watermark step (flat options) still loads, checks and runs', async () => {
+      const F = await import('../../shared/ops/flowdoc.js').then(() => window.SlopFlowDoc);
+      const old = '{"kind":"slopflow","v":1,"name":"Old","steps":[{"kind":"op","id":"watermark.apply","options":{"text":"OLD","font":"Georgia, serif","colour":"#ff00ff","size":30,"opacity":100,"shadow":false,"position":"mc"}}]}';
+      const { doc, errors } = F.fromText(old);
+      expect(errors).toEqual([]);
+      const op = R.byId(doc.steps[0].id), v = R.validateOptions(op, doc.steps[0].options);
+      expect(v.ok).toBe(true);
+      expect(op.check(v.options)).toBe('');
+      const c = document.createElement('canvas'); c.width = 200; c.height = 100; c.getContext('2d').fillStyle = '#000'; c.getContext('2d').fillRect(0, 0, 200, 100);
+      const file = new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'p.png', { type: 'image/png' });
+      const [out] = await op.run([{ file, name: 'p.png', kind: 'png' }], Object.assign(R.defaultsOf(op), v.options));
+      expect([out.name, out.kind]).toEqual(['p.png', 'png']);
+      const b = await createImageBitmap(out.blob), k = document.createElement('canvas'); k.width = 200; k.height = 100; k.getContext('2d').drawImage(b, 0, 0);
+      const d = k.getContext('2d').getImageData(0, 0, 200, 100).data;
+      let magenta = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 200 && d[i + 2] > 200 && d[i + 1] < 60) magenta++;
+      expect(magenta).toBeGreaterThan(100);
+    }, { timeout: 30000 });
+  });
+
+  SlopTest.run({ name: 'The shared watermark panel' });
+  </script>
+</body>
+</html>

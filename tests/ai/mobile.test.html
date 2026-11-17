@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: phone (390×844)</title></head>
+<body>
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: ai/js/ui/chatlist.js (the phone chat list drawer)
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, AI, D;
+  const $ = (s) => D.querySelector(s);
+  const noSideways = () => D.documentElement.scrollWidth <= 390 && D.body.scrollWidth <= 390;
+  const inView = (n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.left >= -1 && r.right <= 391 && r.top >= -1 && r.bottom <= 845; };
+  describe('390×844', () => {
+    it('every tab fits without sideways scrolling', async () => {
+      W = await AT.app('', { width: 390, height: 844 }); AI = W.AI; D = W.document;
+      AI.sysMock = AT.SYS.laptop; await AI.runCheck();
+      for (const t of ['chat', 'build', 'models', 'sys']) { AI.setTab(t); await sleep(60); expect(noSideways()).toBe(true); }
+      for (const id of ['tab-chat', 'tab-models', 'modelChip', 'btnMore']) expect(inView(D.getElementById(id))).toBe(true);
+      // the built-in mascot in the top bar; a build without it shows none there (ai/js/ui/sloppo.js)
+      if (BRAND_FACTS.mascot === 'builtin') expect(inView(D.getElementById('sloppo'))).toBe(true);
+      else expect(!D.getElementById('sloppo') || !inView(D.getElementById('sloppo'))).toBe(true);
+    });
+    it('the chat list is a drawer from the left (SlopSheet): Chats opens it, again closes it, × and Escape close it', async () => {
+      AI.setTab('chat');
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const side = $('#convs'), btn = $('.chat-bar .only-mobile'), on = () => side.classList.contains('ssh-on');
+      const esc = () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(side.getBoundingClientRect().right).toBeLessThanOrEqual(1);
+      btn.click();
+      expect([on(), inView(side), btn.getAttribute('aria-expanded')]).toEqual([true, true, 'true']);
+      expect(side.getBoundingClientRect().top).toBeGreaterThan(30);   // below the top bar
+      btn.click(); expect(on()).toBe(false);
+      btn.focus(); btn.click(); $('#convs > .ssh-x').click();
+      expect([on(), D.activeElement]).toEqual([false, btn]);
+      btn.click(); esc(); expect(on()).toBe(false);
+      btn.click(); $('.chat-main .msgs, .chat-main').dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true }));
+      expect(on()).toBe(false);
+      btn.click(); $('#btnNewChat').click();   // a new chat closes it
+      expect(on()).toBe(false);
+      expect(side.getBoundingClientRect().right).toBeLessThanOrEqual(1);
+    });
+    it('chatting works and the composer stays on screen', async () => {
+      await AI.E.load('Qwen2.5-0.5B-Instruct-q4f16_1-MLC');
+      await AI.chat.send('Hello from a phone');
+      expect(D.querySelectorAll('.chat-main .msg.bot').length).toBe(1);
+      expect(inView($('.chat-main .send'))).toBe(true);
+      expect(noSideways()).toBe(true);
+    });
+    it('Build shows chat first, preview on demand', async () => {
+      AI.setTab('build');
+      D.querySelector('[data-tpl="game"]').click();
+      await waitFor(() => AI.builder.conv && AI.builder.conv.html);
+      expect($('.build-preview').getBoundingClientRect().width).toBe(0);
+      $('#btnShowPreview').click();
+      await waitFor(() => inView($('#preview')), { timeout: 3000 });
+      expect(noSideways()).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: phone (390×844)' });
+  </script>
+</body>
+</html>

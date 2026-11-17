@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Compare: the look (1280 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 844px; }</style></head>
+<body>
+  <!-- Covers: diff/index.html, diff/css/diff.css, diff/css/result.css, diff/js/ui/bar.js, diff/js/ui/main.js, diff/js/ui/panel.js -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../diff/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && f.contentWindow.SlopCompare && f.contentWindow.SlopCompare.ready && D.querySelector('header .sh-switch') && D.querySelector('header a.brand .brand-app'); }, { timeout: 30000 });
+    return { D: f.contentDocument, W: f.contentWindow, f };
+  }
+  const visible = (n) => n && n.getBoundingClientRect().width > 0 && n.getBoundingClientRect().height > 0;
+
+  describe('Slop Compare: the look', () => {
+    it('1280: the header leads with the app icon, one row; A and B side by side; Compare at the panel\'s foot', async () => {
+      const { D, f } = await open(1280);
+      const brand = D.querySelector('#df-bar .sab-brand > a.brand:first-child');
+      expect(brand.getAttribute('href')).toBe('../');
+      expect(D.querySelector('#df-bar .sab-name').textContent).toBe('Slop Compare');
+      expect(D.querySelectorAll('header').length).toBe(1);   // the sides' heads are not headers (the shell's buttons stay in the bar)
+      const a = D.querySelector('.df-side[data-side="a"]').getBoundingClientRect(), b = D.querySelector('.df-side[data-side="b"]').getBoundingClientRect();
+      expect(Math.abs(a.top - b.top)).toBeLessThan(2);
+      expect(b.left).toBeGreaterThan(a.right);
+      const panel = D.getElementById('df-panel').getBoundingClientRect();
+      expect(panel.left).toBeGreaterThan(b.right);
+      const go = D.getElementById('df-compare');
+      expect(go.classList.contains('sui-primary')).toBe(true);
+      expect(go.disabled).toBe(true);
+      expect(go.closest('#df-panel')).toBeTruthy();
+      expect(D.querySelectorAll('.sd-zone').length).toBe(1);
+      expect(D.querySelectorAll('#df-drop .sd-steps li').length).toBe(3);
+      f.remove();
+    }, { timeout: 40000 });
+
+    it('390: no sideways scroll; the sides stack; Compare stays on screen in the closed sheet; unified by default', async () => {
+      const { D, W, f } = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const a = D.querySelector('.df-side[data-side="a"]').getBoundingClientRect(), b = D.querySelector('.df-side[data-side="b"]').getBoundingClientRect();
+      expect(b.top).toBeGreaterThan(a.bottom);
+      const go = D.getElementById('df-compare');
+      expect(visible(go)).toBe(true);
+      expect(go.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      expect(W.SlopCompare.S.opts.view).toBe('unified');
+      D.querySelector('#df-drop .sd-sample').click();
+      await waitFor(() => W.SlopCompare.S.result, { timeout: 15000 });
+      expect(D.querySelector('#df-out .df-unified')).toBeTruthy();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      const hit = D.querySelector('.df-mini').getBoundingClientRect().height;
+      expect(hit).toBeGreaterThanOrEqual(28);
+      f.remove();
+    }, { timeout: 40000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

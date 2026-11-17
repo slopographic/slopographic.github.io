@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Settings in Swedish</title>
+  <!-- Covers: settings/i18n/index.js, settings/say.js, settings/appearance.js, settings/language.js, settings/settings.js,
+        settings/defaults.js, settings/rates.js, settings/folder.js, settings/storage.js, settings/updates.js,
+        settings/app-settings.js, settings/index.html, shared/i18n/i18n.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1100px; height: 900px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, afterEach, expect, waitFor, run } = SlopTest;
+  // Settings in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.src = '../../settings/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => {
+      const D = f.contentDocument;
+      return D && D.readyState === 'complete' && D.querySelector('#storage-box .storage-acts') && D.querySelector('#app-settings .app-block') && D.querySelector('#theme-options .theme-name') && D.getElementById('rates-status').textContent;
+    }, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«])settings\.[a-z_]+\.[a-z_]+/;
+  /** Text a person sees or hears in the page: the body text and the labelling attributes. */
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const $ = (f, sel) => f.contentDocument.querySelector(sel);
+  const themeNames = (f) => [...f.contentDocument.querySelectorAll('#theme-options .theme-name')].map((n) => n.textContent);
+  // Light and Dark as the build names them: "<brand> Light" when its profile names them after the brand (tests/brand-facts.js)
+  const branded = (name) => (BRAND_FACTS.themeBrand ? `${BRAND_FACTS.themeBrand} ${name}` : name);
+
+  describe('Settings in Swedish', () => {
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.removeItem('slop-profile'); SlopTest.english(); });
+
+    it('the page text, the status lines and the drawn parts are Swedish, and no key shows', async () => {
+      const f = await open('sv');
+      expect($(f, '.page-title').textContent).toBe('Dina val');
+      expect($(f, '#storage-title').textContent).toBe('Lagring');
+      expect($(f, '#updates-title').textContent).toBe('Uppdateringar');
+      expect($(f, '.privacy').textContent).toContain('dina filer lämnar aldrig din enhet');
+      expect($(f, '#set-analytics-label').textContent).toBe('Statistik');
+      expect($(f, '#updates-refresh').textContent).toBe('Läs in senaste versionen');
+      expect($(f, '#updates').textContent).toContain('?fresh');
+      expect($(f, '.rate-table caption').textContent).toBe('Senaste kurser');
+      // drawn by settings/*.js
+      expect(themeNames(f).slice(0, 3)).toEqual(['System', branded('Ljust'), branded('Mörkt')]);
+      expect($(f, '#rates-status').textContent).toBe('Växelkurser är avstängda. Inget laddas ned.');
+      expect($(f, '#settings-note').textContent).toMatch(/Statistik och annonser är avstängda|Du har inte valt än/);
+      expect($(f, '#storage-box .storage-acts .btn').textContent).toBe('Rensa miniatyrer och förhandsvisningar (filerna behålls)');
+      $(f, '#app-settings input[type=checkbox]').click();   // an app option: saved, said in Swedish
+      expect($(f, '#app-settings .settings-note').textContent).toBe('Sparat.');
+      expect($(f, '#folder-box').textContent).toMatch(/Ingen mapp är ansluten|Mappar kräver Chrome eller Edge/);
+      await waitFor(() => $(f, '#updates-version').textContent);
+      expect($(f, '#updates-version').textContent).toMatch(/Den här webbläsaren har version|Ingen offlinekopia än/);
+      expect(visible(f.contentDocument)).not.toMatch(KEY);
+      expect(visible(f.contentDocument)).not.toContain('Exchange rates are off');
+    }, { timeout: 40000 });
+
+    it('the storage list and a status line say it in Swedish', async () => {
+      const f = await open('sv');
+      const W = f.contentWindow;
+      const before = W.document.querySelectorAll('.sui-dlg').length;
+      $(f, '#storage-box .storage-acts .btn').click();
+      await waitFor(() => W.document.querySelectorAll('.sui-dlg').length > before);
+      const dlg = [...W.document.querySelectorAll('.sui-dlg')].pop();
+      expect(dlg.textContent).toContain('Dina Drive-filer, dokument och sparade projekt tas inte bort.');
+      expect(dlg.querySelector('.sr-row b').textContent).toBe('Miniatyrer och förhandsvisningar i Drive');
+      dlg.querySelector('.sui-x').click();
+      // a rate that is not a number: the message, then English live (it is marked with its key)
+      W.document.getElementById('rate-value').value = 'abc';
+      W.document.getElementById('rate-form').dispatchEvent(new W.Event('submit', { cancelable: true }));
+      expect($(f, '#rate-msg').textContent).toContain('Ange kursen som ett vanligt positivt tal');
+    }, { timeout: 40000 });
+
+    it('switching to English switches the page back live', async () => {
+      const f = await open('sv');
+      expect(f.contentWindow.SlopI18n.set('en').ok).toBe(true);
+      await waitFor(() => $(f, '#storage-title').textContent === 'Storage', { timeout: 15000 });
+      await waitFor(() => themeNames(f)[1] === branded('Light'));
+      expect($(f, '.page-title').textContent).toBe('Your choices');
+      expect($(f, '#rates-status').textContent).toBe('Exchange rates are off. Nothing is downloaded.');
+      await waitFor(() => $(f, '#storage-box .storage-acts .btn').textContent === 'Clear thumbnails and previews (files kept)');
+      $(f, '#app-settings input[type=checkbox]').click();
+      await waitFor(() => $(f, '#app-settings .settings-note').textContent === 'Saved.');
+      expect($(f, '#app-settings').textContent).toContain('Face detection');
+      expect($(f, '#folder-box').textContent).toMatch(/No folder is connected|Folders need Chrome or Edge/);
+      expect($(f, '#settings-note').textContent).toMatch(/Analytics and ads are off|You have not chosen yet/);
+      expect(visible(f.contentDocument)).not.toMatch(KEY);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Settings in Swedish' });
+  </script>
+</body>
+</html>

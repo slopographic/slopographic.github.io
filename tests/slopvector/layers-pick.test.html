@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · Layers panel multi-select</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  // Covers: slopvector/js/ui/layers.js — rows pick like Illustrator: a click selects one, Shift selects the range from the
+  // anchor row to the clicked one (in the order shown, top first), Ctrl/Cmd adds or takes one away, Ctrl+Shift adds a range;
+  // Shift on a layer's target circle adds its objects. Delete then acts on every row picked.
+  const { describe, it, expect } = SlopTest;
+  const doc = () => W.document;
+  const rowOf = (id) => { UI.update(); return doc().querySelector('.lrow[data-id="' + id + '"]'); };
+  const click = (id, mods = {}, part) => { const r = rowOf(id), el = part ? r.querySelector(part) : r.querySelector('.ltype'); el.dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, mods))); UI.update(); };
+  const sel = () => SV.state.sel.slice().sort();
+  let L, o;
+  function setup() {
+    blank();
+    L = SV.activeLayer();
+    o = ['A', 'B', 'C', 'D', 'E'].map((n, i) => SV.mk.rect(i * 60, 10, 50, 50, 0, { fill: '#f00' }, n));
+    o.forEach((x) => L.children.push(x)); SV.commit('five'); SV.select([]); UI.update();
+    // shown top first: E D C B A
+  }
+  const ids = (...xs) => xs.map((x) => x.id).sort();
+
+  describe('Layers panel: Shift range and Ctrl/Cmd toggle', () => {
+    it('a plain click selects one row', () => {
+      setup();
+      click(o[1].id); click(o[3].id);
+      expect(sel()).toEqual(ids(o[3]));
+    });
+    it('Shift+click selects every row from the anchor to the clicked one, both ways', () => {
+      setup();
+      click(o[4].id); click(o[1].id, { shiftKey: true });
+      expect(sel()).toEqual(ids(o[1], o[2], o[3], o[4]));
+      click(o[3].id, { shiftKey: true }); // the anchor stays on E
+      expect(sel()).toEqual(ids(o[3], o[4]));
+      click(o[0].id); click(o[2].id, { shiftKey: true });
+      expect(sel()).toEqual(ids(o[0], o[1], o[2]));
+      expect(rowOf(o[1].id).classList.contains('selected')).toBe(true);
+      expect(rowOf(o[3].id).classList.contains('selected')).toBe(false);
+    });
+    it('Ctrl or Cmd+click adds or takes one row away and moves the anchor', () => {
+      setup();
+      click(o[0].id); click(o[2].id, { ctrlKey: true }); click(o[4].id, { metaKey: true });
+      expect(sel()).toEqual(ids(o[0], o[2], o[4]));
+      click(o[2].id, { ctrlKey: true });
+      expect(sel()).toEqual(ids(o[0], o[4]));
+      click(o[0].id, { shiftKey: true }); // range from the new anchor (C) to A
+      expect(sel()).toEqual(ids(o[0], o[1], o[2]));
+    });
+    it('Ctrl+Shift adds the range to what is selected', () => {
+      setup();
+      click(o[4].id); click(o[1].id, { ctrlKey: true }); click(o[0].id, { ctrlKey: true, shiftKey: true });
+      expect(sel()).toEqual(ids(o[0], o[1], o[4]));
+    });
+    it('the range skips locked rows, starts from a canvas pick, and Delete removes every row picked', () => {
+      setup();
+      o[2].locked = true; SV.commit('lock');
+      SV.select([o[4].id]); // as if clicked on the canvas
+      click(o[0].id, { shiftKey: true });
+      expect(sel()).toEqual(ids(o[0], o[1], o[3], o[4]));
+      doc().querySelector('.layers-foot button:last-of-type').click(); // the panel's Delete
+      expect(L.children.map((x) => x.name)).toEqual(['C']);
+    });
+    it('Shift on a layer\'s target circle adds its objects, again takes them away; a plain one still selects only them', () => {
+      setup();
+      const L2 = SV.mk.layer('Two'); SV.state.doc.layers.push(L2);
+      const z = SV.mk.rect(0, 200, 20, 20, 0, { fill: '#00f' }, 'Z'); L2.children.push(z); SV.commit('two');
+      click(z.id);
+      click(L.id, { shiftKey: true }, '.ltarget');
+      expect(sel()).toEqual(ids(...o, z));
+      click(L.id, { ctrlKey: true }, '.ltarget');
+      expect(sel()).toEqual(ids(z));
+      click(L.id, {}, '.ltarget');
+      expect(sel()).toEqual(ids(...o));
+    });
+  });
+  SlopTest.run({ name: 'SlopVector layers multi-select' });
+  </script>
+</body>
+</html>

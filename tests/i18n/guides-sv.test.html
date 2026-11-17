@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The guides panel in Swedish</title>
+  <!-- Covers: shared/guides/panel.js, shared/guides/panel-tabs.js, shared/guides/presets.js, shared/guides/notation.js,
+       shared/i18n/ui/en/guides.js, shared/i18n/ui/sv/guides.js -->
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/guides/guides.css">
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/guides/engine.js"></script>
+  <script src="../../shared/guides/notation.js"></script>
+  <script src="../../shared/guides/presets.js"></script>
+  <script src="../../shared/guides/panel-tabs.js"></script>
+  <script src="../../shared/guides/panel.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n, SG = window.SlopGuides;
+  const KEY = /\bui\.[a-z_]+\./;
+  const STATE = 'slopguides.state.svtest';
+  async function lang(code) { expect(I.set(code).ok).toBe(true); await I.ready(); }
+  function visible(root) {
+    const out = [root.innerText];
+    for (const el of root.querySelectorAll('[title], [aria-label], [placeholder], option, optgroup')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '', el.getAttribute('label') || '', el.textContent);
+    return out.join('\n');
+  }
+  const texts = (root, sel) => [...root.querySelectorAll(sel)].map((b) => b.textContent.trim());
+
+  describe('the guides panel follows the language', () => {
+    it('a panel opened in English turns Swedish on a switch (tabs, buttons, presets, notation errors), and back', async () => {
+      localStorage.removeItem(STATE);
+      const P = SG.openPanel({ stateKey: STATE, targets: [{ id: 'canvas', label: 'Canvas', rect: () => ({ x: 0, y: 0, w: 1200, h: 800 }) }],
+        preview() {}, apply() {}, clear() {} });
+      try {
+        expect(texts(P.el, '.sgd-tab')).toEqual(['Form', 'Notation', 'Intervals']);
+        await lang('sv');
+        await waitFor(() => texts(P.el, '.sgd-tab')[0] === 'Formulär');
+        expect(texts(P.el, '.sgd-btns button')).toEqual(['Rensa', 'Ersätt', 'Tillämpa']);
+        expect(P.el.querySelector('.sgd-title').textContent).toBe('Stödlinjer');
+        expect(texts(P.el, '.sgd-preset option')).toContain('Tredjedelsregeln');
+        expect(KEY.test(visible(P.el))).toBe(false);
+        P.set({ tab: 'notation', notation: '| ~ | ) |' });
+        await waitFor(() => /^Rad 1: /.test(P.el.querySelector('.sgd-status').textContent));   // a notation error, in Swedish
+        expect(texts(P.el, '.sgd-help dd')[0]).toBe('en stödlinje');
+        await lang('en');
+        await waitFor(() => texts(P.el, '.sgd-tab')[0] === 'Form');
+        expect(texts(P.el, '.sgd-btns button')).toEqual(['Clear', 'Replace', 'Apply']);
+        expect(texts(P.el, '.sgd-help dd')[0]).toBe('a guide');
+        expect(KEY.test(visible(P.el))).toBe(false);
+      } finally { P.close(); localStorage.removeItem(STATE); localStorage.removeItem('slop-profile'); SlopTest.english(); }
+    });
+  });
+  run({ name: 'The guides panel in Swedish' });
+  </script>
+</body>
+</html>

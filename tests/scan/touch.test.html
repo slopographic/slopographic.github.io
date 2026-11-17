@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Scan on a phone, by touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; } iframe { width: 390px; height: min(844px, 100vh); border: 0; display: block; }   /* the foot must be on the screen: a tablet in landscape is shorter than a phone */</style>
+</head>
+<body>
+  <!-- Slop Scan with a finger at phone width: the empty page leads with Take photo, a page opens over the list, a finger
+       drags a corner on the photo (a touch surface: no scroll) with the magnifier showing, "‹ Pages" goes back, and the
+       panel is a bottom sheet whose foot shows Download PDF. Covers: scan/css/scan.css, scan/css/stage.css, scan/js/editor.js, scan/js/view.js, scan/js/list.js -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, D, S;
+  const $ = (id) => D.getElementById(id);
+  const shown = (el) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+  describe('Slop Scan by touch', () => {
+    it('on a phone the empty page leads with Take photo, and Download PDF is at the foot', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../scan/index.html';
+      await waitFor(() => { try { return f.contentWindow.SlopScan.app && f.contentWindow.document.getElementById('sc-make'); } catch (e) { return false; } }, { timeout: 30000 });
+      W = f.contentWindow; D = W.document; S = W.SlopScan;
+      try { if (W.SlopConsentState) W.SlopConsentState.write({ analytics: false, ads: false, rates: false }); if (W.SlopBanner) W.SlopBanner.remove(); } catch (e) { /* no consent layer */ }
+      expect(shown($('sc-empty-camera'))).toBe(true);
+      expect($('sc-empty-camera').getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+      expect(shown($('sc-make'))).toBe(true);
+      expect(D.documentElement.scrollWidth <= D.documentElement.clientWidth + 1).toBe(true);
+    }, { timeout: 40000 });
+
+    it('two photos: the last page opens over the list; Corners shows the photo on a touch surface', async () => {
+      await W.SlopIntake.take(await S.sample(2), { to: 'scan' });
+      await waitFor(() => S.pages.size() === 2 && shown($('sc-result')), { timeout: 30000 });
+      expect(shown($('sc-back'))).toBe(true);
+      await TouchKit.tap($('sc-mode-corners'));
+      await waitFor(() => shown($('sc-photo')) && D.querySelectorAll('.sc-handle').length === 4);
+      expect($('sc-crop').hasAttribute('data-touch-surface')).toBe(true);
+      expect(W.getComputedStyle($('sc-crop')).touchAction).toBe('none');
+      const hit = D.querySelector('.sc-handle .sc-hit').getBoundingClientRect();
+      expect(hit.width).toBeGreaterThanOrEqual(W.matchMedia('(pointer: coarse)').matches ? 44 : 36);
+    }, { timeout: 40000 });
+
+    it('a finger drags the bottom-right corner; the magnifier shows while it moves, and the page keeps its scroll', async () => {
+      await sleep(300);
+      const p = S.pages.current(), before = p.quad[2], h = D.querySelectorAll('.sc-handle')[2];
+      const y0 = D.scrollingElement.scrollTop;
+      await TouchKit.drag(h, -40, -50, 10);
+      await waitFor(() => S.pages.current().quad[2].x < before.x - 0.02, { timeout: 5000 });
+      expect(S.pages.current().quad[2].y).toBeLessThan(before.y - 0.02);
+      expect(D.scrollingElement.scrollTop).toBe(y0);
+      expect($('sc-loupe').hidden).toBe(true);
+    }, { timeout: 20000 });
+
+    it('‹ Pages goes back to the list of two; Settings opens the panel as a sheet with the looks', async () => {
+      await sleep(900);
+      await TouchKit.tap($('sc-back'));
+      await sleep(300);
+      await waitFor(() => shown($('sc-pages')) && $('sc-pages').children.length === 2);
+      const more = [...D.querySelectorAll('.sf-foot-more')].find(shown);
+      await TouchKit.tap(more);
+      await waitFor(() => shown($('sc-style-bw')), { timeout: 5000 });
+      await sleep(700);   // the sheet slides up: tap the button where it ends
+      $('sc-style-bw').scrollIntoView({ block: 'center' });
+      await sleep(100);
+      await TouchKit.tap($('sc-style-bw'));
+      await waitFor(() => S.pages.current().style === 'bw');
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Slop Scan by touch' });
+  </script>
+</body>
+</html>

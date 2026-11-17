@@ -1,0 +1,125 @@
+/* Slop Drive — sidebar, details panel, previews, Quick Look, dialogs, empty states, drag ghost. */
+.places { display: grid; gap: 1px; padding: 10px 8px 6px; }
+.place, .node { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-s); background: none; color: var(--dim); text-align: left; }
+.place:hover, .node:hover { background: var(--hover); color: var(--fg); }
+.place.on, .node.on { background: var(--active); color: var(--fg); font-weight: 600; }
+:root[data-theme="classic"] .place.on, :root[data-theme="classic"] .node.on { color: #fff; }
+.place span { flex: 1; }
+.place small { color: var(--faint); font-size: 10.5px; }
+.tree-h { padding: 10px 18px 4px; color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.tree { flex: 1; overflow: auto; padding: 0 8px 8px; min-height: 60px; }
+.node { height: 28px; padding-left: calc(4px + var(--d, 0) * 14px); gap: 5px; }
+.node .ic { width: 16px; height: 16px; }
+.node .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.twisty { display: grid; place-items: center; width: 16px; height: 16px; flex: none; color: var(--faint); border-radius: 3px; }
+.twisty:hover { background: var(--active); }
+.twisty .ic { width: 12px; height: 12px; transition: transform .12s; }
+.twisty.open .ic { transform: rotate(90deg); }
+.twisty.none { visibility: hidden; }
+.tree-empty { color: var(--faint); padding: 4px 12px; margin: 0; font-size: var(--fs-s); }
+.meter { display: grid; gap: 6px; padding: 12px 16px 14px; border-top: 1px solid var(--line); font-size: var(--fs-s); }
+.meter-h { display: flex; justify-content: space-between; color: var(--dim); }
+.meter-bar { height: 6px; border-radius: 3px; background: var(--input); border: 1px solid var(--line-2); overflow: hidden; }
+.meter-bar i { display: block; height: 100%; background: var(--accent); }
+.meter-note { color: var(--faint); }
+.linkish { justify-self: start; border: 0; background: none; padding: 0; color: var(--accent-line); font-size: var(--fs-s); text-decoration: underline; text-underline-offset: 2px; }
+.linkish:disabled { color: var(--ok); text-decoration: none; opacity: 1; }
+
+.info { grid-area: info; width: var(--info-w); overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 14px; position: relative; display: flex; flex-direction: column; gap: 12px; }
+/* the width grip on the panel's left edge (info-width.js) */
+.info-grip { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 3; touch-action: none; }
+.info-grip::after { content: ''; position: absolute; left: 4px; top: 50%; width: 2px; height: 44px; margin-top: -22px; border-radius: 2px; background: var(--line-2); transition: background .12s; }
+.info-grip:hover::after, .info-grip:focus-visible::after, body.resizing .info-grip::after { background: var(--accent-line); }
+.info-grip:focus-visible { outline: none; }
+.info-grip:focus-visible::after { width: 3px; left: 3.5px; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
+@media (min-width: 761px) {
+  /* under 300 px the panel is a narrow rail: only its close button, badge and grip show */
+  .info.rail { width: 56px; padding: 10px 6px; align-items: center; }
+  .info.rail > :not(.ssh-x):not(.info-grip):not(.info-h) { display: none; }
+  .info.rail .info-h { padding-right: 0; }
+  .info.rail .info-h h2 { display: none; }
+  .info.rail .ssh-x { position: static; float: none; margin: 0; }
+}
+/* tags in the details panel and the sidebar */
+.tags-box { display: grid; gap: 7px; padding-top: 12px; border-top: 1px solid var(--line); }
+.tags-h { margin: 0; font-size: 12px; font-weight: 600; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 2px 3px 2px 9px; border-radius: 999px; background: var(--active); font-size: 11.5px; overflow-wrap: anywhere; }
+.tag-x { display: grid; place-items: center; width: 18px; height: 18px; flex: none; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--faint); }
+.tag-x:hover { background: var(--hover); color: var(--danger); }
+.tag-x .ic { width: 11px; height: 11px; }
+.tag-in { width: 100%; height: 30px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: var(--radius-s); background: var(--input); color: var(--fg); }
+.tags { display: grid; gap: 1px; max-height: 34%; overflow: auto; padding: 0 8px 6px; }
+.tagx .hash { flex: none; width: 12px; color: var(--faint); text-align: center; }
+.tagx small { font-variant-numeric: tabular-nums; }
+.info-h { display: flex; align-items: center; gap: 9px; padding-right: 30px; }
+.info-h h2 { margin: 0; font-size: 14px; word-break: break-word; }
+.facts { display: grid; grid-template-columns: 88px 1fr; gap: 6px 10px; margin: 0; font-size: var(--fs-s); }
+.facts dt { color: var(--faint); }
+.facts dd { margin: 0; word-break: break-word; }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.acts .btn { height: 28px; padding: 0 10px; font-size: var(--fs-s); }
+.kinds { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--k) 20%, transparent); border: 1px solid color-mix(in srgb, var(--k) 50%, transparent); font-size: 11px; }
+.pv { display: grid; place-items: center; min-height: 150px; border-radius: var(--radius-s); background: repeating-conic-gradient(var(--checker) 0 25%, var(--checker-2) 0 50%) 0 0 / 14px 14px; overflow: hidden; }
+.pv img, .pv video { max-width: 100%; max-height: 260px; display: block; }
+.pv audio { width: calc(100% - 16px); }
+.pv-audio, .pv-text, .pv-other, .pv-folder, .pv-design, .pv-archive { background: var(--panel-2); }
+.pv .th { display: grid; place-items: center; width: 100%; height: 100%; min-height: 150px; }
+.pv .th img { max-height: 240px; }
+.pv-text { place-items: stretch; }
+.pv pre { margin: 0; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 11px/1.45 var(--mono); color: var(--fg); background: var(--input); width: 100%; }
+.pv-note { color: var(--faint); font-size: var(--fs-s); text-align: center; padding: 6px; }
+.ic.huge { width: 72px; height: 72px; color: var(--accent-line); stroke-width: 1.2; }
+/* Quick Look */
+.ql .sui-body { padding: 0; }
+.ql .pv { min-height: 50vh; max-height: 72vh; border-radius: 0; overflow: auto; }
+.ql .pv img, .ql .pv video { max-height: 70vh; }
+.ql .pv pre { max-height: 70vh; font-size: 12px; }
+/* Images and PDFs: the shared viewer (shared/preview) fills this box; its own CSS lays out the pictures and pages. */
+.pv-image, .pv-pdf { display: block; height: 280px; min-height: 0; max-height: none; overflow: hidden; }
+.ql .pv-image, .ql .pv-pdf { height: 72vh; min-height: 50vh; max-height: 72vh; border-radius: 0; }
+.ql-meta { display: flex; justify-content: space-between; gap: 10px; padding: 8px 14px; color: var(--s-faint); border-top: 1px solid var(--s-line); }
+/* dialogs */
+.keys { display: grid; gap: 5px; }
+.krow { display: grid; grid-template-columns: 150px 1fr; gap: 10px; color: var(--s-dim); }
+kbd { font: 11px var(--s-mono); color: var(--s-fg); }
+.dupes { display: grid; gap: 10px; max-height: 62vh; overflow: auto; }
+.dsum { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px; border-radius: var(--s-radius); background: var(--s-input); }
+.dgroup { border: 1px solid var(--s-line); border-radius: var(--s-radius); padding: 8px; display: grid; gap: 4px; }
+.dhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dhead span { color: var(--s-faint); flex: 1; }
+.drow { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 4px; }
+.drow:hover { background: var(--s-hover); }
+.dthumb { display: grid; place-items: center; width: 40px; height: 34px; flex: none; overflow: hidden; border-radius: 3px; background: var(--s-input); }
+.dthumb img { max-width: 100%; max-height: 100%; }
+.dn { display: grid; flex: 1; min-width: 0; }
+.dn b, .dn small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dn small { color: var(--s-faint); }
+.dh3 { margin: 6px 0 0; font-size: 13px; }
+/* empty states */
+.empty { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 40px 20px; max-width: 460px; margin: 4vh auto 0; }
+.empty .sloppo { width: 180px; height: 150px; }
+.empty h2 { margin: 6px 0 0; font-size: 18px; }
+.empty p { margin: 0 0 8px; color: var(--dim); }
+.empty .acts { justify-content: center; }
+.ghost { position: fixed; left: 0; top: 0; z-index: 2000; display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--accent-line); box-shadow: var(--shadow); pointer-events: none; font-size: var(--fs-s); max-width: 260px; white-space: nowrap; overflow: hidden; }
+.ghost.copy::after { content: '+'; font-weight: 700; color: var(--accent-line); }
+body.dragging, body.dragging * { cursor: grabbing !important; }
+
+/* A PDF with saved versions: the original, the edited copy and the change list, as tabs above the preview. */
+.pv-versions { display: grid; gap: 8px; width: 100%; }
+.pv-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.pv-tab { min-height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line-2); background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; }
+.pv-tab[aria-selected="true"] { background: var(--accent-soft, var(--panel-2)); border-color: var(--accent, var(--line-2)); font-weight: 600; }
+.pv-changes { margin: 0; padding: 0 0 0 18px; font-size: 13px; line-height: 1.5; max-height: 260px; overflow: auto; }
+.pv-mode { margin-bottom: 0; }
+.pv-mode[hidden] { display: none; }
+/* A finger (pointer: coarse): the details panel's grip takes a 44 px band (--slop-hit, shared/input/touch.css); the line stays thin. */
+@media (pointer: coarse) { .info-grip::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--slop-hit, 44px); transform: translateX(-50%); } }
+/* The details panel's main buttons at its foot (js/ui/info-foot.js, the shared footer of shared/frame/frame.css), in
+   Drive's colours; it spans the panel's padding */
+.info .sf-p-foot { margin: auto -14px -14px; padding: 10px 14px; background: var(--panel); border-top-color: var(--line); }
+.info .sf-foot-acts .btn { height: auto; min-height: 36px; font-size: var(--fs-s); }
+.info .sf-foot-acts .sf-foot-more { flex: 0 0 auto; }

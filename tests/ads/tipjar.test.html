@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=true; support.donate=true">
+  <title>Tip jar · labels</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, waitFor, run } = SlopTest;
+  let frame = null;
+  /** Opens a page of the site in a same-origin iframe (path relative to tests/ads/). */
+  function openPage(src) {
+    if (frame) frame.remove();
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:900px;height:600px;border:0';
+    f.src = src;
+    document.body.prepend(f);
+    frame = f;
+    return new Promise((r) => f.addEventListener('load', () => r(f.contentWindow), { once: true }));
+  }
+  const text = (el) => (el ? el.textContent.trim() : null);
+
+  describe('tip jar label', () => {
+    beforeEach(() => { try { localStorage.clear(); } catch (e) { /* ignore */ } });
+
+    it('the homepage footer link reads "Tip jar" and keeps the Patreon URL from config', async () => {
+      const w = await openPage('../../index.html');
+      const a = w.document.querySelector('[data-brand-link="patreon"]');
+      expect(text(a)).toBe('Tip jar');
+      expect(a.textContent).not.toMatch(/Patreon/);
+      await waitFor(() => !a.hidden, { timeout: 8000 }).catch(() => {});
+      expect(a.getAttribute('href')).toBe(w.SLOP_CONSENT_CONFIG.patreonUrl);
+    }, { timeout: 30000 });
+
+    it('the Settings donate section is titled "Tip jar" and its link reads "Tip jar"', async () => {
+      const w = await openPage('../../settings/index.html');
+      const section = w.document.getElementById('donate');
+      expect(text(w.document.getElementById('donate-title'))).toBe('Tip jar');
+      await waitFor(() => !section.hidden, { timeout: 8000 });
+      const link = section.querySelector('a');
+      expect(text(link)).toBe('Tip jar');
+      // The link is rendered into the same section: the heading must survive the render.
+      expect(text(w.document.getElementById('donate-title'))).toBe('Tip jar');
+      expect(link.getAttribute('href')).toBe(w.SLOP_CONSENT_CONFIG.patreonUrl);
+    }, { timeout: 30000 });
+  });
+
+  run({ name: 'Tip jar labels' });
+  </script>
+</body>
+</html>

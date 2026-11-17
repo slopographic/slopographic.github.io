@@ -1,0 +1,10 @@
+{
+  "name": "Acme Test",
+  "tagline": "Test tagline for the brand check.",
+  "logo": "",
+  "home": "https://example.com/",
+  "colors": { "ink": "#101010", "paper": "#fafafa", "accent": "#ff6600" },
+  "footer": "Acme Test footer line.",
+  "links": { "patreon": "https://www.patreon.com/acme", "support": "" },
+  "appOrder": ["pdf", "photoslop"]
+}

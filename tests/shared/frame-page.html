@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SlopFrame test page</title>
+  <!-- A page laid out as List · View · Panel (shared/frame), for tests/shared/frame.test.html. ?nolist: no list column. -->
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/ui/hbtn.css">
+  <link rel="stylesheet" href="../../shared/frame/frame.css">
+  <style>
+    :root { --sl-background: #f6f6f2; --sl-surface: #fff; --sl-text: #1b1b1f; --sl-border: #d5d5cf; --sl-accent: #4b6b00; --sl-on-accent: #fff; }
+    html, body { height: 100%; margin: 0; font: 14px system-ui, sans-serif; background: var(--sl-background); color: var(--sl-text); }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--sl-border); }
+  </style>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/input/typing.js"></script><script src="../../shared/commands/commands.js"></script>
+  <script src="../../shared/ui/sheet.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/ui/resize-panel.js"></script>
+  <script src="../../shared/frame/frame.js"></script>
+  <script src="../../shared/frame/panel.js"></script>
+</head>
+<body>
+  <header><b>Frame</b><span class="tools" id="tools"></span></header>
+  <div id="root">
+    <aside id="list"><button type="button" id="item1">Item one</button></aside>
+    <main id="view"><h1 id="title">Item one</h1></main>
+    <aside id="panel"></aside>
+  </div>
+  <script>
+    SlopCmd.init({ app: 'frametest' });
+    const noList = location.search.includes('nolist');
+    window.FR = SlopFrame.mount(document.getElementById('root'), { list: noList ? null : '#list', view: '#view', panel: '#panel',
+      panelLabel: 'Details', storageKey: 'frametest', button: '#tools', width: 280 });
+    window.PANEL = SlopFrame.panel(document.getElementById('panel'), { title: 'Item' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AI Tools · every page has the suite header and fits a phone</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: aitools/index.html, aitools/aitools.css, aitools/ocr/index.html, aitools/speech/index.html,
+       aitools/denoise/index.html, aitools/tags/index.html, aitools/portrait/index.html -->
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const PAGES = [['', 'Slop AI Tools', '../'], ['ocr/', 'OCR', '../../'], ['speech/', 'Speech to text', '../../'],
+    ['denoise/', 'Denoise', '../../'], ['tags/', 'Auto tags', '../../'], ['portrait/', 'Portrait blur', '../../']];
+
+  /** Loads a page in a frame of the given width; resolves with its document once the shell has put its buttons in. */
+  async function open(path, width) {
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${width}px;height:800px`;
+    f.src = '../../aitools/' + path + '?t=' + Date.now();
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.querySelector('header .sh-switch'), { timeout: 15000 });
+    return f;
+  }
+
+  describe('AI Tools header', () => {
+    for (const [path, name, home] of PAGES) {
+      it(`${name}: brand, name and the shell buttons share one row at 1440px`, async () => {
+        const f = await open(path, 1440), d = f.contentDocument, h = d.querySelector('header.ai-top');
+        const brand = h.querySelector('a.brand');
+        expect(brand.getAttribute('href')).toBe(home);
+        expect(brand.getAttribute('aria-label')).toBe('Slopographic home');
+        expect(h.querySelector('h1').textContent).toBe(name);
+        expect(d.querySelector('.sh-fab')).toBe(null);
+        expect(h.getBoundingClientRect().height).toBeLessThan(60);
+        if (path) expect(h.querySelector('a.ai-crumb').getAttribute('href')).toBe('../');
+        f.remove();
+      });
+      it(`${name}: no sideways scroll at 390px`, async () => {
+        const f = await open(path, 390), d = f.contentDocument;
+        await waitFor(() => (path ? d.querySelector('#gate').children.length || !d.querySelector('#ui').hidden : d.querySelectorAll('.ai-model').length === f.contentWindow.SlopAIModels.MODELS.length), { timeout: 8000 });
+        expect(d.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+        expect(d.querySelector('header.ai-top').getBoundingClientRect().height).toBeLessThan(60);
+        f.remove();
+      });
+    }
+  });
+  SlopTest.run({ name: 'AI Tools: header' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+/* Slop AI shared words, Polish: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-pl.md. */
+window.SlopI18n && window.SlopI18n.add('pl', {
+  'ui.ai.cloud.or_signin': 'Zaloguj się przez {name}',
+  'ui.ai.cloud.or_note': 'Nie masz jeszcze klucza? Zaloguj się, a {name} utworzy klucz dla tej przeglądarki, opłacany z Twoich własnych środków w {name}. Możesz go ograniczyć lub unieważnić na {link}.',
+  'ui.ai.cloud.or_privacy': 'Logowanie idzie prosto z tej przeglądarki do {name}; nic nie przechodzi przez serwery {brand}.',
+  'ui.ai.cloud.or_manage': 'Twoje klucze {name}, utworzone przez logowanie lub ręcznie, możesz ograniczyć lub unieważnić na {link}. „Zapomnij klucz” usuwa klucz tylko z tej przeglądarki.',
+  'ui.ai.cloud.or_going': 'Otwieranie {name}…',
+  'ui.ai.cloud.or_finishing': 'Kończenie logowania w {name}…',
+  'ui.ai.cloud.or_done': 'Zalogowano przez {name}: klucz dla tej przeglądarki zapisano tak jak wklejony.',
+  'ui.ai.cloud.or_denied': 'W {name} nie zezwolono na dostęp, więc nic nie połączono. Naciśnij „Zaloguj się przez {name}”, aby spróbować ponownie, albo wklej klucz.',
+  'ui.ai.cloud.or_state': 'To logowanie nie zaczęło się w tej karcie, więc odrzucono je dla bezpieczeństwa konta. Naciśnij „Zaloguj się przez {name}”, aby zacząć od nowa.',
+  'ui.ai.cloud.or_used': 'Ten kod logowania został już użyty lub wygasł (kody są ważne 10 minut). Naciśnij „Zaloguj się przez {name}”, aby zacząć od nowa.',
+  'ui.ai.cloud.or_failed': '{name} nie wydał klucza ({why}). Naciśnij „Zaloguj się przez {name}”, aby spróbować ponownie, albo wklej klucz.',
+  'ui.ai.cloud.or_offline': 'Przeglądarka jest offline, więc logowanie nie mogło się zakończyć. Połącz się z internetem i ponownie naciśnij „Zaloguj się przez {name}”.',
+  'ui.ai.cloud.or_network': 'Nie udało się połączyć z {name}, aby dokończyć logowanie. Sprawdź połączenie i ponownie naciśnij „Zaloguj się przez {name}”.',
+  'ui.ai.cloud.or_no_crypto': 'Ta przeglądarka nie może się tu zalogować przez {name} (potrzebne jest Web Crypto na stronie https). Wklej zamiast tego klucz.',
+  'ui.ai.cloud.or_key_label': '{brand} w tej przeglądarce',
+  'ui.ai.cloud.or_badge': 'Logowanie',
+  'ui.ai.cloud.or_badge_t': 'Bez kopiowania klucza: zaloguj się kontem {name}, a klucz dla tej przeglądarki zostanie utworzony.',
+});

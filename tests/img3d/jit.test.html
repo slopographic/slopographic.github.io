@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Image to 3D: the depth model downloads just in time, after the first-use notice</title>
+  <style>body { margin: 0; background: #111; color: #ddd; font: 13px system-ui, sans-serif; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: img3d/js/model/jit.js, img3d/js/app/main.js, img3d/js/model/depth.js, img3d/index.html -->
+  <script src="../harness.js"></script>
+  <script src="../../img3d/js/model/depth.js"></script>
+  <script src="../../img3d/js/model/jit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const J = () => window.SlopImg3D.jit;
+  const HAD = 'slop-img3d:depth-had', SEEN = 'slop-firstrun:img3d';
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } }, del: (k) => { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } } };
+  /** Fakes for the shared installer and the "is it installed" check, recording what was asked. */
+  function fakes(win, { installed = false, fail = null } = {}) {
+    const log = { installs: [] };
+    let have = installed;
+    win.SlopImg3D.depth.installed = async () => have;
+    win.SlopLibraryInstall = Object.assign({}, win.SlopLibraryInstall, {
+      loadManifest: async () => ({ packs: [{ id: 'depth-anything-v2-small', name: 'Depth Anything V2 Small', size: 27258801, files: [] }], hosts: [] }),
+      install: async (pack, onStatus) => { log.installs.push(pack.id); onStatus('Storing…'); if (fail) throw new Error(fail); have = true; },
+    });
+    return log;
+  }
+
+  describe('decide (pure)', () => {
+    it('downloads only with consent, when missing, not removed and not tried this visit', () => {
+      const d = (o) => J().decide(Object.assign({ installed: false, consent: true, removed: false, tried: false }, o));
+      expect(d({})).toBe('download');
+      expect(d({ installed: true })).toBe('have');
+      expect(d({ installed: true, consent: false })).toBe('have');
+      expect(d({ consent: false })).toBe('skip');
+      expect(d({ removed: true })).toBe('skip');
+      expect(d({ tried: true })).toBe('skip');
+    });
+  });
+
+  describe('ensure (with a fake installer)', () => {
+    it('downloads the pack through SlopLibraryInstall.install with the status shown, and remembers it was here', async () => {
+      store.del(HAD); J().reset();
+      const log = fakes(window), said = [];
+      const r = await J().ensure({ consent: true, onStatus: (t) => said.push(t) });
+      expect(r.ok).toBe(true);
+      expect(log.installs).toEqual(['depth-anything-v2-small']);
+      expect(said[0]).toContain('Downloading the depth model');
+      expect(said[1]).toBe('Depth model: Storing…');
+      expect(store.get(HAD)).toBe('1');
+    });
+    it('a model removed in Get more is not downloaded again on its own; without consent nothing is fetched', async () => {
+      J().reset();
+      let log = fakes(window);   // HAD is set from the last test: it was here, now it is gone
+      expect((await J().ensure({ consent: true })).installed).toBe(false);
+      expect(log.installs.length).toBe(0);
+      store.del(HAD); J().reset();
+      log = fakes(window);
+      expect((await J().ensure({ consent: false })).installed).toBe(false);
+      expect(log.installs.length).toBe(0);
+    });
+    it('a failed download falls back with the reason, and is tried once per visit', async () => {
+      store.del(HAD); J().reset();
+      const log = fakes(window, { fail: 'HTTP 404' });
+      const r = await J().ensure({ consent: true });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toContain('HTTP 404');
+      expect(r.reason).toContain('brightness');
+      await J().ensure({ consent: true });
+      expect(log.installs.length).toBe(1);
+      store.del(HAD);
+    });
+  });
+
+  describe('the page', () => {
+    it('the notice names the download; Continue opens the picture and downloads the model without Get more', async () => {
+      store.del(SEEN); store.del(HAD);
+      const f = document.createElement('iframe');
+      f.style.cssText = 'width:1100px;height:720px';
+      f.src = '../../img3d/?t=' + Date.now();
+      document.body.append(f);
+      await waitFor(() => f.contentWindow.SlopImg3D && f.contentWindow.SlopImg3D.jit && f.contentWindow.SlopLibraryInstall, { timeout: 20000 });
+      const W = f.contentWindow, D = W.document, log = fakes(W);
+      // the note is written after the app checks its library (async): wait for it rather than read it at once
+      await waitFor(() => D.getElementById('depthNote').textContent.includes('downloads when you open a picture'), { timeout: 10000 });
+      const c = D.createElement('canvas'); c.width = 64; c.height = 48;
+      const x = c.getContext('2d'); x.fillStyle = '#888'; x.fillRect(0, 0, 64, 48);
+      const grey = new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'grey.png', { type: 'image/png' });
+      W.SlopUI.pickFiles = async () => [grey]; // Open image… is the intake's picker
+      D.getElementById('btnOpen').click();
+      const go = await waitFor(() => [...D.querySelectorAll('button')].find((b) => b.textContent === 'Continue'), { timeout: 5000 });
+      const text = go.closest('[role="dialog"], .sui-dialog, dialog') ? go.closest('[role="dialog"], .sui-dialog, dialog').textContent : D.body.textContent;
+      expect(text).toContain('Depth model (Depth Anything V2 Small)');
+      expect(text).toContain('Continue downloads the depth model');
+      expect(log.installs.length).toBe(0);   // nothing before the person agrees
+      go.click();
+      await waitFor(() => log.installs.length === 1, { timeout: 10000 });
+      expect(log.installs[0]).toBe('depth-anything-v2-small');
+      await waitFor(() => !D.getElementById('btnObj').disabled, { timeout: 15000 });
+      expect(store.get(SEEN)).toBe('1');
+      f.remove();
+    });
+  });
+  SlopTest.run({ name: 'Slop Image to 3D: depth model just in time' });
+  </script>
+</body>
+</html>

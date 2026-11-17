@@ -1,0 +1,58 @@
+/* Slop Sheets: the grid. Four table styles (plain, striped, grid, compact) and five colour palettes.
+ * The default palette ("app", no data-palette) reads the app's --sl-* tokens. The fixed palettes (light, dark, classic,
+ * lime) have text contrast of at least 4.5:1 on their own surfaces. Row height comes from --ss-rh, set by mountGrid. */
+.ss-grid {
+  --ss-bg: var(--sl-surface, #ffffff);
+  --ss-fg: var(--sl-text, #0a0a0a);
+  --ss-head: var(--sl-background, #ebe7de);
+  --ss-line: var(--sl-border, #8e8b82);
+  --ss-accent: var(--sl-accent, #4f6c00);
+  --ss-on-accent: var(--sl-on-accent, #ffffff);
+  --ss-alt: color-mix(in srgb, var(--ss-fg) 5%, var(--ss-bg));
+  --ss-rh: 26px;
+  display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0;
+  background: var(--ss-bg); color: var(--ss-fg);
+  font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.ss-grid[data-palette="light"] { --ss-bg: #ffffff; --ss-fg: #0a0a0a; --ss-head: #efede6; --ss-line: #b9b5aa; --ss-accent: #3f5a00; --ss-on-accent: #ffffff; }
+.ss-grid[data-palette="dark"] { --ss-bg: #151518; --ss-fg: #f1ede4; --ss-head: #222228; --ss-line: #3a3a44; --ss-accent: #d4ff3a; --ss-on-accent: #0a0a0a; }
+.ss-grid[data-palette="classic"] { --ss-bg: #ffffff; --ss-fg: #000000; --ss-head: #c0c0c0; --ss-line: #808080; --ss-accent: #000080; --ss-on-accent: #ffffff; }
+.ss-grid[data-palette="lime"] { --ss-bg: #171f0c; --ss-fg: #f1ffb8; --ss-head: #0d1206; --ss-line: #5f713e; --ss-accent: #d4ff3a; --ss-on-accent: #0d1206; }
+
+.ss-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; background: var(--ss-bg); }
+.ss-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; min-width: 100%; }
+.ss-table th, .ss-table td { box-sizing: border-box; margin: 0; }
+
+/* Column letters: sticky at the top. The corner and the row numbers are sticky on the left as well. */
+.ss-table thead th { position: sticky; top: 0; z-index: 2; height: 30px; padding: 0 2px 0 6px; background: var(--ss-head); color: var(--ss-fg); font-weight: 600; text-align: left; white-space: nowrap; box-shadow: inset 0 -1px var(--ss-line); }
+.ss-corner { position: sticky !important; left: 0; z-index: 3 !important; }
+.ss-head { overflow: hidden; }
+.ss-sort { display: inline-flex; align-items: center; justify-content: space-between; gap: 4px; width: calc(100% - 22px); padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; vertical-align: middle; }
+.ss-sort:focus-visible, .ss-filter:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
+.ss-arrow { color: var(--ss-accent); font-size: 10px; min-width: 8px; }
+.ss-filter { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 18px; height: 20px; padding: 0; border: 1px solid var(--ss-line); border-radius: 3px; background: var(--ss-bg); color: var(--ss-fg); font-size: 11px; line-height: 1; cursor: pointer; }
+.ss-head { position: sticky; }
+.ss-filter.on { background: var(--ss-accent); color: var(--ss-on-accent); border-color: var(--ss-accent); }
+
+.ss-rn { position: sticky; left: 0; z-index: 1; padding: 0 6px 0 4px; background: var(--ss-head); color: var(--ss-fg); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; box-shadow: inset -1px 0 var(--ss-line); white-space: nowrap; }
+.ss-table tbody tr { height: var(--ss-rh); }
+.ss-table tbody td, .ss-table tbody th { height: var(--ss-rh); line-height: calc(var(--ss-rh) - 2px); }
+.ss-cell { padding: 0 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; background: var(--ss-bg); color: var(--ss-fg); }
+.ss-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ss-b { font-weight: 700; }
+.ss-spacer td, .ss-spacer th { padding: 0 !important; border: 0 !important; box-shadow: none !important; background: none !important; }
+.ss-empty-row td { height: auto !important; line-height: 1.4 !important; }
+.ss-empty { padding: 18px 16px !important; color: var(--ss-fg); white-space: normal !important; background: var(--ss-bg); }
+
+/* Table styles. Plain and striped draw row lines; grid draws every line; compact is a smaller row. */
+.ss-grid[data-style="plain"] .ss-cell,
+.ss-grid[data-style="striped"] .ss-cell,
+.ss-grid[data-style="compact"] .ss-cell { box-shadow: inset 0 -1px var(--ss-line); }
+.ss-grid[data-style="grid"] .ss-cell { box-shadow: inset -1px 0 var(--ss-line), inset 0 -1px var(--ss-line); }
+.ss-grid[data-style="grid"] .ss-rn { box-shadow: inset -1px 0 var(--ss-line), inset 0 -1px var(--ss-line); }
+.ss-grid[data-style="striped"] .ss-alt .ss-cell { background: var(--ss-alt); }
+.ss-grid[data-style="compact"] { font-size: 12px; }
+.ss-grid[data-style="compact"] .ss-cell { padding: 0 4px; }
+
+/* Preview in another app: fills its box, scrolls inside it. */
+.ss-preview { display: flex; flex-direction: column; height: 100%; min-height: 160px; }

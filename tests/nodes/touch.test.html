@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="slop-test-touch">
+<title>Slopnodes · touch</title>
+<!-- Slopnodes with a finger (tests/run.mjs --touch: an iPad in WebKit, an Android tablet in Chromium; and the desktop run).
+     Covers: nodes/js/view.js -->
+<style>html, body { margin: 0; height: 100%; overflow: hidden; background: #111; } iframe { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../nodes/index.html" title="Slopnodes"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const win = () => document.getElementById('app').contentWindow, doc = () => win().document;
+  const boxes = () => [...doc().querySelectorAll('.sn-node')];
+  const box = (name) => boxes().find((b) => b.querySelector('.sn-name').value === name);
+  const wires = () => doc().querySelectorAll('.sn-wire:not(.sn-temp)').length;
+
+  describe('Slopnodes by touch', () => {
+    it('boots with the touch layer, and the stage is a touch surface', async () => {
+      await waitFor(() => { try { return boxes().length === 6 && win().SlopTouch && win().SlopTouch.ready; } catch (e) { return false; } }, { timeout: 30000 });
+      const st = doc().getElementById('sn-stage');
+      expect(st.hasAttribute('data-touch-surface')).toBe(true);
+      expect(win().getComputedStyle(st).touchAction).toBe('none');
+    });
+    it('a tap on a node selects it', async () => {
+      const b = box('qty');
+      b.scrollIntoView({ block: 'center', inline: 'center' }); await sleep(100);
+      const k = b.querySelector('.sn-kind').getBoundingClientRect(), hit = doc().elementFromPoint(k.left + k.width / 2, k.top + k.height / 2);
+      expect([hit && hit.className, Math.round(k.left), Math.round(k.top), win().innerWidth, win().innerHeight].join(' ')).toMatch(/^sn-kind/);
+      await TouchKit.tap(b.querySelector('.sn-kind'));
+      expect(b.classList.contains('is-sel')).toBe(true);
+      await sleep(350);
+    });
+    it('a drag on a node\'s head moves it', async () => {
+      const b = box('qty'), x0 = parseFloat(b.style.left), y0 = parseFloat(b.style.top);
+      await TouchKit.drag(b.querySelector('.sn-kind'), 60, 30);
+      expect(parseFloat(box('qty').style.left)).toBeGreaterThan(x0 + 20);
+      expect(parseFloat(box('qty').style.top)).toBeGreaterThan(y0 + 10);
+    });
+    it('a finger drags a wire from an output port (44 px hit area) to an input', async () => {
+      const before = wires(), out = box('qty').querySelector('.sn-out'), into = box('total').querySelector('.sn-in');
+      const a = out.getBoundingClientRect(), c = into.getBoundingClientRect();
+      // 12 px outside the port's centre: off its 14 px dot, inside a finger's 44 px
+      const from = { x: a.left + a.width / 2 + 12, y: a.top + a.height / 2 };
+      expect(doc().elementFromPoint(from.x, from.y) === out || !win().matchMedia('(pointer: coarse)').matches).toBe(true);
+      if (!win().matchMedia('(pointer: coarse)').matches) from.x -= 12;
+      await TouchKit.drag(from, c.left + c.width / 2 - from.x, c.top + c.height / 2 - from.y, 10);
+      await waitFor(() => wires() === before + 1, { timeout: 3000 });
+    });
+    it('a long press on a node opens its menu, and it stays open when the finger lifts', async () => {
+      win().SlopNodesMenu.close();
+      await TouchKit.longPress(box('total').querySelector('.sn-kind'));
+      await waitFor(() => doc().querySelector('.snm'), { timeout: 3000 });
+      await sleep(200);
+      expect(!!doc().querySelector('.snm')).toBe(true);
+      expect(box('total').classList.contains('is-sel')).toBe(true);
+      win().SlopNodesMenu.close();
+    });
+    it('a pinch zooms the canvas, not the page; two fingers pan it', async () => {
+      const V = win().SlopNodesView, z0 = V.zoomNow(), st = doc().getElementById('sn-stage'), r = st.getBoundingClientRect();
+      const empty = { x: r.right - 60, y: r.bottom - 60 };
+      await TouchKit.pinch(empty, 0.6);
+      expect(V.zoomNow()).toBeLessThan(z0 - 0.15);
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      if (win().visualViewport) expect(win().visualViewport.scale).toBeCloseTo(1, 0.01);
+      V.zoom(1.4); await sleep(50);
+      const sx = st.scrollLeft;
+      await TouchKit.pan2(empty, -80, 0);
+      expect(st.scrollLeft).toBeGreaterThan(sx + 30);
+    });
+  });
+  SlopTest.run({ name: 'Slopnodes touch' });
+  </script>
+</body>
+</html>

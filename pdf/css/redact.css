@@ -1,0 +1,26 @@
+/* Slop PDF — redaction: badges on thumbnails and the page view, the Redact panel and its confirm dialog. */
+.thumb-redact { position: absolute; left: 12px; top: 34px; padding: 2px 7px; border-radius: 99px; background: var(--fg); color: var(--bg); font: 700 10px var(--mono); letter-spacing: .02em; text-transform: uppercase; z-index: 1; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
+.thumb-redact.pending { background: repeating-linear-gradient(45deg, var(--danger) 0 4px, color-mix(in srgb, var(--danger) 80%, var(--fg)) 4px 8px); }
+.pv-page.is-redacted::after { content: 'Redacted'; position: absolute; right: 8px; top: 8px; padding: 3px 9px; border-radius: 99px; background: var(--fg); color: var(--bg); font: 700 11px var(--mono); text-transform: uppercase; letter-spacing: .03em; pointer-events: none; z-index: 2; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+.pv-page[data-tool="redact"] { cursor: crosshair; }
+.an-redact .an-hit { cursor: move; }
+.btn.danger { background: var(--danger); border-color: transparent; color: var(--accent-ink); }
+.btn.danger:hover:not(:disabled) { filter: brightness(1.08); background: var(--danger); color: var(--accent-ink); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.rd-opts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0 4px; }
+.rd-opts .chk { margin: 0; }
+.rd-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin: 4px 0 6px; }
+.rd-found { margin-top: 8px; }
+.rd-items { display: flex; flex-direction: column; gap: 3px; max-height: 240px; overflow: auto; margin: 4px 0 8px; padding: 2px; }
+.rd-item { display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 3px 4px 3px 8px; border-radius: 7px; background: var(--panel-2); font-size: 12px; color: var(--fg); }
+.rd-item input { accent-color: var(--danger); margin: 0; flex: none; }
+.rd-go { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rd-go:hover .rd-txt { text-decoration: underline; }
+.rd-pg { flex: none; padding: 1px 6px; border-radius: 5px; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--danger) 22%, transparent) 0 3px, color-mix(in srgb, var(--danger) 10%, transparent) 3px 6px); color: var(--fg); font: 700 10.5px var(--mono); }
+.rd-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rd-x { flex: none; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--dim); cursor: pointer; }
+.rd-x:hover { background: var(--danger); color: var(--accent-ink); }
+.rd-x .ic { width: 14px; height: 14px; }
+.rd-list-warn { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.rd-list-warn li { margin: 4px 0; }
+:root[data-slop-theme="classic"] .thumb-redact, :root[data-slop-theme="classic"] .pv-page.is-redacted::after { border-radius: 0; }

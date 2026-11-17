@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows at 390 px: the list is the page, a workflow opens over it, Files and run is a bottom sheet</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 390px; height: 844px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  // Covers: workflows/js/ui/app.js, workflows/css/workflows.css, workflows/css/tool.css, workflows/css/steps.css
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const A = () => WFT.A, $ = (id) => WFT.D.getElementById(id);
+  const fits = () => WFT.D.documentElement.scrollWidth <= 391;
+  const shown = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none';
+
+  describe('Slop Workflows on a phone', () => {
+    it('starts on the list of workflows and templates, with no sideways scroll', async () => {
+      await WFT.boot('', { width: 390, height: 844, fresh: true });
+      expect(shown($('wf-list'))).toBe(true);
+      expect(shown($('wf-main'))).toBe(false);
+      expect($('wf-templates').children.length).toBe(4);
+      expect(fits()).toBe(true);
+    });
+
+    it('a template opens over the list; its cards fit; ‹ Workflows goes back', async () => {
+      [...$('wf-templates').querySelectorAll('.wf-li-open')][0].click();
+      await waitFor(() => shown($('wf-main')));
+      expect(shown($('wf-list'))).toBe(false);
+      expect(WFT.D.querySelectorAll('.wf-step').length).toBe(5);
+      for (const c of WFT.D.querySelectorAll('.wf-step')) expect(c.getBoundingClientRect().right <= 390).toBe(true);
+      expect(fits()).toBe(true);
+      $('wf-back').click();
+      await waitFor(() => shown($('wf-list')));
+      [...$('wf-templates').querySelectorAll('.wf-li-open')][0].click();
+      await waitFor(() => shown($('wf-main')));
+    });
+
+    it('Files and run opens the bottom sheet with the drop zone and Run; × closes it', async () => {
+      $('wf-phone-files').click();
+      const side = $('wf-side');
+      await waitFor(() => side.classList.contains('ssh-on'));
+      expect(shown($('wf-run'))).toBe(true);
+      expect(side.querySelector('.ssh-x')).toBeTruthy();
+      side.querySelector('.ssh-x').click();
+      await waitFor(() => !side.classList.contains('ssh-on'));
+    });
+  });
+  run({ name: 'Slop Workflows phone' });
+  </script>
+</body>
+</html>

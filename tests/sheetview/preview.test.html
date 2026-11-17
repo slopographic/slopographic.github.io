@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Sheets: the empty page shows a sheet and three steps; the sample price list opens with its two sheets</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; height: 860px; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: sheetview/js/main.js, sheetview/index.html, sheetview/css/sheetview.css, assets/shots/sheetview.jpg, shared/samples/docs.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  /** The app in a fresh iframe of this width, once the app is ready. */
+  async function boot(width) {
+    for (const old of document.querySelectorAll('iframe')) old.remove();
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../sheetview/index.html';
+    document.body.append(f);
+    await waitFor(() => { const w = f.contentWindow; return w && w.document.readyState === 'complete' && !!(w.document.body.classList.contains('ready') && w.SlopSheetView); }, { timeout: 30000 });
+    W = f.contentWindow; D = W.document;
+  }
+  const $ = (sel) => D.querySelector(sel);
+
+  describe('Slop Sheets: the first visit', () => {
+    it('the empty page shows what it makes and how, and Try it with a sample price list fills it', async () => {
+      await boot(1280);
+      expect(D.querySelectorAll('#sv-empty .sd-steps li').length).toBe(3);
+      const img = $('#sv-empty .sd-pic img');
+      SlopTest.shot(img, '../assets/shots/sheetview.jpg');   // a build without media has no picture
+      if (img) {
+        expect(img.alt.length > 10).toBe(true);
+        await waitFor(() => img.complete && img.naturalWidth > 300);
+      }
+      $('#sv-sample').click();
+      await waitFor(() => { const d = W.SlopSheetView.store.doc(); return d && d.sheets.length === 2; }, { timeout: 20000 });
+      const d = W.SlopSheetView.store.doc();
+      expect(d.name).toBe('Price list');
+      expect(d.sheets.map((s) => s.name)).toEqual(['Price list', 'Orders']);
+      expect($('#sv-empty').hidden).toBe(true);
+      expect($('#sv-view').hidden).toBe(false);
+    }, { timeout: 60000 });
+    it('at 390 px the preview fits: no sideways scroll', async () => {
+      await boot(390);
+      const p = $('#sv-empty .sd-preview').getBoundingClientRect();
+      expect(p.width > 200 && p.right <= 391).toBe(true);
+      expect(D.documentElement.scrollWidth <= 390).toBe(true);
+    }, { timeout: 40000 });
+  });
+  run();
+  </script>
+</body>
+</html>

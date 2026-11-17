@@ -1,0 +1,28 @@
+/* Checksum, Swedish: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-sv.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'checksum.app.home': 'Slopographic start',
+  'checksum.app.lede': 'Beräkna en fils hash, eller kontrollera den mot den hash som utgivaren har angett. Filen läses på den här enheten och laddas aldrig upp.',
+  'checksum.app.step_choose': '1. Välj en fil',
+  'checksum.app.drop': 'Välj en fil eller släpp den här',
+  'checksum.app.step_hash': '2. Hash',
+  'checksum.app.hash_label': 'Filens hash',
+  'checksum.app.settings_label': 'Hashinställningar',
+  'checksum.app.algorithm': 'Algoritm',
+  'checksum.app.sha1_note': 'SHA-1 finns bara kvar för att matcha äldre publicerade hashar. Använd SHA-256 för nya kontroller.',
+  'checksum.app.check_against': 'Kontrollera mot en publicerad hash',
+  'checksum.app.expected': 'Förväntad hash',
+  'checksum.app.expected_ph': 'Klistra in hashen från nedladdningssidan',
+  'checksum.app.copy': 'Kopiera hash',
+  'checksum.app.copied': 'Kopierad',
+  'checksum.app.copy_failed': 'Kunde inte kopiera',
+  'checksum.app.settings': 'Inställningar',
+  'checksum.app.a_file': 'en fil',
+  'checksum.app.reading': 'Läser {name} ({mb} MB)…',
+  'checksum.app.hash_of': '{alg} för {name}',
+  'checksum.app.choose_first': 'Välj en fil först.',
+  'checksum.app.not_hash': 'Det ser inte ut som en hash (bara bokstäverna a–f och siffror).',
+  'checksum.app.length_differs': 'Längden skiljer sig: {alg}-hashen har {n} tecken. Kontrollera algoritmen.',
+  'checksum.app.match': 'Matchar: filen är den som publicerades.',
+  'checksum.app.no_match': 'Matchar inte: filen skiljer sig från den publicerade hashen.',
+});

@@ -1,0 +1,6 @@
+/* Slop PDF — per-page actions in the thumbnails (two columns, shown on hover or when focused) and the
+   current-page border on the thumbnail and on the page canvas. */
+.thumb-tools { flex-direction: row; flex-wrap: wrap; width: 66px; justify-content: flex-end; }
+.thumb-tools button:focus-visible { outline: 2px solid var(--sl-accent, #d4ff3a); outline-offset: 1px; }
+.thumb.is-current .thumb-box { outline: 2px solid var(--sl-accent, #d4ff3a); outline-offset: 2px; }
+.pv-page.is-current { outline: 2px solid var(--sl-accent, #d4ff3a); outline-offset: 3px; }

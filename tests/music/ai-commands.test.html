@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Music: SlopCmd commands with arguments (palette, Slop AI, WebMCP)</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../drive/util.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="fixtures.js"></script>
+  <script>
+  // Covers: music/js/app/ai-commands.js, music/js/app/ai-find.js, music/js/core/engine.js, music/js/ui/playlists.js, music/js/core/plfile.js,
+  //   music/js/app/main.js, music/index.html, shared/ai/cmdtools.js
+  const { describe, it, expect, waitFor, sleep, topDialog } = SlopTest;
+  const F = window.MusicFixtures;
+  const NAMES = ['Morning Song', 'Night Drive', 'Rainy Day'];
+  let W, C, M, E, ids = [];
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const load = (w, src) => new Promise((res, rej) => { const s = w.document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; w.document.head.appendChild(s); });
+
+  describe('Slop Music commands', () => {
+    it('registers the player, library and playlist commands with args, descriptions and none hidden', async () => {
+      const H = window.SlopHub;
+      await H.clear();
+      for (const n of NAMES) ids.push(await H.put(F.wav(20), { name: n + '.wav', from: 'test' }));
+      W = await DT.frame('../../music/', (w) => w.SlopMusic && w.SlopCmd && w.SlopCmd.get('mu.play') && w.SlopMusic.lib.list().length === 3 && w.SlopMusic.lib.list().every((t) => t.analyzed));
+      C = W.SlopCmd; M = W.SlopMusic; E = M.engine;
+      const mine = C.list().filter((c) => c.id.startsWith('mu.'));
+      for (const id of ['mu.play', 'mu.pause', 'mu.play-pause', 'mu.play-track', 'mu.play-playlist', 'mu.next', 'mu.previous', 'mu.seek', 'mu.volume', 'mu.speed', 'mu.shuffle', 'mu.repeat',
+        'mu.queue-track', 'mu.find-tracks', 'mu.tag-track', 'mu.create-playlist', 'mu.rename-playlist', 'mu.add-to-playlist', 'mu.remove-from-playlist', 'mu.delete-playlist', 'mu.export-playlist'])
+        expect(!!C.get(id)).toBe(true, id);
+      for (const c of mine) {
+        expect(c.hidden).toBe(false, c.id);
+        expect(!!c.args && c.description.length > 5).toBe(true, c.id);
+      }
+      expect(C.get('mu.delete-playlist').destructive).toBe(true);
+      expect(C.get('mu.create-playlist').destructive).toBe(false);
+      await load(W, '../shared/ai/cmdtools.js');
+      const K = W.SlopAIKit.cmdTools;
+      expect(K.isDestructive(C.get('mu.delete-playlist'))).toBe(true);
+      expect(K.isDestructive(C.get('mu.create-playlist'))).toBe(false);
+      expect(K.isDestructive(C.get('mu.remove-from-playlist'))).toBe(false);
+      const names = K.build(C).map((t) => t.name);
+      for (const n of ['app_state', 'play_track', 'seek', 'volume', 'queue_track', 'find_tracks', 'tag_track', 'create_playlist', 'delete_playlist', 'export_playlist']) expect(names.includes(n)).toBe(true, n);
+    }, { timeout: 30000 });
+
+    it('plays a track by title words and by id; pause, play or pause, seek, volume, speed (clamped), shuffle, repeat', async () => {
+      let r = await run('mu.play-track', { title: 'night' });
+      expect(r.value).toContain('Night Drive');
+      await waitFor(() => E.state().playing, { timeout: 8000 });
+      expect(E.state().trackId).toBe(ids[1]);
+      await run('mu.play-track', { id: ids[2] });
+      expect(E.state().trackId).toBe(ids[2]);
+      expect((await C.exec('mu.play-track', { title: 'zzz nothing' })).error).toMatch(/No track matches/);
+      await run('mu.pause');
+      expect(E.state().playing).toBe(false);
+      await run('mu.play-pause');
+      await waitFor(() => E.state().playing, { timeout: 8000 });
+      await run('mu.seek', { seconds: 12, mode: 'to' });
+      expect(Math.abs(E.state().time - 12) < 1).toBe(true, 'time ' + E.state().time);
+      await run('mu.seek', { seconds: 5, mode: 'back' });
+      expect(Math.abs(E.state().time - 7) < 1.5).toBe(true, 'time ' + E.state().time);
+      r = await run('mu.volume', { percent: 30, muted: true });
+      expect(Math.round(E.state().volume * 100)).toBe(30); expect(E.state().muted).toBe(true);
+      await run('mu.volume', { muted: false });
+      expect(E.state().muted).toBe(false);
+      r = await run('mu.speed', { rate: 9 });
+      expect(E.state().rate).toBe(2); expect(r.notes.length).toBe(1);
+      await run('mu.speed', { rate: '1.5x' });
+      expect(E.state().rate).toBe(1.5);
+      await run('mu.shuffle', { on: true }); expect(E.state().shuffle).toBe(true);
+      await run('mu.shuffle', { on: false }); expect(E.state().shuffle).toBe(false);
+      await run('mu.repeat', { mode: 'one' }); expect(E.state().repeat).toBe('one');
+      await run('mu.repeat', { mode: 'off' });
+      expect((await C.exec('mu.repeat', { mode: 'twice' })).ok).toBe(false);
+    }, { timeout: 30000 });
+
+    it('queues a track to play next, then next and previous move through the queue', async () => {
+      await run('mu.play-track', { id: ids[0] });
+      await run('mu.queue-track', { id: ids[2], position: 'next' });
+      const q = E.state().queue;
+      expect(q.order[q.index]).toBe(ids[0]);
+      expect(q.order[q.index + 1]).toBe(ids[2]);
+      await run('mu.next');
+      expect(E.state().trackId).toBe(ids[2]);
+      await run('mu.seek', { seconds: 0, mode: 'to' });
+      await run('mu.previous');
+      expect(E.state().trackId).toBe(ids[0]);
+      await run('mu.pause');
+    }, { timeout: 20000 });
+
+    it('finds tracks with ids and tags a track (add, remove)', async () => {
+      const found = (await run('mu.find-tracks', { query: 'rainy' })).value;
+      expect(found.length).toBe(1); expect(found[0].id).toBe(ids[2]); expect(found[0].title).toBe('Rainy Day');
+      expect((await run('mu.find-tracks', {})).value.length).toBe(3);
+      await run('mu.tag-track', { id: ids[2], tags: 'chill, Rain' });
+      expect(M.lib.track(ids[2]).tags).toEqual(['chill', 'rain']);
+      expect((await window.SlopHub.get(ids[2])).meta.tags).toEqual(['chill', 'rain']);
+      await run('mu.tag-track', { id: ids[2], tags: 'rain', mode: 'remove' });
+      expect(M.lib.track(ids[2]).tags).toEqual(['chill']);
+      expect((await C.exec('mu.tag-track', { id: ids[2] })).ok).toBe(false);   // tags is required
+    });
+
+    it('playlists: create with tracks, rename, add, remove a track, play it, delete it; plain errors', async () => {
+      let r = await run('mu.create-playlist', { name: 'Road mix', track_ids: ids[0] + ', ' + ids[1] });
+      const p = M.playlists.all().find((x) => x.name === 'Road mix');
+      expect(r.value).toContain(p.id);
+      expect(p.trackIds).toEqual([ids[0], ids[1]]);
+      await run('mu.rename-playlist', { playlist: 'road', name: 'Long drive' });
+      expect(M.playlists.get(p.id).name).toBe('Long drive');
+      await run('mu.add-to-playlist', { playlist: p.id, title: 'rainy' });
+      expect(M.playlists.get(p.id).trackIds).toEqual([ids[0], ids[1], ids[2]]);
+      await run('mu.remove-from-playlist', { playlist: 'Long drive', id: ids[0] });
+      expect(M.playlists.get(p.id).trackIds).toEqual([ids[1], ids[2]]);
+      await run('mu.play-playlist', { playlist: 'long drive' });
+      expect(E.state().trackId).toBe(ids[1]); expect(E.state().queue.order).toEqual([ids[1], ids[2]]);
+      await run('mu.pause');
+      expect((await C.exec('mu.rename-playlist', { playlist: 'nope', name: 'x' })).error).toMatch(/No playlist called “nope”/);
+      expect((await C.exec('mu.create-playlist', { name: 'Bad', track_ids: 'not-an-id' })).error).toMatch(/Not in the library/);
+      const st = C.state();
+      expect(st.playlists.map((x) => x.id)).toEqual([p.id]);
+      expect(st.nowPlaying.id).toBe(ids[1]);
+      expect(st.library.tracks).toBe(3);
+      expect(st.library.first.map((x) => x.id).sort()).toEqual(ids.slice().sort());
+      r = await run('mu.export-playlist', { playlist: 'long drive' });
+      const fileId = r.value.match(/id ([^)]+)\)/)[1];
+      const parsed = M.plfile.parse(await (await W.SlopHub.get(fileId)).blob.text());
+      expect(parsed).toEqual({ name: 'Long drive', trackIds: [ids[1], ids[2]] });
+      const got = [];
+      W.SlopUI.download = (blob, name) => got.push({ blob, name });
+      r = await run('mu.export-playlist', { playlist: p.id, format: 'm3u', to: 'download' });
+      expect(r.value).not.toContain('Slop Drive');
+      expect(got[0].name).toBe('Long drive.m3u');
+      const lines = (await got[0].blob.text()).trim().split('\n');
+      expect(lines[0]).toBe('#EXTM3U');
+      expect(lines[1]).toBe('#PLAYLIST:Long drive');
+      expect(lines[2]).toMatch(/^#EXTINF:-?\d+,Night Drive$/);
+      expect(lines[3]).toBe('Night Drive.wav');
+      expect(lines[5]).toBe('Rainy Day.wav');
+      await run('mu.delete-playlist', { playlist: p.id });
+      expect(M.playlists.get(p.id)).toBe(null);
+    }, { timeout: 20000 });
+
+    it('the checkpoint puts playlists and tags back ("Undo all AI changes")', async () => {
+      const keep = await M.playlists.create('Keep me', [ids[0]]);
+      const undo = C.checkpoint();
+      await run('mu.create-playlist', { name: 'Extra' });
+      await run('mu.rename-playlist', { playlist: keep.id, name: 'Renamed' });
+      await run('mu.tag-track', { id: ids[0], tags: 'loud' });
+      await undo();
+      expect(M.playlists.all().map((x) => x.name)).toEqual(['Keep me']);
+      expect(M.lib.track(ids[0]).tags).toEqual([]);
+    });
+
+    it('from the palette (no args) delete playlist asks in a dialog and keeps the playlist when cancelled', async () => {
+      const p = M.playlists.all()[0];
+      M.plUI.select(p.id);
+      C.run('mu.delete-playlist', { source: 'palette' });
+      const dlg = await waitFor(() => topDialog(W.document));
+      expect(dlg.textContent).toContain('Delete “Keep me”');
+      [...dlg.querySelectorAll('button')].find((b) => /cancel/i.test(b.textContent)).click();
+      await sleep(200);
+      expect(!!M.playlists.get(p.id)).toBe(true);
+      // back to the defaults for the other Music pages
+      E.setVolume(0.8); E.setRate(1); E.setShuffle(false); E.setRepeat('off');
+    });
+  });
+  SlopTest.run({ name: 'Slop Music: commands with arguments' });
+  </script>
+</body>
+</html>

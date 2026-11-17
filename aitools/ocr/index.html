@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+  <script src="../../shared/profile/profile.js" data-src="shared/profile/profile.js"></script>
+  <script src="../../shared/theme/theme.js" data-app="aitools" data-src="shared/theme/theme.js"></script>
+  <link rel="expect" href="#slop-built" blocking="render">
+  <script src="../../shared/i18n/i18n.js" data-src="shared/i18n/i18n.js"></script>
+  <script src="../i18n/index.js" data-src="aitools/i18n/index.js"></script>
+  <script src="../../shared/ocr/i18n/index.js" data-src="shared/ocr/i18n/index.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCR · Slop AI Tools</title>
+  <meta name="description" content="Read text from an image or a scanned PDF page, on your device. Copy it, download .txt or send it to Slop Docs.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../aitools.css">
+  <link rel="stylesheet" href="../../shared/frame/frame.css">
+  <link rel="stylesheet" href="../frame.css">
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/models/chooser.css">
+</head>
+<body>
+  <header class="ai-top">
+    <a class="brand" href="../../" title="Slopographic home" aria-label="Slopographic home" data-i18n-attr="title:aitools.hub.home;aria-label:aitools.hub.home"><svg viewBox="0 0 32 32" class="brand-mark" aria-hidden="true"><path d="M16 2C16 2 6 13.5 6 20a10 10 0 0 0 20 0C26 13.5 16 2 16 2z"/></svg></a>
+    <a class="ai-crumb" href="../" data-i18n="aitools.page.crumb">AI Tools</a><span class="ai-sep" aria-hidden="true">/</span><h1 data-i18n="aitools.tool.ocr_name">OCR</h1>
+  </header>
+  <div class="ai-tool">
+    <div id="gate" class="ai-stack" aria-live="polite"></div>
+    <section id="ui" class="ai-stack" hidden>
+      <div id="drop" class="ai-drop" tabindex="0"><span data-i18n="aitools.ocr.drop">Drop an image or a PDF here, or </span><button type="button" id="chooseFile" class="ai-choose" data-i18n="aitools.page.choose_file">choose a file</button></div>
+      <div class="ai-field" data-side="settings"><label for="page" data-i18n="aitools.ocr.page">PDF page (PDFs only)</label><input id="page" type="number" min="1" value="1"></div>
+      <p id="fileName" class="ai-meta"></p>
+      <div><button id="run" class="ai-pri" type="button" disabled data-side="main" data-i18n="aitools.ocr.run">Read text</button> <button id="lang" type="button" data-side="settings" data-i18n="aitools.ocr.lang">Language and model</button></div>
+      <progress id="prog" class="ai-progress" value="0" max="1" hidden></progress>
+      <p id="msg" class="ai-meta" role="status"></p>
+      <div id="suggest"></div>
+      <textarea id="out" class="ai-out" aria-label="Recognised text" placeholder="The text appears here. You can edit it before you copy or save it." data-i18n-attr="aria-label:aitools.ocr.out;placeholder:aitools.ocr.out_ph"></textarea>
+      <div class="ai-act">
+        <button id="copy" type="button" disabled data-side="save" data-i18n="aitools.ocr.copy">Copy</button>
+        <button id="dl" type="button" disabled data-side="save" data-i18n="aitools.page.download_txt">Download .txt</button>
+        <button id="docs" type="button" disabled data-side="save" data-i18n="aitools.ocr.docs">Send to Slop Docs</button>
+      </div>
+    </section>
+  </div>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../shared/ai/makers.js"></script>
+  <script src="../../shared/ocr/engines.js"></script>
+  <script src="../ocr-tesseract.js"></script>
+  <script src="../ocr-models.js"></script>
+  <script src="../model-registry.js"></script>
+  <script src="../download.js"></script>
+  <script src="../../shared/firstrun/notice.js"></script>
+<script src="../models.js"></script>
+  <script src="../support.js"></script>
+  <script src="../get-more.js"></script>
+  <script src="../common.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../intake.js"></script>
+  <script src="ocr.js"></script>
+  <script src="../../shared/ui/sheet.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/ui/resize-panel.js"></script>
+  <script src="../../shared/frame/frame.js"></script>
+  <script src="../../shared/frame/panel.js"></script>
+  <script src="../frame.js"></script>
+  <script src="../../shell/shell.js"></script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

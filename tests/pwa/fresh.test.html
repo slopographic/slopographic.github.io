@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PWA · ?fresh reloads even when the worker update takes long</title>
+  <!-- Covers: shared/pwa.js -->
+</head>
+<body>
+  <iframe id="f" src="fresh-frame.html?fresh&keep=1" style="width:300px;height:100px;border:0"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // SlopPWA.refresh() used to wait for registration.update(), which waits for a new worker to install (it precaches the whole
+  // site), so ?fresh never reloaded the page while a new release was installing. It now gives the update 3 seconds.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('f');
+  describe('?fresh', () => {
+    it('reloads the page without ?fresh (keeping the other parameters) even when update() never finishes', async () => {
+      await waitFor(() => { try { return f.contentWindow.location.search === '?keep=1'; } catch (e) { return false; } }, { timeout: 9000 });
+      expect(f.contentWindow.location.search).toBe('?keep=1');
+    }, { timeout: 15000 });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+/* Checksum, English (the source of truth for the app's keys): the page, the settings panel and the verdicts.
+ * Every other language copies these keys into checksum/i18n/<code>/app.js. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'checksum.app.home': 'Slopographic home',
+  'checksum.app.lede': 'Compute the hash of a file, or check it against the hash its publisher gave you. The file is read on this device and never uploaded.',
+  'checksum.app.step_choose': '1. Choose a file',
+  'checksum.app.drop': 'Choose a file, or drop it here',
+  'checksum.app.step_hash': '2. The hash',
+  'checksum.app.hash_label': 'Hash of the file',
+  'checksum.app.settings_label': 'Hash settings',
+  'checksum.app.algorithm': 'Algorithm',
+  'checksum.app.sha1_note': 'SHA-1 is kept only to match older published hashes. Use SHA-256 for new checks.',
+  'checksum.app.check_against': 'Check against a published hash',
+  'checksum.app.expected': 'Expected hash',
+  'checksum.app.expected_ph': 'Paste the hash from the download page',
+  'checksum.app.copy': 'Copy hash',
+  'checksum.app.copied': 'Copied',
+  'checksum.app.copy_failed': 'Copy failed',
+  'checksum.app.settings': 'Settings',
+  'checksum.app.a_file': 'a file',
+  'checksum.app.reading': 'Reading {name} ({mb} MB)…',
+  'checksum.app.hash_of': '{alg} of {name}',
+  'checksum.app.choose_first': 'Choose a file first.',
+  'checksum.app.not_hash': 'That does not look like a hash (letters a to f and digits only).',
+  'checksum.app.length_differs': 'Length differs: the {alg} hash is {n} characters. Check the algorithm.',
+  'checksum.app.match': 'Match: the file is the one that was published.',
+  'checksum.app.no_match': 'No match: the file differs from the published hash.',
+});

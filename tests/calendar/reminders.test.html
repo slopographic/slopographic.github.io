@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Calendar · an event reminder and a to-do reminder fire at their times, and a snooze brings one back (fake clock)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/tasks/store.js (SlopTaskStore.save in the Calendar)
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const cal = document.createElement('iframe');
+  cal.style.cssText = 'width:1100px;height:760px;border:0;position:fixed;left:0;top:0;background:#111';
+  cal.src = '../../calendar/index.html#week';
+  document.body.append(cal);
+  const cw = () => cal.contentWindow, cd = () => cal.contentDocument;
+  const booted = () => cw() && cw().SlopCal && cw().SlopCal.state && cd() && cd().getElementById('cBoot') && cd().getElementById('cBoot').hidden;
+  const at = (h, m) => Date.UTC(2026, 9, 12, h, m);   // 12 Oct 2026 in UTC (the calendar shows UTC here)
+  let now = at(9, 0);
+  const fired = [];
+  const titles = () => fired.map((x) => x.title);
+  const scan = () => cw().SlopReminderEngine.scan();
+  // The engine skips a scan while another one runs (it re-runs after), so wait for the expected fires rather than one scan.
+  const settle = () => new Promise((r) => setTimeout(r, 400));
+  const scanUntil = (pred) => waitFor(async () => { await scan(); return pred(); }, { timeout: 8000 });
+
+  describe('reminders for an event and a timed to-do on the calendar', () => {
+    it('an event 15 minutes before and a timed to-do 15 minutes before each fire once, at their times', async () => {
+      await waitFor(booted, { timeout: 20000 });
+      cw().SlopReminders.setClock(() => now);
+      cw().SlopReminderEngine.onFire((it) => fired.push(it));
+      const ev = await cw().SlopEvents.save({ title: 'Dentist R', allDay: false, start: at(10, 0), end: at(11, 0), tz: 'UTC', color: 'blue', kind: 'event', freq: 'none', remind: 15 });
+      expect(ev.ok).toBe(true);
+      const tk = await cw().SlopTaskStore.save({ title: 'Renew passport R', due: '2026-10-12', dueTime: '14:00', tz: 'UTC', list: 'Inbox', done: false, remind: 15 });
+      expect(tk.ok).toBe(true);
+      await scan(); await settle();
+      expect(titles()).toEqual([]);                  // 09:00: nothing due yet
+      now = at(9, 46);
+      await scanUntil(() => titles().length === 1);
+      expect(titles()).toEqual(['Dentist R']);       // the event reminder is due at 09:45
+      await scan(); await settle();
+      expect(titles()).toEqual(['Dentist R']);       // and not again once fired
+      now = at(13, 46);
+      await scanUntil(() => titles().length === 2);
+      expect(titles()).toEqual(['Dentist R', 'Renew passport R']);   // the to-do is due at 13:45
+    });
+
+    it('a snoozed event reminder is due again at the snooze time, and a dismissed one never is', async () => {
+      now = at(9, 46);   // the snooze below is written at 09:46, so it comes back at 09:51
+      const snap = await cw().SlopReminderEngine.snapshot(now);
+      const item = snap.value.items.find((x) => x.title === 'Dentist R');
+      expect((await cw().SlopReminderEngine.snooze(item, '5m')).ok).toBe(true);
+      now = at(9, 50);
+      await scan(); await settle();
+      expect(titles().filter((t) => t === 'Dentist R').length).toBe(1);
+      now = at(9, 52);
+      await scanUntil(() => titles().filter((t) => t === 'Dentist R').length === 2);
+      const again = (await cw().SlopReminderEngine.snapshot(now)).value.items.find((x) => x.title === 'Renew passport R');
+      expect((await cw().SlopReminderEngine.dismiss(again)).ok).toBe(true);
+      now = at(16, 0);
+      await scan(); await settle();
+      expect(titles().filter((t) => t === 'Renew passport R').length).toBe(1);
+    });
+
+    it('the event is still in the calendar with its reminder after the snooze', async () => {
+      const r = await cw().SlopCal.model.load('2026-10-12', '2026-10-12', 'UTC');
+      expect(r.value.some((x) => x.title === 'Dentist R')).toBe(true);
+    });
+  });
+
+  run({ name: 'Calendar · reminders with a fake clock' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Closing on a phone: the app switcher, the command palette and a dialog show a × (not "Esc")</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <iframe id="f"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  // The owner on an iPhone: the app search showed a small "Esc" key where its close button should be ("the escape button
+  // text should be an x on modal so I can close easily"). The rule now (shared/slopui.css): a real × button named Close on
+  // every screen; Esc still closes, and its hint shows beside the × only where there is a mouse and room.
+  // Covers: shell/switcher.js, shell/shell.css, shared/commands/palette.js, shared/commands/commands.css, shared/slopui.css
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const fr = document.getElementById('f');
+  let W, D;
+  const q = (s) => D.querySelector(s);
+  const shown = (n) => { if (!n || n.hidden) return false; const r = n.getBoundingClientRect(), cs = W.getComputedStyle(n); return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && r.right <= 390.5 && r.left >= -0.5; };
+  /** The × of a close button: visible, named Close, at least 36 px each way for a finger, and its Esc hint (if any) hidden on a phone. */
+  function checkX(btn) {
+    expect(btn.tagName).toBe('BUTTON');
+    expect(btn.getAttribute('aria-label')).toBe('Close');
+    expect(shown(btn)).toBe(true);
+    expect(btn.textContent).toContain('×');
+    const x = [...btn.querySelectorAll('span')].find((s) => s.textContent === '×') || btn;
+    expect(shown(x)).toBe(true);
+    const r = btn.getBoundingClientRect();
+    if (W.matchMedia('(pointer: coarse)').matches) expect(r.width >= 36 && r.height >= 36).toBe(true, `${r.width} × ${r.height}`);   // a finger's size
+    const hint = btn.querySelector('.slop-esc-hint');
+    if (hint) expect(shown(hint)).toBe(false);   // 390 px wide: no Esc hint, only the ×
+  }
+
+  describe('a × to close at 390 px', () => {
+    it('the app switcher (Search apps): a × that closes it; Esc still closes it', async () => {
+      fr.src = '../../photoslop/index.html';
+      await waitFor(() => { const w = fr.contentWindow; return w && w.SlopSwitcher && w.SlopUI && w.SlopCmd; }, { timeout: 40000 });
+      W = fr.contentWindow; D = W.document; window.scrollTo(0, 0);
+      if (W.SlopBanner) W.SlopBanner.remove();
+      W.SlopSwitcher.open();
+      const x = await waitFor(() => q('.sh-back:not([hidden]) .sh-close'));
+      checkX(x);
+      await TouchKit.tap(x);
+      await waitFor(() => !W.SlopSwitcher.isOpen());
+      W.SlopSwitcher.open(); await sleep(50);
+      D.querySelector('#sh-q').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await waitFor(() => !W.SlopSwitcher.isOpen());
+    }, { timeout: 60000 });
+
+    it('the command palette: a × that closes it', async () => {
+      await W.SlopCmd.open('');
+      const x = await waitFor(() => { const b = q('.scmd-close'); return b && shown(b) ? b : null; }, { timeout: 10000 });
+      checkX(x);
+      await TouchKit.tap(x);
+      await waitFor(() => !q('.scmd-pal') || !shown(q('.scmd-pal')));
+    }, { timeout: 30000 });
+
+    it('a SlopUI dialog: a × that closes it', async () => {
+      W.SlopUI.dialog({ title: 'Test dialog', body: 'Hello', buttons: [{ label: 'OK', primary: true }] });
+      const x = await waitFor(() => { const b = [...D.querySelectorAll('.sui-dlg .sui-x')].pop(); return b && shown(b) ? b : null; });
+      checkX(x);
+      await TouchKit.tap(x);
+      await waitFor(() => ![...D.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].some((d) => d.getAttribute('aria-label') === 'Test dialog'));
+    }, { timeout: 30000 });
+
+    it('the Esc hint is the one shared rule: hidden on a phone or a touch screen, shown beside the × with a mouse on a wide screen', () => {
+      const k = D.createElement('kbd'); k.className = 'slop-esc-hint'; k.textContent = 'Esc'; D.body.append(k);
+      const touchOrNarrow = W.matchMedia('(hover: none), (pointer: coarse), (max-width: 640px)').matches;
+      expect(touchOrNarrow).toBe(true);   // this frame is 390 px wide
+      expect(W.getComputedStyle(k).display).toBe('none');
+      k.remove();
+    });
+  });
+  SlopTest.run({ name: 'Close with a ×' });
+  </script>
+</body>
+</html>

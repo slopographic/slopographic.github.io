@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop PDF touch</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script>
+  /* Slop PDF with a finger: the page view is a touch surface, a tap selects an annotation, a double tap edits its text,
+     a drag moves it, a long press opens its menu (and lifting the finger picks nothing), a pinch zooms the page view
+     and not the page.
+     Covers: pdf/js/editor/view-zoom.js, pdf/js/editor/pointer.js, pdf/js/editor/sel-lift.js, pdf/js/editor/sel-bar.js,
+     pdf/js/tools/sign.js (the signature pad is a touch surface) */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const doc = () => PT.win.document;
+  const annotEl = (id) => doc().querySelector('.pv-page .annots [data-aid="' + id + '"]');
+  const find = (id) => PT.SP.editor._.findAnnot(id);
+  let a;
+
+  describe('Slop PDF on touch', () => {
+    it('the page view is a touch surface (no scroll, callout or selection takes a drag)', async () => {
+      await PT.boot();
+      await waitFor(() => PT.win.SlopTouch && PT.win.SlopTouch.ready, { timeout: 15000 });
+      PT.reset();
+      await PT.open(await PT.makePdf([{ text: 'touch one', w: 400, h: 300 }]), 'touch.pdf');
+      PT.A.openPage(PT.E.state.pages[0].id);
+      await waitFor(() => doc().querySelector('.pv-page'));
+      const viewer = doc().getElementById('viewer');
+      expect(viewer.getAttribute('data-touch-surface')).toBe('nav');
+      expect(PT.win.getComputedStyle(viewer).touchAction).toBe('none');
+      a = { id: 'touch-text', type: 'text', text: 'Hello', rot: 0, cx: 140, cy: 120, w: 90, h: 24, font: 'Helvetica', size: 18, color: '#111111', bold: false, italic: false, opacity: 1 };
+      PT.SP.editor.addAnnot(a, 'Add text');
+      PT.SP.editor.select(null);
+      await waitFor(() => annotEl(a.id));
+      await sleep(300);
+    });
+    it('a tap selects the annotation', async () => {
+      await TouchKit.tap(annotEl(a.id));
+      await waitFor(() => (PT.SP.editor.getSelected() || {}).id === a.id, { timeout: 4000 });
+    });
+    it('a double tap opens its text for editing', async () => {
+      PT.SP.editor.select(null);
+      await sleep(400);
+      await TouchKit.doubleTap(annotEl(a.id));
+      const ta = PT.SP.editor._.ta;
+      await waitFor(() => !ta.hidden, { timeout: 4000 });
+      expect(ta.value).toBe('Hello');
+      ta.blur();
+      PT.SP.editor.select(null);
+      await sleep(300);
+    });
+    it('a drag moves it', async () => {
+      const before = find(a.id).cx;
+      await TouchKit.drag(annotEl(a.id), 60, 0, 10);
+      await waitFor(() => find(a.id).cx > before + 20, { timeout: 4000 });
+    });
+    it('a long press opens its menu, and lifting the finger picks nothing', async () => {
+      PT.win.SlopUI.closeMenu && PT.win.SlopUI.closeMenu();
+      const count = () => doc().querySelectorAll('.pv-page .annots [data-aid]').length;
+      const before = count();
+      await sleep(600); // a press this soon after the drag's would be the app's own double tap (pointer.js), which edits the text
+      await TouchKit.longPress(annotEl(a.id));
+      await waitFor(() => doc().querySelector('.sui-menu .sui-row'), { timeout: 4000 });
+      await sleep(200);
+      expect(doc().querySelector('.sui-menu')).toBeTruthy(); // still open: the lift was not a click on an item
+      expect(count()).toBe(before);
+      PT.win.SlopUI.closeMenu();
+    });
+    it('a pinch zooms the page view, not the page', async () => {
+      const Ed = PT.SP.editor, z0 = Ed.zoom;
+      await TouchKit.pinch(doc().querySelector('.pv-page'), 2, 10);
+      await waitFor(() => Ed.zoom > z0 * 1.3, { timeout: 4000 });
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+  });
+  SlopTest.run({ name: 'Slop PDF touch' });
+  </script>
+</body>
+</html>

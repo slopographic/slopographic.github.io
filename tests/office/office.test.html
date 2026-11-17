@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Office shared layer</title></head>
+<body>
+<script src="../harness.js"></script>
+<script type="module">
+import { readZip, writeZip, readText, crc32 } from '../../shared/office/zip.js';
+import { x, esc, doc, xmlns, NS, parseXml, kids, kid, path, all, attr } from '../../shared/office/xml.js';
+import * as U from '../../shared/office/units.js';
+const { describe, it, expect } = SlopTest;
+const enc = new TextEncoder();
+
+describe('zip', () => {
+  it('computes the standard CRC32', () => {
+    expect(crc32(enc.encode('123456789'))).toBe(0xcbf43926);
+    expect(crc32(new Uint8Array(0))).toBe(0);
+  });
+  it('round-trips stored and deflated entries in order', async () => {
+    const big = 'hello slop '.repeat(500);
+    const bin = new Uint8Array(3000).map((_, i) => (i * 7) & 255);
+    const blob = await writeZip([
+      { path: 'mimetype', data: 'application/vnd.oasis.opendocument.text', store: true },
+      { path: 'dir/big.txt', data: big },
+      { path: 'bin.dat', data: bin },
+      { path: 'tiny', data: 'x' },
+    ]);
+    expect(blob.type).toBe('application/zip');
+    const u8 = new Uint8Array(await blob.arrayBuffer());
+    // ODF requires the uncompressed mimetype as the first entry at offset 30.
+    expect(new TextDecoder().decode(u8.subarray(38, 38 + 39))).toBe('application/vnd.oasis.opendocument.text');
+    expect(blob.size).toBeLessThan(big.length);
+    const m = await readZip(blob);
+    expect([...m.keys()]).toEqual(['mimetype', 'dir/big.txt', 'bin.dat', 'tiny']);
+    expect(readText(m, 'dir/big.txt')).toBe(big);
+    expect(m.get('bin.dat')).toEqual(bin);
+    expect(readText(m, 'tiny')).toBe('x');
+    expect(readText(m, 'missing')).toBe(null);
+  });
+  it('reads from ArrayBuffer and Uint8Array, rejects non-zips', async () => {
+    const blob = await writeZip([{ path: 'a.txt', data: 'é ünïcode ✓' }], { compress: false });
+    const ab = await blob.arrayBuffer();
+    expect(readText(await readZip(ab), 'a.txt')).toBe('é ünïcode ✓');
+    expect(readText(await readZip(new Uint8Array(ab)), 'a.txt')).toBe('é ünïcode ✓');
+    await expect(readZip(new Uint8Array(100))).rejects(/ZIP/);
+  });
+});
+
+describe('xml', () => {
+  it('builds escaped XML with namespaces and skips empty attributes', () => {
+    const s = doc(x('w:document', xmlns('w'), [x('w:body', null, [x('w:t', { 'xml:space': 'preserve', 'w:x': null }, 'a < b & "c"\u0001')])]));
+    expect(s).toContain('<?xml version="1.0"');
+    expect(s).toContain('<w:t xml:space="preserve">a &lt; b &amp; "c"</w:t>');
+    expect(x('w:br')).toBe('<w:br/>');
+    expect(x('a', { t: 'x"y\nz' })).toBe('<a t="x&quot;y&#10;z"/>');
+    expect(esc('>')).toBe('&gt;');
+  });
+  it('parses and navigates by namespace', () => {
+    const d = parseXml(doc(x('w:document', xmlns('w', 'r'), [x('w:body', null, [
+      x('w:p', null, [x('w:pPr', null, [x('w:pStyle', { 'w:val': 'Heading1' })]), x('w:r', null, [x('w:t', null, 'Hi')])]),
+      x('w:p', null, [x('w:r', { 'r:id': 'rId3' }, [x('w:t', null, 'There')])]),
+    ])])));
+    const body = kid(d.documentElement, NS.w, 'body');
+    const ps = kids(body, NS.w, 'p');
+    expect(ps).toHaveLength(2);
+    expect(attr(path(ps[0], NS.w, 'pPr', 'pStyle'), NS.w, 'val')).toBe('Heading1');
+    expect(all(d, NS.w, 't').map((t) => t.textContent)).toEqual(['Hi', 'There']);
+    expect(attr(kid(ps[1], NS.w, 'r'), NS.r, 'id')).toBe('rId3');
+    expect(kid(ps[1], NS.w, 'pPr')).toBe(null);
+    expect(() => parseXml('<a><b></a>')).toThrow(/XML/);
+  });
+});
+
+describe('units', () => {
+  it('converts between pt, px, EMU, twips, half-points and mm', () => {
+    expect(U.ptToPx(72)).toBe(96);
+    expect(U.pxToPt(96)).toBe(72);
+    expect(U.ptToEmu(1)).toBe(12700);
+    expect(U.emuToPt(914400)).toBe(72);
+    expect(U.ptToTwips(72)).toBe(1440);
+    expect(U.twipsToPt(1440)).toBe(72);
+    expect(U.halfPtToPt(24)).toBe(12);
+    expect(U.mmToPt(25.4)).toBeCloseTo(72);
+    expect(U.eighthsToPt(4)).toBe(0.5);
+  });
+  it('parses and formats lengths', () => {
+    expect(U.lengthToPt('2.54cm')).toBeCloseTo(72);
+    expect(U.lengthToPt('1in')).toBe(72);
+    expect(U.lengthToPt('16px')).toBe(12);
+    expect(U.lengthToPt('12')).toBe(12);
+    expect(U.lengthToPt('bogus')).toBe(null);
+    expect(U.ptToLength(72, 'in')).toBe('1in');
+    expect(U.ptToLength(72, 'cm')).toBe('2.54cm');
+  });
+  it('knows page sizes and colours', () => {
+    expect(U.pageSizeName(612, 792)).toBe('Letter');
+    expect(U.pageSizeName(U.PAGE_SIZES.A4.h, U.PAGE_SIZES.A4.w)).toBe('A4');
+    expect(U.pageSizeName(100, 100)).toBe(null);
+    expect(U.hexToOoxml('#ff00aa')).toBe('FF00AA');
+    expect(U.ooxmlToHex('FF00AA')).toBe('#ff00aa');
+  });
+});
+SlopTest.run({ name: 'Slop Office shared layer' });
+</script>
+</body>
+</html>

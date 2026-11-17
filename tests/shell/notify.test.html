@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shell · notifications (toasts, stack, history)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shell/shell.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const toasts = () => [...document.querySelectorAll('.sn-stack .sn-toast')];
+  const bell = () => document.querySelector('.sn-bell');
+
+  window.SlopShell.ready.then(() => {
+    describe('notifier', () => {
+      it('stacks toasts in the bottom-right corner', () => {
+        SlopNotify.clear();
+        SlopNotify.show({ title: 'One', body: 'first', ms: 0 });
+        SlopNotify.show({ title: 'Two', body: 'second', ms: 0 });
+        SlopNotify.show({ title: 'Three', ms: 0 });
+        expect(toasts().length).toBe(3);
+        expect(toasts().map((t) => t.querySelector('.sn-title').textContent)).toEqual(['One', 'Two', 'Three']);
+        const r = document.querySelector('.sn-stack').getBoundingClientRect();
+        expect(Math.abs(innerWidth - r.right - 16)).toBeLessThanOrEqual(1);
+        expect(Math.abs(innerHeight - r.bottom - 16)).toBeLessThanOrEqual(1);
+        SlopNotify.clear();
+      });
+
+      it('shows at most four toasts at once and keeps every one in history', () => {
+        SlopNotify.clear();
+        for (let i = 1; i <= 6; i++) SlopNotify.show({ title: 'N' + i, ms: 0 });
+        expect(toasts().length).toBe(4);
+        expect(toasts()[3].querySelector('.sn-title').textContent).toBe('N6');
+        expect(SlopNotify.history().length).toBe(6);
+        SlopNotify.clear();
+      });
+
+      it('keeps history newest first and saves it under a versioned envelope', () => {
+        SlopNotify.clear();
+        SlopNotify.show({ title: 'Saved A', body: 'a', ms: 0 });
+        SlopNotify.show({ title: 'Saved B', body: 'b', ms: 0 });
+        const h = SlopNotify.history();
+        expect(h[0].title).toBe('Saved B');
+        expect(h[1].title).toBe('Saved A');
+        const env = JSON.parse(localStorage.getItem('slop.notify.v1'));
+        expect(env.v).toBe(1);
+        expect(env.data.map((r) => r.title)).toEqual(['Saved B', 'Saved A']);
+        SlopNotify.clear();
+      });
+
+      it('runs the action button and dismisses that toast', async () => {
+        SlopNotify.clear();
+        let ran = 0;
+        const id = SlopNotify.show({ title: 'Saved', action: { label: 'Open', run: () => ran++ }, ms: 0 });
+        const btn = document.querySelector(`.sn-toast[data-id="${id}"] .sn-act`);
+        expect(btn.textContent).toBe('Open');
+        btn.click();
+        expect(ran).toBe(1);
+        await waitFor(() => !document.querySelector(`.sn-toast[data-id="${id}"]`), { timeout: 2000 });
+        expect(SlopNotify.history()[0].action).toBe('Open');
+        SlopNotify.clear();
+      });
+
+      it('the bell shows the unread count, and opening it lists history and marks it read', () => {
+        SlopNotify.clear();
+        expect(bell()).toBeTruthy();
+        SlopNotify.show({ title: 'Bell 1', ms: 0 });
+        SlopNotify.show({ title: 'Bell 2', ms: 0 });
+        const count = bell().querySelector('.sn-count');
+        expect(count.hidden).toBe(false);
+        expect(count.textContent).toBe('2');
+        bell().click();
+        const panel = document.querySelector('.sn-panel');
+        expect(panel.hidden).toBe(false);
+        expect(panel.querySelectorAll('.sn-row').length).toBe(2);
+        expect(panel.querySelector('.sn-row .sn-row-text strong').textContent).toBe('Bell 2');
+        expect(bell().querySelector('.sn-count').hidden).toBe(true);
+        expect(SlopNotify.unread()).toBe(0);
+        bell().click();
+        expect(panel.hidden).toBe(true);
+        SlopNotify.clear();
+      });
+
+      it('does not ask for desktop permission when a notice is shown', () => {
+        SlopNotify.clear();
+        let asked = 0;
+        const real = window.Notification && Notification.requestPermission;
+        if (window.Notification) Notification.requestPermission = () => { asked++; return Promise.resolve('denied'); };
+        SlopNotify.show({ title: 'Quiet', ms: 0 });
+        if (window.Notification) Notification.requestPermission = real;
+        expect(asked).toBe(0);
+        expect(['unsupported', 'default', 'granted', 'denied'].includes(SlopNotify.desktopState())).toBe(true);
+        SlopNotify.clear();
+      });
+    });
+    run({ name: 'Shell · notifications' });
+  });
+  </script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>AI Tools: every tool page has its settings and its main button in the right panel (1280), a bottom sheet foot (390)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; }</style></head>
+<body>
+  <!-- Covers: aitools/frame.js, aitools/frame.css, aitools/ocr/index.html, aitools/speech/index.html, aitools/denoise/index.html, aitools/tags/index.html, aitools/portrait/index.html -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const PAGES = [['ocr', 'Read text', ['page', 'lang'], ['copy', 'dl', 'docs']], ['speech', 'Transcribe', ['model'], ['srt', 'txt']],
+    ['denoise', 'Apply', ['mode', 'strength'], ['dl']], ['tags', 'Suggest tags', [], ['save']], ['portrait', 'Download PNG', ['strength'], []]];
+  async function open(path, width, height) {
+    for (const o of document.querySelectorAll('iframe')) o.remove();
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${width}px;height:${height}px`;
+    f.src = '../../aitools/' + path + '/index.html';
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopAIToolFrame && f.contentDocument.readyState === 'complete', { timeout: 30000 });
+    const D = f.contentDocument;
+    D.getElementById('ui').hidden = false;   // without a model the tool waits behind the prompt; the layout is the same
+    await sleep(100);
+    return D;
+  }
+  describe('AI Tools: the right panel', () => {
+    for (const [path, main, settings, saves] of PAGES) {
+      it(`${path}: at 1280px the panel is on the right with the settings and the downloads, and "${main}" at its foot`, async () => {
+        const D = await open(path, 1280, 800), side = D.getElementById('aiSide');
+        expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(D.getElementById('aiView').getBoundingClientRect().right - 1);
+        expect(Math.round(side.getBoundingClientRect().right)).toBe(1280);
+        for (const id of settings.concat(saves)) expect(side.contains(D.getElementById(id))).toBe(true);
+        const b = [...side.querySelectorAll('.sf-p-foot button')].find((x) => x.textContent.trim() === main);
+        expect(!!b).toBe(true);
+        expect(b.getBoundingClientRect().bottom).toBeLessThanOrEqual(800);
+        expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+      }, { timeout: 40000 });
+    }
+    it('denoise at 390px: the main button stays at the bottom; Settings opens the sheet; nothing scrolls sideways', async () => {
+      const D = await open('denoise', 390, 844), b = D.getElementById('run');
+      expect(b.getBoundingClientRect().top).toBeGreaterThan(740);
+      expect(b.getBoundingClientRect().bottom).toBeLessThanOrEqual(844);
+      expect(D.getElementById('mode').getBoundingClientRect().height).toBe(0);
+      D.querySelector('#aiSide .sf-foot-more').click();
+      await waitFor(() => D.getElementById('aiSide').classList.contains('ssh-on'));
+      await sleep(300);
+      expect(D.getElementById('mode').getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'AI Tools: the right panel' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+/* Slop AI shared words, Japanese: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-ja.md. */
+window.SlopI18n && window.SlopI18n.add('ja', {
+  'ui.ai.cloud.or_signin': '{name} でサインイン',
+  'ui.ai.cloud.or_note': 'キーをまだお持ちでない場合は、サインインすると {name} がこのブラウザー用のキーを作成します。料金はご自身の {name} クレジットから支払われます。上限の設定や取り消しは {link} で行えます。',
+  'ui.ai.cloud.or_privacy': 'サインインはこのブラウザーから {name} へ直接行われ、{brand} のサーバーを経由することはありません。',
+  'ui.ai.cloud.or_manage': 'サインインまたは手動で作成した {name} のキーは、{link} で上限を設定したり取り消したりできます。「キーを削除」はこのブラウザーからキーを消すだけです。',
+  'ui.ai.cloud.or_going': '{name} を開いています…',
+  'ui.ai.cloud.or_finishing': '{name} でのサインインを完了しています…',
+  'ui.ai.cloud.or_done': '{name} でサインインしました。このブラウザー用のキーは貼り付けたキーと同じように保存されています。',
+  'ui.ai.cloud.or_denied': '{name} でアクセスが許可されなかったため、何も接続されていません。「{name} でサインイン」を押してやり直すか、キーを貼り付けてください。',
+  'ui.ai.cloud.or_state': 'このサインインはこのタブで開始されたものではないため、アカウント保護のために拒否しました。「{name} でサインイン」を押して最初からやり直してください。',
+  'ui.ai.cloud.or_used': 'このサインインコードは使用済みか、有効期限が切れています (コードの有効期間は 10 分)。「{name} でサインイン」を押して最初からやり直してください。',
+  'ui.ai.cloud.or_failed': '{name} からキーを受け取れませんでした ({why})。「{name} でサインイン」を押してやり直すか、キーを貼り付けてください。',
+  'ui.ai.cloud.or_offline': 'ブラウザーがオフラインのため、サインインを完了できませんでした。インターネットに接続してから、もう一度「{name} でサインイン」を押してください。',
+  'ui.ai.cloud.or_network': 'サインインを完了するために {name} に接続できませんでした。接続を確認してから、もう一度「{name} でサインイン」を押してください。',
+  'ui.ai.cloud.or_no_crypto': 'このブラウザーではここで {name} にサインインできません (https のページで Web Crypto が必要です)。代わりにキーを貼り付けてください。',
+  'ui.ai.cloud.or_key_label': 'このブラウザーの {brand}',
+  'ui.ai.cloud.or_badge': 'サインイン',
+  'ui.ai.cloud.or_badge_t': 'キーのコピーは不要: {name} アカウントでサインインすると、このブラウザー用のキーが作成されます。',
+});

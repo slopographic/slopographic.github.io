@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Transcribe in Swedish</title>
+  <!-- Covers: transcribe/i18n/index.js, transcribe/js/words.js, transcribe/js/app.js, transcribe/js/frame.js, transcribe/js/view.js, transcribe/js/models.js, transcribe/js/choose.js, transcribe/js/record.js, transcribe/js/ai-commands.js, transcribe/js/exports.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Transcribe', path: '../../transcribe/index.html', ns: 'transcribe',
+    ready: (doc) => doc.querySelector('#trSide .sf-h') && doc.querySelector('#trFormat option') && doc.querySelector('#gate .ai-panel, #trUi:not([hidden])'),
+    checks: [
+      ['h1', 'Röst och ljud till text', 'Voice and audio to text'],
+      ['#trRecord', 'Spela in', 'Record'],
+      ['#trRun', 'Transkribera', 'Transcribe'],
+      ['#trSide .sf-h', 'Spela in', 'Record'],
+      ['#trFormat option[value="srt"]', 'Undertexter', 'Subtitles'],
+      ['#trPaneMeta', 'Lägg till en fil', 'Add a file'],
+      ['#trSteps .sd-steps li', 'Släpp ljud', 'Drop audio'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Transcribe in Swedish' });
+  </script>
+</body>
+</html>

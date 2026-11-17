@@ -1,0 +1,23 @@
+/* Shared components, tr: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'ui.patterns.ipv4': 'IPv4 adresi',
+  'ui.patterns.ipv6': 'IPv6 adresi',
+  'ui.patterns.mac': 'MAC adresi',
+  'ui.patterns.email': 'E-posta adresi',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS erişim anahtarı kimliği',
+  'ui.patterns.aws_secret': 'AWS gizli anahtarı',
+  'ui.patterns.github_token': 'GitHub belirteci',
+  'ui.patterns.slack_token': 'Slack belirteci',
+  'ui.patterns.stripe_key': 'Stripe anahtarı',
+  'ui.patterns.google_api_key': 'Google API anahtarı',
+  'ui.patterns.private_key': 'Özel anahtar',
+  'ui.patterns.bearer': 'Bearer belirteci',
+  'ui.patterns.basic_auth_url': 'URL içinde parola',
+  'ui.patterns.secret_assignment': 'Gizli bilgi ataması',
+  'ui.patterns.hash': 'Karma (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Kredi kartı numarası',
+  'ui.patterns.iban': 'IBAN',
+});

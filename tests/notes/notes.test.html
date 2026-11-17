@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Notes tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. Slop Drive is the shared hub on this test origin (its own IndexedDB, fresh per run),
+       so the test reads the note records back through this page's SlopHub, as tests/code does. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script>
+  // Covers: notes/js/store.js
+  // Covers: notes/js/main.js, notes/js/actions.js, notes/js/state.js (the phone notebooks drawer)
+  // Covers: notes/js/markdown.js, shared/sanitize/sanitize.js (link addresses)
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const H = () => window.SlopHub;
+  const SRC = '../../notes/index.html';
+  const BODY = '# Hello\n\n**bold** and `code`\n\n- [x] done\n- [ ] open\n\n> quoted line';
+
+  /** Load the app fresh (about:blank first, so a reload never reads the old page's ready flag). */
+  async function open(src = SRC) {
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = src;
+    const want = new URL(src, location.href).pathname;
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname === want && w.document.readyState === 'complete' && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    return W();
+  }
+  const type = (sel, value) => { const el = q(sel); el.value = value; el.dispatchEvent(new (W().Event)('input', { bubbles: true })); };
+  /** Answer the SlopUI prompt that is open: fill its field and press the primary button. */
+  async function answerPrompt(value) {
+    await waitFor(() => W().document.querySelector('.sui-dlg input'), { timeout: 4000 });
+    W().document.querySelector('.sui-dlg input').value = value;
+    [...W().document.querySelectorAll('.sui-dlg .sui-primary')].pop().click();
+  }
+  const saved = () => waitFor(() => q('#nt-save') && q('#nt-save').textContent === 'Saved to Slop Drive', { timeout: 8000 });
+  async function records() { return (await H().list({ trashed: 'any' })).filter((r) => r.meta && r.meta.type === 'notes'); }
+  const noteRec = async (title) => (await records()).find((r) => r.meta.kind === 'note' && r.meta.title === title);
+
+  describe('Slop Notes: notebooks and notes', () => {
+    it('makes a notebook from the sidebar and keeps it in Slop Drive', async () => {
+      await open();
+      q('#nt-nb-new').click();
+      await answerPrompt('Journal');
+      await waitFor(() => qa('#nt-books .nt-name').some((b) => b.textContent === 'Journal'), { timeout: 4000 });
+      const nb = (await records()).find((r) => r.meta.kind === 'notebook' && r.meta.title === 'Journal');
+      expect(!!nb).toBeTruthy();
+      expect(nb.meta.kind).toBe('notebook');
+    });
+
+    it('makes a note in the notebook and types Markdown that shows in the live preview', async () => {
+      q('#nt-new').click();
+      await waitFor(() => !q('#nt-note').hidden, { timeout: 4000 });
+      type('#nt-title', 'Plan');
+      type('#nt-body', BODY);
+      const pv = () => q('#nt-preview');
+      expect(pv().querySelector('h1').textContent).toBe('Hello');
+      expect(pv().querySelector('strong').textContent).toBe('bold');
+      expect(pv().querySelector('code').textContent).toBe('code');
+      expect(pv().querySelectorAll('li').length).toBe(2);
+      expect(pv().querySelector('input[type=checkbox][checked]')).toBeTruthy();
+      expect(pv().querySelector('blockquote').textContent.trim()).toBe('quoted line');
+    });
+
+    it('saves the note to Slop Drive in the background and says so', async () => {
+      await saved();
+      const r = await noteRec('Plan');
+      expect(!!r).toBeTruthy();
+      expect(r.name).toBe('Plan.md');
+      expect(r.blob ? await r.blob.text() : null).toBe(BODY);
+      expect(r.from).toBe('notes');
+    });
+
+    it('escapes HTML typed in the body, so it shows as text and never as markup', async () => {
+      type('#nt-body', '<img src=x onerror="alert(1)"> *ok* <\/script>x<\/script>');
+      expect(q('#nt-preview img')).toBe(null);
+      expect(q('#nt-preview script')).toBe(null);
+      expect(q('#nt-preview').textContent).toMatch(/<img src=x/);
+      expect(q('#nt-preview em').textContent).toBe('ok');
+      type('#nt-body', BODY);
+      await saved();
+    });
+
+    it('a hostile Markdown file keeps its safe links and loses every script address, and no script runs', async () => {
+      W().__mdXss = undefined;
+      type('#nt-body', await (await fetch('../shared/fixtures/hostile/hostile.md')).text());
+      await sleep(200);
+      expect(q('#nt-preview h1').textContent).toBe('Hostile notes');
+      const hrefs = qa('#nt-preview a[href]').map((a) => a.getAttribute('href'));
+      expect(hrefs).toContain('https://example.com/ok');
+      expect(hrefs).toContain('mailto:a@example.com');
+      for (const h of hrefs) expect(/^(https?:|mailto:)/.test(h) || !/:/.test(h)).toBe(true);   // the rest are relative paths
+      expect(q('#nt-preview img')).toBe(null);
+      expect(q('#nt-preview svg')).toBe(null);
+      expect(W().__mdXss).toBe(undefined);
+      type('#nt-body', BODY);
+      await saved();
+    });
+
+    it('pins a note and keeps the pin in Slop Drive', async () => {
+      q('#nt-pin').click();
+      await saved();
+      expect((await noteRec('Plan')).meta.pinned).toBe(true);
+      expect(qa('#nt-notes .nt-pin').length).toBe(1);
+    });
+
+    it('search narrows the list to matching notes and clears again', async () => {
+      type('#nt-q', 'zzz-nothing');
+      expect(qa('#nt-notes .nt-note').length).toBe(0);
+      expect(q('#nt-none').hidden).toBe(false);
+      type('#nt-q', 'Plan');
+      expect(qa('#nt-notes .nt-note').length).toBe(1);
+      type('#nt-q', '');
+    });
+
+    it('the right-click menu on a note offers export and Trash', async () => {
+      const item = q('#nt-notes .nt-note');
+      item.dispatchEvent(new (W().MouseEvent)('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200, button: 2 }));
+      await waitFor(() => W().document.querySelector('.sui-menu'), { timeout: 2000 });
+      const labels = qa('.sui-menu .sui-lbl').map((x) => x.textContent);
+      expect(labels).toContain('Export');
+      expect(labels).toContain('Rename…');
+      expect(labels).toContain('Move to Trash…');
+      W().SlopUI.closeMenu();
+    });
+
+    it('reloads and reads the notebook and note back from Slop Drive, with the same text open', async () => {
+      await saved();
+      W().SlopGuard && W().SlopGuard.setUnsaved('notes', false);
+      await open();
+      expect(qa('#nt-books .nt-name').some((b) => b.textContent === 'Journal')).toBe(true);
+      expect(qa('#nt-notes .nt-note-title').some((t) => t.textContent === 'Plan')).toBe(true);
+      await waitFor(() => !q('#nt-note').hidden, { timeout: 4000 });
+      expect(q('#nt-body').value).toBe(BODY);
+      expect(q('#nt-title').value).toBe('Plan');
+      expect(q('#nt-preview h1').textContent).toBe('Hello');
+    }, { timeout: 40000 });
+
+    it('exports the note as Markdown and as one standalone HTML page', async () => {
+      const X = await import('../../notes/js/export.js');
+      const note = { title: 'Plan', body: BODY };
+      expect(await X.noteToMarkdown(note).text()).toBe(BODY);
+      const html = await X.noteToHtml(note).text();
+      expect(html).toMatch(/<!doctype html>/);
+      expect(html).toContain('<h1>Hello</h1>');
+      expect(html).toContain('<title>Plan</title>');
+      expect(X.fileBase('a/b:c?')).toBe('a b c');
+    });
+
+    it('the renderer only keeps safe links and turns lists into list elements', async () => {
+      const M = await import('../../notes/js/markdown.js');
+      expect(M.render('[bad](javascript:alert(1))')).not.toContain('href');
+      expect(M.render('[bad](\u0001javascript:alert(1))')).not.toContain('href');
+      expect(M.render('[bad](JAVA\u000bSCRIPT:alert(1))')).not.toContain('href');
+      expect(M.render('[ok](https://example.com/a)')).toContain('href="https://example.com/a"');
+      expect(M.render('1. one\n2. two')).toContain('<ol><li>one</li><li>two</li></ol>');
+      expect(M.render('![x](https://example.com/p.png)')).not.toContain('<img');
+      expect(M.render('```js\nconst a = 1 < 2;\n```')).toContain('language-js');
+    });
+
+    it('registers its commands with SlopCmd', async () => {
+      expect(!!W().SlopCmd.get('notes.new')).toBe(true);
+      expect(W().SlopCmd.keyFor('notes.new')).not.toBe('');
+    });
+
+    it('phone width (390 px): one pane at a time, with no sideways scroll', async () => {
+      W().document.head.append(Object.assign(W().document.createElement('style'), { textContent: '* { transition: none !important; }' }));   // the drawer's slide stalls offscreen
+      f.style.width = '390px';
+      await sleep(150);
+      const shown = (sel) => W().getComputedStyle(q(sel)).display !== 'none';
+      W().document.getElementById('nt-app').dataset.pane = 'list';
+      await sleep(50);
+      expect(shown('#nt-list')).toBe(true);
+      expect(q('#nt-side').getBoundingClientRect().right <= 1).toBe(true);   // the notebooks drawer is shut
+      expect(shown('#nt-main')).toBe(false);
+      expect(W().document.documentElement.scrollWidth <= 390).toBe(true);
+      qa('#nt-notes .nt-note')[0].click();
+      await sleep(50);
+      expect(shown('#nt-main')).toBe(true);
+      expect(shown('#nt-list')).toBe(false);
+      f.style.width = '1280px';
+      await sleep(100);
+    });
+
+    it('phone width (390 px): the notebooks are a drawer (SlopSheet): Notebooks opens and closes it, so do ×, Escape and a notebook', async () => {
+      f.style.width = '390px';
+      await sleep(150);
+      const D = W().document, side = q('#nt-side'), btn = q('#nt-side-btn'), on = () => side.classList.contains('ssh-on');
+      D.head.append(Object.assign(D.createElement('style'), { id: 'no-motion', textContent: '* { transition: none !important; }' }));   // an offscreen frame stalls them
+      const esc = () => D.dispatchEvent(new (W().KeyboardEvent)('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      btn.click();
+      expect([on(), Math.round(side.getBoundingClientRect().left), btn.getAttribute('aria-expanded')]).toEqual([true, 0, 'true']);
+      btn.click(); expect(on()).toBe(false);
+      btn.click(); q('#nt-side > .ssh-x').click(); expect(on()).toBe(false);
+      btn.click(); esc(); expect(on()).toBe(false);
+      btn.click(); q('#nt-books .nt-item').click();   // All notes: shows the list and closes the drawer
+      expect([on(), q('#nt-app').dataset.pane]).toEqual([false, 'list']);
+      D.getElementById('no-motion').remove();
+      f.style.width = '1280px';
+      await sleep(100);
+      expect(side.getBoundingClientRect().width > 100).toBe(true);   // a column again on a wide screen
+    });
+  });
+  run({ name: 'Slop Notes' });
+  </script>
+</body>
+</html>

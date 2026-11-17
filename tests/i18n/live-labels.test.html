@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared components: labels given as keys follow a language switch</title>
+  <!-- Covers: shared/i18n/i18n.js, shared/ui/sheet.js, shared/ui/resize-panel.js, shared/frame/frame.js, shared/menubar/menubar.js -->
+  <!-- Covers: shared/drop/panel.js, shared/drop/drop.js, shared/intake/rules.js, shared/intake/pipeline.js, shared/intake/outtake.js -->
+  <!-- Covers: shared/ui/flow.js, shared/hub.js, shared/i18n/ui/en/widgets.js, shared/i18n/ui/sv/widgets.js -->
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'en' } } })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <style>body { margin: 0; padding: 12px; background: #f1ede4; color: #111; font: 14px system-ui; } .box { position: relative; width: 600px; height: 160px; display: flex; }</style>
+</head>
+<body>
+  <div id="frame" class="box"><div id="fl">list</div><div id="fv">view</div><div id="fp">panel</div></div>
+  <div id="sheet-root" class="box"><div id="sheet">sheet</div></div>
+  <div id="drop"></div>
+  <script src="../../shared/ui/sheet.js"></script>
+  <script src="../../shared/ui/resize-panel.js"></script>
+  <script src="../../shared/frame/frame.js"></script>
+  <script src="../../shared/menubar/menubar.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../../shared/drop/panel.js"></script>
+  <script src="../../shared/drop/drop.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ui/flow.js"></script>
+  <script>
+  // Every shared component takes its labels as i18n keys (SlopI18n.label): mounted in English, a switch to Swedish
+  // (SlopI18n.set('sv'), then the 'slopi18n' event) must change the words it drew once. One page, one switch.
+  const { describe, it, expect, run, waitFor } = SlopTest;
+  const I = window.SlopI18n, $ = (s) => document.querySelector(s);
+  const swedish = () => new Promise((res) => { addEventListener('slopi18n', () => res(), { once: true }); I.set('sv'); });
+  window.SlopHub = { self: { app: 'test' }, appsAccepting: () => [{ id: 'pdf', name: 'Slop PDF' }], matches: () => true };
+
+  const en = {};
+  function mountAll() {
+    SlopSheet.attach({ root: $('#sheet-root'), panel: $('#sheet'), label: 'ui.frame.list' });
+    SlopFrame.mount($('#frame'), { list: $('#fl'), view: $('#fv'), panel: $('#fp'), panelLabel: 'ui.mb.object', listLabel: 'ui.frame.list', storageKey: 'livetest', command: false });
+    SlopMenuBar.mount({ app: 'Test', menus: { File: [{ label: 'ui.config.import', act() {} }], Object: [], 'ui.frame.list': [] } });
+    SlopDrop.attach($('#drop'), { id: 'livetest', accept: { types: ['image/*'], noun: 'ui.frame.list' }, process: () => 1, toast: false, paste: false, window: false,
+      label: 'ui.mb.object', hint: 'ui.frame.list', sample: { label: 'ui.config.ask_ai', files: () => [] },
+      preview: { picture: { src: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=', alt: 'ui.mb.object' }, steps: ['ui.config.import'] } });
+    window.flow = SlopFlow.create({ from: 'pdf', to: 'docx' }).onTo(() => {}, 'ui.config.import');
+    document.body.append(flow.el);
+  }
+  const read = () => ({
+    sheetX: $('#sheet .ssh-x').title,
+    frameBtn: $('#fp').getAttribute('aria-label'),
+    listGrip: $('.sf-lgrip').getAttribute('aria-label'),
+    menus: [...document.querySelectorAll('.smb-menu-b')].map((b) => b.textContent),
+    item: document.querySelector('.smb-pop .smb-item').textContent,
+    drop: [...document.querySelectorAll('#drop .sd-msg, #drop .sd-msg + p, #drop .sd-steps li, #drop .sd-sample')].map((n) => n.textContent),
+    alt: $('#drop .sd-pic img').alt,
+    flowTo: flow.el.querySelector('.sflow-to').getAttribute('aria-label'),
+  });
+  const refusal = async () => (await SlopIntake.take([new File(['x'], 'notes.txt', { type: 'text/plain' })], { to: 'livetest', source: 'api' })).skipped[0].reason;
+  const sendTo = () => SlopOuttake.items({ get: () => new Blob(['x']), name: 'a.pdf', type: 'application/pdf', verb: 'ui.outtake.send_to', folder: false })[0].label;
+
+  describe('labels given as keys, in English and after a switch to Swedish', () => {
+    it('mount in English: every key reads its English words', async () => {
+      await I.ready();
+      mountAll();
+      Object.assign(en, read(), { refusal: await refusal(), sendTo: sendTo() });
+      expect(en.sheetX).toBe('Close list');
+      expect(en.frameBtn).toBe('Object');
+      expect(en.listGrip).toContain('list panel');
+      expect(en.menus).toEqual(['File', 'Object', 'List']);
+      expect(en.item).toBe('Import config…');
+      expect(en.drop).toEqual(['Import config…', 'Object', 'List', 'Ask AI to write a config…']);   // document order: the step, the label, the hint, the sample
+      expect(en.alt).toBe('Object');
+      expect(en.flowTo).toBe('Import config…');
+      expect(en.refusal).toBe('notes.txt is not List');
+      expect(en.sendTo).toBe('Send to Slop PDF');
+    });
+    it('after SlopI18n.set("sv") the same components read Swedish', async () => {
+      await swedish();
+      await waitFor(() => $('#sheet .ssh-x').title !== en.sheetX);
+      const sv = Object.assign(read(), { refusal: await refusal(), sendTo: sendTo() });
+      expect(sv.sheetX).toBe('Stäng lista');
+      expect(sv.frameBtn).toBe('Objekt');
+      expect(sv.listGrip).toContain('lista');
+      expect(sv.menus).toEqual(['Arkiv', 'Objekt', 'Lista']);
+      expect(sv.item).toBe('Importera konfiguration…');
+      expect(sv.drop).toEqual(['Importera konfiguration…', 'Objekt', 'Lista', 'Be AI skriva en konfiguration…']);
+      expect(sv.alt).toBe('Objekt');
+      expect(sv.flowTo).toBe('Importera konfiguration…');
+      expect(sv.refusal).toBe('notes.txt är inte Lista');
+      expect(sv.sendTo).toBe('Skicka till Slop PDF');
+    });
+    it('plain text stays as it was given (a label that is not a key)', () => {
+      expect(I.label('My own label')).toBe('My own label');
+      expect(I.label(() => 'computed')).toBe('computed');
+      expect(I.label('ui.mb.object')).toBe('Objekt');
+      I.set('en');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Effects · picking several layers</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: effects/js/ui/timeline.js, effects/js/app/actions.js, effects/js/app/state.js — timeline layer rows pick like
+       After Effects: a click selects one, Shift the rows from the anchor to the clicked one, Ctrl/Cmd adds or takes one
+       away, Ctrl/Cmd+Shift adds a range; Delete, Duplicate and the eye act on every layer picked. -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, D, A;
+  const rows = () => [...D.querySelectorAll('.fx-lrow[data-layer]')];
+  const ids = () => rows().map((r) => r.dataset.layer);
+  const click = (i, mods = {}) => rows()[i].querySelector('.fx-lcell b').dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true, cancelable: true }, mods)));
+  const picked = () => A.act.picked().slice().sort();
+  const at = (...ix) => { const all = ids(); return ix.map((i) => all[i]).sort(); };
+  const shown = () => rows().filter((r) => r.classList.contains('is-sel')).map((r) => r.dataset.layer).sort();
+
+  describe('Slop Effects timeline: Shift range and Ctrl/Cmd toggle', () => {
+    it('boots with five layers', async () => {
+      f.src = '../../effects/index.html';
+      await waitFor(() => f.contentWindow.SlopEffects && f.contentWindow.SlopEffects.app, { timeout: 40000 });
+      W = f.contentWindow; D = f.contentDocument; A = W.SlopEffects.app;
+      for (let k = 0; k < 5; k++) A.act.addLayer('solid', { color: '#ff0000' });
+      await waitFor(() => rows().length >= 5);
+    }, { timeout: 60000 });
+    it('a click selects one; Shift the range from the anchor, both ways', () => {
+      click(1); click(3);
+      expect(picked()).toEqual(at(3));
+      click(0, { shiftKey: true });
+      expect(picked()).toEqual(at(0, 1, 2, 3));
+      expect(A.S.sel.layer).toBe(ids()[0]);
+      click(4, { shiftKey: true }); // the anchor stays on row 3
+      expect(picked()).toEqual(at(3, 4));
+      expect(shown()).toEqual(at(3, 4));
+    });
+    it('Ctrl or Cmd adds or takes one away and moves the anchor; Ctrl+Shift adds a range', () => {
+      click(0); click(2, { ctrlKey: true }); click(4, { metaKey: true });
+      expect(picked()).toEqual(at(0, 2, 4));
+      click(2, { ctrlKey: true });
+      expect(picked()).toEqual(at(0, 4));
+      click(0, { shiftKey: true }); // from the new anchor (row 2)
+      expect(picked()).toEqual(at(0, 1, 2));
+      click(4); click(1, { ctrlKey: true }); click(0, { ctrlKey: true, shiftKey: true });
+      expect(picked()).toEqual(at(0, 1, 4));
+    });
+    it('a pick made elsewhere is the anchor; a plain pick elsewhere picks one', () => {
+      A.S.select({ layer: ids()[2], keys: [], fx: null });
+      expect(picked()).toEqual(at(2));
+      click(4, { shiftKey: true });
+      expect(picked()).toEqual(at(2, 3, 4));
+    });
+    it('the eye, Duplicate and Delete act on every layer picked', async () => {
+      const all = ids(), n = all.length;
+      click(1); click(3, { shiftKey: true });
+      rows()[2].querySelector('.fx-lcell button[aria-pressed]').click();
+      expect(A.S.doc.layers.filter((l) => l.hidden).map((l) => l.id).sort()).toEqual([all[1], all[2], all[3]].sort());
+      rows()[0].querySelector('.fx-lcell button[aria-pressed]').click(); // not picked: only itself
+      expect(A.S.doc.layers.filter((l) => l.hidden).length).toBe(4);
+      A.act.duplicateLayer();
+      expect(A.S.doc.layers.length).toBe(n + 3);
+      expect(A.act.picked().length).toBe(3);
+      A.act.deleteSelection();
+      expect(A.S.doc.layers.length).toBe(n);
+      click(1); click(3, { shiftKey: true });
+      A.act.deleteSelection();
+      expect(A.S.doc.layers.map((l) => l.id)).toEqual([all[0]].concat(all.slice(4)));
+      A.S.undo();
+      expect(A.S.doc.layers.length).toBe(n);
+    });
+  });
+  SlopTest.run({ name: 'Slop Effects layers multi-select' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Workspace layouts in SlopCut</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load SlopCut in the iframe and wait until it is ready (body.ready and its editor is up). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname;
+    const prev = f.contentWindow && f.contentWindow.document;
+    f.src = src + (src.includes('?') ? '&' : '?') + 'run=' + Math.random().toString(36).slice(2);
+    await waitFor(() => {
+      const w = f.contentWindow, d = w && w.document;
+      return d && d !== prev && w.location.pathname === want && d.readyState === 'complete' && d.body && d.body.classList.contains('ready') && w.SE && w.SE.viewState && w.SlopLayouts;
+    }, { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const box = (W, id) => W.document.getElementById(id).getBoundingClientRect();
+  const clearSaved = (W) => { try { W.localStorage.removeItem('slop.layout.slopcut'); } catch (e) { /* blocked */ } };
+
+  describe('SlopCut workspace layouts', () => {
+    it('picking Video editing from the Layout menu puts the timeline along the bottom', async () => {
+      let W = await open('../../slopcut/index.html');
+      clearSaved(W);
+      W = await open('../../slopcut/index.html');
+      const layout = W.SE.menus.MENUS.Layout();
+      const video = layout.find((i) => i.label === 'Video editing');
+      expect(!!video).toBe(true);
+      video.act();
+      await sleep(120);
+      const mon = box(W, 'monitor'), tl = box(W, 'timeline'), bin = box(W, 'bin'), insp = box(W, 'insp'), status = box(W, 'status');
+      expect(W.document.getElementById('app').dataset.slopLayout).toBe('video-edit');
+      expect(tl.top).toBeGreaterThanOrEqual(mon.bottom - 1);
+      expect(tl.width).toBeGreaterThan(mon.width);
+      expect(Math.abs(tl.bottom - status.top)).toBeLessThanOrEqual(1);
+      expect(bin.right).toBeLessThanOrEqual(mon.left + 1);
+      expect(insp.left).toBeGreaterThanOrEqual(mon.right - 1);
+      expect(mon.height).toBeGreaterThan(tl.height);
+    }, { timeout: 60000 });
+
+    it('the timeline height follows the drag handle (--tl-h) while the layout is on', async () => {
+      const W = await open('../../slopcut/index.html');
+      W.document.documentElement.style.setProperty('--tl-h', '200px');
+      await sleep(60);
+      expect(Math.round(box(W, 'timeline').height)).toBeCloseTo(200, 2);
+      W.document.documentElement.style.removeProperty('--tl-h');
+    }, { timeout: 60000 });
+
+    it('the choice is saved as a versioned envelope and Reset returns to the default', async () => {
+      const W = await open('../../slopcut/index.html');
+      const env = JSON.parse(W.localStorage.getItem('slop.layout.slopcut'));
+      expect(env.v).toBe(1);
+      expect(env.data.preset).toBe('video-edit');
+      W.SlopLayouts.reset('slopcut');
+      expect(W.localStorage.getItem('slop.layout.slopcut')).toBe(null);
+      expect(W.SlopLayouts.current('slopcut')).toBe('video-edit');
+      expect(W.document.getElementById('app').dataset.slopLayout).toBe('video-edit');
+    }, { timeout: 60000 });
+
+    it('the palette offers the layouts as SlopCmd commands', async () => {
+      const W = await open('../../slopcut/index.html');
+      expect(W.SlopLayouts.presetsFor('slopcut').length).toBeGreaterThan(0);
+      expect(W.SlopLayouts.menu('slopcut').length).toBeGreaterThan(1);
+      expect(!!W.SlopCmd.get('layout.video-edit')).toBe(true);
+      expect(!!W.SlopCmd.get('layout.reset')).toBe(true);
+    }, { timeout: 60000 });
+  });
+  run({ name: 'SlopCut · workspace layouts' });
+  </script>
+</body>
+</html>

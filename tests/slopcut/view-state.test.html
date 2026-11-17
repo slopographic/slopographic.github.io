@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopCut saved place</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: slopcut/js/ui/view-state.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Load a page in the iframe; for SlopCut, wait until the app is ready (body.ready: its saved place is applied). */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('slopcut');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || (f.contentWindow.document.body.classList.contains('ready') && f.contentWindow.SE && f.contentWindow.SE.viewState)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('SlopCut saved place', () => {
+    it('comes back to the same timeline zoom, scroll and tool after leaving for Slop Drive', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slopedit'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      let W = await open('../../slopcut/index.html');
+      const TL = W.SE.timeline;
+      TL.setTool('razor');
+      TL.setZoom(120);
+      TL.scrollX = 3;
+      W.document.body.click(); // a user gesture: the place is saved on input
+      await sleep(900);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../slopcut/index.html');
+      await sleep(200);
+      expect(W.SE.timeline.tool).toBe('razor');
+      expect(W.SE.timeline.pps).toBeCloseTo(120, 1e-6);
+      expect(W.SE.timeline.scrollX).toBeGreaterThanOrEqual(0);
+    }, { timeout: 90000 });
+  });
+  run({ name: 'SlopCut · saved place' });
+  </script>
+</body>
+</html>

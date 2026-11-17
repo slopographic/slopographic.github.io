@@ -1,0 +1,33 @@
+From: Diana Prince <diana@example.com>
+To: Ann Example <ann@example.com>
+Subject: Photos from the offsite
+Date: Sat, 21 Feb 2026 11:11:00 -0500
+Message-ID: <m4@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B4"
+
+--B4
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+SGVyZSBhcmUgdHdvIHBob3RvcyBmcm9tIHRoZSBvZmZzaXRlLiBHcmVhdCB3b3JrIGV2ZXJ5b25l
+IQ==
+--B4
+Content-Type: image/png; name="beach.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="beach.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAHgAAABQCAIAAABd+SbeAAAAqElEQVR4nO3QAQkAIADAMIMZ22BG
+sIXCHTzA2dhr6kLj+cEngQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo
+0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1A
+g24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnSrA8DtVBs9NUD1AAAAAElFTkSuQmCC
+--B4
+Content-Type: image/png; name="team.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="team.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAFAAAAB4CAIAAADqjOKhAAAAoElEQVR4nO3PAQkAIBDAQIOZxHRG
+NYawP1iA3dr3jGp9PwAGBgYGBgYeE3A94HrA9YDrAdcDrgdcD7gecD3gesD1gOsB1wOuB1wPuB5w
+PeB6wPWA6wHXA64HXA+4HnA94HrA9YDrAdcDrgdcD7gecD3gesD1gOsB1wOuB1wPuB5wPeB6wPWA
+6wHXA64HXA+4HnA94HrA9YDrAdcDrgdc7wE6/2ukqHOxLwAAAABJRU5ErkJggg==
+--B4--

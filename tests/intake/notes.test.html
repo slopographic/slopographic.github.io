@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Notes: a picture comes in one way</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: notes/js/blocks.js, notes/js/editor.js
+  // Slop Notes: Insert ▸ Image… (the intake's picker) and a pasted picture outside the text reach the same reader, which
+  // puts the picture in the note; a picture over 2 MB is refused with the reason.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = c.height = 8;
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  describe('Slop Notes: one way in', () => {
+    it('Insert image and a pasted picture', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../notes/index.html';
+      await waitFor(() => { try { return fr.contentDocument.body.classList.contains('ready') && fr.contentWindow.SlopIntake.spec('notes'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('notes'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+      D.getElementById('nt-new').click();
+      await waitFor(() => D.getElementById('nt-body') && !D.getElementById('nt-body').closest('[hidden]'));
+      const f = await png('dog.png');
+      W.SlopUI.pickFiles = async () => [f];
+      await W.SlopIntake.pick({ to: 'notes', multiple: false });
+      await waitFor(() => D.getElementById('nt-body').value.includes('![dog](data:image/png'));
+      D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('cat.png')]) }));
+      await waitFor(() => seen.length === 2);
+      expect(seen).toEqual(['picker', 'paste']);
+      const big = new W.File([new Uint8Array(2 * 1024 * 1024 + 10)], 'big.png', { type: 'image/png' });
+      const r = await W.SlopIntake.take([big], { to: 'notes' });
+      expect(r.skipped[0].reason).toContain('larger than');
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Notes' });
+</script>
+</body>
+</html>

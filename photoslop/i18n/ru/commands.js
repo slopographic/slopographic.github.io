@@ -1,0 +1,23 @@
+/* PhotoSlop, Russian: palette titles of the canvas, tool and window commands (app/commands.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'photoslop.cmd.opacity_toast': 'Непрозрачность {pct}%',
+  'photoslop.cmd.cycle_tools': 'Переключить {tools}',
+  'photoslop.cmd.swap_colors': 'Поменять местами основной и фоновый цвета',
+  'photoslop.cmd.default_colors': 'Цвета по умолчанию (чёрный / белый)',
+  'photoslop.cmd.brush_bigger': 'Увеличить размер кисти',
+  'photoslop.cmd.brush_smaller': 'Уменьшить размер кисти',
+  'photoslop.cmd.brush_harder': 'Увеличить жёсткость кисти',
+  'photoslop.cmd.brush_softer': 'Уменьшить жёсткость кисти',
+  'photoslop.cmd.tool_opacity': 'Непрозрачность инструмента {pct}%',
+  'photoslop.cmd.nudge_left': 'Сдвинуть влево на {n} px',
+  'photoslop.cmd.nudge_right': 'Сдвинуть вправо на {n} px',
+  'photoslop.cmd.nudge_up': 'Сдвинуть вверх на {n} px',
+  'photoslop.cmd.nudge_down': 'Сдвинуть вниз на {n} px',
+  'photoslop.cmd.next_doc': 'Следующий документ',
+  'photoslop.cmd.prev_doc': 'Предыдущий документ',
+  'photoslop.cmd.go_to_doc': 'Перейти к документу {i}',
+  'photoslop.cmd.restore_aspect': 'Вернуть исходное соотношение сторон',
+  'photoslop.cmd.guides_panel': 'Панель направляющих (макеты направляющих)',
+  'photoslop.cmd.search_key': 'Поиск команд ({key})',
+  'photoslop.cmd.nav_preset': 'Пресет навигации…',
+});

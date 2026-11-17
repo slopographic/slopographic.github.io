@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: one place to drop files (the drop strip shows only while files are added)</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="util.js"></script>
+<script>
+// Covers: drive/css/base.css, drive/js/ui/dnd.js
+// The whole pane and the tree take dropped files, and Upload is in the toolbar and the empty state: a second drop box
+// above them read as a duplicate. The strip now shows only while it has something to say.
+const { describe, it, expect, waitFor, run } = SlopTest;
+describe('Slop Drive drop strip', () => {
+  it('idle: no strip; the empty Drive offers Upload files once', async () => {
+    const W = await DT.frame('../../drive/', (w) => w.document.querySelector('#drvDrop .sd-zone'));
+    const strip = W.document.getElementById('drvDrop');
+    expect(W.getComputedStyle(strip).display).toBe('none');
+    W.__strip = strip; window.__W = W;
+  });
+  it('while a dropped file is added and after, the strip shows what happened', async () => {
+    const W = window.__W, strip = W.__strip;
+    const dt = new W.DataTransfer();
+    dt.items.add(new W.File(['hello'], 'hello.txt', { type: 'text/plain' }));
+    W.document.getElementById('main').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await waitFor(() => W.getComputedStyle(strip).display !== 'none', { timeout: 10000 });
+    expect(strip.textContent.length > 0).toBe(true);
+  });
+});
+run();
+</script>
+</body>
+</html>

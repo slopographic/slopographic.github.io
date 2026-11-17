@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI: driving another app (the owner's Slop Quotes session), and AI permissions for it</title>
+  <link rel="stylesheet" href="../../ai/css/base.css">
+  <link rel="stylesheet" href="../../ai/css/workspace.css">
+  <style>.views { height: 100vh; }</style>
+</head>
+<body>
+  <main class="views" id="views"><div class="views-main"></div></main>
+  <script>try { localStorage.setItem('slop-firstrun:quotes', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="../../shared/ai/permissions.js"></script>
+  <script src="../../shared/ai/tools.js"></script>
+  <script src="../../shared/ai/apptools.js"></script>
+  <script src="../../shared/ai/cmdtools.js"></script>
+  <script src="../../shared/ai/toolbox.js"></script>
+  <script src="../../shared/ai/filetools.js"></script>
+  <script src="../../ai/js/ui/workspace.js"></script>
+  <script>SlopWorkspace.mount(document.getElementById('views'));</script>
+  <script src="cross-app.spec.js"></script>
+  <script src="cross-app-perm.spec.js"></script>
+  <script>SlopTest.run({ name: 'Slop AI: driving another app' });</script>
+</body>
+</html>

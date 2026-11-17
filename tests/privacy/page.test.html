@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Privacy policy page</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 390px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="f" src="../../privacy/"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const frame = document.getElementById('f');
+  const doc = () => frame.contentDocument;
+  const visible = (el) => !!el && !el.hidden && el.getClientRects().length > 0;
+
+  describe('privacy page', () => {
+    it('loads with its title and every section', async () => {
+      await waitFor(() => doc() && doc().readyState === 'complete' && doc().querySelector('#pv-device'), { timeout: 8000 });
+      expect(doc().querySelector('h1').textContent).toBe('Privacy policy');
+      for (const id of ['pv-device', 'pv-account', 'pv-ai', 'pv-backup', 'pv-downloads', 'pv-delete', 'pv-contact']) expect(visible(doc().getElementById(id))).toBe(true);
+    });
+    it('shows exactly one of the analytics paragraphs, the one that fits this site', async () => {
+      const w = frame.contentWindow, cfg = w.SLOP_CONSENT_CONFIG;
+      const has = !!(cfg && cfg.thirdParty !== false && (cfg.ga4MeasurementId || cfg.adsensePublisherId));
+      expect(visible(doc().querySelector('[data-privacy-third]'))).toBe(has);
+      expect(visible(doc().querySelector('[data-privacy-none]'))).toBe(!has);
+    });
+    it("names the site through the brand and links its own address", async () => {
+      await waitFor(() => frame.contentWindow.SlopBrand && doc().querySelector('[data-privacy-site]').textContent, { timeout: 8000 });
+      const name = await frame.contentWindow.SlopBrand.ready.then((c) => c.name);
+      await waitFor(() => doc().querySelector('[data-i18n="privacy.lede"]').textContent.startsWith(name), { timeout: 8000 });
+      expect(doc().querySelector('[data-privacy-site]').getAttribute('href')).toMatch(/^https:\/\/[^/]+\/$/);
+    });
+    it('reads in Swedish', async () => {
+      frame.contentWindow.SlopI18n.set('sv');
+      await waitFor(() => doc().querySelector('h1').textContent === 'Integritetspolicy', { timeout: 8000 });
+      frame.contentWindow.SlopI18n.set('en');
+      await waitFor(() => doc().querySelector('h1').textContent === 'Privacy policy', { timeout: 8000 });
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

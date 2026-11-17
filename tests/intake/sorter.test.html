@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Photo Sorter: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: sorter/js/app.js
+  // Photo Sorter on the one intake: a drop on the zone, its Choose files, Choose a folder… (the intake's folder picker),
+  // a paste and ?drive=<id> (launch, new) reach the same reader with the same events.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], events = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 20; c.height = 10;
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  async function through(source, start, n = 1) {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual([[source, n]]);
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'sorter' && e[2] === source)).toBe(true);
+  }
+  const count = () => W.SlopSorter.app.set.items.length;
+  describe('Photo Sorter: one way in', () => {
+    it('a drop on the zone', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../sorter/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopSorter.app && fr.contentWindow.SlopIntake.spec('sorter'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      const s = W.SlopIntake.spec('sorter'), reader = s.processAll;
+      s.processAll = (files, ctx) => { seen.push([ctx.source, files.length]); return reader(files, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      const fs = [await png('a.png'), await png('b.png')];
+      await through('drop', () => D.getElementById('soDrop').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf(fs) })), 2);
+      expect(count()).toBe(2);
+    }, { timeout: 40000 });
+    it("the zone's Choose files", async () => {
+      const f = await png('c.png');
+      await through('picker', () => { const i = D.querySelector('#soDrop input[type=file]'); i.files = dtOf([f]).files; i.dispatchEvent(new W.Event('change')); });
+    });
+    it('Choose a folder…', async () => {
+      let asked = null; const f = await png('d.png');
+      W.SlopIntake.pickFiles = async (accept, multiple, folder) => { asked = folder; return [f]; };
+      await through('picker', () => D.getElementById('soFolder').click());
+      expect(asked).toBe(true);
+    });
+    it('a paste', async () => {
+      const f = await png('e.png');
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([f]) })));
+    });
+    it('?drive=<id> (launch)', async () => {
+      const blob = await png('f.png');
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x1', name: 'f.png', type: 'image/png', blob });
+      await through('launch', () => W.SlopIntake.launch({ to: 'sorter' }));
+      expect(count()).toBe(6);
+    });
+  });
+  run({ name: 'Shared intake: Photo Sorter' });
+</script>
+</body>
+</html>

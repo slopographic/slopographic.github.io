@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · saved view</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const booted = (w) => { try { return !!(w && w.document.getElementById('app') && w.document.getElementById('app').classList.contains('ready') && w.SV); } catch (e) { return false; } };
+  /** Load a page in the iframe; for SlopVector, wait until the app is ready. */
+  async function open(src) {
+    const want = new URL(src, location.href).pathname, app = src.includes('vector');
+    f.src = src;
+    await waitFor(() => f.contentWindow && f.contentWindow.location.pathname === want && f.contentWindow.document.readyState === 'complete' && (!app || booted(f.contentWindow)), { timeout: 30000 });
+    return f.contentWindow;
+  }
+
+  describe('SlopVector saved view', () => {
+    it('keeps the zoom, pan and tool after leaving for Slop Drive and coming back', async () => {
+      localStorage.removeItem('slopvector.autosave.v1');
+      let W = await open('../../slopvector/index.html');
+      const S = W.SV.state;
+      W.SV.setTool('rect');
+      S.view.zoom = 1.5; S.view.x = 40; S.view.y = 30;
+      W.SV.requestRender(true);
+      W.SV.autosaveNow();
+      W.SV.markSaved(); // saved just now, so the leave-page prompt does not hold the navigation
+      W.document.body.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+      await sleep(100);
+      await open('../drive/frame.html');
+      await sleep(60);
+      W = await open('../../slopvector/index.html');
+      await waitFor(() => W.SV.state.view.zoom === 1.5, { timeout: 5000 });
+      expect(W.SV.state.view.zoom).toBe(1.5);
+      expect(W.SV.state.view.x).toBe(40);
+      expect(W.SV.state.view.y).toBe(30);
+      expect(W.SV.state.tool).toBe('rect');
+    }, { timeout: 90000 });
+  });
+  run({ name: 'SlopVector · saved view' });
+  </script>
+</body>
+</html>

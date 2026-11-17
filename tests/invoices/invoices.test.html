@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoices · numbering, ledger, payments, void, preview, PDF</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/biz/i18n/en/biz.js"></script>
+  <script src="../../shared/biz/i18n/en/print.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/docs/model.js"></script>
+  <script src="../../shared/docs/pdf-layouts.js"></script>
+  <script src="../../shared/docs/doc-view.js"></script>
+  <script src="../../vendor/pdf-lib/pdf-lib.min.js"></script>
+  <script src="../../shared/docs/pdf-render.js"></script>
+  <script src="../../shared/docs/paper.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../invoices/js/core/util.js"></script>
+  <script src="../../invoices/js/core/invoices.js"></script>
+  <script src="../../shared/docs/doc-pdf.js"></script>
+  <script src="../../invoices/js/core/context.js"></script>
+  <script src="../../invoices/js/ui/preview.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, run } = SlopTest;
+  const S = window.SlopData;
+  const NS = window.SlopInvoices;
+  const M = window.SlopDocs.model;
+  const fresh = async () => { const r = await S.store.erase(); if (!r.ok) throw new Error(r.message); const q = await S.store.ready(); if (!q.ok) throw new Error(q.message); };
+  const must = (r) => { if (!r.ok) throw new Error(`${r.code}: ${r.message}`); return r.value; };
+  const LINES = () => [
+    { description: 'Widget', qty: 2, unitPrice: 1000, taxRate: 2000 },   // net 2000, tax 400
+    { description: 'Service', qty: 1, unitPrice: 500, taxRate: 0 },      // net 500, tax 0
+  ];   // subtotal 2500, tax 400, total 2900
+  async function customer(name = 'Acme Ltd') { return must(await S.store.put('customers', { name, email: 'ap@acme.test', stage: 'customer' })); }
+  async function draft(c, extra = {}) {
+    return must(await NS.invoices.saveDraft({ customerId: c.id, date: '2026-10-11', dueDate: '2026-11-10', lines: LINES(), ...extra }));
+  }
+  const issued = async (c, extra) => must(await NS.invoices.issue((await draft(c, extra)).id));
+  const journalFor = async (id) => must(await S.store.list('journal', { index: 'source', value: `invoice:${id}:issue`, includeDeleted: true }))[0];
+  const money = (minor) => S.money.formatMinor(minor, 'USD', 'en-US');
+
+  describe('numbering and the ledger', () => {
+    beforeEach(fresh);
+    it('issuing gives the next gapless invoice number; a deleted draft takes none', async () => {
+      const c = await customer();
+      const gone = await draft(c);
+      must(await NS.invoices.removeDraft(gone.id));
+      const a = await issued(c), b = await issued(c), d = await issued(c);
+      expect([a.number, b.number, d.number]).toEqual(['INV-0001', 'INV-0002', 'INV-0003']);
+      expect(a.status).toBe('issued');
+    });
+    it('issuing posts a ledger entry that balances: AR total, revenue subtotal, tax payable', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      expect(inv.total).toBe(2900);
+      const j = await journalFor(inv.id);
+      expect(j.lines.map((l) => [l.account, l.debit, l.credit])).toEqual([['1200', 2900, 0], ['4000', 0, 2500], ['2100', 0, 400]]);
+      const dr = j.lines.reduce((s, l) => s + l.debit, 0), cr = j.lines.reduce((s, l) => s + l.credit, 0);
+      expect(dr).toBe(cr);
+      const tb = await S.ledger.trialBalance();
+      expect(tb.ok).toBe(true);
+      expect(tb.value.balanced).toBe(true);
+    });
+    it('a draft is not posted: the ledger is empty until issue', async () => {
+      const c = await customer();
+      await draft(c);
+      expect(must(await S.store.list('journal'))).toHaveLength(0);
+    });
+    it('a draft can be edited, but an issued invoice cannot', async () => {
+      const c = await customer();
+      const d = await draft(c);
+      const e = must(await NS.invoices.saveDraft({ id: d.id, customerId: c.id, date: '2026-10-12', lines: [{ description: 'Only', qty: 1, unitPrice: 100, taxRate: 0 }] }));
+      expect(e.total).toBe(100);
+      const i = must(await NS.invoices.issue(e.id));
+      const r = await NS.invoices.saveDraft({ id: i.id, customerId: c.id, date: '2026-10-13', lines: LINES() });
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('invalid_transition');
+    });
+  });
+
+  describe('payments and void', () => {
+    beforeEach(fresh);
+    it('a payment reduces the balance; the last payment marks the invoice paid', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      must(await NS.invoices.recordPayment({ invoiceId: inv.id, amount: 1000, date: '2026-10-12', method: 'bank' }));
+      let ctx = must(await NS.context.load(inv.id));
+      expect(ctx.balance).toBe(1900);
+      expect(ctx.paid).toBe(1000);
+      expect(ctx.invoice.status).toBe('issued');
+      must(await NS.invoices.recordPayment({ invoiceId: inv.id, amount: 1900, date: '2026-10-13', method: 'cash' }));
+      ctx = must(await NS.context.load(inv.id));
+      expect(ctx.balance).toBe(0);
+      expect(ctx.invoice.status).toBe('paid');
+      const tb = must(await S.ledger.trialBalance());
+      expect(tb.balanced).toBe(true);
+    });
+    it('a payment above the balance is refused', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      const r = await NS.invoices.recordPayment({ invoiceId: inv.id, amount: 2901 });
+      expect(r.code).toBe('overpayment');
+    });
+    it('void is refused after a payment', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      must(await NS.invoices.recordPayment({ invoiceId: inv.id, amount: 100 }));
+      const r = await NS.invoices.voidInvoice(inv.id);
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('has_payments');
+      expect((must(await NS.context.load(inv.id))).invoice.status).toBe('issued');
+    });
+    it('void before any payment reverses the issue entry; the number stays used', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      const v = must(await NS.invoices.voidInvoice(inv.id));
+      expect(v.status).toBe('void');
+      const tb = must(await S.ledger.trialBalance());
+      expect(tb.balanced).toBe(true);
+      const ar = tb.rows.find((r) => r.code === '1200');
+      expect(ar.balance).toBe(0);
+      const next = await issued(c);
+      expect(next.number).toBe('INV-0002');
+    });
+    it('the list shows an unpaid invoice past its due date as overdue, with balances per customer', async () => {
+      const c = await customer();
+      const inv = await issued(c, { date: '2026-08-01', dueDate: '2026-08-31' });
+      must(await NS.invoices.recordPayment({ invoiceId: inv.id, amount: 900 }));
+      const rows = must(await NS.invoices.list({ status: 'overdue' }));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].balance).toBe(2000);
+      const due = NS.invoices.outstanding(must(await NS.invoices.list({})));
+      expect(due).toEqual([{ key: 'Acme Ltd\u0000USD', customerId: c.id, customerName: 'Acme Ltd', currency: 'USD', due: 2000, count: 1, overdue: 2000 }]);
+    });
+    it('an order can be invoiced from the orders data: the draft copies its lines and keeps the link', async () => {
+      const c = await customer();
+      const order = must(await S.store.put('orders', { customerId: c.id, date: '2026-10-11', lines: LINES(), status: 'draft' }));
+      must(await S.store.put('orders', { ...order, status: 'open' }));
+      const inv = must(await S.billing.invoiceFromOrder(order.id, { dueDate: '2026-11-10' }));
+      expect(inv.status).toBe('draft');
+      expect(inv.total).toBe(2900);
+      expect(inv.orderId).toBe(order.id);
+      expect(must(await S.store.get('orders', order.id)).invoiceId).toBe(inv.id);
+    });
+  });
+
+  describe('printable preview and PDF', () => {
+    beforeEach(fresh);
+    it('the printable preview lists the invoice number, dates, lines and the total', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      const ctx = must(await NS.context.load(inv.id));
+      const sheet = NS.preview.build(ctx);
+      const text = sheet.textContent;
+      expect(text).toContain('INV-0001');
+      expect(text).toContain(money(2900));
+      expect(text).toContain('Acme Ltd');
+      expect(text).toContain('Widget');
+      expect(text).toContain('Due 11/10/2026');   // the document's language (English here) formats the date
+      expect(sheet.querySelectorAll('tbody tr')).toHaveLength(2);
+    });
+    it('the invoice PDF has one page when the PDF option is used', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      const ctx = must(await NS.context.load(inv.id));
+      const r = await NS.pdf.invoicePdf(ctx);
+      expect(r.ok).toBe(true);
+      const doc = await PDFLib.PDFDocument.load(r.value);
+      expect(doc.getPageCount()).toBe(1);
+    });
+    it('a long invoice runs onto more pages, so the PDF is never refused for its length', async () => {
+      const c = await customer();
+      const many = Array.from({ length: 60 }, (_, i) => ({ description: `Line ${i + 1}`, qty: 1, unitPrice: 100, taxRate: 0 }));
+      const inv = must(await NS.invoices.saveDraft({ customerId: c.id, date: '2026-10-11', lines: many }));
+      const issuedInv = must(await NS.invoices.issue(inv.id));
+      const ctx = must(await NS.context.load(issuedInv.id));
+      const r = await NS.pdf.invoicePdf(ctx);
+      expect(r.ok).toBe(true);
+      const doc = await PDFLib.PDFDocument.load(r.value);
+      expect(doc.getPageCount()).toBeGreaterThanOrEqual(2);
+    });
+    it('the print sheet and the PDF are drawn from one template: the same invoice gives the same layout id', async () => {
+      const c = await customer();
+      const inv = await issued(c);
+      const ctx = must(await NS.context.load(inv.id));
+      const sheet = NS.preview.build(ctx);
+      expect(sheet.className).toMatch(new RegExp(`l-${NS.pdf.viewOf(ctx).style.id}`));
+    });
+  });
+
+  run({ name: 'Slop Invoices' });
+  </script>
+</body>
+</html>

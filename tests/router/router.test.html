@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopRoute: section parameters</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../../shared/urlstate/urlstate.js"></script>
+  <script src="../../shared/router/router.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const R = window.SlopRoute;
+  const ORIGIN = location.href;
+  // Put the page back at its own URL with no parameters; each test then sets what it needs.
+  const reset = (q = '') => history.replaceState(null, '', location.pathname + q);
+  const search = () => new URLSearchParams(location.search);
+
+  describe('SlopRoute', () => {
+    it('is loaded with register, list, describe and apps', () => {
+      expect(typeof R.register).toBe('function');
+      expect(typeof R.list).toBe('function');
+      expect(typeof R.describe).toBe('function');
+      expect(typeof R.apps).toBe('function');
+    });
+
+    it('applies the defaults on load when the URL has no parameters', () => {
+      reset();
+      let got = null, why = null;
+      R.register('t-defaults', { params: { view: { values: ['a', 'b'], def: 'a' } }, apply(s, w) { got = s; why = w; } });
+      expect(got).toEqual({ view: 'a' });
+      expect(why).toBe('load');
+    });
+
+    it('reads a value from the URL and gives the default for one outside its list', () => {
+      reset('?view=b');
+      let got = null;
+      const h = R.register('t-enum', { params: { view: { values: ['a', 'b'], def: 'a' } }, apply(s) { got = s; } });
+      expect(got.view).toBe('b');
+      expect(h.get('view')).toBe('b');
+      reset('?view=zzz');
+      expect(R.register('t-enum2', { params: { view: { values: ['a', 'b'], def: 'a' } } }).get('view')).toBe('a');
+      reset();
+    });
+
+    it('checks ids against a pattern and whole numbers against a range', () => {
+      reset('?doc=ok-1&page=7');
+      const h = R.register('t-types', { params: { doc: { pattern: /^[\w-]{1,20}$/, def: '' }, page: { int: true, min: 1, max: 9, def: 1 } } });
+      expect(h.get('doc')).toBe('ok-1');
+      expect(h.get('page')).toBe(7);
+      reset('?doc=bad%20id&page=99');
+      const h2 = R.register('t-types2', { params: { doc: { pattern: /^[\w-]{1,20}$/, def: '' }, page: { int: true, min: 1, max: 9, def: 1 } } });
+      expect(h2.get('doc')).toBe('');
+      expect(h2.get('page')).toBe(1);
+      reset();
+    });
+
+    it('cuts free text to max characters', () => {
+      reset('?q=' + 'x'.repeat(50));
+      expect(R.register('t-text', { params: { q: { def: '', max: 10 } } }).get('q')).toBe('x'.repeat(10));
+      reset();
+    });
+
+    it('writes with replaceState and removes a key that equals its default', () => {
+      reset();
+      const h = R.register('t-set', { params: { view: { values: ['a', 'b'], def: 'a' } } });
+      const n = history.length;
+      expect(h.set({ view: 'b' })).toBe(true);
+      expect(search().get('view')).toBe('b');
+      expect(history.length).toBe(n);
+      h.set({ view: 'a' });
+      expect(search().has('view')).toBeFalsy();
+      reset();
+    });
+
+    it('pushes one history entry when asked (a navigation)', () => {
+      reset();
+      const h = R.register('t-push', { params: { view: { values: ['a', 'b'], def: 'a' } } });
+      const n = history.length;
+      h.set({ view: 'b' }, { push: true });
+      expect(history.length).toBe(n + 1);
+      expect(search().get('view')).toBe('b');
+      reset();
+    });
+
+    it('keeps parameters it does not know and the hash', () => {
+      reset('?tour=1&other=keep#frag');
+      const h = R.register('t-keep', { params: { view: { values: ['a', 'b'], def: 'a' } } });
+      h.set({ view: 'b' });
+      expect(search().get('tour')).toBe('1');
+      expect(search().get('other')).toBe('keep');
+      expect(location.hash).toBe('#frag');
+      reset();
+    });
+
+    it('reads an old parameter name and drops it when the app writes the new one', () => {
+      reset('?v=diff');
+      const h = R.register('t-legacy', { params: { view: { values: ['bytes', 'diff'], def: 'bytes', legacy: ['v'] } } });
+      expect(h.get('view')).toBe('diff');
+      h.set({ view: 'bytes' });
+      expect(search().has('v')).toBeFalsy();
+      reset('?v=diff');
+      h.set({ view: 'bytes' });
+      expect(search().has('v')).toBeFalsy();
+      reset();
+    });
+
+    it('maps an old #hash link on load only, not after the parameter is reset', () => {
+      reset();
+      history.replaceState(null, '', location.pathname + '#form=abc');
+      let got = null;
+      const h = R.register('t-hash', {
+        params: { form: { def: '' } },
+        hash: (x) => (x.startsWith('#form=') ? { form: x.slice(6) } : null),
+        apply(s) { got = s; },
+      });
+      expect(got.form).toBe('abc');
+      h.set({ form: 'z' });
+      expect(h.get('form')).toBe('z');
+      h.set({ form: '' });
+      expect(h.get('form')).toBe('');
+      reset();
+    });
+
+    it('runs apply again on back and forward (popstate) with why = popstate', async () => {
+      reset();
+      const seen = [];
+      const h = R.register('t-back', { params: { view: { values: ['a', 'b', 'c'], def: 'a' } }, apply(s, w) { if (w === 'popstate') seen.push(s.view); } });
+      h.set({ view: 'b' }, { push: true });
+      h.set({ view: 'c' }, { push: true });
+      history.back();
+      await waitFor(() => seen.length >= 1);
+      expect(seen[0]).toBe('b');
+      reset();
+    });
+
+    it('lists every parameter with its shape, default and the value it reads now', () => {
+      reset('?view=b');
+      R.register('t-list', { params: { view: { values: ['a', 'b'], def: 'a', legacy: ['v'] }, page: { int: true, min: 1, max: 5, def: 2 } } });
+      const items = R.list('t-list');
+      expect(items.length).toBe(2);
+      expect(items[0].name).toBe('view');
+      expect(items[0].now).toBe('b');
+      expect(items[0].legacy).toEqual(['v']);
+      expect(items[1].now).toBe(2);
+      const text = R.describe('t-list');
+      expect(text).toMatch(/\?view=<a\|b>/);
+      expect(text).toMatch(/\?page=<number 1-5>/);
+      expect(text).toMatch(/also reads \?v/);
+      reset();
+    });
+
+    it('lists no parameters for an unknown app and does not throw', () => {
+      expect(R.list('no-such-app')).toEqual([]);
+      expect(R.describe('no-such-app')).toMatch(/no parameters/);
+    });
+
+    it('link returns the absolute URL with the current parameters', () => {
+      reset('?view=b');
+      const h = R.register('t-link', { params: { view: { values: ['a', 'b'], def: 'a' } } });
+      expect(h.link()).toMatch(/\?view=b$/);
+      reset();
+    });
+  });
+
+  run({ name: 'SlopRoute: section parameters' });
+  </script>
+</body>
+</html>

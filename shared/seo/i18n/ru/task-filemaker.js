@@ -1,0 +1,22 @@
+/* SEO copy, ru: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'seo.task.code.open-filemaker-file.crumb': 'Открыть файл FileMaker',
+  'seo.task.code.open-filemaker-file.title': 'Открыть файл FileMaker онлайн: таблицы .fmp12 и .fp7',
+  'seo.task.code.open-filemaker-file.description': 'Откройте базу FileMaker (.fmp12, .fp7, .fp5, .fp3) в браузере и читайте таблицы и записи без FileMaker. Поиск, экспорт в CSV или JSON. Без загрузки на сервер.',
+  'seo.task.code.open-filemaker-file.h1': 'Открыть файл FileMaker онлайн',
+  'seo.task.code.open-filemaker-file.lead': 'Файл FileMaker хранит таблицы с записями, и обычно для их просмотра нужен FileMaker. Перетащите файл в Slop Code, и его таблицы откроются сеткой, которую можно прокручивать, просматривать поиском и экспортировать, ничего не устанавливая.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Откройте Slop Code и перетащите на страницу файл .fmp12, .fp7, .fp5 или .fp3 либо выберите его в Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'Файл откроется как сетка только для чтения. Выберите таблицу в списке: строки подгружаются при прокрутке, поэтому большой файл остаётся быстрым.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Ищите по таблице в поле поиска или выберите вид текста (IP-адрес, адрес электронной почты, ключ), чтобы перейти к следующей строке с таким значением.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Выберите «Экспорт», чтобы сохранить таблицу как CSV или JSON, либо откройте её в другом приложении.',
+  'seo.task.code.open-filemaker-file.body.0': 'Страница сама читает формат файла: файлы FileMaker Pro с 3 по 6 версию (.fp3, .fp5, .fmp), с 7 по 12 (.fp7, .fmp12) и экспорт таблиц, который пишет FileMaker (.fmpxml). Средство чтения — порт открытой утилиты fmptools на JavaScript.',
+  'seo.task.code.open-filemaker-file.body.1': 'Вы видите таблицы, названия столбцов и записи. Изображения и файлы в полях-контейнерах, макеты, скрипты, связи и списки значений не читаются, а зашифрованный файл сначала нужно открыть в FileMaker.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'Нужен ли FileMaker, чтобы открыть файл?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'Нет. Страница читает файл в вашем браузере и показывает его таблицы и строки. Она не запускает базу данных и её скрипты.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'Мой файл загружается на сервер?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'Нет. Файл читается на этом устройстве, и ничего не отправляется ни в Slopographic, ни кому-либо ещё.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'Можно ли изменить данные?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'Нет. Файл показывается только для чтения и никогда не меняется. Экспортируйте таблицу в CSV или JSON, чтобы работать с данными в другом приложении.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'Какие файлы FileMaker можно открыть?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'Файлы FileMaker Pro с 3 по 12 версию (.fp3, .fp5, .fp7, .fmp12) и экспорт таблиц в формате FMPXMLRESULT. Более новые файлы .fmp12 из поздних версий FileMaker открываются так же, если они не зашифрованы.',
+});

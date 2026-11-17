@@ -1,0 +1,28 @@
+/* SlopReview: the review window's list. It sits inside a SlopUI dialog (slopui.css). Colours come from the --sl-* theme
+ * tokens (set by shared/theme/theme.js), with dark fallbacks. */
+.sr-dlg { width: min(640px, 100%); }
+.sr-body { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.sr-body .sui-p { margin: 0; }
+.sr-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.sr-list {
+  max-height: min(52vh, 440px); overflow: auto; border: 1px solid var(--sl-border, #3d3d3d);
+  border-radius: 6px; background: var(--sl-background, #161616); color: var(--sl-text, #e6e6e6);
+}
+.sr-list.sr-cols-2 { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+.sr-group {
+  position: sticky; top: 0; z-index: 1; padding: 6px 10px; font-weight: 600;
+  background: var(--sl-surface, #232323); border-bottom: 1px solid var(--sl-border, #3d3d3d);
+}
+.sr-cols-2 .sr-group { grid-column: 1 / -1; }
+.sr-row {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start;
+  padding: 7px 10px; border-bottom: 1px solid var(--sl-border, #3d3d3d); cursor: pointer;
+}
+.sr-row:hover, .sr-row:focus-within { background: color-mix(in srgb, var(--sl-text, #e6e6e6) 7%, transparent); }
+.sr-row input { margin: 3px 0 0; accent-color: var(--sl-accent, #d4ff3a); }
+.sr-text { display: flex; flex-direction: column; min-width: 0; }
+.sr-text b { font-weight: 500; overflow-wrap: anywhere; }
+.sr-text small { color: color-mix(in srgb, var(--sl-text, #e6e6e6) 70%, transparent); overflow-wrap: anywhere; }
+.sr-size { white-space: nowrap; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--sl-text, #e6e6e6) 70%, transparent); }
+.sr-sum { margin-right: auto; align-self: center; color: var(--sl-text, #e6e6e6); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .sr-list.sr-cols-2 { grid-template-columns: 1fr; } }

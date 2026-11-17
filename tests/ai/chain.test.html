@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: one task through several apps in one tab (stay here / show me), fake engine</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/ai/handoff.js, shared/ai/panel-run.js, shared/ai/panel.js, shared/ai/apptools.js, shared/ai/optools.js,
+  //   shared/hub.js, shared/intake/outtake.js, shell/header.js
+  // Real pages in one frame: Slop Drive → (SlopIsolate →) PhotoSlop. The test puts a fake engine into each page as it
+  // arrives (a real person's provider comes back by itself); the task, the chat and the chain travel in sessionStorage.
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const call = (name, args) => `<tool_call>{"name": "${name}", "arguments": ${JSON.stringify(args)}}</tool_call>`;
+  let frame;
+  const W = () => frame.contentWindow;
+  function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.|^slop-firstrun:ai-cloud/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\./.test(k)) sessionStorage.removeItem(k);
+    for (const [k, v] of [['slop-firstrun:aitools', '1'], ['slop-firstrun:slopisolate', '1'], ['photoslop.tourShown', '1'], ['slop-cutout.model', '"fast"'],
+      ['slop.consent', JSON.stringify({ v: 1, analytics: false, ads: false, t: 1 })]]) localStorage.setItem(k, v);
+  }
+  async function open(path) {
+    if (frame) frame.remove();
+    frame = document.createElement('iframe'); frame.src = '../../' + path; document.body.append(frame);
+    await waitFor(() => W().document && W().document.body && W().document.body.classList.contains('ready') && W().SlopHub, { timeout: 30000 });
+    return W();
+  }
+  /** The frame moved on its own to an app's page: its panel is open again with the chat that came along. */
+  async function arrived(dir) {
+    await waitFor(() => { try { return W().location.pathname.includes('/' + dir + '/') && W().document.readyState === 'complete' && W().SlopAIPanel && W().SlopAIPanel.isOpen; } catch (e) { return false; } }, { timeout: 60000 })
+      .catch(() => { const w = W(); throw new Error(`not in ${dir}: at ${w.location.pathname}${w.location.search}, ready ${w.document.body && w.document.body.classList.contains('ready')}, panel ${!!w.SlopAIPanel} open ${!!(w.SlopAIPanel && w.SlopAIPanel.isOpen)}, record ${sessionStorage.getItem('slop-ai.handoff')}, chat: ${w.document.querySelector('.sap-list') ? w.document.querySelector('.sap-list').textContent.slice(-600) : '-'} dialogs: ${[...w.document.querySelectorAll('.sui-dlg')].map((d) => d.textContent.slice(0, 200)).join(' | ')}`); });
+    await W().SlopAIPanel.ready;
+    return W();
+  }
+  async function engine(w, replies) {
+    const e = new w.SlopAIKit.FakeEngine({ delay: 0, loadMs: 0, replies }); await e.load('fake');
+    w.SlopAIPanel.use(e);
+    return e;
+  }
+  const text = (w) => w.document.querySelector('.sap-list').textContent;
+  /** A photo: a red disc on stripes, as a JPEG in Slop Drive. */
+  async function photo(w) {
+    const c = w.document.createElement('canvas'); c.width = 320; c.height = 240;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 320, 240);
+    g.fillStyle = '#222'; for (let x = 0; x < 320; x += 10) g.fillRect(x, 0, 5, 240);
+    g.fillStyle = '#e22'; g.beginPath(); g.arc(160, 120, 70, 0, Math.PI * 2); g.fill();
+    await w.SlopHub.put(await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9)), { name: 'chain-photo.jpg', from: 'test' });
+  }
+  /** Remove background without the model: the disc is the subject. */
+  function stubCutout(w) {
+    w.SlopCutout = { removeBackground: async (file) => {
+      const bmp = await w.createImageBitmap(file), c = w.document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+      const g = c.getContext('2d'); g.beginPath(); g.arc(160, 120, 70, 0, Math.PI * 2); g.clip(); g.drawImage(bmp, 0, 0);
+      const mask = new Uint8ClampedArray(bmp.width * bmp.height);
+      for (let y = 0; y < bmp.height; y++) for (let x = 0; x < bmp.width; x++) if (Math.hypot(x - 160, y - 120) <= 70) mask[y * bmp.width + x] = 255;
+      return { cutout: g.getImageData(0, 0, bmp.width, bmp.height), mask, width: bmp.width, height: bmp.height };
+    } };
+  }
+
+  describe('"Stay on this page when possible" (the default)', () => {
+    it('cut-out runs here (run_operation), then the task moves to PhotoSlop with the result for the text', async () => {
+      wipe();
+      let w = await open('drive/');
+      await photo(w); stubCutout(w);
+      await w.SlopHeader.openAI(); await w.SlopAIPanel.ready;
+      const e = await engine(w, [call('run_operation', { operation: 'slopisolate.remove-bg', files: ['chain-photo.jpg'] }),
+        call('open_in_app', { app: 'photoslop', files: ['chain-photo.png'], task: 'Add the word SALE at the top of chain-photo.png' })]);
+      w.SlopAIPanel.send('cut out my photo chain-photo.jpg and add the text SALE');
+      await waitFor(() => e.calls.length >= 1);
+      const sys = e.calls[0].messages[0].content;
+      expect(sys).toContain('Stay on this page when possible'); expect(sys).toContain('open_in_app(app');
+      w = await arrived('photoslop');
+      expect(text(w)).toContain('cut out my photo chain-photo.jpg');
+      expect(text(w)).toContain('Opening PhotoSlop…'); expect(text(w)).toContain('Continuing in PhotoSlop with chain-photo.png.');
+      const chain = JSON.parse(JSON.stringify(w.SlopAIKit.panel.chain));
+      expect(chain.hop).toBe(1);
+      await waitFor(() => w.eval('typeof D !== "undefined" && D && D.w === 320'), { timeout: 20000 });
+      const e2 = await engine(w, [call('add_text', { text: 'SALE', position: 'top', size: 40 }), 'Added SALE at the top.']);
+      await waitFor(() => /Added SALE at the top\./.test(text(w)), { timeout: 20000 });
+      expect(e2.calls[0].messages.find((m) => m.role === 'user').content).toContain('cut out my photo');
+      expect(w.eval('D.layers.some((l) => l.text && l.text.str === "SALE")')).toBe(true);
+      expect(w.location.pathname).toContain('/photoslop/');
+    }, { timeout: 120000 });
+  });
+
+  describe('"Show me in each app"', () => {
+    it('Slop Drive → SlopIsolate (the cut-out happens there) → PhotoSlop as a layer with its mask → text and export', async () => {
+      wipe(); localStorage.setItem('slop-ai.hops', 'show');
+      let w = await open('drive/');
+      await photo(w);
+      await w.SlopHeader.openAI(); await w.SlopAIPanel.ready;
+      const e = await engine(w, [call('open_in_app', { app: 'cutout', files: ['chain-photo.jpg'], task: 'Remove the background, then take the cut-out to PhotoSlop, add SALE at the top and export a PNG' })]);
+      w.SlopAIPanel.send('show me: cut out chain-photo.jpg, put SALE on it and export it');
+      await waitFor(() => e.calls.length >= 1);
+      expect(e.calls[0].messages[0].content).toContain('Show me in each app');
+      w = await arrived('slopisolate');
+      expect(text(w)).toContain('Continuing in SlopIsolate with chain-photo.jpg.');
+      await waitFor(() => w.CO && w.CO.state.items.length && w.CO.state.items[0].status === 'done', { timeout: 90000 });
+      await engine(w, [call('open_in_app', { app: 'photoslop', files: ['open'], task: 'Add SALE at the top and export a PNG' })]);
+      w = await arrived('photoslop');
+      expect(text(w)).toMatch(/Continuing in PhotoSlop with chain-photo.*\.png\./);
+      expect(JSON.parse(JSON.stringify(w.SlopAIKit.panel.chain)).hop).toBe(2);
+      await waitFor(() => w.eval('typeof D !== "undefined" && D && D.w === 320'), { timeout: 20000 });
+      const got = []; w.SlopUI.download = (b, name) => got.push([b.type, name]);
+      await engine(w, [call('add_text', { text: 'SALE', position: 'top', size: 40 }) + call('export', { format: 'png' }), 'Added SALE and exported a PNG.']);
+      await waitFor(() => /exported a PNG/.test(text(w)), { timeout: 20000 });
+      expect(got.length).toBe(1); expect(got[0][0]).toBe('image/png');
+    }, { timeout: 240000 });
+  });
+
+  describe('Stop ends the whole chain', () => {
+    it('a stopped chain does not continue on the next page', async () => {
+      wipe();
+      sessionStorage.setItem('slop-ai.handoff', JSON.stringify({ to: 'drive', toName: 'Slop Drive', fromName: 'PhotoSlop', task: 'slow task', line: 'Continuing in Slop Drive.', chain: { id: 'c-test', hop: 1 }, at: Date.now(), messages: [] }));
+      const w = await open('drive/');
+      await waitFor(() => w.SlopAIPanel && w.SlopAIPanel.isOpen, { timeout: 20000 }); await w.SlopAIPanel.ready;
+      const e = new w.SlopAIKit.FakeEngine({ delay: 200, loadMs: 0, replies: ['a long answer that keeps going word after word after word'] }); await e.load('fake');
+      w.SlopAIPanel.use(e);
+      await waitFor(() => w.document.querySelector('.sap-send.stop'));
+      w.document.querySelector('.sap-send').click();
+      await waitFor(() => /Stopped the task, in every app/.test(text(w)));
+      expect(w.SlopAIKit.handoff.cancelled('c-test')).toBe(true);
+      w.SlopAIKit.handoff.save({ to: 'photoslop', task: 'next', chain: { id: 'c-test', hop: 2 } });
+      expect(w.SlopAIKit.handoff.peek('photoslop')).toBe(null);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop AI: a task through several apps' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+/* Slop Colors, Swedish: the colour wheel (its controls, its handles, the new harmonies and the wheels) and its
+ * commands (Ctrl+K). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'colors.wheel.label': 'Färghjul',
+  'colors.wheel.rule': 'Harmoni',
+  'colors.wheel.model': 'Hjul',
+  'colors.wheel.bright': 'Ljusstyrka',
+  'colors.wheel.light': 'Ljushet',
+  'colors.wheel.bright_text': 'Ljusstyrka {pct} %',
+  'colors.wheel.light_text': 'Ljushet {pct} %',
+  'colors.wheel.keys': 'Dra i ett handtag, eller använd piltangenterna på det: vänster och höger vrider nyansen, upp och ned ändrar mättnaden, Skift flyttar tio steg, Page Up och Page Down ändrar ljusstyrkan.',
+  'colors.wheel.base': 'Basfärg',
+  'colors.wheel.handle': 'Färg {n}',
+  'colors.wheel.value': 'Nyans {hue}°, mättnad {sat} %, {hex}',
+  'colors.wheel.value_oklch': 'Nyans {hue}°, kroma {sat} %, {hex}',
+  'colors.wheel.rgb': 'RGB',
+  'colors.wheel.ryb': 'RYB (konstnärens)',
+  'colors.wheel.oklch': 'OKLCH (perceptuellt)',
+  'colors.harmony.brightness': 'Skuggor',
+  'colors.harmony.custom': 'Egen',
+  'colors.cmd.g_wheel': 'Färghjul',
+  'colors.cmd.wheel_rule': 'Hjul: ange harmonin {rule}',
+  'colors.cmd.wheel_model': 'Hjul: använd hjulet {wheel}',
+  'colors.cmd.wheel_focus': 'Hjul: gå till färghjulet',
+});

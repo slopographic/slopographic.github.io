@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopculator: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: calculator/js/ai-commands.js, calculator/js/commands.js, calculator/js/app.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('calc.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slopculator: assistant commands', () => {
+    it('add_calculation returns the answer and fills the tape; a bad one fails; export and save to Slop Drive', async () => {
+      f.src = '../../calculator/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopCalcApp && f.contentWindow.SlopCmd, { timeout: 15000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      let r = await run('add-calculation', { expression: '2 + 3 * 4' });
+      expect(r.value.result).toBe('14');
+      r = await run('add-calculation', { expression: '1 km in m' });
+      expect(r.value.result).toMatch(/1,?000 m/);
+      expect((await C.exec('calc.ai.add-calculation', { expression: '2 +* 3' })).ok).toBe(false);
+      expect(C.state().tape.length).toBe(2);
+      r = await run('export-tape', { format: 'csv' });
+      const csv = await (await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).blob.text();
+      expect(csv.split('\n')[1]).toBe('2 + 3 * 4,14');
+      await run('save-calculation', {});
+      const notes = (await W.SlopHub.list()).filter((x) => x.from === 'calculator' && x.meta && x.meta.kind === 'calc');
+      expect(notes.length).toBe(1);
+      const back = C.checkpoint();
+      await run('clear-tape', {});
+      expect(C.state().tape.length).toBe(0);
+      back();
+      expect(C.state().tape.length).toBe(2);
+    }, { timeout: 30000 });
+
+    it('new_sheet empties the tape and the answer, keeps or forgets the variables; the rollback brings all back', async () => {
+      await run('add-calculation', { expression: 'price = 19.99' });
+      const n = C.state().tape.length;
+      const back = C.checkpoint();
+      let r = await run('new-sheet', { keep_variables: true });
+      expect(r.value).toMatch(/variables kept/);
+      expect(C.state().tape.length).toBe(0);
+      expect(C.state().ans).toBe(null);
+      expect(C.state().last).toBe(null);
+      r = await run('add-calculation', { expression: 'price * 2' });
+      expect(r.value.result).toBe('39.98');
+      await run('new-sheet', {});
+      expect(C.state().vars).toEqual([]);
+      expect((await C.exec('calc.ai.add-calculation', { expression: 'price * 2' })).ok).toBe(false);
+      back();
+      expect(C.state().tape.length).toBe(n);
+      expect(C.state().vars.join(' ')).toMatch(/price = 19\.99/);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slopculator: assistant commands' });
+  </script>
+</body>
+</html>

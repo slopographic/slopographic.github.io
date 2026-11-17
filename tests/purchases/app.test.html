@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Purchases: a supplier, a purchase order, receive into stock, the bill as an expense, at 390 px</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: purchases/index.html, purchases/js/ui/app.js, purchases/js/ui/list.js, purchases/js/ui/editor.js, purchases/js/ui/page.js, purchases/js/ui/commands.js, purchases/js/ui/layout.js
+  // Covers: purchases/js/core/util.js, purchases/js/core/purchases.js, purchases/js/core/pdf.js, purchases/css/purchases.css, shared/docs/customer-dialog.js, shared/docs/doc-editor.js, shared/docs/doc-view.js, shared/docs/doc-app.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, widget;
+  const $ = (id) => D.getElementById(id);
+  const set = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); el.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const button = (text) => [...D.querySelectorAll('#eActions button, .ws-panel .sf-p-foot button')].find((b) => b.textContent === text);
+  const dlg = () => SlopTest.topDialog(D);
+  const dlgButton = (text) => [...dlg().querySelectorAll('button')].find((b) => b.textContent === text);
+  const S = () => W.SlopData;
+  const rows = () => [...D.querySelectorAll('#pRows .sl-row')];
+  async function boot(hash = '') {
+    const f = document.getElementById('app');
+    f.src = '../../purchases/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopPurchases && f.contentWindow.SlopPurchases.app && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+  }
+  const current = async () => (await S().store.get('purchases', W.SlopPurchases.editor.id())).value;
+
+  describe('Slop Purchases', () => {
+    it('opens on an empty list; the supplier picker lists suppliers only', async () => {
+      await boot();
+      await S().store.erase(); await S().store.ready();
+      await S().store.put('customers', { name: 'A Customer', stage: 'customer' });
+      widget = (await S().store.put('products', { sku: 'W-1', name: 'Widget', price: 1000, taxRate: 2000 })).value;
+      await boot('#list');
+      await waitFor(() => $('pSummary').textContent === '0 purchase orders');
+      W.SlopPurchases.app.go('new');
+      await waitFor(() => !$('view-edit').hidden && $('eCustomer').options.length === 1);
+      expect($('eCustomer').options[0].textContent).toBe('Choose a supplier…');
+    });
+    it('New supplier adds a contact flagged supplier and picks it', async () => {
+      $('eNewCustomer').click();
+      await waitFor(() => dlg() && dlg().textContent.includes('New supplier'));
+      set(dlg().querySelector('input'), 'Acme Supply');
+      dlgButton('Add supplier').click();
+      await waitFor(() => $('eCustomer').options.length === 2 && $('eCustomer').selectedOptions[0].textContent === 'Acme Supply');
+      const c = (await S().store.list('customers')).value.find((x) => x.name === 'Acme Supply');
+      expect(c.supplier).toBe(true);
+    });
+    it('a product line at the buying price; Save draft gives the PO number; the paper says Order from', async () => {
+      const card = D.querySelector('#eLines .line-card');
+      set(card.querySelector('[data-f="product"]'), widget.id);
+      await waitFor(() => D.querySelector('#eLines .line-card [data-f="description"]').value === 'Widget');
+      const c2 = D.querySelector('#eLines .line-card');
+      set(c2.querySelector('[data-f="qty"]'), '10');
+      set(c2.querySelector('[data-f="unitPrice"]'), '4.00');
+      button('Save draft').click();
+      await waitFor(() => $('eTitle').textContent === 'PO-0001');
+      expect((await current()).total).toBe(4800);
+      const v = W.SlopPurchases.pdf.viewOf((await W.SlopPurchases.pdf.load(W.SlopPurchases.editor.id())).value);
+      expect([v.title, v.bill.title, v.bill.name]).toEqual(['Purchase order', 'Order from', 'Acme Supply']);
+    });
+    it('Place order, then Receive puts the widgets into stock and locks the order', async () => {
+      button('Place order').click();
+      await waitFor(() => $('eStatus').textContent === 'Ordered');
+      W.SlopUI.confirm = async () => true;
+      button('Receive…').click();
+      await waitFor(() => $('eStatus').textContent === 'Received');
+      expect((await S().stock.onHand(widget.id, 'main')).value).toBe(10);
+      expect($('eCustomer').disabled).toBe(true);
+      expect($('eLinks').textContent).toContain('Received');
+    });
+    it('Record bill posts the bill as an expense with its tax and links it', async () => {
+      button('Record bill…').click();
+      await waitFor(() => dlg() && dlg().textContent.includes('Record the bill'));
+      dlgButton('Record bill').click();
+      await waitFor(async () => !!(await current()).expenseId);
+      const po = await current();
+      const e = (await S().store.get('expenses', po.expenseId)).value;
+      expect([e.supplier, e.amount, e.tax, e.description]).toEqual(['Acme Supply', 4800, 800, 'Purchase order PO-0001']);
+      await waitFor(() => $('eLinks').textContent.includes('recorded in Slop Expenses') && !button('Record bill…'));
+    });
+    it('#reorder/<product> opens a new purchase order filled in: last supplier and price, the suggested quantity', async () => {
+      // Covers: purchases/js/ui/reorder.js
+      await S().store.put('products', { ...(await S().store.get('products', widget.id)).value, reorderLevel: 8 });
+      W.location.hash = `#reorder/${widget.id}`;
+      await waitFor(() => !$('view-edit').hidden && $('eTitle').textContent === 'New purchase order' && D.querySelector('#eLines .line-card [data-f="qty"]').value === '6');
+      expect($('eCustomer').selectedOptions[0].textContent).toBe('Acme Supply');
+      expect(D.querySelector('#eLines .line-card [data-f="unitPrice"]').value).toBe('4.00');
+      expect($('eMsg').textContent).toContain('10 on hand');
+      W.SlopPurchases.editor.clean();
+    });
+    it('the list shows the order received and billed; the late filter finds an overdue order; 390 px', async () => {
+      const sup = (await W.SlopPurchases.purchases.suppliers()).value[0];
+      const late = (await W.SlopPurchases.purchases.save({ customerId: sup.id, date: '2026-01-01', expectedDate: '2026-01-10', lines: [{ description: 'Boxes', qty: 1, unitPrice: 100, taxRate: 0 }] })).value;
+      await W.SlopPurchases.purchases.setStatus(late.id, 'ordered');
+      W.SlopPurchases.app.go('list');
+      await waitFor(() => rows().length === 2);
+      expect(rows().find((r) => r.textContent.includes('PO-0001')).textContent).toContain('billed');
+      set($('pStatus'), 'late');
+      await waitFor(() => rows().length === 1 && rows()[0].textContent.includes('Late'));
+      set($('pStatus'), 'all');
+      document.getElementById('app').style.width = '390px';
+      await waitFor(() => W.innerWidth === 390);
+      expect(D.documentElement.scrollWidth <= 391).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

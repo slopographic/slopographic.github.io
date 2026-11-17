@@ -1,0 +1,81 @@
+/* Slop Contacts: tokens, page shell and the three columns. Light and dark follow the system setting
+ * (prefers-color-scheme); data-theme="light" or "dark" on <html> overrides it. One accent: the Slopographic lime. */
+:root {
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --bg: #f4f4f2; --panel: #ffffff; --panel-2: #f0f0ec; --ink: #161616; --mute: #6b6b66; --line: #e2e1dc;
+  --accent: #d4ff3a; --accent-ink: #10180a; --accent-soft: #ebffb8; --danger: #c4283f; --focus: #161616;
+  --radius: 10px; --shadow: 0 12px 36px rgba(0, 0, 0, .18);
+  --fg: var(--ink); --fg-dim: var(--mute); --fg-faint: #9a9a94; --line-2: var(--line); --input: var(--panel); --hover: var(--panel-2);
+  --sel: var(--accent-soft); --sui-accent: var(--accent); --sui-accent-ink: var(--accent-ink); --sui-font: var(--ui);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111112; --panel: #1a1a1c; --panel-2: #242427; --ink: #f2f1ec; --mute: #9b9a94; --line: #2c2c30;
+    --accent-soft: #33400f; --danger: #ff6b82; --focus: #f2f1ec; --fg-faint: #6f6e69; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111112; --panel: #1a1a1c; --panel-2: #242427; --ink: #f2f1ec; --mute: #9b9a94; --line: #2c2c30;
+  --accent-soft: #33400f; --danger: #ff6b82; --focus: #f2f1ec; --fg-faint: #6f6e69; color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.4 var(--ui); overflow: hidden; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+.app { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+.topbar { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
+/* The shared header buttons (Slop Drive, View, Theme, Apps, the bell: shared/ui/hbtn.css) look like the toolbar's own. */
+.topbar { --slop-hbtn-h: 32px; --slop-hbtn-radius: 8px; --slop-hbtn-bg: var(--panel); --slop-hbtn-line: var(--line); --slop-hbtn-hover: var(--panel-2); --slop-hbtn-fs: 13px; }
+.tb-btn { height: var(--slop-hbtn-h); }
+.brand { display: inline-flex; color: var(--ink); }
+.brand-mark { width: 22px; height: 22px; fill: var(--accent); stroke: none; }
+.brand-mark .shine { fill: none; stroke: var(--panel); stroke-width: 2; stroke-linecap: round; }
+.appname { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.appname b { font-weight: 600; font-size: 15px; }
+.home-link { color: var(--mute); font-size: 12px; text-decoration: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; min-width: 0; }
+.tb-btn, .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; white-space: nowrap; font-size: 13px; }
+.tb-btn:hover, .btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.danger, .tb-btn.danger { color: var(--danger); }
+.local-badge { font-size: 12px; color: var(--mute); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.local-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.drive-status { font-size: 12px; color: var(--mute); max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-status[data-state="error"] { color: var(--danger); }
+
+/* Three columns: groups | list | splitter | card. The list's width is --list-w (set by the splitter, saved in localStorage).
+ * Below 960 px the list is the screen; the card is a bottom sheet over it (SlopSheet, js/app/card.js); groups a sheet. */
+.cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(260px, var(--list-w, 380px)) 6px minmax(0, 1fr); min-width: 0; position: relative; }
+.col { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
+.col-groups { background: var(--bg); border-right: 1px solid var(--line); overflow: auto; padding: 14px 0; }
+.col-list { border-right: 1px solid var(--line); }
+.col-card { background: var(--panel); }
+.list-bar .narrow-only { display: none; }
+.wide-only { display: inline-flex; }
+.scrim { display: none; }
+
+@media (max-width: 959px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .col-list { border-right: 0; }
+  .splitter { display: none; }
+  .wide-only { display: none !important; }
+  .list-bar .narrow-only { display: inline-flex; }
+  .ssh-phone > .col-card.ssh-panel { block-size: 88dvh; max-block-size: 88dvh; overflow: hidden; }
+  .col-groups { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; max-height: 72dvh; border-right: 0; border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0; box-shadow: var(--shadow); transform: translateY(104%); transition: transform .22s ease; padding: 10px 0 24px; }
+  body.groups-open .col-groups { transform: none; }
+  body.groups-open .scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, .28); z-index: 35; }
+  .topbar { padding: 8px 12px; }
+  .local-badge { display: none; }
+}
+/* Below 1200 px the header keeps its main buttons and the shared ones on one row; Duplicates, Clean up and Country code
+ * stay in the command palette (shared/commands). */
+@media (max-width: 1199px) { .actions .wide-only { display: none; } }
+/* A phone: the list's + adds a contact and the icon goes home, so the header keeps two rows. */
+@media (max-width: 640px) {
+  .home-link, .actions [data-cmd="contacts.new"] { display: none; }
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides in Swedish</title>
+  <!-- Covers: slides/i18n/index.js, slides/index.html, slides/js/core/util.js, slides/js/ui/toolbar.js, slides/js/ui/inspector.js, slides/js/ui/commands.js, tests/slides/load.js -->
+  <!-- Covers (strings): slides/js/anim/object.js slides/js/anim/transition.js slides/js/core/layouts.js slides/js/core/model.js
+        slides/js/core/objects.js slides/js/core/outline.js slides/js/core/themes.js slides/js/io/config.js slides/js/io/native.js
+        slides/js/io/pdf-paint.js slides/js/io/pdf.js slides/js/io/pptx-in-shape.js slides/js/io/pptx-in-style.js slides/js/io/pptx-in.js
+        slides/js/io/pptx.js slides/js/io/template-file.js slides/js/io/template-store.js slides/js/io/templates-decks.js
+        slides/js/io/validate.js slides/js/render/fonts.js slides/js/render/scene.js slides/js/ui/ai-commands.js slides/js/ui/ai-files.js
+        slides/js/ui/anim-panel.js slides/js/ui/aspect.js slides/js/ui/buffer.js slides/js/ui/ctxmenu.js slides/js/ui/file-drop.js
+        slides/js/ui/files.js slides/js/ui/main.js slides/js/ui/ops.js slides/js/ui/pointer.js slides/js/ui/present.js
+        slides/js/ui/presenter-view.js slides/js/ui/presenter.js slides/js/ui/sorter.js slides/js/ui/tabs.js
+        slides/js/ui/templates-dialog.js slides/js/ui/textedit.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, waitFor, run } = SlopTest;
+  // The editor in a same-origin iframe, so it shares this page's localStorage (the language choice).
+  const frames = [];
+  function open(lang, width = 1280) {
+    if (lang) localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: lang } } }));
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../slides/index.html';
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => { try { const W = f.contentWindow; return W.SS && W.SS.app && W.SS.app.deck && W.document.querySelector('#inspector h2'); } catch (e) { return false; } }, { timeout: 30000 }).then(() => f);
+  }
+  const KEY = /(^|[\s(“"'«”])(slides|ui|menu|shell|nav)\.[a-z0-9_]+\.?[a-z0-9_.]*[a-z0-9_]/;
+  function visible(doc) {
+    const out = [doc.body.innerText];
+    for (const el of doc.querySelectorAll('[title], [aria-label], [placeholder]')) out.push(el.getAttribute('title') || '', el.getAttribute('aria-label') || '', el.getAttribute('placeholder') || '');
+    return out.join('\n');
+  }
+  const txt = (doc, id) => doc.getElementById(id).textContent.trim();
+  const heads = (doc) => [...doc.querySelectorAll('#inspector h2')].map((h) => h.textContent.trim().toLowerCase());
+  async function fileMenu(f) {
+    f.contentDocument.getElementById('btnFile').click();
+    const m = await waitFor(() => f.contentDocument.querySelector('.sui-menu'), { timeout: 20000 });
+    return [...m.querySelectorAll('[role="menuitem"], .sui-mi, button')].map((x) => x.textContent.trim()).filter(Boolean);
+  }
+
+  describe('Slop Slides in Swedish', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('shows a Swedish top bar, inspector, status bar, File menu and palette, with no key showing', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, W = f.contentWindow;
+      expect(doc.documentElement.getAttribute('lang')).toBe('sv');
+      expect(txt(doc, 'btnFile')).toBe('Arkiv');
+      expect(txt(doc, 'insRect')).toBe('Rektangel');
+      expect(txt(doc, 'btnPresent')).toBe('Presentera');
+      expect(heads(doc)).toContain('övergång');
+      expect(txt(doc, 'statusSlide')).toContain('Bild 1 av');
+      expect(doc.querySelector('#selLayout option[value="title-content"]').textContent).toBe('Rubrik och innehåll');
+      const items = await fileMenu(f);
+      expect(items.join(' | ')).toContain('Ny presentation');
+      expect(KEY.test(items.join('\n'))).toBe(false);
+      doc.body.click();
+      const titles = W.SlopCmd.list().filter((c) => !c.hidden).map((c) => c.title);
+      expect(titles).toContain('Infoga textruta');
+      expect(KEY.test(titles.join('\n'))).toBe(false);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('switching to English live switches back, then Swedish again', async () => {
+      const f = await open('sv');
+      const doc = f.contentDocument, I = f.contentWindow.SlopI18n;
+      I.set('en');
+      await waitFor(() => txt(doc, 'btnFile') === 'File' && heads(doc).includes('transition'), { timeout: 20000 });
+      expect(txt(doc, 'statusSlide')).toContain('Slide 1 of');
+      expect(f.contentWindow.SlopCmd.list().map((c) => c.title)).toContain('Insert text box');
+      I.set('sv');
+      await waitFor(() => txt(doc, 'btnFile') === 'Arkiv' && heads(doc).includes('övergång'), { timeout: 20000 });
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+
+    it('at 390 px the editor fits in Swedish, with no sideways scroll', async () => {
+      const f = await open('sv', 390);
+      const doc = f.contentDocument;
+      expect(doc.documentElement.scrollWidth <= f.contentWindow.innerWidth + 1).toBe(true);
+      expect(KEY.test(visible(doc))).toBe(false);
+    });
+  });
+  run({ name: 'Slop Slides in Swedish' });
+  </script>
+</body>
+</html>

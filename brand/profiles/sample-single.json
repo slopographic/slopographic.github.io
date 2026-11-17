@@ -1,0 +1,150 @@
+{
+  "id": "sample-single",
+  "name": "Acme PDF",
+  "shortName": "PDF",
+  "brandWord": "Acme",
+  "tagline": "Edit, sign and convert PDF files in your browser. Your files stay on your device.",
+  "origin": "https://pdf.acme.example",
+  "cname": "pdf.acme.example",
+  "defaultLang": "en",
+  "naming": "plain",
+  "tone": "plain",
+  "mascot": false,
+  "github": "acme-example",
+  "mailDomain": "acme.example",
+  "brandTerms": [
+    "Acme PDF"
+  ],
+  "colors": {
+    "ink": "#111827",
+    "paper": "#f9fafb",
+    "accent": "#4f46e5"
+  },
+  "palette": {
+    "hue": 243,
+    "from": [
+      65,
+      100
+    ]
+  },
+  "themes": {
+    "light": {
+      "background": "#f3f4f6",
+      "surface": "#ffffff",
+      "text": "#030712",
+      "accent": "#4338ca",
+      "border": "#6b7280"
+    },
+    "dark": {
+      "background": "#111827",
+      "surface": "#1f2937",
+      "text": "#f3f4f6",
+      "accent": "#a5b4fc",
+      "border": "#6b7280"
+    }
+  },
+  "logo": {
+    "text": "Acme PDF",
+    "mark": "P",
+    "color": "#4338ca"
+  },
+  "links": {},
+  "footer": "© 2026 Acme Example Ltd.",
+  "copy": {},
+  "mainApp": "pdf",
+  "parent": {
+    "name": "Example Tools",
+    "url": "https://example.com"
+  },
+  "apps": {
+    "hide": [
+      "photoslop",
+      "vector",
+      "label",
+      "cutout",
+      "aitools",
+      "reports",
+      "clean",
+      "ai",
+      "docs",
+      "tables",
+      "slides",
+      "press",
+      "remix",
+      "slopedit",
+      "resize",
+      "upscale",
+      "contacts",
+      "inventory",
+      "orders",
+      "quotes",
+      "purchases",
+      "timesheets",
+      "expenses",
+      "invoices",
+      "notes",
+      "paste",
+      "effects",
+      "img3d",
+      "sheetview",
+      "hex",
+      "eml",
+      "checksum",
+      "diff",
+      "nodes",
+      "serials",
+      "transcribe",
+      "recorder",
+      "signature",
+      "qr",
+      "colors",
+      "fontcreator",
+      "scan",
+      "workflows",
+      "calculator",
+      "time",
+      "crm",
+      "calendar",
+      "todo",
+      "projects",
+      "reminders",
+      "ledger",
+      "admin",
+      "code",
+      "sorter",
+      "gallery",
+      "3d",
+      "music",
+      "authenticator",
+      "paint-classic"
+    ]
+  },
+  "media": false,
+  "support": {
+    "exportCard": false,
+    "donate": false,
+    "ads": false
+  },
+  "analytics": false,
+  "seo": {
+    "index": true,
+    "homeTitle": "Acme PDF: edit, sign and convert PDF files in your browser",
+    "homeDescription": "Edit, merge, sign and convert PDF files in your browser. Nothing is uploaded: your files stay on your device. Free, no accounts and no sign-up.",
+    "titleSuffix": " | Acme PDF"
+  },
+  "legal": {
+    "holder": "Acme Example Ltd",
+    "year": "2026",
+    "trademarks": [
+      "Acme",
+      "Acme PDF"
+    ]
+  },
+  "publish": {
+    "repo": "acme-example/pdf",
+    "branch": "main",
+    "secret": "SAMPLE_TOKEN",
+    "author": "Acme Example",
+    "email": "pdf@acme.example"
+  }
+}

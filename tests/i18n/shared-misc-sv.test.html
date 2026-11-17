@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">   <!-- the page chooses Swedish itself: the harness leaves the language alone -->
+  <title>Shared components in Swedish: review, colour picker, buffer tray, Drive link, tip jar, theme, RAW engine</title>
+  <!-- Covers: shared/review/review.js, shared/color/picker.js, shared/buffer/tray.js, shared/drive-link.js, shared/consent/donate.js, shared/theme/theme.js, shared/raw/engine.js, shared/i18n/ui/en/misc.js, shared/i18n/ui/sv/misc.js -->
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+  <script>try { localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } })); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/theme/theme.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <div id="tip" data-donate hidden></div>
+  <script>
+  // the tray needs only these three parts of SlopBuffer; the consent config takes a test URL
+  let onBuf = null;
+  window.SlopBuffer = { makeDraggable() {}, onChange(fn) { onBuf = fn; }, ready: Promise.resolve(null) };
+  window.SLOP_CONSENT_OVERRIDES = { patreonUrl: 'https://example.com/tips' };
+  </script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/color/model.js"></script>
+  <script src="../../shared/color/picker.js"></script>
+  <script src="../../shared/review/model.js"></script>
+  <script src="../../shared/review/review.js"></script>
+  <script src="../../shared/buffer/tray.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/drive-link.js"></script>
+  <script src="../../shared/consent/config.js"></script>
+  <script src="../../shared/consent/donate.js"></script>
+  <script src="../../shared/raw/engine.js"></script>
+  <script>
+  // These components showed English in every language: their words are keys now (ui.review.*, ui.color.*, ui.buffer.*,
+  // ui.misc.*, ui.theme.*, ui.raw.*; the tip jar reuses settings.donate), read when drawn and again on a switch.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const I = window.SlopI18n;
+  const KEY = /\bui\.(review|color|buffer|misc|theme|raw)\.[a-z_]+/;
+  const dlg = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sr-dlg')].pop();
+  describe('shared components in Swedish', () => {
+    it('the review window: its title, tools, count and buttons', async () => {
+      await I.ready();
+      expect(I.get()).toBe('sv');
+      const done = SlopReview.open({ items: [{ id: 'a', label: 'a.txt', checked: true }, { id: 'b', label: 'b.txt', checked: false }] });
+      await waitFor(dlg);
+      const text = dlg().textContent;
+      expect(text).toContain('Granska');
+      expect(text).toContain('Invertera');
+      expect(text).toContain('1 av 2 markerad');
+      expect(KEY.test(text)).toBe(false);
+      [...dlg().querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Avbryt').click();
+      expect(await done).toBe(null);
+    });
+    it('the colour picker: its labels in Swedish, and in English after a live switch', async () => {
+      const p = SlopColorPicker.create({ value: '#ff0000', recents: { list: () => [] } });
+      document.body.append(p.el);
+      const aria = () => [...p.el.querySelectorAll('input')].map((i) => i.getAttribute('aria-label'));
+      expect(aria()).toContain('Röd');
+      expect(p.el.textContent).toContain('Senaste');
+      expect(p.el.textContent).toContain('Inga än');
+      I.set('en');
+      await waitFor(() => aria().includes('Red'));
+      expect(p.el.textContent).toContain('None yet');
+      I.set('sv');
+      await waitFor(() => aria().includes('Röd'));
+      p.el.remove();
+    });
+    it('the buffer tray, the Slop Drive link and the tip jar', async () => {
+      const tray = SlopBuffer.tray(document.body);
+      onBuf({ kind: 'image', source: 'PhotoSlop' });
+      expect(tray.textContent).toBe('Buffert: bild från PhotoSlop');
+      expect(tray.getAttribute('aria-label')).toContain('Kopieringsbuffert');
+      const host = document.createElement('div');
+      document.body.append(host);
+      const link = SlopDriveLink.mount(host);
+      expect(!!link).toBe(true);
+      expect(link.title).toContain('Öppna Slop Drive');
+      SlopDonate.render(document.getElementById('tip'));
+      expect(document.querySelector('#tip a').textContent).toBe('Dricksburk');
+    });
+    it('a refused theme and a RAW engine that was not downloaded say so in Swedish', async () => {
+      expect(SlopTheme.set('no-such-theme').error).toBe('Det temat finns inte i listan.');
+      let err = null;
+      try { await SlopRawEngine.ready({ ask: false }); } catch (e) { err = e; }
+      expect(err && err.message).toBe('RAW-motorn laddades inte ned');
+    });
+  });
+  run({ name: 'Shared components in Swedish' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="analytics=true">
+  <title>Consent · banner</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frames.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, sleep, waitFor, run } = SlopTest;
+  const { open, stubLoader, reset, GA, ADS } = ConsentTest;
+  const IDS = { ga4MeasurementId: GA, adsensePublisherId: ADS };
+  const SENTENCE = 'Analytics and ads are off. Turn them on? You can change this any time in Settings.';
+  const KEY = 'slop-consent';
+  const banner = (w) => w.document.getElementById('slopc-banner');
+  const record = () => JSON.parse(localStorage.getItem(KEY));
+
+  describe('banner', () => {
+    beforeEach(reset);
+    it('shows the sentence and the three buttons: Reject, Accept and ×', async () => {
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      expect(banner(w).querySelector('p').textContent).toBe(SENTENCE);
+      const labels = Array.from(banner(w).querySelectorAll('.slopc-actions button')).map((b) => b.textContent);
+      expect(labels).toEqual(['Reject', 'Accept', '×']);
+      for (const b of banner(w).querySelectorAll('button')) expect(b.tagName).toBe('BUTTON');
+      expect(banner(w).querySelector('p a').getAttribute('href').endsWith('/settings/')).toBe(true);
+    });
+    it('shows once: after Reject optional it is gone and stays gone', async () => {
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      banner(w).querySelector('[data-act="reject"]').click();
+      expect(banner(w)).toBe(null);
+      expect(record().categories).toEqual({ necessary: true, analytics: false, ads: false, rates: false });
+      const w2 = await open({ cfg: IDS });
+      await sleep(150);
+      expect(banner(w2)).toBe(null);
+    });
+    it('Accept all turns on analytics and ads and does not ask again', async () => {
+      const calls = stubLoader();
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      banner(w).querySelector('[data-act="accept"]').click();
+      expect(banner(w)).toBe(null);
+      expect(record().categories).toEqual({ necessary: true, analytics: true, ads: true, rates: false });
+      expect(calls.length).toBe(2);
+      expect(record().version).toBe(2);
+      const w2 = await open({ cfg: IDS });
+      await sleep(150);
+      expect(banner(w2)).toBe(null);
+    });
+    it('the × closes the strip and rejects the optional extras', async () => {
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      banner(w).querySelector('[data-act="close"]').click();
+      expect(banner(w)).toBe(null);
+      expect(record().categories).toEqual({ necessary: true, analytics: false, ads: false, rates: false });
+    });
+    it('an outdated policy version asks again, and its old choice does not apply', async () => {
+      localStorage.setItem(KEY, JSON.stringify({ version: 2, timestamp: 1, categories: { necessary: true, analytics: true, ads: true } }));
+      const w = await open({ cfg: { ...IDS, policyVersion: 3 } });
+      await waitFor(() => banner(w));
+      expect(w.SlopConsent.state()).toEqual({ necessary: true, analytics: false, ads: false, rates: false });
+    });
+    it('a current policy version does not ask again', async () => {
+      const calls = stubLoader();
+      localStorage.setItem(KEY, JSON.stringify({ version: 3, timestamp: 1, categories: { necessary: true, analytics: true, ads: false } }));
+      const w = await open({ cfg: { ...IDS, policyVersion: 3 } });
+      await sleep(150);
+      expect(banner(w)).toBe(null);
+      expect(w.SlopConsent.state().analytics).toBe(true);
+      expect(calls).toEqual(['https://www.googletagmanager.com/gtag/js?id=' + GA]);
+    });
+    it('a corrupt record asks again', async () => {
+      localStorage.setItem(KEY, '{not json');
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      expect(w.SlopConsentState.needsChoice()).toBe(true);
+    });
+    it('blocked storage: no banner, no error, nothing to ask', async () => {
+      const w = await open({ cfg: IDS, block: true });
+      await sleep(150);
+      expect(banner(w)).toBe(null);
+      expect(w.__errors).toEqual([]);
+    });
+    it('the page keeps room under the strip: bottom padding and --consent-h are at least its height, and go back after a choice', async () => {
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      const padding = () => parseFloat(w.getComputedStyle(w.document.body).paddingBottom) || 0;
+      const h = banner(w).getBoundingClientRect().height;
+      await waitFor(() => padding() >= h - 0.5, { timeout: 2000 });
+      expect(padding()).toBeGreaterThanOrEqual(h - 0.5);
+      expect(parseFloat(w.document.documentElement.style.getPropertyValue('--consent-h'))).toBeGreaterThanOrEqual(h - 1);
+      banner(w).querySelector('[data-act="reject"]').click();
+      expect(padding()).toBe(0);
+      expect(w.document.documentElement.classList.contains('slopc-on')).toBe(false);
+    });
+    it('the banner fits a 390 px phone width without horizontal scroll', async () => {
+      const w = await open({ cfg: IDS });
+      await waitFor(() => banner(w));
+      const doc = w.document.documentElement;
+      expect(doc.scrollWidth).toBeLessThanOrEqual(w.innerWidth);
+      expect(banner(w).getBoundingClientRect().width).toBeLessThanOrEqual(w.innerWidth);
+    });
+  });
+
+  run({ name: 'Consent banner' });
+  </script>
+</body>
+</html>

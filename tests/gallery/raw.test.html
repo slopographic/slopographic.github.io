@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Gallery tests: camera RAW photos (thumbnails from the embedded preview, the viewer)</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script src="../raw/build.js"></script>
+  <script>
+  // Covers: gallery/js/core/thumb.js, gallery/js/core/import.js, gallery/js/core/urls.js, gallery/js/io/source.js, gallery/js/ui/main.js, gallery/js/ui/actions.js
+  // A NEF-like RAW file with a real 120 × 80 JPEG preview (green top half, magenta bottom), orientation 8, a camera and a date.
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, G, D;
+  async function nef(name = 'DSC_0007.NEF') {
+    const c = document.createElement('canvas'); c.width = 120; c.height = 80;
+    const g = c.getContext('2d'); g.fillStyle = '#0f0'; g.fillRect(0, 0, 120, 40); g.fillStyle = '#f0f'; g.fillRect(0, 40, 120, 40);
+    const jpg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.95))).arrayBuffer());
+    const t = RawBuild.tiff({ ifd0: [[0x10f, 2, 'NIKON CORPORATION'], [0x110, 2, 'NIKON D850'], [0x112, 3, 8], [0x14a, 4, [{ ifd: 1 }]], [0x8769, 4, { ifd: 2 }]],
+      subs: [[[0x201, 4, { blob: 'p' }], [0x202, 4, { len: 'p' }]]], exif: [[0x9003, 2, '2021:07:14 15:16:17']], blobs: { p: jpg } });
+    return new W.File([t], name, { type: '' });
+  }
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = '../../gallery/index.html?db=' + GT.dbName;
+    await waitFor(() => fr.contentWindow && fr.contentWindow.SlopGallery && fr.contentWindow.SlopGallery.ready, { timeout: 30000 });
+    W = fr.contentWindow; G = W.SlopGallery; D = W.document;
+    await G.library.load(); await G.db.destroy(); G.library._reset(); await G.library.load();
+  }
+
+  describe('camera RAW in the gallery', () => {
+    it('the picker, drop and source keep RAW files (a file with no MIME type, by its extension)', async () => {
+      await boot();
+      // the one intake's rules (shared/intake): the RAW file is taken by its extension, the text file is refused
+      expect(W.SlopIntake.accepts('gallery', await nef())).toBe(true);
+      expect(W.SlopIntake.accepts('gallery', new W.File(['x'], 'notes.txt', { type: 'text/plain' }))).toBe(false);
+      expect(G.source.mimeOf('a.CR3')).toBe('image/x-cr3');
+    });
+    it('import makes the thumbnail from the embedded preview, upright, with the camera and date from the RAW', async () => {
+      const r = await G.importer.run([{ file: await nef(), name: 'DSC_0007.NEF' }]);
+      expect(r.added).toBe(1);
+      const m = G.library.list()[0];
+      expect(m.w).toBe(80);         // 120 × 80 turned by orientation 8
+      expect(m.h).toBe(120);
+      expect(m.model).toBe('NIKON D850');
+      expect(m.dateFrom).toBe('exif');
+      expect(new Date(m.takenAt).getFullYear()).toBe(2021);
+      const row = await G.db.get('thumbs', m.id);
+      const bmp = await createImageBitmap(row.blob);
+      const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+      expect(bmp.width).toBe(80);
+      const left = SlopTest.pixel(c, 20, 60), right = SlopTest.pixel(c, 60, 60);
+      expect(left[1]).toBeGreaterThan(180);    // orientation 8 puts the green top on the left
+      expect(right[0]).toBeGreaterThan(180);
+      const orig = await G.db.get('originals', m.id);
+      expect(orig.blob.size).toBe((await nef()).size);   // the original RAW bytes are stored unchanged
+    });
+    it('the tile shows the thumbnail and the viewer opens the photo as its upright preview', async () => {
+      const m = G.library.list()[0];
+      await waitFor(() => D.querySelector('img[src^="blob:"]'), { timeout: 10000 });
+      G.viewer.open([m.id], 0);
+      await waitFor(() => { const img = D.querySelector('.v-pic .spv-img'); return img && img.naturalWidth > 0; }, { timeout: 10000 });
+      const img = D.querySelector('.v-pic .spv-img');
+      expect(img.naturalWidth).toBe(80);
+      expect(img.naturalHeight).toBe(120);
+      window.__shot = true;
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

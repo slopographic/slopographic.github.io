@@ -1,0 +1,16 @@
+/* SlopViewMode: the place of the view controls. Loaded by viewmode.js; the layout itself is set by paint() in viewmode.js,
+ * and the buttons' look is the shared header button (shared/ui/hbtn.css, .slop-hbtn).
+ * The controls are a slot at the end of the host toolbar: order keeps it last (after any item another script appends,
+ * such as the shell's Apps button or the Drive link), and the View button has one width in every mode, so it stays in
+ * the same place. "Show panels" is there only in Focus and Content, to the left of the View button. */
+.slopvm-bar { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; flex: none; order: 999; }
+.slopvm-bar .slopvm-btn { width: 104px; justify-content: flex-start; }   /* .slopvm-bar: wins over hbtn.css, whichever loads last */
+.slopvm-btn .slop-hbtn-txt { display: inline-flex; flex: 1; align-items: center; justify-content: space-between; gap: 6px; }
+.slopvm-caret { width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .7; }
+.slopvm-bar .slopvm-reveal { display: none; }
+html[data-slopvm="focus"] .slopvm-reveal, html[data-slopvm="content"] .slopvm-reveal { display: inline-flex; }
+.slop-htight .slopvm-bar .slopvm-btn { width: var(--slop-hbtn-h, 32px); justify-content: center; }
+.slop-htight .slopvm-btn .slop-hbtn-txt { display: none; }
+.slopvm-peek { outline: 1px dashed var(--sl-accent, #888); outline-offset: -1px; }
+.slopvm-menu .sui-lbl { white-space: nowrap; }
+@media (max-width: 560px) { .slopvm-bar .slopvm-btn { width: var(--slop-hbtn-h, 30px); justify-content: center; } .slopvm-btn .slop-hbtn-txt { display: none; } }

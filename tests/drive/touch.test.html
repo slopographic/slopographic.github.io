@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Drive touch</title>
+  <style>body { margin: 0; background: #111; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="util.js"></script>
+  <script>
+  /* Slop Drive with a finger: a long press on a file selects it and opens its menu (the lift picks nothing), a double
+     tap on a file opens it, the folder graph pinches, the details grip and the preview grip take a drag, the audio wave
+     scrubs and the 3D preview orbits without scrolling.
+     Covers: drive/js/ui/select.js, drive/js/ui/view-nodes.js, drive/js/ui/info-width.js, drive/js/ui/preview-size.js,
+     drive/js/ui/audio-view.js, drive/js/ui/preview-3d.js */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, H, D, folder, blobs = true; // blobs: false where the browser cannot keep a file in IndexedDB (Playwright's WebKit on Linux; Safari can)
+  const fileRec = (n) => [...DR.S.files.values()].find((f) => f.name === n && !f.trashedAt);
+  const itemEl = (id) => D.querySelector(`#pane [data-key="f:${id}"]`);
+  const menu = () => D.querySelector('.sui-menu');
+  function wav(sec = 2, rate = 8000) {
+    const n = sec * rate, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin(2 * Math.PI * 440 * i / rate) * 16000), true);
+    return new W.Blob([buf], { type: 'audio/wav' }); // the app's own realm: WebKit stores no Blob of another frame
+  }
+
+  describe('Slop Drive on touch', () => {
+    it('boots with the touch layer and a few files', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready') && w.SlopTouch && w.SlopTouch.ready, { width: innerWidth, height: innerHeight });
+      DR = W.DR; H = W.SlopHub; D = W.document;
+      await H.clear();
+      folder = await DR.newFolder(null, 'Projects');
+      try {
+        await DR.importFiles([{ file: new W.File(['hello'], 'notes.txt', { type: 'text/plain' }), path: 'notes.txt' }], null);
+        await H.put(wav(), { name: 'tone.wav', from: 'upload' });
+      } catch (e) { blobs = false; console.info('SKIP the file steps: this browser keeps no Blob in IndexedDB'); }
+      DR.setView('grid');
+      await DR.refresh(); DR.render();
+      await waitFor(() => D.querySelector(`#pane [data-key="d:${folder}"]`) && (!blobs || (fileRec('notes.txt') && itemEl(fileRec('notes.txt').id))), { timeout: 10000 });
+      await sleep(400);
+    }, { timeout: 40000 });
+
+    it('a long press on a file (or a folder) selects it and opens its menu; the lift picks nothing', async () => {
+      const key = blobs ? 'f:' + fileRec('notes.txt').id : 'd:' + folder;
+      await TouchKit.longPress(D.querySelector(`#pane [data-key="${key}"]`));
+      await waitFor(() => menu(), { timeout: 3000 });
+      await sleep(250);
+      expect(!!menu()).toBe(true);
+      expect(DR.S.sel.has(key)).toBe(true);
+      expect([...menu().querySelectorAll('.sui-lbl')].map((x) => x.textContent)).toContain('Rename…');
+      W.SlopUI.closeMenu();
+      await sleep(800);
+    });
+
+    it('a double tap on a file opens it', async () => {
+      if (!blobs) return;
+      const f = fileRec('notes.txt');
+      let opened = null;
+      const real = DR.open;
+      DR.open = (item) => { opened = item; };
+      try {
+        await TouchKit.doubleTap(itemEl(f.id));
+        await waitFor(() => opened, { timeout: 3000 });
+        expect(opened.id).toBe(f.id);
+      } finally { DR.open = real; }
+    });
+
+    it('the folder graph is a touch surface and a pinch zooms it', async () => {
+      DR.setView('nodes');
+      const svg = await waitFor(() => D.querySelector('.nodes-svg'), { timeout: 5000 });
+      expect(svg.getAttribute('data-touch-surface')).toBe('');
+      expect(W.getComputedStyle(svg).touchAction).toBe('none');
+      await sleep(300);
+      const k0 = DR.nodesView.tx.k;
+      await TouchKit.pinch(svg, 2, 10);
+      await waitFor(() => DR.nodesView.tx.k > k0 * 1.3, { timeout: 3000 });
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      DR.setView('grid');
+    });
+
+    it('the grips take a finger: no scrolling, and a 44 px band under a coarse pointer', async () => {
+      const grip = D.querySelector('.info-grip');
+      if (grip) {
+        expect(W.getComputedStyle(grip).touchAction).toBe('none');
+        if (W.matchMedia('(pointer: coarse)').matches) expect(parseFloat(W.getComputedStyle(grip, '::before').width)).toBeGreaterThanOrEqual(44);
+      }
+      const pv = D.querySelector('.pv-grip');
+      if (pv) expect(W.getComputedStyle(pv).touchAction).toBe('none');
+    });
+
+    it('the audio wave scrubs with a finger (a touch surface)', async () => {
+      if (!blobs) return;
+      const view = DR.audioView(fileRec('tone.wav'));
+      D.body.append(view);
+      const cv = view.querySelector('.ap-wave');
+      expect(cv.getAttribute('data-touch-surface')).toBe('');
+      expect(W.getComputedStyle(cv).touchAction).toBe('none');
+      view.remove();
+    });
+
+    it('the 3D preview is a touch surface whose pinch zooms the camera', async () => {
+      if (!DR.webgl3d() || !blobs) return; // no WebGL in this browser (the preview is a note), or no stored files
+      const { S } = await DR.load3d();
+      await H.put(new W.Blob([S.format.serialize(S.model.defaultScene('Touch scene'))], { type: 'application/x-slop-3d' }), { name: 'scene.s3d', from: 'slopedit' });
+      await DR.refresh();
+      const box = DR.preview3d(fileRec('scene.s3d'), true);
+      box.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;z-index:99';
+      D.body.append(box);
+      const cv = await waitFor(() => box.querySelector('canvas.pv3d-cv'), { timeout: 15000 });
+      expect(cv.getAttribute('data-touch-surface')).toBe('');
+      expect(typeof cv.touchSurface.zoom).toBe('function');
+      box.remove();
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop Drive touch' });
+  </script>
+</body>
+</html>

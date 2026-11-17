@@ -1,0 +1,31 @@
+/* Slop Press, German: the main window, the rulers, the canvas and the status messages. Same keys as press/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-de.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'press.app.main_menu': 'Hauptmenü',
+  'press.app.toggle_panels': 'Bereiche ein- oder ausblenden',
+  'press.app.control_bar': 'Steuerleiste',
+  'press.app.layout_area': 'Layout',
+  'press.app.ruler_corner': 'Doppelklick, um die Seite einzupassen',
+  'press.app.ruler_h': 'Horizontales Lineal: nach unten ziehen, um eine Hilfslinie zu erstellen',
+  'press.app.ruler_v': 'Vertikales Lineal: nach rechts ziehen, um eine Hilfslinie zu erstellen',
+  'press.app.pages_canvas': 'Seiten',
+  'press.app.edit_text': 'Text bearbeiten',
+  'press.app.panels': 'Bereiche',
+  'press.app.went_wrong': 'Etwas ist schiefgelaufen: {error}',
+  'press.app.restored': 'Die letzte Sitzung wurde wiederhergestellt',
+  'press.app.guides_on': 'Hilfslinien ein',
+  'press.app.guides_off': 'Hilfslinien aus',
+  'press.app.baseline_on': 'Grundlinienraster ein',
+  'press.app.baseline_off': 'Grundlinienraster aus',
+  'press.app.snap_on': 'Einrasten ein',
+  'press.app.snap_off': 'Einrasten aus',
+  'press.app.no_masters': 'Noch keine Musterseiten',
+  'press.app.pages_added': '{n} Seiten hinzugefügt',
+  'press.app.pages_added#one': '{n} Seite hinzugefügt',
+  'press.app.style_redefined': 'Format neu definiert',
+  'press.app.cannot_thread': 'Diese Rahmen können nicht verkettet werden',
+  'press.app.thread_hint': 'Auf einen Textrahmen klicken (oder einen neuen aufziehen), um den Text fortzusetzen',
+  'press.app.paste_hint': 'Ctrl/Cmd+V zum Einfügen verwenden',
+  'press.app.master_left': '{name} (links)',
+  'press.app.master_right': '{name} (rechts)'
+});

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: a preset or typed box with Fit or Cover makes exactly that box</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: resize/js/app/settings.js, resize/js/core/size.js, resize/js/app/main.js, resize/index.html
+  // With Keep aspect ratio on, adding a picture used to rewrite the height to its shape, so Square 1080 × 1080 gave
+  // 1080 × 720 and Fit or Cover never applied. Fit and Cover now keep the box; Fit inside and a 0 side follow the picture.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win = null, doc = null;
+  const $ = (id) => doc.getElementById(id);
+  const type = (id, v) => { $(id).value = String(v); $(id).dispatchEvent(new win.Event('input', { bubbles: true })); };
+  const pick = (id, v) => { $(id).value = String(v); $(id).dispatchEvent(new win.Event('change', { bubbles: true })); };
+  async function boot() {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:1280px;height:800px;border:0';
+    f.src = '../../resize/index.html';
+    document.body.append(f);
+    await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    win = f.contentWindow; doc = f.contentDocument;
+    await waitFor(() => win.SlopResize && win.SlopResize.queue && win.SlopResize.app);
+  }
+  /** A 1500 × 1000 red PNG, added to the queue; resolves once it is read. */
+  async function addLandscape() {
+    const c = doc.createElement('canvas'); c.width = 1500; c.height = 1000;
+    const x = c.getContext('2d'); x.fillStyle = '#ff0000'; x.fillRect(0, 0, 1500, 1000);
+    await win.SlopResize.queue.add(new win.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'landscape.png', { type: 'image/png' }));
+    await waitFor(() => win.SlopResize.queue.items().every((i) => i.src));
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  async function result() {
+    await win.SlopResize.app.run();
+    const it = win.SlopResize.queue.items()[0];
+    expect(it.status).toBe('done');
+    const bmp = await createImageBitmap(it.out.blob);
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    c.getContext('2d').drawImage(bmp, 0, 0);
+    return { w: it.out.w, h: it.out.h, at: (x, y) => [...c.getContext('2d').getImageData(x, y, 1, 1).data] };
+  }
+
+  describe('Slop Resize: target boxes with Keep aspect ratio on', () => {
+    it('Square 1080 × 1080 then a landscape picture: the box stays 1080 × 1080 and Fit letterboxes', async () => {
+      await boot();
+      pick('rs-mime', 'image/png');
+      pick('rs-preset', 'sq1080');
+      expect($('rs-keep').checked).toBe(true);
+      expect($('rs-fill').value).toBe('fit');
+      await addLandscape();
+      expect([$('rs-w').value, $('rs-h').value]).toEqual(['1080', '1080']);
+      expect($('rs-ratio-note').textContent).toContain('exactly this box');
+      const r = await result();
+      expect([r.w, r.h]).toEqual([1080, 1080]);
+      expect(r.at(540, 540)).toEqual([255, 0, 0, 255]);   // the picture in the middle
+      expect(r.at(540, 20)[3]).toBe(0);                   // a transparent band above it (720 tall, centred)
+      expect(r.at(540, 1060)[3]).toBe(0);
+    });
+    it('Cover fills the same box and crops the sides', async () => {
+      pick('rs-fill', 'cover');
+      expect([$('rs-w').value, $('rs-h').value]).toEqual(['1080', '1080']);
+      expect($('rs-ratio-note').textContent).toContain('Cover crops');
+      const r = await result();
+      expect([r.w, r.h]).toEqual([1080, 1080]);
+      expect(r.at(2, 2)).toEqual([255, 0, 0, 255]);
+      expect(r.at(1077, 1077)).toEqual([255, 0, 0, 255]);
+    });
+    it('a typed width and height stay as typed with Fit, and make that box', async () => {
+      pick('rs-fill', 'fit');
+      pick('rs-preset', '');
+      type('rs-w', 800); type('rs-h', 800);
+      expect([$('rs-w').value, $('rs-h').value]).toEqual(['800', '800']);
+      const r = await result();
+      expect([r.w, r.h]).toEqual([800, 800]);
+    });
+    it('plain keep aspect: a height left at 0 follows the picture (width 750 gives 750 × 500)', async () => {
+      type('rs-h', 0); type('rs-w', 750);
+      const r = await result();
+      expect([r.w, r.h]).toEqual([750, 500]);
+    });
+    it('Fit inside locks the other side to the picture as one is typed, and the output has its shape', async () => {
+      pick('rs-fill', 'within');
+      expect($('rs-ratio-note').textContent).toContain('landscape.png, 1500 × 1000');
+      type('rs-w', 900);
+      expect($('rs-h').value).toBe('600');
+      const r = await result();
+      expect([r.w, r.h]).toEqual([900, 600]);
+    });
+  });
+  SlopTest.run({ name: 'Slop Resize: target boxes with Fit and Cover' });
+  </script>
+</body>
+</html>

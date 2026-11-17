@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Colors in Swedish</title>
+  <!-- Covers: colors/i18n/index.js, colors/js/main.js, colors/js/panel.js, colors/js/values.js, colors/js/swatches.js, colors/js/picture.js, colors/js/contrast-ui.js, colors/js/state.js, colors/js/io.js, colors/js/commands.js, colors/js/wheel.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Colors', path: '../../colors/index.html', ns: 'colors',
+    ready: (doc) => doc.querySelector('#co-panel .sf-h') && doc.querySelector('#co-download') && doc.querySelector('#co-values .co-copy'),
+    checks: [
+      ['#co-pal-add', 'Lägg till färgen', 'Add this colour'],
+      ['#co-pic-h', 'Hämta från en bild', 'Pick from a picture'],
+      ['#co-panel .sf-h', 'Skapat från den', 'Made from it'],
+      ['#co-big', 'Den aktuella färgen', 'The current colour', 'aria-label'],
+      ['#co-download', 'Ladda ned palett', 'Download palette'],
+      ['#co-values .co-copy', 'Kopiera', 'Copy'],
+      ['#co-wheel', 'Färghjul', 'Colour wheel', 'aria-label'],
+      ['#co-wheel .co-wh', 'Basfärg', 'Base colour', 'aria-label'],
+      ['#co-wheel-v-lab', 'Ljusstyrka', 'Brightness'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Colors in Swedish' });
+  </script>
+</body>
+</html>

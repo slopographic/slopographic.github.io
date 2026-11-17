@@ -1,0 +1,20 @@
+/* Slop AI shared words, Italian: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'ui.ai.cloud.or_signin': 'Accedi con {name}',
+  'ui.ai.cloud.or_note': 'Non hai ancora una chiave? Accedi e {name} crea una chiave per questo browser, pagata con i tuoi crediti {name}. Puoi limitarla o revocarla su {link}.',
+  'ui.ai.cloud.or_privacy': 'L’accesso va direttamente da questo browser a {name}; niente passa per i server di {brand}.',
+  'ui.ai.cloud.or_manage': 'Le tue chiavi {name}, create con l’accesso o a mano, si possono limitare o revocare su {link}. Dimentica la chiave la toglie solo da questo browser.',
+  'ui.ai.cloud.or_going': 'Apertura di {name}…',
+  'ui.ai.cloud.or_finishing': 'Completamento dell’accesso con {name}…',
+  'ui.ai.cloud.or_done': 'Accesso eseguito con {name}: la chiave di questo browser è salvata come una incollata.',
+  'ui.ai.cloud.or_denied': 'L’accesso non è stato consentito su {name}, quindi non è stato collegato nulla. Premi Accedi con {name} per riprovare, o incolla una chiave.',
+  'ui.ai.cloud.or_state': 'Questo accesso non è partito da questa scheda, quindi è stato rifiutato per proteggere il tuo account. Premi Accedi con {name} per ricominciare.',
+  'ui.ai.cloud.or_used': 'Quel codice di accesso è già stato usato o è scaduto (i codici durano 10 minuti). Premi Accedi con {name} per ricominciare.',
+  'ui.ai.cloud.or_failed': '{name} non ha fornito una chiave ({why}). Premi Accedi con {name} per riprovare, o incolla una chiave.',
+  'ui.ai.cloud.or_offline': 'Il browser è offline, quindi l’accesso non è stato completato. Connettiti a internet, poi premi di nuovo Accedi con {name}.',
+  'ui.ai.cloud.or_network': 'Impossibile raggiungere {name} per completare l’accesso. Controlla la connessione, poi premi di nuovo Accedi con {name}.',
+  'ui.ai.cloud.or_no_crypto': 'Questo browser non può accedere con {name} qui (serve Web Crypto su una pagina https). Incolla invece una chiave.',
+  'ui.ai.cloud.or_key_label': '{brand} in questo browser',
+  'ui.ai.cloud.or_badge': 'Accedi',
+  'ui.ai.cloud.or_badge_t': 'Nessuna chiave da copiare: accedi con il tuo account {name} e viene creata una chiave per questo browser.',
+});

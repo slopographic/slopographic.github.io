@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopBuffer · SlopVector to PhotoSlop</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; width: 1280px; height: 360px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="vec" src="../../slopvector/index.html"></iframe>
+  <iframe id="ps" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // A rectangle copied in SlopVector (Edit > Copy as buffer) lands in the shared buffer, and PhotoSlop places it as a
+  // new layer, both through its Paste command and by dropping the buffer on the page.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let V = null, P = null, before = 0;
+  const vecReady = (w) => { try { const a = w.document.getElementById('app'); return !!(a && a.classList.contains('ready') && w.SV); } catch (e) { return false; } };
+  const psReady = (w) => { try { return !!(w.document.body.classList.contains('ready') && w.SlopBuffer && w.eval('typeof D') === 'object'); } catch (e) { return false; } };
+
+  describe('SlopBuffer: SlopVector to PhotoSlop', () => {
+    it('both apps boot with the shared buffer', async () => {
+      await waitFor(() => vecReady(document.getElementById('vec').contentWindow), { timeout: 40000 });
+      await waitFor(() => psReady(document.getElementById('ps').contentWindow), { timeout: 40000 });
+      V = document.getElementById('vec').contentWindow;
+      P = document.getElementById('ps').contentWindow;
+      await V.SlopBuffer.ready;
+      await P.SlopBuffer.ready;
+      expect(typeof V.SV.buffer.copyAsBuffer).toBe('function');
+      expect(typeof P.pasteFromSystem).toBe('function');
+    }, { timeout: 60000 });
+
+    it('Copy as buffer in SlopVector stores the selected rectangle as SVG', async () => {
+      V.SV.loadDoc(V.SV.newDoc(1200, 800, 'Buffer test'), { fit: false });
+      V.SV.resetHistory();
+      const o = V.SV.mk.rect(300, 200, 200, 120, 0, V.SV.newStyle('rect'), 'Red box');
+      o.style.fill = '#ff0000';
+      o.style.stroke = null;
+      V.SV.activeLayer().children.push(o);
+      V.SV.commit('rect');
+      V.SV.select([o.id]);
+      expect(V.SV.buffer.copyAsBuffer()).toBe(true);
+      await waitFor(() => { const r = V.SlopBuffer.get(); return !!(r && r.kind === 'vector'); }, { timeout: 5000 });
+      const rec = V.SlopBuffer.get();
+      expect(rec.source).toBe('vector');
+      expect(rec.formats['image/svg+xml']).toContain('<rect');
+      expect(rec.formats['image/svg+xml']).toContain('#ff0000');
+      // the stored item is read back from IndexedDB, not only from memory
+      const stored = await V.SlopBuffer.store.read();
+      expect(stored.formats['image/svg+xml']).toBe(rec.formats['image/svg+xml']);
+    }, { timeout: 15000 });
+
+    it('PhotoSlop Paste places the buffer as a new layer, the rectangle at its size and colour', async () => {
+      await waitFor(() => { const r = P.SlopBuffer.get(); return !!(r && r.kind === 'vector'); }, { timeout: 10000 });
+      before = P.eval('D.layers.length');
+      P.eval('pasteFromSystem(false)');
+      await waitFor(() => P.eval('D.layers.length') === before + 1, { timeout: 15000 });
+      const L = P.eval('activeLayer()');
+      expect(L.canvas.width).toBe(200);
+      expect(L.canvas.height).toBe(120);
+      const px = L.canvas.getContext('2d').getImageData(100, 60, 1, 1).data;
+      expect(px[0]).toBeGreaterThan(200);
+      expect(px[1]).toBeLessThan(60);
+      expect(px[3]).toBeGreaterThan(200);
+    }, { timeout: 30000 });
+
+    it('dropping the buffer on PhotoSlop places it as a layer too', async () => {
+      const n = P.eval('D.layers.length');
+      const dt = new P.DataTransfer();
+      dt.setData('application/x-slop-buffer', String(P.SlopBuffer.get().t));
+      const at = { clientX: 40, clientY: 40, bubbles: true, cancelable: true, dataTransfer: dt };
+      P.document.body.dispatchEvent(new P.DragEvent('dragover', at));
+      P.document.body.dispatchEvent(new P.DragEvent('drop', at));
+      await waitFor(() => P.eval('D.layers.length') === n + 1, { timeout: 15000 });
+      expect(P.eval('D.layers.length')).toBe(n + 1);
+    }, { timeout: 30000 });
+
+    it('a newer local copy wins over the buffer (bufferIsNewer follows the clipboard times)', async () => {
+      P.eval('CLIP.t = 0');
+      const r = P.SlopBuffer.get();
+      expect(r.kind).toBe('vector');
+      expect(P.eval('bufferIsNewer()')).toBe(true);
+      P.eval('CLIP.t = Date.now() + 60000');
+      expect(P.eval('bufferIsNewer()')).toBe(false);
+      P.eval('CLIP.t = 0');
+    }, { timeout: 5000 });
+  });
+  SlopTest.run({ name: 'SlopBuffer: SlopVector to PhotoSlop' });
+  </script>
+</body>
+</html>

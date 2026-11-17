@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>File convert: the files on the left, the panel on the right with Convert at its foot; a phone's closed sheet shows Convert</title>
+  <style>body { margin: 0; } iframe { height: 844px; border: 0; display: block; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/ui/frame.js, convert/js/ui/tool.js, convert/css/tool.css, convert/css/convert.css, convert/index.html
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let F, W, D, T;
+  const $ = (s) => D.querySelector(s);
+  async function open(width, src = '../../convert/index.html') {
+    if (F) F.remove();
+    F = document.createElement('iframe'); F.style.width = width + 'px'; F.src = src; document.body.append(F);
+    await waitFor(() => F.contentWindow && F.contentWindow.document.querySelector('[data-convert-root]') && F.contentWindow.document.querySelector('[data-convert-root]').convertTool, { timeout: 30000 });
+    W = F.contentWindow; D = W.document; T = $('[data-convert-root]').convertTool;
+    if (W.SlopBanner && W.SlopBanner.remove) W.SlopBanner.remove();
+    await T.addFiles([new W.File(['a,b\n1,2\n'], 'prices.csv', { type: 'text/csv' }), new W.File(['x,y\n3,4\n'], 'stock.csv', { type: 'text/csv' })]);
+    await sleep(60);
+  }
+
+  describe('File convert: the right panel', () => {
+    it('at 1280 the panel is right of the files, Convert is in its foot and converts', async () => {
+      await open(1280);
+      const run = $('#cv-run'), side = $('.cv-side'), main = $('.cv-main');
+      expect(!!run.closest('.cv-side > .sf-p-foot')).toBe(true);
+      expect(side.getBoundingClientRect().left).toBeGreaterThanOrEqual(main.getBoundingClientRect().right - 1);
+      expect(run.textContent).toBe('Convert 2 files');
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(1280);
+      run.click();
+      await waitFor(() => T.outputs.length === 2, { timeout: 30000 });
+      expect(side.contains($('#cv-out'))).toBe(true);
+      expect(side.querySelectorAll('.cv-out-item a[download]').length).toBe(2);
+      expect($('#cv-status').textContent).toContain('2 files ready');
+    }, { timeout: 60000 });
+
+    it('a converter page has the same panel', async () => {
+      await open(1280, '../../convert/csv-to-json/index.html');
+      expect(!!$('#cv-run').closest('.cv-side .sf-p-foot')).toBe(true);
+    }, { timeout: 60000 });
+
+    it('at 390 the closed sheet shows Convert at the bottom of the screen, with no sideways scroll', async () => {
+      await open(390);
+      const run = $('#cv-run'), r = run.getBoundingClientRect();
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(r.height).toBeGreaterThan(0);
+      expect(r.bottom).toBeLessThanOrEqual(W.innerHeight + 0.5);
+      expect(r.top).toBeGreaterThan(W.innerHeight - 140);
+      D.querySelectorAll('.sd-toast').forEach((n) => n.remove());   // the drop's passing "Added 2 files" note
+      const hit = D.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      expect(hit && (hit.closest('#cv-run') ? 'run' : hit.className)).toBe('run');
+      run.click();
+      await waitFor(() => T.outputs.length === 2, { timeout: 30000 });
+      await waitFor(() => $('.cv-side').classList.contains('ssh-on'));   // the results come up in the sheet
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'File convert: the right panel' });
+  </script>
+</body>
+</html>

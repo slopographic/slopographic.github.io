@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared FMP: the database viewer</title>
+  <style>body { margin: 0; background: #fff; color: #111; font: 13px system-ui; }</style>
+</head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/i18n/i18n.js"></script>
+<script src="../../shared/intake/outtake.js"></script>
+<script src="fake.js"></script>
+<script src="../../shared/fmp/view-util.js"></script>
+<script src="../../shared/fmp/view-error.js"></script>
+<script src="../../shared/fmp/view-grid.js"></script>
+<script src="../../shared/fmp/view-find.js"></script>
+<script src="../../shared/fmp/view-export.js"></script>
+<script src="../../shared/fmp/view.js"></script>
+<script>
+  // Covers: shared/fmp/view.js, shared/fmp/view-util.js, shared/fmp/view-error.js, shared/fmp/view-grid.js, shared/fmp/view-find.js, shared/fmp/view-export.js
+  // The read-only database viewer on a fake database of 10,000 rows x 8 columns whose rows() answers after a delay: the
+  // header, the table tabs, the header row, that only a window of rows is in the page, paging at the end, the column
+  // widths, failed pages, the colour tokens, destroy() and the words. Find, Export and the error screens: view-tools.test.html.
+  const { describe, it, afterEach, expect, sleep, waitFor, run } = SlopTest;
+  const V = window.SlopFmpView;
+  let box = null, view = null, db = null;
+  const mountDb = (opts, dbOpts) => {
+    db = FakeFmp.make(dbOpts);
+    box = document.createElement('div');
+    box.style.cssText = 'width:900px;height:520px';
+    document.body.append(box);
+    view = V.mount(box, db, opts || { title: 'Contacts.fmp12' });
+    return view;
+  };
+  const q = (s) => box.querySelector(s), qa = (s) => [...box.querySelectorAll(s)];
+  const real = () => qa('.sfv-r:not([aria-busy])');
+  const loaded = () => waitFor(() => real().length > 0);
+  const scroller = () => q('.sfv-scroll');
+  const key = (el, k, extra) => el.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, extra)));
+  const rowNo = (el) => el.querySelector('.sfv-n').textContent;
+  const cleanup = () => { if (view) view.destroy(); if (box) box.remove(); view = box = null; };
+
+  describe('header and table tabs', () => {
+    afterEach(cleanup);
+    it('shows the title, the format label and the number of tables', async () => {
+      mountDb(); await loaded();
+      expect(q('.sfv-title').textContent).toBe('Contacts.fmp12');
+      expect(q('.sfv-fmt').textContent).toBe('FileMaker Pro 12+ (fmp12)');
+      expect(q('.sfv-tcount').textContent).toBe('3 tables');
+      expect(V.tr('ui.fmp.tables', { n: 1 })).toBe('1 table');
+      expect(q('.sfv').getAttribute('aria-label')).toBe('Database: Contacts.fmp12');
+    });
+    it('has a tab strip, one tab per table, the first one selected and its panel labelled by it', async () => {
+      mountDb(); await loaded();
+      const tabs = qa('[role="tab"]');
+      expect(q('[role="tablist"]').getAttribute('aria-label')).toBe('Tables');
+      expect(tabs.map((b) => b.querySelector('.sfv-tn').textContent)).toEqual(['Contacts', 'Orders', 'Empty']);
+      expect(tabs.map((b) => b.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+      expect(tabs[0].querySelector('.sfv-tr').textContent).toBe(V.num(10000));
+      expect(q('[role="tabpanel"]').getAttribute('aria-labelledby')).toBe(tabs[0].id);
+      expect(tabs.map((b) => b.tabIndex)).toEqual([0, -1, -1]);
+    });
+    it('switches table with a click and with the arrow keys, and shows its row and column count', async () => {
+      mountDb(); await loaded();
+      expect(q('.sfv-info').textContent).toBe(V.num(10000) + ' rows · 8 columns');
+      qa('[role="tab"]')[1].click();
+      await waitFor(() => real().length && scroller().getAttribute('aria-label') === 'Orders');
+      expect(q('.sfv-info').textContent).toBe('30 rows · 3 columns');
+      expect(qa('.sfv-h').map((h) => h.textContent)).toEqual(['#', 'Order', 'Item', 'Qty']);
+      key(q('[role="tablist"]'), 'ArrowRight');
+      expect(q('.sfv-empty').textContent).toBe('This table has no rows.');
+      expect(qa('[role="tab"]')[2].getAttribute('aria-selected')).toBe('true');
+      key(q('[role="tablist"]'), 'Home');
+      await loaded();
+      expect(scroller().getAttribute('aria-label')).toBe('Contacts');
+    });
+    it('uses a select for more than eight tables', async () => {
+      const extra = Array.from({ length: 7 }, (_, i) => ({ id: 'x' + i, name: 'Extra ' + i, rowCount: 0, columns: [{ name: 'A' }] }));
+      mountDb(null, { extra });
+      const sel = q('select.sfv-select');
+      expect(qa('[role="tab"]').length).toBe(0);
+      expect(sel.options.length).toBe(10);
+      expect(sel.getAttribute('aria-label')).toBe('Table');
+      sel.value = '1'; sel.dispatchEvent(new Event('change'));
+      await waitFor(() => scroller().getAttribute('aria-label') === 'Orders');
+      expect(q('.sfv-tcount').textContent).toBe('10 tables');
+    });
+  });
+
+  describe('the data grid', () => {
+    afterEach(cleanup);
+    it('has a sticky header row with the names, the types as muted captions, and a row-number column', async () => {
+      mountDb(); await loaded();
+      const heads = qa('.sfv-h');
+      expect(heads.length).toBe(9);
+      expect(heads.slice(1).map((h) => h.querySelector('.sfv-hn').textContent)).toEqual(['ID', 'Name', 'City', 'Email', 'Notes', 'Amount', 'Created', 'Active']);
+      expect(qa('.sfv-ht').map((h) => h.textContent)).toEqual(['Number', 'Text', 'Text', 'Text', 'Text', 'Number', 'Date']);
+      expect(getComputedStyle(q('.sfv-hrow')).position).toBe('sticky');
+      expect(rowNo(real()[0])).toBe('1');
+      scroller().scrollTop = 3000;
+      await waitFor(() => rowNo(real()[0]) !== '1');
+      expect(Math.round(q('.sfv-hrow').getBoundingClientRect().top)).toBe(Math.round(scroller().getBoundingClientRect().top));
+    });
+    it('is a touch surface that a finger still scrolls, and a keyboard stop with grid roles', async () => {
+      mountDb(); await loaded();
+      const s = scroller();
+      expect(s.hasAttribute('data-touch-surface')).toBe(true);
+      expect(getComputedStyle(s).touchAction).toBe('pan-x pan-y');
+      expect(s.tabIndex).toBe(0);
+      expect([s.getAttribute('role'), s.getAttribute('aria-rowcount'), s.getAttribute('aria-colcount')]).toEqual(['grid', '10001', '9']);
+    });
+    it('keeps only a window of rows in the page, in a scroller as tall as all the rows', async () => {
+      mountDb(); await loaded();
+      expect(qa('.sfv-r').length).toBeGreaterThan(8);
+      expect(qa('.sfv-r').length).toBeLessThan(60);
+      expect(q('.sfv-sizer').offsetHeight).toBeGreaterThan(10000 * 28);
+      expect(real()[0].querySelector('.sfv-c').textContent).toBe('1');
+      expect(real()[0].querySelectorAll('.sfv-c')[1].textContent).toBe('Name 0');
+      scroller().scrollTop = 5000 * 28;
+      await waitFor(() => real().some((r) => rowNo(r) === String(5001)));
+      expect(qa('.sfv-r').length).toBeLessThan(60);
+    });
+    it('scrolls a table of millions of rows at a scale, and still reaches its first, middle and last row', async () => {
+      mountDb(null, { delay: 2, extra: [{ id: 'big', name: 'Huge', rowCount: 2000000, columns: [{ name: 'A' }, { name: 'B' }] }] });
+      view.select(3);
+      await waitFor(() => scroller().getAttribute('aria-label') === 'Huge' && real().length > 5);
+      expect(q('.sfv-sizer').offsetHeight).toBeLessThan(12.1e6); // not 2,000,000 x 28 px, which no browser lays out
+      scroller().scrollTop = scroller().scrollHeight;
+      await waitFor(() => real().some((r) => rowNo(r) === '2000000'));
+      scroller().scrollTop = scroller().scrollHeight / 2;
+      await waitFor(() => real().length > 5 && Math.abs(Number(rowNo(real()[3])) - 1000000) < 3000);
+      scroller().scrollTop = 0;
+      await waitFor(() => real().some((r) => rowNo(r) === '1'));
+    });
+    it('shows a placeholder row while a page loads, and reads the next page as the end comes into view', async () => {
+      mountDb(null, { delay: 120 });
+      expect(qa('.sfv-r[aria-busy="true"]').length).toBeGreaterThan(5);
+      await loaded();
+      scroller().scrollTop = scroller().scrollHeight;
+      await waitFor(() => qa('.sfv-r[aria-busy="true"]').length > 0);
+      await waitFor(() => db.calls.some((c) => c[1] === 9800));
+      await waitFor(() => real().some((r) => rowNo(r) === String(10000)));
+      const last = real().find((r) => rowNo(r) === String(10000));
+      expect(last.querySelectorAll('.sfv-c')[1].textContent).toBe('Name 9999');
+      expect(db.calls.every((c) => c[1] % 200 === 0 && c[2] === 200)).toBe(true);
+      expect(db.calls.length).toBeLessThan(10); // pages, not the whole table
+      const before = db.calls.length;
+      scroller().scrollTop = 0;
+      await waitFor(() => real().some((r) => rowNo(r) === '1'));
+      expect(db.calls.length).toBe(before); // the first page is still in the cache
+    });
+    it('sizes columns from the first page (80 to 360 px) and cuts long text, keeping the whole value in a title', async () => {
+      mountDb(); await loaded();
+      await waitFor(() => qa('.sfv-h')[5].getBoundingClientRect().width > 300);
+      const w = qa('.sfv-h').slice(1).map((h) => Math.round(h.getBoundingClientRect().width));
+      expect(w.every((x) => x >= 80 && x <= 360)).toBe(true);
+      expect(w[0]).toBe(80); // ID: a short name
+      expect(w[4]).toBe(360); // Notes: long text
+      expect(w[3]).toBeGreaterThan(w[0]);
+      const note = real()[0].querySelectorAll('.sfv-c')[4];
+      expect(note.title.startsWith('A long note')).toBe(true);
+      expect(note.textContent).toBe(note.title);
+      expect(note.scrollWidth).toBeGreaterThan(note.clientWidth);
+      expect(getComputedStyle(note).textOverflow).toBe('ellipsis');
+    });
+    it('says so when a page cannot be read, and reads it again on Try again', async () => {
+      mountDb(null, { delay: 5 });
+      await loaded();
+      db.failPages.add(1000);
+      scroller().scrollTop = 850 * 28; // the page after the ones in view is read ahead and fails: nothing is said yet
+      await waitFor(() => db.calls.some((c) => c[1] === 1000));
+      await sleep(100);
+      expect(q('.sfv-alert').hidden).toBe(true);
+      scroller().scrollTop = 995 * 28; // now its rows are in view
+      await waitFor(() => !q('.sfv-alert').hidden);
+      expect(q('.sfv-alert').textContent).toContain('Some rows could not be read.');
+      q('.sfv-alert button').click();
+      await waitFor(() => real().some((r) => rowNo(r) === '1001'));
+      expect(q('.sfv-alert').hidden).toBe(true);
+    });
+    it('takes its colours from the tokens a page sets, and has light and dark fallbacks', async () => {
+      mountDb(); await loaded();
+      box.style.setProperty('--sui-bg', 'rgb(1, 2, 3)');
+      expect(getComputedStyle(q('.sfv')).backgroundColor).toBe('rgb(1, 2, 3)');
+      box.style.removeProperty('--sui-bg');
+      expect(getComputedStyle(q('.sfv')).backgroundColor).toMatch(/^rgb\(/);
+      expect(getComputedStyle(q('.sfv')).getPropertyValue('--sfv-muted')).toContain('color-mix');
+    });
+  });
+
+  describe('destroy() and words', () => {
+    afterEach(cleanup);
+    it('takes the viewer down and stops reading, and may be called twice; the database stays the caller\'s', async () => {
+      mountDb(); await loaded();
+      scroller().scrollTop = 4000 * 28; // a page read is under way
+      view.destroy();
+      expect(box.children.length).toBe(0);
+      const n = db.calls.length;
+      await sleep(150);
+      expect(db.calls.length).toBe(n);
+      view.destroy();
+      expect(db.closed).toBe(0);
+    });
+    it('writes the words of the shared table when it has the keys, and follows a language change', async () => {
+      mountDb(); await loaded();
+      SlopI18n.add('en', { 'ui.fmp.tables': '{n} tabeller', 'ui.fmp.tables#one': '{n} tabell', 'ui.fmp.find': 'Sök' });
+      window.dispatchEvent(new Event('slopi18n'));
+      expect(q('.sfv-tcount').textContent).toBe('3 tabeller');
+      expect(q('.sfv-find-in').getAttribute('aria-label')).toBe('Sök');
+      expect(V.tr('ui.fmp.tables', { n: 1 })).toBe('1 tabell');
+    });
+  });
+  run();
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+/* Slop Timesheets: only what is its own (the timer card and the billing rows). The base (theme tokens, inputs, buttons,
+ * chips, tabs, toolbars, cards, forms) is shared/biz/app.css; the entry rows are SlopList (shared/ui/list.css). */
+.timer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.timer .tm-desc { flex: 1 1 220px; }
+.timer .tm-desc input { width: 100%; }
+.tm-clock { font: 600 22px/1 var(--font-ui); font-variant-numeric: tabular-nums; min-width: 6.5ch; }
+.timer.is-running { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.total { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.check { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--ink) !important; }
+.check input { min-height: 0; width: 18px; height: 18px; }
+.bill-rows { display: grid; gap: 6px; margin: 8px 0; }
+.bill-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel); cursor: pointer; }
+.bill-row:hover { background: var(--hover); }
+.bill-row input { min-height: 0; width: 18px; height: 18px; }
+.bill-what { display: grid; min-width: 0; }
+.bill-what b { font-weight: 500; overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  .bill-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .bill-row > .num:last-child { grid-column: 2 / -1; justify-self: end; }
+}

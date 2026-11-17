@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopculator · unit conversion</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../calculator/index.html" title="Slopculator"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const W = () => frame.contentWindow;
+  const $ = (sel) => frame.contentDocument.querySelector(sel);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  /** Types an expression the way a person would, and presses Enter. */
+  async function calculate(text) {
+    await until(() => W().SlopCalcApp && $('#sc-expr'), 'the calculator');
+    const input = $('#sc-expr');
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    $('#sc-enter').click();
+    await sleep(120);
+  }
+  /** Sets a control the way a person would (a value, then the change event). */
+  function choose(sel, value) {
+    const el = $(sel);
+    el.value = value;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function type(sel, value) {
+    const el = $(sel);
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  const panel = () => $('#sc-conv-out').textContent;
+  /** The exact converter, once the page has loaded. */
+  const exact = async () => { /* exact reads units when it converts, so wait for both */ await until(() => W().SlopCalc && W().SlopCalc.exact && W().SlopCalc.units, 'the calculator'); return W().SlopCalc.exact; };
+
+  describe('Slopculator: exact conversions', async () => {
+    it('1 mile is exactly 1.609344 km, and 1 km is 1000 m', async () => {
+      const mi = (await exact()).convert('length', 'mi', 'km', '1');
+      expect(mi.text).toBe('1.609344');
+      expect(mi.exact).toBe(true);
+      expect((await exact()).convert('length', 'km', 'm', '1').text).toBe('1000');
+    });
+    it('a result that does not terminate is rounded to 12 places and flagged', async () => {
+      const r = (await exact()).convert('length', 'm', 'ft', '1');
+      expect(r.exact).toBe(false);
+      expect(r.text).toBe('3.280839895013');
+    });
+    it('temperatures go through kelvin and are exact', async () => {
+      expect((await exact()).convert('temp', 'c', 'f', '100').text).toBe('212');
+      expect((await exact()).convert('temp', 'f', 'c', '-40').text).toBe('-40');
+      expect((await exact()).convert('temp', 'k', 'c', '0').text).toBe('-273.15');
+    });
+    it('data sizes use powers of 1000 and of 1024', async () => {
+      expect((await exact()).convert('data', 'GB', 'MiB', '1').text).toBe('953.67431640625');
+      expect((await exact()).convert('data', 'KB', 'B', '0.1').text).toBe('100');
+    });
+    it('an unknown unit or a bad number is refused with a message', async () => {
+      const x = await exact();
+      expect(() => x.convert('length', 'km', 'kg', '1')).toThrow(/Unknown unit/);
+      expect(() => x.convert('length', 'km', 'm', 'abc')).toThrow(/not a number/);
+    });
+  });
+
+  describe('Slopculator: the expression converts a unit', () => {
+    it('1 km in m is 1,000 m', async () => {
+      await calculate('1 km in m');
+      expect($('#sc-preview').textContent).toBe('= 1,000 m');
+      expect($('#sc-status').textContent).toBe('Saved to the tape: 1 km in m = 1,000 m');
+    });
+    it('a time unit and a data unit convert in the expression too', async () => {
+      await calculate('500 ms in s');
+      expect($('#sc-preview').textContent).toBe('= 0.5 s');
+      await calculate('2 GB in MB');
+      expect($('#sc-preview').textContent).toBe('= 2,000 MB');
+    });
+  });
+
+  describe('Slopculator: the Convert panel', () => {
+    it('shows 1 km as 1000 m when it opens', async () => {
+      await until(() => panel(), 'the Convert panel');
+      expect(panel()).toBe('1000 m');
+      expect($('#sc-conv-cat').value).toBe('length');
+      expect($('#sc-conv-from').value).toBe('km');
+      expect($('#sc-conv-to').value).toBe('m');
+    });
+    it('follows the typed value', () => {
+      type('#sc-conv-value', '2.5');
+      expect(panel()).toBe('2500 m');
+    });
+    it('swap exchanges the two units', () => {
+      type('#sc-conv-value', '1');
+      $('#sc-conv-swap').click();
+      expect($('#sc-conv-from').value).toBe('m');
+      expect($('#sc-conv-to').value).toBe('km');
+      expect(panel()).toBe('0.001 km');
+    });
+    it('a category change refills the units and converts temperature', () => {
+      choose('#sc-conv-cat', 'temp');
+      expect($('#sc-conv-from').value).toBe('c');
+      expect($('#sc-conv-to').value).toBe('f');
+      type('#sc-conv-value', '100');
+      expect(panel()).toBe('212°F');
+    });
+    it('marks an approximate answer with ≈', () => {
+      choose('#sc-conv-cat', 'length');
+      choose('#sc-conv-from', 'm');
+      choose('#sc-conv-to', 'ft');
+      type('#sc-conv-value', '1');
+      expect(panel()).toBe('≈ 3.280839895013 ft');
+    });
+    it('a bad value says why, in place', () => {
+      type('#sc-conv-value', 'abc');
+      expect(panel()).toMatch(/is not a number/);
+      expect($('#sc-conv-out').classList.contains('sc-error')).toBe(true);
+    });
+    it('offers every dimension, with the calculator units', () => {
+      const keys = [...$('#sc-conv-cat').options].map((o) => o.value);
+      expect(keys).toEqual(['length', 'mass', 'volume', 'time', 'calendar', 'data', 'temp']);
+    });
+  });
+
+  run({ name: 'Slopculator · unit conversion' });
+  </script>
+</body>
+</html>

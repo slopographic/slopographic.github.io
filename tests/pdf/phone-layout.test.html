@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slop PDF on an iPhone 15 Pro: nothing overlaps, nothing scrolls the page</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 393px; height: 759px; }</style>
+</head>
+<body>
+  <!-- 393 × 759: an iPhone 15 Pro's web view in the app (852 pt less the status bar and the home indicator). -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script>
+  /* A TestFlight tester: "when editing the PDF the page transforms so buttons overlap or are cut by the canvas". The header
+     sat under the status bar, a grey band under the bottom bar: pdf.js's text layer adds a measuring canvas to <body>
+     (pdf.js's own viewer CSS hides it, the app had no such rule), each one a line below the one-screen app, so the page
+     could scroll. The zoom pill sat on the helper button in the bottom right corner.
+     Covers: shared/slopui.css, shared/input/keyboard.js, pdf/css/workspace.css, pdf/css/themes.css */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, D;
+  const box = (el) => el.getBoundingClientRect();
+  const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const noScroll = () => {
+    const se = D.scrollingElement;
+    expect([se.scrollHeight <= W.innerHeight, se.scrollWidth <= W.innerWidth, W.scrollY]).toEqual([true, true, 0]);
+  };
+
+  describe('393 × 759 with the sample open', () => {
+    it('the page view: the document never scrolls (no measuring canvas below the app)', async () => {
+      W = await PT.boot();
+      D = W.document;
+      D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));
+      D.getElementById('emptySample').click();
+      await waitFor(() => W.SP.engine.state.pages.length === 4, { timeout: 20000 });
+      D.querySelector('.rail-b[data-tool="edit"]').click();
+      await waitFor(() => D.getElementById('app').dataset.mode === 'page' && D.querySelector('.pv-textlayer span'), { timeout: 20000 });
+      await sleep(300);
+      const hidden = D.querySelectorAll('body > canvas.hiddenCanvasElement');
+      expect(hidden.length > 0).toBe(true);   // pdf.js made its canvas: it must not show
+      for (const c of hidden) expect(W.getComputedStyle(c).display).toBe('none');
+      noScroll();
+      W.scrollTo(0, 200);   // what a focus or a touch drag on iOS asks for
+      expect(W.scrollY).toBe(0);
+    }, { timeout: 60000 });
+
+    it('the header is whole at the top, the bottom bar at the bottom', () => {
+      const top = box(D.querySelector('.topbar')), rail = box(D.getElementById('rail'));
+      expect([Math.round(top.top), top.height > 30]).toEqual([0, true]);
+      expect(Math.round(rail.bottom)).toBe(759);
+      for (const b of D.querySelectorAll('.topbar button')) {
+        const r = box(b);
+        if (r.width && W.getComputedStyle(b).visibility !== 'hidden') expect(r.top >= 0).toBe(true);
+      }
+    });
+
+    it('the zoom pill stays clear of the helper button’s corner (and of the button)', async () => {
+      const fab = D.querySelector('.pv-zoomfab');
+      expect(W.getComputedStyle(fab).display).toBe('flex');
+      const f = box(fab), foot = D.querySelector('.props .sf-p-foot');
+      expect(f.right < W.innerWidth - 14 - 44 - 4).toBe(true);
+      if (foot && foot.getClientRects().length) expect(f.bottom <= box(foot).top + 1).toBe(true);
+      await waitFor(() => D.querySelector('.buddy-toggle'), { timeout: 8000 }).catch(() => null);
+      const bt = D.querySelector('.buddy-toggle');
+      if (bt && !bt.hidden) expect(meets(f, box(bt))).toBe(false);
+    }, { timeout: 20000 });
+
+    it('the Sign sheet: above the bottom bar, its sections scroll above its footer, the page still does not scroll', async () => {
+      D.querySelector('.rail-b[data-tool="sign"]').click();
+      await waitFor(() => D.getElementById('app').classList.contains('sheet-open'));
+      await sleep(100);
+      const props = D.querySelector('.props'), p = box(props), rail = box(D.getElementById('rail'));
+      expect(p.bottom <= rail.top + 1).toBe(true);
+      expect(p.top >= box(D.querySelector('.topbar')).bottom).toBe(true);
+      props.scrollTop = props.scrollHeight;
+      await sleep(50);
+      const foot = box(props.querySelector('.sf-p-foot')), kids = [...props.children].filter((c) => !c.classList.contains('sf-p-foot') && c.getClientRects().length);
+      const last = kids[kids.length - 1];
+      expect(box(last).bottom <= foot.top + 1).toBe(true);   // the Layers section is reachable, not cut by Download
+      noScroll();
+    }, { timeout: 20000 });
+
+    it('a finger: the sheet’s fields are 16 px or more (iOS zooms the page into a smaller one)', () => {
+      if (!W.matchMedia('(pointer: coarse)').matches) return;
+      for (const f of D.querySelectorAll('.props input[type="text"], .props input:not([type]), .props select, .props textarea')) {
+        expect(parseFloat(W.getComputedStyle(f).fontSize) >= 16).toBe(true);
+      }
+    });
+  });
+  SlopTest.run({ name: 'Slop PDF: phone layout' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopAppBar (title, home link, actions, the ⋯ menu, narrow hosts, dirty dot)</title>
+  <style>body { margin: 0; font: 14px system-ui; } #wide { width: 900px; } #narrow { width: 360px; }</style>
+</head>
+<body>
+  <div id="wide"></div><div id="narrow"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/appbar/appbar.js"></script>
+  <script>
+  // Covers: shared/appbar/appbar.js, shared/i18n/ui/en/shell.js, shared/i18n/ui/sv/shell.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const $ = (id) => document.getElementById(id);
+  let saved = 0, exported = 0;
+  const actions = [{ id: 'save', label: 'Save', icon: 'save', primary: true, onClick: () => saved++ }];
+  const menu = [{ id: 'exp', label: 'Export', onClick: () => exported++ }, { separator: true }, { id: 'off', label: 'Off', disabled: true, onClick: () => {} }];
+
+  describe('SlopAppBar', () => {
+    it('leads with the home link when asked, then the title and subtitle; no badge without an icon', () => {
+      const bar = SlopAppBar.mount($('wide'), { title: 'QR SLOP', subtitle: 'Codes', home: '../', actions, menu });
+      const brand = bar.element.querySelector('.sab-brand');
+      const home = brand.firstElementChild;
+      expect(home.tagName).toBe('A');
+      expect(home.classList.contains('brand')).toBe(true);
+      expect(home.getAttribute('href')).toBe('../');
+      expect(home.getAttribute('aria-label')).toBe('Slopographic home');
+      expect(brand.querySelector('.sab-name').textContent).toBe('QR SLOP');
+      expect(brand.querySelector('.sab-sub').textContent).toBe('Codes');
+      expect(brand.querySelector('.sab-badge').hidden).toBe(true);
+    });
+    it('without home there is no link', () => {
+      const bar = SlopAppBar.mount($('narrow'), { title: 'Plain' });
+      expect(bar.element.querySelector('a.brand')).toBe(null);
+    });
+    it('an action is a button that runs its handler; the dirty dot shows unsaved changes', () => {
+      const bar = SlopAppBar.mount($('wide'), { title: 'App', home: '../', actions, menu });
+      bar.element.querySelector('[data-id="save"]').click();
+      expect(saved).toBe(1);
+      const dot = bar.element.querySelector('.sab-dirty');
+      expect(dot.hidden).toBe(true);
+      bar.setDirty(true);
+      expect(dot.hidden).toBe(false);
+      bar.setTitle('Renamed');
+      expect(bar.element.querySelector('.sab-name').textContent).toBe('Renamed');
+    });
+    it('the ⋯ menu lists its items, runs one and closes; a disabled item does nothing', async () => {
+      const bar = SlopAppBar.mount($('wide'), { title: 'App', actions, menu });
+      const more = bar.element.querySelector('.sab-more-btn');
+      more.click();
+      const m = bar.element.querySelector('.sab-menu');
+      expect(m.hidden).toBe(false);
+      expect(more.getAttribute('aria-expanded')).toBe('true');
+      const items = [...m.querySelectorAll('.sab-item')];
+      expect(items.map((i) => i.textContent)).toContain('Export');
+      expect(items.find((i) => i.textContent === 'Off').disabled).toBe(true);
+      items.find((i) => i.textContent === 'Export').click();
+      expect(exported).toBe(1);
+      expect(m.hidden).toBe(true);
+    });
+    it('a host 600 px wide or less moves the actions into the ⋯ menu', async () => {
+      const bar = SlopAppBar.mount($('narrow'), { title: 'App', actions, menu });
+      await waitFor(() => bar.element.dataset.narrow === 'true');
+      bar.element.querySelector('.sab-more-btn').click();
+      expect([...bar.element.querySelectorAll('.sab-menu .sab-item')].some((i) => i.textContent === 'Save')).toBe(true);
+    });
+    it('its own labels are in the chosen language and follow a live switch (home, unsaved dot, ⋯)', async () => {
+      const bar = SlopAppBar.mount($('wide'), { title: 'App', home: '../', actions, menu });
+      const el = bar.element, attr = (sel, a) => el.querySelector(sel).getAttribute(a);
+      expect([attr('.sab-more-btn', 'aria-label'), attr('.sab-dirty', 'title')]).toEqual(['More actions', 'Unsaved changes']);
+      const I = window.SlopI18n;
+      I.set('sv');
+      await I.ready();
+      try {
+        await waitFor(() => attr('.sab-more-btn', 'aria-label') === 'Fler åtgärder', { timeout: 10000 });
+        expect([attr('.sab-dirty', 'title'), attr('.sab-actions', 'aria-label'), attr('a.brand', 'aria-label')]).toEqual(['Osparade ändringar', 'Åtgärder', 'Slopographic start']);
+        const again = SlopAppBar.mount($('narrow'), { title: 'App', actions, menu });
+        expect(again.element.querySelector('.sab-menu').getAttribute('aria-label')).toBe('Fler åtgärder');   // built in Swedish
+      } finally { I.set('en'); localStorage.removeItem('slop-profile'); SlopTest.english(); }
+      await waitFor(() => attr('.sab-more-btn', 'aria-label') === 'More actions', { timeout: 10000 });
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

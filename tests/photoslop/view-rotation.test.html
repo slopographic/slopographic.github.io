@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop view rotation tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // View rotation: the whole viewport turns, never the document. Rotate left and right (90°), the slider, Reset View,
+  // the shortcuts (Alt+[, Alt+], Alt+0), the status bar angle, and the pointer mapping at any angle (toDoc).
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, W;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const q = (sel) => win.document.querySelector(sel);
+  /** The viewport (client) position of a document point, at the view's current rotation. */
+  const clientOf = (x, y) => {
+    const r = W.V.el.getBoundingClientRect(), s = W.toScreen(x, y), p = W.hostPt(s.x, s.y);
+    return { clientX: r.left + p.x, clientY: r.top + p.y };
+  };
+  const pixelsHash = () => W.flattenCanvas().toDataURL();
+
+  describe('PhotoSlop view rotation', () => {
+    it('boots', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      win = frame.contentWindow;
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.rotateView).toBe('function');
+      expect(W.V.rot).toBe(0);
+    }, { timeout: 40000 });
+
+    it('rotate right and left turn the view 90°, and Reset View returns rotation, zoom and pan to the defaults', async () => {
+      W.newDocTab(300, 200, '#ffffff', 'Rotate'); W.selectTool('move');
+      const defZoom = W.V.zoom, defOx = W.V.ox, defOy = W.V.oy;
+      const hist = W.Hist.idx;
+      const before = pixelsHash();
+      W.rotateView(90);
+      expect(W.V.rot).toBe(90);
+      W.rotateView(-90); W.rotateView(-90);
+      expect(W.V.rot).toBe(-90);
+      W.setZoom(3); W.V.ox += 40; W.V.oy -= 25;
+      W.resetView();
+      expect(W.V.rot).toBe(0);
+      expect(W.V.zoom).toBe(defZoom);
+      expect(W.V.ox).toBe(defOx);
+      expect(W.V.oy).toBe(defOy);
+      // The document, its history and its export are the same as before any rotation.
+      expect(W.Hist.idx).toBe(hist);
+      expect(pixelsHash()).toBe(before);
+    });
+
+    it('the slider sets any angle from -180 to 180, and the status bar and the viewport bar show it', async () => {
+      W.setRotation(-120);
+      expect(W.V.rot).toBe(-120);
+      expect(q('.sb-rot').textContent).toBe('∠ -120°');
+      expect(q('.vb-angle').textContent).toBe('-120°');
+      const slider = q('.vb-slider');
+      expect(slider.value).toBe('-120');
+      slider.value = '30'; slider.dispatchEvent(new win.Event('input'));
+      expect(W.V.rot).toBe(30);
+      W.setRotation(999);
+      expect(W.V.rot).toBe(180);
+      W.resetView();
+      expect(q('.sb-rot').textContent).toBe('');
+    });
+
+    it('the shortcuts rotate (Alt+] right, Alt+[ left) and reset (Alt+0)', async () => {
+      const key = (k, code) => win.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, code, altKey: true, bubbles: true, cancelable: true }));
+      key(']', 'BracketRight');
+      expect(W.V.rot).toBe(90);
+      key('[', 'BracketLeft'); key('[', 'BracketLeft');
+      expect(W.V.rot).toBe(-90);
+      key('0', 'Digit0');
+      expect(W.V.rot).toBe(0);
+    });
+
+    it('at 45° a pointer over a document point maps back to the same point (and so do other angles)', async () => {
+      W.resetView();
+      const pts = [[0, 0], [10, 20], [150, 100], [299, 199], [300, 200]];
+      for (const deg of [45, -135, 180, 33]) {
+        W.setRotation(deg);
+        for (const [x, y] of pts) {
+          const d = W.toDoc(clientOf(x, y));
+          expect(Math.abs(d.x - x) < 1e-6 && Math.abs(d.y - y) < 1e-6).toBe(true);
+        }
+      }
+      W.setRotation(45);
+      const d = W.toDoc(clientOf(120, 60));
+      expect(Math.abs(d.x - 120)).toBeLessThan(1e-6);
+      expect(Math.abs(d.y - 60)).toBeLessThan(1e-6);
+      W.resetView();
+    });
+
+    it('a brush stroke at 45° paints where the pointer is', async () => {
+      W.newDocTab(200, 200, '#ffffff', 'Stroke at angle'); W.selectTool('brush');
+      W.setRotation(45);
+      const hist = W.Hist.idx;
+      const c = clientOf(100, 100), c2 = clientOf(101, 100);
+      const canvas = W.V.el;
+      const opts = { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'mouse', button: 0, buttons: 1, isPrimary: true };
+      canvas.dispatchEvent(new win.PointerEvent('pointerdown', { ...opts, clientX: c.clientX, clientY: c.clientY }));
+      canvas.dispatchEvent(new win.PointerEvent('pointermove', { ...opts, clientX: c2.clientX, clientY: c2.clientY }));
+      canvas.dispatchEvent(new win.PointerEvent('pointerup', { ...opts, buttons: 0, clientX: c2.clientX, clientY: c2.clientY }));
+      await sleep(30);
+      expect(W.Hist.idx).toBe(hist + 1);
+      const L = W.activeLayer();
+      const dx = Math.round(100 - L.x), dy = Math.round(100 - L.y);
+      const px = L.canvas.getContext('2d').getImageData(dx, dy, 1, 1).data;
+      expect(px[3] > 0).toBe(true);
+      W.resetView();
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop view rotation' });
+  </script>
+</body>
+</html>

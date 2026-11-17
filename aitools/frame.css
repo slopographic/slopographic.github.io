@@ -1,0 +1,13 @@
+/* Slop AI Tools pages laid out by aitools/frame.js: the header, then the tool filling the window as SlopFrame's View ·
+ * Panel (shared/frame/frame.css): the drop zone and the result in the middle, the settings, the downloads and the main
+ * button in the panel on the right (a bottom sheet on a phone). */
+body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.ai-top { flex: none; }
+.ai-tool { max-width: none; width: 100%; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; box-sizing: border-box; }
+.ai-tool > #gate { max-width: 880px; width: 100%; margin: 16px auto 0; padding: 0 16px; box-sizing: border-box; }
+.ai-tool > #gate:empty { display: none; }
+#ui.sf-root { flex: 1 1 auto; min-height: 360px; }
+.ai-view { padding: 16px 20px 32px; align-content: start; }
+.ai-side .sf-set > *, .ai-side .sf-acts button { width: 100%; box-sizing: border-box; }
+.ai-side .sf-set .ai-field { display: grid; gap: 6px; }
+body:has(#ui[hidden]) .sf-toggle { display: none; }

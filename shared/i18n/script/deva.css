@@ -1,0 +1,10 @@
+/* Script fallback for Devanagari (hi), loaded by shared/i18n/i18n.js only when the chosen language uses it (LANGS[].script).
+ * The brand fonts carry Latin only: these @font-face rules add this script's glyphs to the brand families from fonts
+ * already on the device (local() only, nothing is downloaded), so a label mixes the brand Latin with a good system face
+ * instead of the browser's default fallback. Generated once; see shared/i18n/HANDOFF.md (World-ready). */
+@font-face { font-family: 'Inter Tight'; src: local('Nirmala UI'), local('Kohinoor Devanagari'), local('Devanagari Sangam MN'), local('Noto Sans Devanagari'), local('Mangal'), local('Lohit Devanagari'); unicode-range: U+0900-097F, U+1CD0-1CFF, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; font-display: swap; }
+@font-face { font-family: 'Inter'; src: local('Nirmala UI'), local('Kohinoor Devanagari'), local('Devanagari Sangam MN'), local('Noto Sans Devanagari'), local('Mangal'), local('Lohit Devanagari'); unicode-range: U+0900-097F, U+1CD0-1CFF, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; font-display: swap; }
+@font-face { font-family: 'Archivo'; src: local('Nirmala UI'), local('Kohinoor Devanagari'), local('Devanagari Sangam MN'), local('Noto Sans Devanagari'), local('Mangal'), local('Lohit Devanagari'); unicode-range: U+0900-097F, U+1CD0-1CFF, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; font-display: swap; }
+@font-face { font-family: 'Slopographic Sans'; src: local('Nirmala UI'), local('Kohinoor Devanagari'), local('Devanagari Sangam MN'), local('Noto Sans Devanagari'), local('Mangal'), local('Lohit Devanagari'); unicode-range: U+0900-097F, U+1CD0-1CFF, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; font-display: swap; }
+@font-face { font-family: 'Slopographic Condensed'; src: local('Nirmala UI'), local('Kohinoor Devanagari'), local('Devanagari Sangam MN'), local('Noto Sans Devanagari'), local('Mangal'), local('Lohit Devanagari'); unicode-range: U+0900-097F, U+1CD0-1CFF, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; font-display: swap; }
+:root:lang(hi) { line-height: 1.6; }

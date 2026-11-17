@@ -1,0 +1,40 @@
+/* Slop AI — phones and narrow windows. */
+@media (max-width: 980px) {
+  .tab span { display: none; }
+  .tab { padding: 0 9px; }
+  .tpl-row { display: none; }
+}
+@media (max-width: 760px) {
+  :root { --top-h: 50px; }
+  .topbar { gap: 6px; padding: 0 8px; }
+  .appname { display: none; }
+  .tabs { margin-left: 0; }
+  .chip { max-width: 104px; min-width: 32px; flex-shrink: 1; padding: 0 8px; }
+  .tab { padding: 0 8px; }
+  .tb-group { min-width: 0; }
+  #btnCmd { display: none !important; }
+  .sloppo, .sloppo canvas { width: 40px; height: 40px; }
+  .chip .bar { display: none; }
+  .tb-group { gap: 2px; }
+  #tab-sys, .topbar .sdl { display: none; } /* Can my PC run it? stays in the model chip's menu; Slop Drive in Apps */
+  .only-mobile { display: inline-flex; }
+  .chat-view { grid-template-columns: minmax(0, 1fr); }
+  .convs { --ssh-z: 400; --ssh-top: var(--top-h); }   /* the chat list drawer: shared/ui/sheet.js (js/ui/chatlist.js) */
+  .chat-bar { padding: 6px 8px; gap: 6px; }
+  #btnPersona span, #btnTools span { display: none; }
+  .msgs { padding: 14px 10px 8px; }
+  .msg.bot { grid-template-columns: minmax(0, 1fr); }
+  .msg.bot .avatar { display: none; }
+  .msg.tool { margin-left: 0; }
+  .composer { padding: 6px 8px 8px; }
+  .privacy { display: none; }
+  .build-view { grid-template-columns: minmax(0, 1fr); }
+  .build-preview { display: none; }
+  body.show-preview .build-preview { display: flex; position: absolute; inset: 0; z-index: 5; }
+  .page { padding: 16px 16px 32px; }
+  .mgrid, .spec-grid { grid-template-columns: minmax(0, 1fr); }
+  .verdicts th:nth-child(2), .verdicts td:nth-child(2), .verdicts th:nth-child(3), .verdicts td:nth-child(3) { display: none; }
+  .sloppo-bubble { right: 16px; }
+  .sandbox-note { display: none; }
+  .build-preview .chat-bar { gap: 4px; }
+}

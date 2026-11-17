@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: the AI makes a presentation and opens it</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <iframe id="app2"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="pdf.helpers.js"></script>
+  <script src="../ai/cloud-util.js"></script>
+  <script>
+  // "A 5-slide presentation about bees", asked in Slop PDF of Claude with the person's own key (a fake fetch answers as Claude
+  // does): the outline goes to Slop Drive, run_operation('outline-to-presentation') makes a PDF with Slop Slides' engine run
+  // headlessly in this page, and open_app opens it in Slop PDF with ?drive=. Also the operations straight from this page.
+  // Covers: shared/ops/create.js, slides/js/core/outline.js, docs/js/model/build.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, F, opened = [];
+  const steps = () => [...win.document.querySelectorAll('.sap-step')].map((s) => s.textContent);
+  const OUTLINE = { title: 'Bees', subtitle: 'Small but mighty', slides: [
+    { title: 'Pollination', bullets: ['A third of our food', 'Wild flowers too'] }, { title: 'The colony', bullets: ['Queen', 'Workers'] },
+    { title: 'Threats', bullets: ['Pesticides', 'Habitat loss'] }, { title: 'How to help', bullets: ['Plant flowers', 'No spraying'] }] };
+
+  describe('Slop PDF: the AI makes a presentation from an outline', () => {
+    it('Claude (own key) is connected in Slop PDF’s AI panel', async () => {
+      localStorage.setItem('slop-firstrun:ai-cloud:anthropic', '1');
+      win = await PT.boot();
+      const real = win.fetch.bind(win);
+      F = CU.install(win, 'anthropic');
+      const fake = win.fetch;
+      win.fetch = (url, init) => (/anthropic\.com/.test(String(url)) ? fake(url, init) : real(url, init));   // the app's own files load as usual
+      win.open = (url) => { opened.push(String(url)); return null; };
+      await win.SlopHeader.openAI();
+      await win.SlopAIPanel.ready;
+      await win.SlopAIKit.picker.loadCloud();
+      const eng = new win.SlopAIKit.CloudEngine({ provider: 'anthropic', model: 'claude-sonnet-5-5', key: async () => 'sk-ant-api03-PDF-0123456789' });
+      await eng.load(); await win.SlopAIPanel.use(eng);
+      await waitFor(() => /Claude/.test(win.document.querySelector('.sap-status').textContent));
+    }, { timeout: 60000 });
+
+    it('save_to_drive → run_operation outline-to-presentation (PDF) → open_app: 5 pages with the slide texts, opened in Slop PDF', async () => {
+      F.replies.push(CU.anthropic.call('save_to_drive', { name: 'bees-outline.json', content: JSON.stringify(OUTLINE) }),
+        CU.anthropic.call('run_operation', { operation: 'outline-to-presentation', files: ['bees-outline.json'], options: { format: 'pdf', theme: 'paper' } }),
+        CU.anthropic.call('open_app', { id: 'pdf', file: 'bees-outline.pdf' }),
+        CU.anthropic.text('Here is your 5-slide presentation about bees, open in Slop PDF.'));
+      await win.SlopAIPanel.send('make a 5-slide presentation about bees');
+      const s = steps();
+      expect(s.length).toBe(3);
+      for (const x of s) expect(x).toMatch(/^✓/);
+      expect(s[1]).toMatch(/Run outline-to-presentation on bees-outline\.json/);
+      const runs = F.requests.filter((r) => /\/v1\/messages$/.test(r.url));
+      const out = JSON.parse(runs[2].body.messages.pop().content[0].content);
+      expect(out.errors).toEqual([]);
+      expect(out.files.map((f) => f.name)).toEqual(['bees-outline.pdf']);
+      const rec = (await win.SlopHub.list()).find((f) => f.name === 'bees-outline.pdf' && f.from === 'ai');
+      const pdf = await PT.read(await (await win.SlopHub.get(rec.id)).blob.arrayBuffer());
+      expect(pdf.pages.length).toBe(5);
+      expect(pdf.pages[0].text).toContain('Bees');
+      expect(pdf.pages[3].text).toContain('Habitat loss');
+      expect(opened.length).toBe(1);
+      expect(opened[0]).toContain('drive=' + rec.id);
+      const q = new URL(opened[0]).search;
+      const w2 = await PT.boot(q, 'app2');
+      await waitFor(() => w2.SP.engine.state.pages.length === 5, { timeout: 30000 });
+    }, { timeout: 120000 });
+
+    it('the operations run headlessly from this page: PowerPoint and Word from outline files', async () => {
+      const R = await import('../../shared/ops/all.js');
+      const json = new File([JSON.stringify(OUTLINE)], 'bees.json', { type: 'application/json' });
+      const p = await R.byId('outline-to-presentation').run([{ file: json, name: 'bees.json', kind: 'json' }], { format: 'pptx' });
+      expect(p[0].name).toBe('bees.pptx');
+      const Z = await import('../../shared/office/zip.js'), map = await Z.readZip(p[0].blob);
+      expect([...map.keys()].filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k)).length).toBe(5);
+      expect(Z.readText(map, 'ppt/slides/slide5.xml')).toContain('No spraying');
+      const md = new File(['# Garden\n\nIntro text\n\n## Plants\n- Basil\n- Mint\n'], 'garden.md', { type: 'text/markdown' });
+      const d = await R.byId('outline-to-document').run([{ file: md, name: 'garden.md', kind: 'md' }], { format: 'docx' });
+      expect(d[0].name).toBe('garden.docx');
+      const xml = Z.readText(await Z.readZip(d[0].blob), 'word/document.xml');
+      for (const t of ['Garden', 'Intro text', 'Plants', 'Mint']) expect(xml).toContain(t);
+      const pdf = await R.byId('outline-to-document').run([{ file: md, name: 'garden.md', kind: 'md' }], { format: 'pdf' });
+      const read = await PT.read(await pdf[0].blob.arrayBuffer());
+      expect(read.pages.length).toBe(1);
+      expect(read.pages[0].text).toContain('Basil');
+    }, { timeout: 90000 });
+  });
+  SlopTest.run({ name: 'Slop PDF: AI makes a presentation' });
+  </script>
+</body>
+</html>

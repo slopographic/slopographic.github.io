@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: sorting</title><style>body { margin: 0; }</style></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, D;
+  const q = (s) => D.querySelector(s), qa = (s) => [...D.querySelectorAll(s)];
+  const key = (k, opts) => D.body.dispatchEvent(DT.key(k, opts));
+  const names = () => qa('#pane .row .nm').map((n) => n.textContent);
+  const file = (n) => [...DR.S.files.values()].find((x) => x.name === n);
+  const folder = (n) => [...DR.S.folders.values()].find((x) => x.name === n);
+  const boot = async () => {
+    W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+    DR = W.DR; H = W.SlopHub; D = W.document;
+  };
+
+  describe('sorting the file list', () => {
+    it('boots with a known set of folders and files', async () => {
+      try { localStorage.removeItem('slop-drive.prefs'); } catch (e) { /* blocked */ }
+      await boot();
+      await H.clear();
+      // folders: Alpha is 5 bytes, Beta is 100 bytes
+      const alpha = await H.createFolder('Alpha'), beta = await H.createFolder('Beta');
+      await H.updateFolder(alpha, { time: 50, modified: 100 });
+      await H.updateFolder(beta, { time: 60, modified: 200 });
+      await H.put(DT.text('x'.repeat(5)), { name: 'inner.txt', from: 'upload', folderId: alpha });
+      await H.put(DT.text('x'.repeat(100)), { name: 'big.bin', from: 'upload', folderId: beta });
+      // files: name, size, added (time), modified, opened. The orders of added and modified differ on purpose.
+      const rows = [
+        ['bravo.pdf', 50, 'application/pdf', 400, 1000, 0],
+        ['charlie.txt', 10, 'text/plain', 100, 4000, 500],
+        ['delta.md', 30, 'text/markdown', 300, 2000, 0],
+        ['echo.png', 20, 'image/png', 200, 3000, 900],
+      ];
+      for (const [name, n, type, time, modified, opened] of rows) {
+        const id = await H.put(DT.text('x'.repeat(n), type), { name, from: 'upload' });
+        await H.update(id, { time, modified, opened }, { touch: false });
+      }
+      await DR.refresh(); DR.setView('list'); DR.go(null);
+      expect(DR.S.view).toBe('list');
+      expect(qa('#pane .row').length).toBe(6);
+    });
+
+    // [key, direction, expected order]: folders always come first, in the same key and direction
+    const cases = {
+      name: [[1, ['Alpha', 'Beta', 'bravo.pdf', 'charlie.txt', 'delta.md', 'echo.png']], [-1, ['Beta', 'Alpha', 'echo.png', 'delta.md', 'charlie.txt', 'bravo.pdf']]],
+      type: [[1, ['Alpha', 'Beta', 'delta.md', 'bravo.pdf', 'echo.png', 'charlie.txt']], [-1, ['Beta', 'Alpha', 'charlie.txt', 'echo.png', 'bravo.pdf', 'delta.md']]],
+      size: [[1, ['Alpha', 'Beta', 'charlie.txt', 'echo.png', 'delta.md', 'bravo.pdf']], [-1, ['Beta', 'Alpha', 'bravo.pdf', 'delta.md', 'echo.png', 'charlie.txt']]],
+      modified: [[1, ['Alpha', 'Beta', 'bravo.pdf', 'delta.md', 'echo.png', 'charlie.txt']], [-1, ['Beta', 'Alpha', 'charlie.txt', 'echo.png', 'delta.md', 'bravo.pdf']]],
+      added: [[1, ['Alpha', 'Beta', 'charlie.txt', 'echo.png', 'delta.md', 'bravo.pdf']], [-1, ['Beta', 'Alpha', 'bravo.pdf', 'delta.md', 'echo.png', 'charlie.txt']]],
+      opened: [[1, ['Alpha', 'Beta', 'bravo.pdf', 'delta.md', 'charlie.txt', 'echo.png']], [-1, ['Beta', 'Alpha', 'echo.png', 'charlie.txt', 'delta.md', 'bravo.pdf']]],
+    };
+    for (const [k, list] of Object.entries(cases)) {
+      it(`sorts by ${k}, ascending and descending, with folders first`, () => {
+        for (const [dir, order] of list) {
+          DR.setSort(k, dir);
+          expect(names()).toEqual(order);
+        }
+      });
+    }
+
+    it('the default direction: newest, biggest and last-used first; names and types A to Z', () => {
+      expect(['modified', 'added', 'size', 'opened'].map(DR.defaultDir)).toEqual([-1, -1, -1, -1]);
+      expect(['name', 'type'].map(DR.defaultDir)).toEqual([1, 1]);
+    });
+
+    it('a header click sets the key at its default direction, then flips it', () => {
+      DR.setSort('name', 1); DR.render();
+      q('.lhead [data-sort="size"]').click();
+      expect(DR.S.sort).toEqual({ key: 'size', dir: -1 });
+      expect(q('.lhead [data-sort="size"] .arrow').textContent).toBe('▼');
+      expect(q('.lhead .hcell.c-size').getAttribute('aria-sort')).toBe('descending');
+      q('.lhead [data-sort="size"]').click();
+      expect(DR.S.sort).toEqual({ key: 'size', dir: 1 });
+      expect(q('.lhead [data-sort="size"] .arrow').textContent).toBe('▲');
+      expect(q('.lhead .hcell.c-size').getAttribute('aria-sort')).toBe('ascending');
+      expect(qa('.lhead .arrow').length).toBe(1); // only the active column has an arrow
+    });
+
+    it('the sort menu marks the active key with its direction, and Alt+S opens it', () => {
+      DR.setSort('opened', -1); DR.render();
+      const labels = DR.sortRows().filter((r) => r.label).map((r) => r.label);
+      expect(labels).toContain('Opened ▼');
+      expect(labels).toContain('Name');
+      key('s', { altKey: true });
+      const shown = qa('.sui-menu .sui-lbl').map((x) => x.textContent);
+      expect(shown).toContain('Opened ▼');
+      expect(shown).toContain('Ascending');
+      W.SlopUI.closeMenu();
+    });
+
+    it('each view keeps its own sort, and it survives a reload', async () => {
+      DR.setView('list'); DR.setSort('size', -1);
+      DR.setView('grid'); expect(DR.S.sort).toEqual({ key: 'name', dir: 1 });
+      DR.setSort('modified', -1);
+      DR.setView('list'); expect(DR.S.sort).toEqual({ key: 'size', dir: -1 });
+      W.__frame.remove();
+      await boot();
+      expect(DR.S.view).toBe('list');
+      expect(DR.S.sort).toEqual({ key: 'size', dir: -1 });
+      DR.setView('grid');
+      expect(DR.S.sort).toEqual({ key: 'modified', dir: -1 });
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: sorting' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Press · assistant commands</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../press/index.html?new"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  // Every assistant command through SlopCmd.exec with arguments, checked on the model; build_document's PDF read back with pdf.js.
+  // Covers: press/js/ui/ai-commands.js, press/js/ui/ai-build.js, press/js/ui/actions.js
+  const { describe, it, expect } = SlopTest;
+  let C;
+  const run = async (id, args) => { const r = await C.exec('press.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const items = (i = 0) => PR.state.doc.pages[i].items;
+  const textOf = (it) => PR.state.doc.stories[it.story].text;
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+  async function pngBlob(color) {
+    const c = document.createElement('canvas'); c.width = 40; c.height = 20;
+    const g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, 40, 20);
+    return new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+  async function pdfText(blob) {
+    const { lib, base } = await loadPdfjs();
+    const pdf = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), standardFontDataUrl: base + 'standard_fonts/', isEvalSupported: false }).promise;
+    const out = [];
+    for (let n = 1; n <= pdf.numPages; n++) out.push((await (await pdf.getPage(n)).getTextContent()).items.map((i) => i.str).join('').replace(/\s+/g, ''));
+    return out;
+  }
+
+  describe('Slop Press assistant commands', () => {
+    it('prepare() loads them; destructive ones are flagged; schemas hold arrays', async () => {
+      if (!PR) await bootPress();
+      C = W.SlopCmd;
+      expect(C.get('press.ai.add-text-frame')).toBe(null);
+      await C.prepare();
+      const ids = C.list().filter((c) => /^press\.ai\./.test(c.id));
+      expect(ids.length).toBe(13);
+      expect(ids.filter((c) => c.destructive).map((c) => c.id).sort()).toEqual(['press.ai.build-document', 'press.ai.delete-item', 'press.ai.delete-page', 'press.ai.new-document']);
+      const js = SlopCmdArgs.jsonSchema(C.get('press.ai.build-document').args);
+      expect(js.properties.spec_pages.type).toBe('array');
+      expect(js.properties.spec_pages.items.properties.items.type).toBe('array');
+    }, { timeout: 30000 });
+
+    it('new_document, add_page, delete_page and undo', async () => {
+      await run('new-document', { preset: 'letter', pages: 2, margin: 36, columns: 2, name: 'Flyer' });
+      const d = PR.state.doc;
+      expect([Math.round(d.size.w), Math.round(d.size.h), d.pages.length, d.margins.top, d.columns.count, d.name]).toEqual([612, 792, 2, 36, 2, 'Flyer']);
+      await run('add-page', { after: 2, count: 2 });
+      expect(PR.state.doc.pages.length).toBe(4);
+      await run('delete-page', { page: 4 });
+      expect(PR.state.doc.pages.length).toBe(3);
+      await run('undo', { steps: 1 });
+      expect(PR.state.doc.pages.length).toBe(4);
+      expect((await C.exec('press.ai.delete-page', { page: 9 })).ok).toBe(false);
+    });
+
+    it('add_text_frame, set_text, format_text, add_shape, move_item, delete_item', async () => {
+      await run('new-document', { preset: 'a5' });
+      let r = await run('add-text-frame', { page: 1, text: 'Big Sale\nEverything must go', x: 30, y: 40, w: 300, h: 120, style: 'Heading 1', color: '#ff0000', align: 'center', name: 'Title' });
+      const t = items()[0];
+      expect([t.type, t.name, Math.round(t.x), Math.round(t.w)]).toEqual(['text', 'Title', 30, 300]);
+      const st = PR.state.doc.stories[t.story];
+      expect(st.paras[0].ps).toBe('Heading 1');
+      expect(st.paras[0].ov.align).toBe('center');
+      expect(st.runs[0].ov.color).toBe('#ff0000');
+      await run('set-text', { item: 'Title', text: 'Spring Sale' });
+      expect(textOf(t)).toBe('Spring Sale');
+      await run('format-text', { item: t.id, match: 'Sale', font_style: 'Bold', size: 40 });
+      expect(st.runs.some((x) => x.ov.size === 40 && x.ov.fontStyle === 'Bold')).toBe(true);
+      expect((await C.exec('press.ai.format-text', { item: 'Title', style: 'No such style' })).ok).toBe(false);
+      r = await run('add-shape', { shape: 'ellipse', x: 350, y: 500, w: 120, h: 120, fill: 'cmyk(0,100,0,0)', stroke: 'none', name: 'Dot' });
+      expect(r.value).toMatch(/Warning: it runs off/);
+      const dot = items().find((x) => x.name === 'Dot');
+      expect([dot.type, dot.fill, dot.stroke]).toEqual(['ellipse', 'cmyk(0,100,0,0)', null]);
+      await run('move-item', { item: 'Dot', x: 100, y: 300, opacity: 50 });
+      expect([dot.x, dot.y, dot.opacity]).toEqual([100, 300, 0.5]);
+      r = await run('add-text-frame', { text: 'word '.repeat(400), x: 20, y: 20, w: 60, h: 30, name: 'Tiny' });
+      expect(r.value).toMatch(/overset/);
+      await run('delete-item', { item: 'Tiny' });
+      expect(items().some((x) => x.name === 'Tiny')).toBe(false);
+      const n = items().length;
+      await run('undo', {});
+      expect(items().length).toBe(n + 1);
+    });
+
+    it('add_image from Slop Drive and from this site; other sites are refused', async () => {
+      await W.SlopHub.put(await pngBlob('#00ff00'), { name: 'press-green.png' });
+      await run('add-image', { file: 'press-green.png', x: 20, y: 300, w: 200 });
+      const img = items().find((x) => x.type === 'image');
+      expect([img.w, img.h]).toEqual([200, 100]);
+      expect(PR.state.doc.assets[img.asset].startsWith('data:image/png')).toBe(true);
+      await run('add-image', { url: '/og-share.png', w: 100 });
+      expect(items().filter((x) => x.type === 'image').length).toBe(2);
+      expect((await C.exec('press.ai.add-image', { url: 'https://example.com/a.png' })).ok).toBe(false);
+    }, { timeout: 20000 });
+
+    it('build_document from a spec, exported as PDF to Slop Drive and read back with pdf.js', async () => {
+      const r = await run('build-document', { preset: 'a4', name: 'Poster', spec_pages: [
+        { items: [{ type: 'rect', x: 0, y: 0, w: 595, h: 200, fill: 'Slop Lime' }, { type: 'text', text: 'Garden Party', x: 40, y: 60, w: 515, h: 80, size: 48, font: 'Liberation Sans', font_style: 'Bold' },
+          { type: 'text', text: 'Saturday at noon', x: 40, y: 260, w: 515, h: 40, size: 20, font: 'Liberation Sans' }] },
+        { items: [{ type: 'text', text: 'Bring a friend', x: 40, y: 40, w: 400, h: 60, size: 24, font: 'Liberation Sans' }] }] });
+      expect(r.value).toMatch(/2 page\(s\), 4 item\(s\)/);
+      expect(PR.state.doc.name).toBe('Poster');
+      const p = await run('export-document', { format: 'pdf' });
+      const rec = await W.SlopHub.get(driveId(p));
+      expect(rec.name).toBe('Poster.pdf');
+      const pages = await pdfText(rec.blob);
+      expect(pages.length).toBe(2);
+      expect(pages[0]).toContain('GardenParty');
+      expect(pages[0]).toContain('Saturdayatnoon');
+      expect(pages[1]).toContain('Bringafriend');
+      const png = await run('export-document', { format: 'png', page: 2, dpi: 36 });
+      expect((await W.SlopHub.get(driveId(png))).blob.type).toBe('image/png');
+      const sp = await run('export-document', { format: 'slpress', name: 'poster-copy' });
+      expect((await W.SlopHub.get(driveId(sp))).name).toBe('poster-copy.slpress');
+    }, { timeout: 60000 });
+
+    it('state() lists the pages and items; the checkpoint brings a replaced document back', async () => {
+      const st = C.state();
+      expect(st.pageCount).toBe(2);
+      expect(st.pages[0].items.some((x) => x.text === 'Garden Party')).toBe(true);
+      const back = C.checkpoint();
+      await run('new-document', { preset: 'card' });
+      expect(PR.state.doc.pages[0].items.length).toBe(0);
+      expect(back()).toBe(true);
+      expect(PR.state.doc.name).toBe('Poster');
+      expect(PR.state.doc.pages[0].items.length).toBe(3);
+    });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

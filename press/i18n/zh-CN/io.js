@@ -1,0 +1,25 @@
+/* Slop Press, Simplified Chinese: opening, saving, placing and sending files, and the offline copy. Same keys as press/i18n/en/io.js.
+ * Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'press.io.saved_drive': '已将 {name} 保存到 Slop Drive',
+  'press.io.send_pdf_to': '将 PDF 发送到 {app}',
+  'press.io.send_png_to': '将页面 PNG 发送到 {app}',
+  'press.io.open_drive_title': '从 Slop Drive 打开',
+  'press.io.place_drive_title': '从 Slop Drive 置入',
+  'press.io.intake_noun': '一个图片、文本、PDF、字体或 .slpress 文件',
+  'press.io.placed_text': '已置入文本：添加了 {n} 页',
+  'press.io.rendering_pdf': '正在渲染 PDF 页面…',
+  'press.io.placed_pdf': '已置入 {n} 个 PDF 页面',
+  'press.io.pdf_failed': '无法读取 PDF：{error}',
+  'press.io.font_loaded': '已载入字体：{name}',
+  'press.io.cannot_place': '无法置入 {name}',
+  'press.io.saved': '已保存 {name}',
+  'press.io.save_as_title': '另存为',
+  'press.io.file_name': '文件名',
+  'press.io.opened': '已打开 {name}',
+  'press.io.cannot_open': 'Slop Press 无法打开 {name}',
+  'press.io.page_alt': '第 {page} 页',
+  'press.io.building_offline': '正在生成离线副本…',
+  'press.io.offline_done': '已下载 {name}：从磁盘打开即可离线使用',
+  'press.io.offline_failed': '无法生成离线副本：{error}',
+});

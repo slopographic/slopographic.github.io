@@ -1,0 +1,28 @@
+/* Slop Effects，繁體中文：關鍵影格的複製、貼上與復原訊息。與 effects/i18n/en/keys.js 相同的鍵。
+ * 規則：shared/i18n/APPS-HOWTO.md，術語：shared/i18n/glossary-zh-TW.md。 */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'effects.keys.select_copy': '請先選取要複製的關鍵影格',
+  'effects.keys.copied': '已複製 {n} 個關鍵影格',
+  'effects.keys.select_layer_paste': '請選擇要貼上的圖層',
+  'effects.keys.nothing': '沒有可貼上的內容',
+  'effects.keys.pasted_skipped': '已貼上 {n} 個，略過 {skipped} 個',
+  'effects.keys.pasted': '已貼上 {n} 個關鍵影格',
+  'effects.keys.select_key': '請先選取一個關鍵影格',
+  'effects.keys.select_layer': '請先選取一個圖層',
+  'effects.undo.set_key': '設定關鍵影格',
+  'effects.undo.set_effect': '設定效果',
+  'effects.undo.set_prop': '設定{prop}',
+  'effects.undo.unkey': '移除關鍵影格',
+  'effects.undo.add_key': '新增關鍵影格',
+  'effects.undo.add': '新增{what}',
+  'effects.undo.delete_layer': '刪除圖層',
+  'effects.undo.move_layer': '移動圖層',
+  'effects.undo.rename_project': '重新命名專案',
+  'effects.undo.remove_effect': '移除效果',
+  'effects.undo.move_effect': '移動效果',
+  'effects.undo.enable_effect': '啟用效果',
+  'effects.undo.disable_effect': '停用效果',
+  'effects.undo.delete_keys': '刪除關鍵影格',
+  'effects.undo.paste_keys': '貼上關鍵影格',
+  'effects.undo.move_keys': '移動關鍵影格',
+});

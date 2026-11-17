@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WebMCP tools at work</title>
+  <style>body { margin: 0; background: #111; color: #ddd; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="fake.js"></script>
+  <script>
+  // Covers: shared/agent/webmcp.js, shared/agent/workspace.js, shared/agent/tools.js, shared/ai/cmdtools.js
+  // The tools do the work: run_workflow on a generated picture in Slop Drive makes a new, resized file there; a SlopCut command (ripple trim) runs through its tool; a destructive tool shows the
+  // confirmation, and Cancel changes nothing; the tools are registered again when the app's state changes.
+  const { describe, it, expect } = SlopTest;
+  const waitFor = (fn, o) => SlopTest.waitFor(fn, o).catch(() => { throw new Error('timed out waiting for ' + String(fn).slice(0, 120)); });
+
+  async function picture(w, W, H) {
+    const c = w.document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'); g.fillStyle = '#e0306a'; g.fillRect(0, 0, W, H); g.fillStyle = '#20c0f0'; g.fillRect(0, 0, W / 2, H);
+    return new Promise((r) => c.toBlob(r, 'image/png'));
+  }
+
+  describe('the tools at work', () => {
+    it('Workflows: run_workflow on a generated picture makes a new file in Slop Drive; list and open it', async () => {
+      const app = await AgentFake.open('../../workflows/index.html', { ready: (w) => !!(w.SlopCmd && w.SlopHub) });
+      const w = app.w, H = w.SlopHub, stamp = Date.now().toString(36);
+      const id = await H.put(await picture(w, 120, 80), { name: `agent-${stamp}.png`, from: 'test' });
+      const listed = await app.json('list_files', { query: `agent-${stamp}` });
+      expect(listed.some((f) => f.id === id)).toBe(true);
+      const flow = { kind: 'slopflow', v: 1, name: 'Agent test', steps: [
+        { kind: 'op', id: 'resize.image', options: { mode: 'size', width: 60, height: 40, fit: 'stretch', format: 'png' } },
+        { kind: 'op', id: 'files.rename', options: { pattern: `small-${stamp}-{n}`, digits: 1 } }] };
+      const r = await app.json('run_workflow', { workflow: flow, files: [id] });
+      expect(r.errors).toEqual([]);
+      expect(r.files.length).toBe(1);
+      expect(r.files[0].name).toBe(`small-${stamp}-1.png`);
+      const made = (await app.json('list_files', { query: `small-${stamp}` }))[0];
+      const rec = await H.get(made.id);
+      const bmp = await w.createImageBitmap(rec.blob);
+      expect([bmp.width, bmp.height]).toEqual([60, 40]);
+      // one operation alone, by file name, with a typed option the schema fixes ("30px")
+      const one = await app.json('run_operation', { operation: 'resize.image', files: [made.name], options: { mode: 'size', width: '30px', height: 20, fit: 'stretch', format: 'png' } });
+      expect(one.files.length).toBe(1);
+      const bad = await app.call('run_operation', { operation: 'no.such', files: [made.id] });
+      expect(bad.isError).toBe(true);
+      // download goes through the browser's own download
+      let got = null;
+      w.SlopUI.download = (blob, name) => { got = [name, blob.size]; };
+      await app.text('download', { file: made.id });
+      expect(got).toEqual([made.name, rec.size]);
+      for (const f of await H.list()) if (f.name.includes(stamp)) await H.remove(f.id);
+      app.close();
+    }, { timeout: 90000 });
+
+    it('SlopCut: ripple trim runs through its tool; a destructive tool asks first, and Cancel changes nothing', async () => {
+      const app = await AgentFake.open('../../slopcut/index.html', { ready: (w) => !!(w.SE && w.SE.app && w.document.body.classList.contains('ready')) });
+      const w = app.w, SE = w.SE;
+      await SE.session.newProject(false);   // the autosaved project of an earlier test is not this one's
+      let cmds = await app.json('list_commands');
+      expect(cmds.some((c) => c.id === 'edit.trimIn')).toBe(false);   // no clip yet: not offered
+      expect((await app.call('run_command', { id: 'edit.trimIn' })).isError).toBe(true);
+      await app.text('run_command', { id: 'tl.color' });                 // a 5 s colour matte at 0
+      await waitFor(() => SE.doc.clips.length === 1);
+      cmds = await app.json('list_commands');
+      expect(cmds.some((c) => c.id === 'edit.trimIn')).toBe(true);
+      const c0 = SE.doc.clips[0], dur0 = c0.dur, end0 = c0.start + c0.dur;
+      SE.app.select([]);
+      SE.player.seek(2);
+      const said = await app.text('run_command', { id: 'edit.trimIn' });
+      expect(said).toMatch(/Ripple trim start/);
+      await waitFor(() => SE.doc.clips[0].dur < dur0 - 1);
+      expect(SE.doc.clips[0].dur).toBeCloseTo(end0 - 2, 0.15);
+
+      // New project would clear the timeline: the confirmation shows, Cancel keeps the clip
+      const pending = app.call('run_command', { id: 'file.new' });
+      await waitFor(() => [...w.document.querySelectorAll('.sui-dlg')].some((d) => /Allow this AI agent action/.test(d.textContent)), { timeout: 5000 });
+      const dlg = [...w.document.querySelectorAll('.sui-dlg')].find((d) => /Allow this AI agent action/.test(d.textContent));
+      expect(dlg.textContent).toContain('New project');
+      [...dlg.querySelectorAll('.sui-btn')].find((b) => b.textContent === 'Cancel').click();
+      const r = await pending;
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toMatch(/did not allow/);
+      expect(SE.doc.clips.length).toBe(1);
+      app.close();
+    }, { timeout: 90000 });
+
+    it('the tools are registered again when the app\'s state changes', async () => {
+      const app = await AgentFake.open('../../slopcut/index.html', { ready: (w) => !!(w.SE && w.SE.app && w.document.body.classList.contains('ready')) });
+      const w = app.w, SE = w.SE;
+      await SE.session.newProject(false);
+      // a command with arguments that is only available with a clip on the timeline
+      w.SlopCmd.register([{ id: 'test.nudge-by', title: 'Nudge the clips by', args: [{ name: 'frames', type: 'number', min: -100, max: 100, default: 1 }], when: () => SE.doc.clips.length > 0, run: (a) => `nudged ${a ? a.frames : 1}` }]);
+      await w.SlopWebMCP.refresh();
+      expect(app.names()).not.toContain('nudge_by');
+      const before = app.mc.log.length;
+      await app.text('run_command', { id: 'tl.color' });
+      await waitFor(() => app.names().includes('nudge_by'), { timeout: 8000 });
+      expect(app.mc.log.slice(before).some(([k]) => k === 'abort')).toBe(true);   // the old set was withdrawn
+      expect(await app.text('nudge_by', { frames: 500 })).toMatch(/100/);       // clamped by the schema
+      // a dialog of the app: its command tools wait, the workspace stays
+      const d = w.SlopUI.dialog({ title: 'Busy', body: 'x' });
+      await waitFor(() => !app.names().includes('run_command'), { timeout: 8000 });
+      expect(app.names()).toContain('list_files');
+      d.close();
+      await waitFor(() => app.names().includes('run_command'), { timeout: 8000 });
+      w.SlopCmd.unregister('test.nudge-by');
+      await waitFor(() => !app.names().includes('nudge_by'), { timeout: 8000 });
+      app.close();
+    }, { timeout: 90000 });
+  });
+  SlopTest.run({ name: 'WebMCP tools at work' });
+  </script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

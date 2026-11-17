@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: controller</title></head>
+<body>
+<script src="../../shared/intake/rules.js"></script>
+<script src="../../shared/intake/normalize.js"></script>
+<script src="../../shared/intake/pipeline.js"></script>
+<script src="../../shared/intake/intake.js"></script>
+<script src="../../shared/intake/sources.js"></script>
+<script src="../../shared/drop/panel.js"></script>
+<script src="../../shared/drop/drop.js"></script>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/ui/tool.js, convert/js/ui/markup.js
+import { ConvertTool } from '../../convert/js/ui/tool.js';
+import { pngOf } from './fixtures.js';
+const { describe, it, expect } = SlopTest;
+
+const file = (name, type, body) => new File([body], name, { type });
+const pngFile = async (name = 'pic.png') => file(name, 'image/png', await pngOf(30, 20));
+const csvFile = (name = 'data.csv') => file(name, 'text/csv', 'a,b\n1,2\n');
+const jsonFile = (name = 'data.json') => file(name, 'application/json', '[{"a":1}]');
+const targets = (t) => t.targets();   // what every file (or the selected ones) can become
+const mount = (preset = null) => { const root = document.createElement('div'); document.body.append(root); return new ConvertTool(root, preset); };
+
+describe('target picker offers only valid conversions', () => {
+  it('a PNG offers image targets and the PDF, not CSV tools', async () => {
+    const t = mount();
+    await t.addFiles([await pngFile()]);
+    expect(targets(t)).toContain('to-jpg');
+    expect(targets(t)).toContain('images-to-pdf');
+    expect(targets(t)).not.toContain('csv-to-json');
+    expect(targets(t)).not.toContain('to-png');
+  });
+  it('a CSV offers CSV tools and nothing image-only', async () => {
+    const t = mount();
+    await t.addFiles([csvFile()]);
+    expect(targets(t)).toContain('csv-to-json');
+    expect(targets(t)).toContain('csv-to-xlsx');
+    expect(targets(t)).not.toContain('to-jpg');
+    expect(targets(t)).not.toContain('json-to-csv');
+  });
+  it('mixed types offer only what all of them share', async () => {
+    const t = mount();
+    await t.addFiles([await pngFile(), csvFile()]);
+    expect(targets(t)).toEqual(['base64-encode', 'zip-files']);   // any mix can be zipped, and encoded as text
+    const t2 = mount();
+    await t2.addFiles([csvFile(), jsonFile()]);
+    expect(targets(t2)).toContain('base64-encode');
+    expect(targets(t2)).not.toContain('csv-to-json');
+  });
+  it('notes the batch size and offers only the shared converters for mixed files', async () => {
+    const t = mount();
+    await t.addFiles([await pngFile(), csvFile()]);
+    expect(t.ui.note.textContent).toContain('2 files will be converted');
+    expect(t.ui.run.disabled).toBeFalsy();
+  });
+});
+
+describe('preset converter pages', () => {
+  it('limits input to the page type and explains the skipped file', async () => {
+    const t = mount({ conv: 'to-jpg', from: ['png'] });
+    await t.addFiles([csvFile()]);
+    expect(t.ui.list.textContent).toContain('This page converts PNG image');
+    expect(t.ui.run.disabled).toBeTruthy();
+    await t.addFiles([await pngFile()]);
+    expect(targets(t)).toEqual(['to-jpg']);
+    expect(t.ui.run.disabled).toBeFalsy();
+  });
+  it('converts a PNG to a JPG download named after it', async () => {
+    const t = mount({ conv: 'to-jpg', from: ['png'] });
+    await t.addFiles([await pngFile('photo.png')]);
+    await t.run();
+    const link = t.ui.outList.querySelector('a');
+    expect(link).toBeTruthy();
+    expect(link.download).toBe('photo.jpg');
+    expect(link.href.startsWith('blob:')).toBeTruthy();
+    expect(t.ui.zip.hidden).toBeTruthy();
+  });
+  it('offers a zip when a batch makes several files', async () => {
+    const t = mount({ conv: 'to-jpg', from: ['png'] });
+    await t.addFiles([await pngFile('a.png'), await pngFile('b.png')]);
+    await t.run();
+    expect(t.ui.outList.querySelectorAll('a').length).toBe(2);
+    expect(t.ui.zip.hidden).toBeFalsy();
+  });
+});
+
+describe('the from → to picture (shared/ui/flow.js)', () => {
+  it('a converter page shows its pair before any file: PNG to JPG', () => {
+    const t = mount({ conv: 'to-jpg', from: ['png'] });
+    expect(t.ui.flowBox.hidden).toBe(false);
+    expect(t.ui.flowBox.querySelector('.sflow').getAttribute('aria-label')).toBe('PNG to JPG');
+  });
+  it('the hub shows it once it knows both sides, and it follows the files and the target', async () => {
+    const t = mount();
+    expect(t.ui.flowBox.hidden).toBe(true);
+    await t.addFiles([csvFile()]);
+    expect(t.ui.flowBox.hidden).toBe(false);
+    t.setTarget('csv-to-xlsx');
+    expect(t.ui.flowBox.querySelector('.sflow').getAttribute('aria-label')).toBe('CSV to XLSX');
+    t.setTarget('csv-to-json');
+    expect(t.ui.flowBox.querySelector('.sflow').getAttribute('aria-label')).toBe('CSV to JSON');
+  });
+  it('a run ends with the picture done; Clear puts it back to idle', async () => {
+    const t = mount({ conv: 'to-jpg', from: ['png'] });
+    await t.addFiles([await pngFile('photo.png')]);
+    await t.run();
+    expect(t.ui.flow.el.dataset.state).toBe('done');
+    t.clear();
+    expect(t.ui.flow.el.dataset.state).toBe('idle');
+  });
+});
+
+describe('accessibility and safety', () => {
+  it('the drop zone has one Choose files button, and only that button opens the file picker', () => {
+    const t = mount();
+    const drop = t.ui.drop;
+    expect(drop.getAttribute('role')).toBe(null);
+    let opened = 0;
+    t.ui.input.click = () => { opened++; };
+    drop.click();
+    drop.querySelector('.sd-msg').click();
+    expect(opened).toBe(0);
+    drop.querySelector('.sd-choose').click();
+    expect(opened).toBe(1);
+  });
+  it('every form control has a label', () => {
+    const t = mount();
+    for (const el of t.ui.form.querySelectorAll('select, input, button')) {
+      const id = el.id;
+      const labelled = (id && t.ui.form.querySelector(`label[for="${id}"]`)) || el.getAttribute('aria-label') || el.textContent.trim();
+      expect(!!labelled).toBeTruthy();
+    }
+  });
+  it('file names are shown as text, never as markup', async () => {
+    const t = mount();
+    await t.addFiles([file('<img src=x onerror=alert(1)>.csv', 'text/csv', 'a\n1\n')]);
+    expect(!!t.ui.list.querySelector('img')).toBeFalsy();
+    expect(t.ui.list.textContent).toContain('<img src=x');
+  });
+});
+
+SlopTest.run({ name: 'File convert: controller' });
+</script>
+</body>
+</html>

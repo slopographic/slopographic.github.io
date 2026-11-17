@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop remove-layers tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+
+  /** Opens a menu-bar menu the way a pointer does, then returns the rows of the open menu. */
+  function openMenu(win, name) {
+    const btn = [...win.document.querySelectorAll('.mb-item')].find((b) => b.textContent === name);
+    if (!btn) throw new Error(`no menu "${name}"; menus: ${[...win.document.querySelectorAll('.mb-item')].map((b) => b.textContent).join(' | ')}`);
+    btn.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  }
+  const rows = (win, root = win.document) => [...root.querySelectorAll('.menu .menu-row')];
+  const rowNamed = (win, label, root) => rows(win, root).find((r) => r.querySelector('.menu-label').textContent === label);
+  const clickRow = (win, label, root) => { const r = rowNamed(win, label, root); if (!r) throw new Error(`no menu row "${label}"; rows: ${rows(win, root).map((x) => x.textContent).join(' | ')}`); r.click(); };
+  const dlg = (win) => [...win.document.querySelectorAll('.sui-dlg')].pop();
+  const dlgBtn = (win, label) => [...(dlg(win) ? dlg(win).querySelectorAll('.sui-btn') : [])].find((b) => b.textContent === label);
+  /** Layer ▸ Delete ▸ Remove All Layers: the submenu opens as a flyout (a second .menu). */
+  async function chooseRemoveAll(win) {
+    openMenu(win, 'Layer');
+    clickRow(win, 'Delete');
+    await waitFor(() => rowNamed(win, 'Remove All Layers'), { timeout: 3000 });
+    clickRow(win, 'Remove All Layers');
+    await waitFor(() => dlg(win) && dlg(win).textContent.includes('Remove all layers?'), { timeout: 5000 });
+  }
+  async function threeLayers(W) {
+    W.addLayer({}, 'New Layer'); W.addLayer({}, 'New Layer');
+    expect(W.D.layers.length).toBe(3);
+  }
+
+  describe('PhotoSlop removes layers from the Layer menu', () => {
+    it('Layer ▸ Delete lists Delete Layer and Remove All Layers', async () => {
+      const { win, W } = await freshApp();
+      openMenu(win, 'Layer');
+      clickRow(win, 'Delete');
+      await waitFor(() => rowNamed(win, 'Remove All Layers'), { timeout: 3000 });
+      expect(!!rowNamed(win, 'Delete Layer')).toBe(true);
+      W.closeMenus();
+    }, { timeout: 40000 });
+
+    it('Remove All Layers asks twice, and cancelling either step keeps every layer', async () => {
+      const { win, W } = await freshApp();
+      await threeLayers(W);
+      await chooseRemoveAll(win);
+      expect(dlg(win).textContent).toContain('3 layers');
+      dlgBtn(win, 'Cancel').click();
+      await waitFor(() => !win.document.querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(W.D.layers.length).toBe(3);
+
+      await chooseRemoveAll(win);
+      dlgBtn(win, 'Continue').click();
+      await waitFor(() => dlg(win) && dlg(win).textContent.includes('You can undo it with Ctrl+Z'), { timeout: 5000 });
+      dlgBtn(win, 'Cancel').click();
+      await waitFor(() => !win.document.querySelector('.sui-dlg'), { timeout: 5000 });
+      expect(W.D.layers.length).toBe(3);
+    }, { timeout: 40000 });
+
+    it('confirming both removes all layers, leaves one empty layer, and one undo restores them', async () => {
+      const { win, W } = await freshApp();
+      await threeLayers(W);
+      const before = W.Hist.idx, names = W.D.layers.map((l) => l.name), ids = W.D.layers.map((l) => l.id);
+      await chooseRemoveAll(win);
+      dlgBtn(win, 'Continue').click();
+      await waitFor(() => dlgBtn(win, 'Remove all'), { timeout: 5000 });
+      expect(dlg(win).textContent).toContain('You can undo it with Ctrl+Z');
+      dlgBtn(win, 'Remove all').click();
+      await waitFor(() => W.D.layers.length === 1, { timeout: 5000 });
+      expect(W.D.layers[0].id).toBe(W.D.activeId);
+      expect(ids.includes(W.D.layers[0].id)).toBe(false);
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Remove All Layers');
+      W.undo();
+      expect(W.D.layers.map((l) => l.name)).toEqual(names);
+      expect(W.D.layers.map((l) => l.id)).toEqual(ids);
+      expect(W.Hist.idx).toBe(before);
+    }, { timeout: 40000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop remove layers' });
+  </script>
+</body>
+</html>

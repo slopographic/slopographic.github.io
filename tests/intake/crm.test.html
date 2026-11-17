@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop CRM: a customer's photo comes in one way</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: crm/js/ui/form-parts.js
+  // Slop CRM: Add photo in the customer form is the intake's picker (spec 'crm'); its reader shrinks the picture.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  describe('Slop CRM: one way in', () => {
+    it('Add photo', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../crm/index.html#pipeline';
+      await waitFor(() => { try { return f.contentWindow.SlopCrm && f.contentDocument.getElementById('boot').hidden; } catch (e) { return false; } }, { timeout: 20000 });
+      const W = f.contentWindow, D = W.document;
+      D.getElementById('pAdd').click();
+      const btn = await waitFor(() => [...SlopTest.topDialog(D).querySelectorAll('button')].find((b) => b.textContent === 'Add photo'));
+      const c = D.createElement('canvas'); c.width = c.height = 40; c.getContext('2d').fillRect(0, 0, 40, 40);
+      const pic = new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'me.png', { type: 'image/png' });
+      W.SlopUI.pickFiles = async () => [pic];
+      btn.click();
+      await waitFor(() => W.SlopIntake.spec('crm'));
+      await waitFor(() => [...SlopTest.topDialog(D).querySelectorAll('button')].some((b) => b.textContent === 'Change photo'), { timeout: 8000 });
+      expect(W.SlopIntake.spec('crm').paste).toBe(false);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop CRM' });
+</script>
+</body>
+</html>

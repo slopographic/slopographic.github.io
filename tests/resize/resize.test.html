@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Resize: image pipeline in the browser</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../resize/js/core/size.js"></script>
+  <script src="../../resize/js/core/format.js"></script>
+  <script src="../../resize/js/image/image.js"></script>
+  <script src="../../resize/js/video/probe.js"></script>
+  <script src="../../resize/js/video/audio.js"></script>
+  <script src="../../resize/js/video/encode.js"></script>
+  <script src="../../resize/js/video/run.js"></script>
+  <script src="../../resize/js/app/queue.js"></script>
+  <script src="../../resize/js/app/list.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  const R = window.SlopResize;
+
+  /** A 1000 × 500 PNG: the left half red, the right half blue. */
+  async function halfAndHalf() {
+    const c = document.createElement('canvas');
+    c.width = 1000; c.height = 500;
+    const x = c.getContext('2d');
+    x.fillStyle = '#ff0000'; x.fillRect(0, 0, 500, 500);
+    x.fillStyle = '#0000ff'; x.fillRect(500, 0, 500, 500);
+    return new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'gen.png', { type: 'image/png' });
+  }
+  /** A noisy 1000 × 1000 PNG, so JPEG quality matters. */
+  async function noisy() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1000;
+    const x = c.getContext('2d'), img = x.createImageData(1000, 1000);
+    let seed = 7;
+    for (let i = 0; i < img.data.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; img.data[i] = seed & 255; }
+    x.putImageData(img, 0, 0);
+    return new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'noise.png', { type: 'image/png' });
+  }
+  const pixel = (cv, x, y) => Array.from(cv.getContext('2d').getImageData(x, y, 1, 1).data);
+  async function decode(blob) {
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height;
+    c.getContext('2d').drawImage(bmp, 0, 0);
+    return { w: bmp.width, h: bmp.height, canvas: c };
+  }
+  const COVER = { mode: 'size', w: 500, h: 500, keepRatio: true, fill: 'cover', anchor: 'center', bg: 'transparent', even: false, maxBytes: 0 };
+
+  describe('Slop Resize: image pipeline', () => {
+    it('resizes a generated 1000×500 image to 500×500 cover, and the output is 500×500', async () => {
+      const file = await halfAndHalf();
+      const out = await R.image.run(file, COVER, { mime: 'image/png', quality: 0.9, maxBytes: 0 });
+      expect(out.w).toBe(500);
+      expect(out.h).toBe(500);
+      expect(out.ext).toBe('png');
+      const d = await decode(out.blob);
+      expect(d.w).toBe(500);
+      expect(d.h).toBe(500);
+    });
+
+    it('cover crops the sides from the middle: the left of the output is red and the right is blue', async () => {
+      const out = await R.image.run(await halfAndHalf(), COVER, { mime: 'image/png', quality: 0.9, maxBytes: 0 });
+      const d = await decode(out.blob);
+      const left = pixel(d.canvas, 60, 250), right = pixel(d.canvas, 440, 250);
+      expect(left[0] > 200 && left[2] < 60).toBeTruthy();
+      expect(right[2] > 200 && right[0] < 60).toBeTruthy();
+    });
+
+    it('JPEG output has the JPEG type, the requested size and a usable file name', async () => {
+      const out = await R.image.run(await halfAndHalf(), COVER, { mime: 'image/jpeg', quality: 0.8, maxBytes: 0 });
+      expect(out.blob.type).toBe('image/jpeg');
+      expect(R.format.outName('gen.png', out.w, out.h, out.ext)).toBe('gen-500x500.jpg');
+    });
+
+    it('probe reads the picture size without changing the file', async () => {
+      const file = await halfAndHalf();
+      const size = await R.image.probe(file);
+      expect(size.w).toBe(1000);
+      expect(size.h).toBe(500);
+    });
+
+    it('a maximum file size lowers the JPEG quality until the result fits, or says it cannot', async () => {
+      const file = await noisy();
+      const big = await R.image.run(file, { ...COVER, w: 0, h: 0 }, { mime: 'image/jpeg', quality: 0.95, maxBytes: 0 });
+      const limit = Math.round(big.blob.size * 0.5);
+      const small = await R.image.run(file, { ...COVER, w: 0, h: 0, mode: 'bytes', maxBytes: limit }, { mime: 'image/jpeg', quality: 0.95, maxBytes: limit });
+      expect(small.blob.size <= limit || small.note.length > 0).toBeTruthy();
+      expect(small.blob.size < big.blob.size).toBeTruthy();
+    });
+
+    it('the browser says which picture formats it can write (PNG and JPEG always)', async () => {
+      const ok = await R.format.imageSupport();
+      expect(ok.has('image/png')).toBeTruthy();
+      expect(ok.has('image/jpeg')).toBeTruthy();
+    });
+  });
+
+  describe('Slop Resize: video and queue', () => {
+    it('video support resolves to a clear yes or no, with a reason when it is no', async () => {
+      const sup = await R.video.support();
+      expect(typeof sup.ok).toBe('boolean');
+      expect(typeof sup.formats.mp4).toBe('boolean');
+      if (!sup.ok) expect(sup.reason.length > 0).toBeTruthy();
+    });
+
+    it('the queue reads a file, runs it, and holds a named result', async () => {
+      R.queue.clear();
+      const item = await R.queue.add(await halfAndHalf());
+      expect(item.status).toBe('waiting');
+      expect(item.src.w).toBe(1000);
+      await R.queue.run({
+        spec: { ...COVER }, image: { mime: 'image/png', quality: 0.9 }, video: { format: 'mp4', fps: 30, quality: 'medium', audio: false },
+      });
+      const done = R.queue.items()[0];
+      expect(done.status).toBe('done');
+      expect(done.outName).toBe('gen-500x500.png');
+      expect(R.list.summary(R.queue.items()).includes('1 file')).toBeTruthy();
+      R.queue.clear();
+    });
+
+    it('a file that is not a picture or video is kept as an error, not resized', async () => {
+      R.queue.clear();
+      const item = await R.queue.add(new File(['hello'], 'notes.txt', { type: 'text/plain' }));
+      expect(item.status).toBe('error');
+      expect(item.err.length > 0).toBeTruthy();
+      R.queue.clear();
+    });
+  });
+  SlopTest.run({ name: 'Slop Resize image pipeline' });
+  </script>
+</body>
+</html>

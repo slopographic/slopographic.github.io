@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Gallery by touch</title>
+  <style>html, body { margin: 0; height: 100%; background: #111; } iframe { width: 100vw; height: 100vh; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Slop Gallery with a finger (the shared touch layer, shared/input): a tap opens a photo, a long press opens its
+       menu (and the lift does not pick a row), a pinch zooms the viewer's picture and not the page, a double tap zooms
+       it once and no host sees the double-click.
+       Covers: gallery/css/gallery.css, shared/preview/preview.js -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, G, D;
+  // A File of the app's own realm: WebKit does not decode a Blob from another frame there.
+  const inFrame = async (f) => new W.File([await f.arrayBuffer()], f.name, { type: f.type, lastModified: f.lastModified });
+  const menu = () => D.querySelector('.sui-menu');
+  const pct = () => parseInt(D.querySelector('.v-pic .spv-pct').textContent, 10);
+  const tileOf = (name) => D.querySelector(`.tile[data-id="${CSS.escape(G.library.list().find((m) => m.name === name).id)}"]`);
+  const waitPicture = (name) => waitFor(() => {
+    const img = D.querySelector('.v-pic .spv-img');
+    return img && img.alt === name && img.naturalWidth > 0 && D.querySelector('.v-pic .spv-content').style.width !== '';
+  }, { timeout: 8000 });
+
+  /** Can this browser keep a Blob in IndexedDB? Playwright's WebKit on Linux cannot (Safari can): the photo library
+   *  needs it, so there the page checks nothing. */
+  const blobsOk = () => new Promise((res) => {
+    const r = indexedDB.open('touch-blob-probe', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('s');
+    r.onerror = () => res(false);
+    r.onsuccess = () => { try { const tx = r.result.transaction('s', 'readwrite'); tx.objectStore('s').put(new Blob(['x']), 'k'); tx.oncomplete = () => { r.result.close(); res(true); }; tx.onerror = tx.onabort = () => { r.result.close(); res(false); }; } catch (e) { res(false); } };
+  });
+  let blobs = true;
+  describe('Slop Gallery by touch', () => {
+    it('boots with the touch layer and two photos', async () => {
+      blobs = await blobsOk();
+      if (!blobs) { console.info('SKIP: this browser keeps no Blob in IndexedDB'); return; }
+      const fr = document.getElementById('app');
+      fr.src = '../../gallery/index.html?db=' + GT.dbName;
+      await waitFor(() => fr.contentWindow && fr.contentWindow.SlopGallery && fr.contentWindow.SlopGallery.ready && fr.contentWindow.SlopTouch && fr.contentWindow.SlopTouch.ready, { timeout: 30000 });
+      W = fr.contentWindow; G = W.SlopGallery; D = W.document;
+      await G.library.load(); // a fresh database (GT.dbName is new each run)
+      await G.importer.run([
+        { file: await inFrame(await GT.jpegFile('wide.jpg', 1200, 900, { colour: '#2b6cb0' })), name: 'wide.jpg' },
+        { file: await inFrame(await GT.jpegFile('next.jpg', 640, 480, { colour: '#c05621' })), name: 'next.jpg' },
+      ]);
+      await waitFor(() => tileOf('wide.jpg') && tileOf('wide.jpg').getBoundingClientRect().width > 0, { timeout: 10000 });
+    }, { timeout: 40000 });
+
+    it('a long press on a photo opens its menu, and lifting the finger does not pick a row', async () => {
+      if (!blobs) return;
+      await TouchKit.longPress(tileOf('wide.jpg'));
+      await waitFor(() => menu(), { timeout: 3000 });
+      await sleep(300);
+      expect(!!menu()).toBe(true); // still open: the click of the lift was not a row's
+      expect(!D.querySelector('.viewer') || D.querySelector('.viewer').hidden).toBe(true);
+      W.SlopUI.closeMenu();
+      await sleep(800); // the layer swallows a click this soon after a handled long press
+      expect(getComputedStyle(tileOf('wide.jpg')).webkitTouchCallout || 'none').toBe('none');
+    });
+
+    it('a tap opens the photo in the viewer', async () => {
+      if (!blobs) return;
+      await TouchKit.tap(tileOf('wide.jpg'));
+      await waitPicture('wide.jpg');
+      expect(D.querySelector('.viewer').hidden).toBe(false);
+    });
+
+    it('a pinch zooms the picture, not the page', async () => {
+      if (!blobs) return;
+      const before = pct();
+      await TouchKit.pinch(D.querySelector('.v-pic .spv-stage'), 2.2);
+      await waitFor(() => pct() > before * 1.5, { timeout: 3000 });
+      if (window.visualViewport) expect(visualViewport.scale).toBeCloseTo(1, 0.01);
+      if (W.visualViewport) expect(W.visualViewport.scale).toBeCloseTo(1, 0.01);
+    });
+
+    it('a double tap zooms the picture back to fit, and its double-click stays in the viewer', async () => {
+      if (!blobs) return;
+      let seen = 0;
+      const count = () => { seen++; };
+      D.addEventListener('dblclick', count);
+      const zoomed = pct();
+      await TouchKit.doubleTap(D.querySelector('.v-pic .spv-stage'));
+      await waitFor(() => pct() < zoomed, { timeout: 3000 });
+      D.removeEventListener('dblclick', count);
+      expect(seen).toBe(0);
+      G.viewer.close();
+    });
+  });
+  SlopTest.run({ name: 'Slop Gallery by touch' });
+  </script>
+</body>
+</html>

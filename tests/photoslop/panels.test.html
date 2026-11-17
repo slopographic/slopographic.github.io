@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop panel tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="fresh-app.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const isCollapsed = (win, id) => win.document.getElementById('panel-' + id).classList.contains('collapsed');
+  const head = (win, id) => win.document.querySelector('#panel-' + id + ' .panel-head');
+
+  describe('PhotoSlop panels start collapsed except Layers', () => {
+    it('every sidebar panel is collapsed by default, and Layers is open', async () => {
+      const { win } = await freshApp();
+      const ids = [...win.document.querySelectorAll('#panels > .panel')].map((p) => p.id.slice('panel-'.length));
+      expect(ids.length).toBeGreaterThanOrEqual(5);
+      expect(isCollapsed(win, 'layers')).toBe(false);
+      for (const id of ids.filter((x) => x !== 'layers')) {
+        expect(isCollapsed(win, id)).toBe(true);
+        expect(head(win, id).getAttribute('aria-expanded')).toBe('false');
+      }
+    }, { timeout: 40000 });
+
+    it('clicking a panel header expands it, and the choice is remembered', async () => {
+      const { win } = await freshApp({ keep: true });
+      expect(isCollapsed(win, 'history')).toBe(true);
+      head(win, 'history').click();
+      expect(isCollapsed(win, 'history')).toBe(false);
+      expect(head(win, 'history').getAttribute('aria-expanded')).toBe('true');
+      expect(localStorage.getItem('slopshop.collapsed.history')).toBe('false');
+      // a reload keeps the open state; other panels stay collapsed
+      const again = await freshApp({ keep: true });
+      expect(isCollapsed(again.win, 'history')).toBe(false);
+      expect(isCollapsed(again.win, 'brushes')).toBe(true);
+      expect(isCollapsed(again.win, 'color')).toBe(true);
+    }, { timeout: 60000 });
+
+    it('collapsing an open panel again is remembered too', async () => {
+      const { win } = await freshApp({ keep: true });
+      expect(isCollapsed(win, 'history')).toBe(false);
+      head(win, 'history').click();
+      expect(isCollapsed(win, 'history')).toBe(true);
+      expect(localStorage.getItem('slopshop.collapsed.history')).toBe('true');
+      const again = await freshApp({ keep: true });
+      expect(isCollapsed(again.win, 'history')).toBe(true);
+    }, { timeout: 60000 });
+
+    it('an unreadable saved state falls back to the default', async () => {
+      const { win } = await freshApp();
+      localStorage.setItem('slopshop.collapsed.swatches', '{not json');
+      const again = await freshApp({ keep: true });
+      expect(isCollapsed(again.win, 'swatches')).toBe(true);
+      expect(isCollapsed(again.win, 'layers')).toBe(false);
+    }, { timeout: 60000 });
+  });
+
+  SlopTest.run({ name: 'PhotoSlop panels' });
+  </script>
+</body>
+</html>

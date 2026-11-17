@@ -1,0 +1,22 @@
+/* SEO copy, zh-TW: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'seo.task.code.open-filemaker-file.crumb': '開啟 FileMaker 檔案',
+  'seo.task.code.open-filemaker-file.title': '線上開啟 FileMaker 檔案：檢視 .fmp12 與 .fp7 資料表',
+  'seo.task.code.open-filemaker-file.description': '在瀏覽器中開啟 FileMaker 資料庫（.fmp12、.fp7、.fp5、.fp3），不需 FileMaker 即可讀取資料表與記錄。可搜尋，可匯出為 CSV 或 JSON。不需上傳。',
+  'seo.task.code.open-filemaker-file.h1': '線上開啟 FileMaker 檔案',
+  'seo.task.code.open-filemaker-file.lead': 'FileMaker 檔案裡是記錄資料表，通常需要 FileMaker 才能檢視。把檔案拖曳到 Slop Code，資料表就會以格狀開啟，可捲動、搜尋與匯出，不需安裝任何軟體。',
+  'seo.task.code.open-filemaker-file.steps.0': '開啟 Slop Code，把 .fmp12、.fp7、.fp5 或 .fp3 檔案拖曳到頁面上，或從 Slop Drive 選取。',
+  'seo.task.code.open-filemaker-file.steps.1': '檔案以唯讀格狀開啟。從清單中選一張資料表：列會隨捲動載入，所以大型檔案也很流暢。',
+  'seo.task.code.open-filemaker-file.steps.2': '用搜尋框在資料表中尋找，或選擇一種文字類型（IP 位址、電子郵件地址、金鑰），跳到下一個包含它的列。',
+  'seo.task.code.open-filemaker-file.steps.3': '選擇「匯出」，把資料表儲存為 CSV 或 JSON，或在其他應用程式中開啟。',
+  'seo.task.code.open-filemaker-file.body.0': '頁面自行讀取檔案格式：FileMaker Pro 3 至 6 的檔案（.fp3、.fp5、.fmp）、Pro 7 至 12 的檔案（.fp7、.fmp12），以及 FileMaker 寫出的資料表匯出檔（.fmpxml）。讀取器是開源 fmptools 的 JavaScript 移植版。',
+  'seo.task.code.open-filemaker-file.body.1': '你會看到資料表、欄位名稱與記錄。容器欄位中的圖片與檔案、版面配置、指令碼、關聯與值清單不會被讀取，加密的檔案需要先在 FileMaker 中開啟。',
+  'seo.task.code.open-filemaker-file.faq.0.0': '開啟檔案需要 FileMaker 嗎？',
+  'seo.task.code.open-filemaker-file.faq.0.1': '不需要。頁面在瀏覽器中讀取檔案並顯示其資料表與列，不會執行資料庫或其指令碼。',
+  'seo.task.code.open-filemaker-file.faq.1.0': '我的檔案會被上傳嗎？',
+  'seo.task.code.open-filemaker-file.faq.1.1': '不會。檔案在本裝置上讀取，不會向 Slopographic 或任何人傳送任何內容。',
+  'seo.task.code.open-filemaker-file.faq.2.0': '可以修改資料嗎？',
+  'seo.task.code.open-filemaker-file.faq.2.1': '不可以。檔案以唯讀方式顯示，絕不會被修改。若要在其他應用程式中處理資料，請把資料表匯出為 CSV 或 JSON。',
+  'seo.task.code.open-filemaker-file.faq.3.0': '可以開啟哪些 FileMaker 檔案？',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'FileMaker Pro 3 至 12 的檔案（.fp3、.fp5、.fp7、.fmp12），以及 FMPXMLRESULT 格式的資料表匯出檔。較新版 FileMaker 建立的新 .fmp12 檔案，只要未加密，也能以同樣方式開啟。',
+});

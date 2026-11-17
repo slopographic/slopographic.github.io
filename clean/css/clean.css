@@ -1,0 +1,104 @@
+/* Slop Clean: layout and tokens. Dark by default, light when the system asks for it or the page is set to light. */
+:root {
+  --cl-bg: #161616; --cl-panel: #1f1f1f; --cl-line: #333; --cl-fg: #ececec; --cl-dim: #a3a3a3; --cl-faint: #9a9a9a;
+  --cl-accent: #d4ff3a; --cl-accent-ink: #10180a; --cl-bad: #ff6b82; --cl-ok: #8fd66b; --cl-radius: 8px;
+  --cl-mono: ui-monospace, Menlo, Consolas, monospace;
+  --s-bg: var(--cl-panel); --s-bg2: #262626; --s-input: #161616; --s-line: var(--cl-line); --s-fg: var(--cl-fg);
+  --s-dim: var(--cl-dim); --s-accent: var(--cl-accent); --s-accent-ink: var(--cl-accent-ink);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --cl-bg: #f4f2ec; --cl-panel: #ffffff; --cl-line: #d8d4c8; --cl-fg: #161616; --cl-dim: #555; --cl-faint: #666;
+    --cl-accent: #5b7f00; --cl-accent-ink: #ffffff; --cl-bad: #b3263f; --cl-ok: #2f6b1a;
+    --s-bg2: #f0eee7; --s-input: #fff; --s-bg: #fff;
+  }
+}
+:root[data-theme="light"] {
+  --cl-bg: #f4f2ec; --cl-panel: #ffffff; --cl-line: #d8d4c8; --cl-fg: #161616; --cl-dim: #555; --cl-faint: #666;
+  --cl-accent: #5b7f00; --cl-accent-ink: #ffffff; --cl-bad: #b3263f; --cl-ok: #2f6b1a;
+  --s-bg2: #f0eee7; --s-input: #fff; --s-bg: #fff;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--cl-bg); color: var(--cl-fg); font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+h1, h2, h3, h4, p { margin: 0; }
+/* header: home link (the app icon, brand/brand.js), name, tagline, the tools, then the shell's buttons on one row.
+   The shared header buttons (Slop Drive, Theme, Apps: shared/ui/hbtn.css) wear the look of the tools. */
+.cl-top { display: flex; flex: none; gap: 8px 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--cl-line); background: var(--cl-panel); position: relative; z-index: 5; min-width: 0;
+  --slop-hbtn-h: 32px; --slop-hbtn-radius: var(--s-radius, 6px); --slop-hbtn-bg: var(--s-bg2); --slop-hbtn-line: var(--s-line); --slop-hbtn-fs: 14px; }
+.cl-brand { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; overflow: clip; overflow-clip-margin: 6px; }
+.cl-brand .brand { display: grid; place-items: center; width: 32px; height: 32px; flex: none; color: var(--cl-accent); text-decoration: none; }
+.cl-brand h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+.cl-tag { color: var(--cl-dim); font-size: 12.5px; white-space: nowrap; }
+.cl-tools { display: flex; gap: 6px; align-items: center; flex: none; }
+.cl-top .sui-btn { height: 32px; }
+.cl-tools button:disabled { opacity: .5; cursor: default; }
+.cl-stat { flex: none; padding: 8px 16px; color: var(--cl-dim); font-size: 12.5px; min-height: 0; }
+.cl-stat:empty { display: none; }
+/* SlopFrame's view (the pictures) and its panel on the right (the choices and Copy and clean), shared/frame/frame.css */
+.cl-main-wrap { flex: 1 1 auto; min-height: 0; }
+.cl-view { padding: 16px; }
+.cl-empty { display: grid; place-items: center; min-height: 60vh; }
+body.has-items .cl-empty { display: none; }
+.cl-drop { border: 1.5px dashed var(--cl-line); border-radius: 14px; padding: 36px 28px; text-align: center; max-width: 520px; display: grid; gap: 12px; justify-items: center; }
+.cl-drop h2 { font-size: 20px; }
+.cl-drop p { color: var(--cl-dim); }
+.cl-fine { font-size: 12px; color: var(--cl-faint); }
+.cl-list { display: grid; gap: 14px; min-width: 0; }
+.cl-card { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 16px; padding: 14px; border: 1px solid var(--cl-line); border-radius: var(--cl-radius); background: var(--cl-panel); min-width: 0; }
+.cl-card.is-error { border-color: var(--cl-bad); }
+.cl-thumb { width: 132px; height: 132px; border-radius: 6px; overflow: hidden; display: grid; place-items: center; background: repeating-conic-gradient(#3a3a3a 0 25%, #2a2a2a 0 50%) 0 0 / 14px 14px; }
+.cl-thumb img { max-width: 100%; max-height: 100%; display: block; }
+.cl-nothumb { color: var(--cl-dim); font: 700 16px var(--cl-mono); }
+.cl-main { min-width: 0; display: grid; gap: 8px; }
+.cl-name { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-sum { color: var(--cl-dim); font-size: 13px; overflow-wrap: anywhere; }
+.cl-card.is-error .cl-sum { color: var(--cl-bad); }
+.cl-holds { display: grid; gap: 2px; margin-top: 2px; }
+.cl-cat { display: flex; gap: 8px; align-items: center; margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--cl-dim); }
+.cl-count { font: 600 11px var(--cl-mono); color: var(--cl-faint); }
+.cl-row { display: grid; grid-template-columns: minmax(120px, 0.9fr) minmax(0, 1.4fr) auto; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 1px dotted var(--cl-line); font-size: 13px; }
+.cl-k { color: var(--cl-fg); }
+.cl-v { font-family: var(--cl-mono); font-size: 12px; color: var(--cl-dim); overflow-wrap: anywhere; min-width: 0; }
+.cl-pill { font: 600 10.5px var(--cl-mono); padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.cl-row.is-gone .cl-pill { background: rgba(255, 107, 130, .14); color: var(--cl-bad); }
+.cl-row.is-kept .cl-pill { background: rgba(143, 214, 107, .14); color: var(--cl-ok); }
+.cl-row.is-gone .cl-v { text-decoration: line-through; text-decoration-color: var(--cl-faint); }
+.cl-none { color: var(--cl-dim); font-size: 13px; }
+.cl-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.cl-danger { color: var(--cl-bad) !important; }
+.cl-choices { display: grid; gap: 8px; }
+.cl-side-p { color: var(--cl-dim); font-size: 12.5px; }
+.cl-choice-list { display: grid; gap: 2px; }
+.cl-choice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.cl-choice:hover { background: rgba(127, 127, 127, .12); }
+.cl-choice.is-none { color: var(--cl-faint); }
+.cl-choice input { accent-color: var(--cl-accent); width: 15px; height: 15px; margin: 0; }
+.cl-choice .cl-count { font: 600 11px var(--cl-mono); color: var(--cl-dim); }
+.cl-view-body { display: grid; gap: 12px; max-height: 70vh; overflow: auto; }
+.cl-view-img { max-width: 100%; max-height: 42vh; object-fit: contain; border-radius: 6px; background: #000; justify-self: center; }
+.cl-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cl-table th, .cl-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--cl-line); vertical-align: top; overflow-wrap: anywhere; }
+.cl-table thead th { color: var(--cl-dim); font-weight: 600; }
+.clean-confirm { display: grid; gap: 6px; max-height: 55vh; overflow: auto; font-size: 13px; }
+.clean-h { font-size: 14px; margin-top: 6px; }
+.clean-list { margin: 0; padding-left: 18px; color: var(--cl-fg); }
+.muted { color: var(--cl-dim); }
+@media (max-width: 1640px) { .cl-tag { display: none; } }
+/* below the width the tools need, they get a row of their own under the name */
+@media (max-width: 1000px) {
+  .cl-top { flex-wrap: wrap; }
+  .cl-tools { order: 9; flex: 1 1 100%; flex-wrap: wrap; }
+}
+@media (max-width: 520px) {
+  .cl-tools .sui-btn { flex: 1 1 auto; }
+  .cl-empty { min-height: 0; }
+}
+@media (max-width: 860px) {
+  .cl-view { padding: 12px 16px; }
+  .cl-card { grid-template-columns: 84px minmax(0, 1fr); gap: 12px; }
+  .cl-thumb { width: 84px; height: 84px; }
+  .cl-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .cl-v { grid-column: 1 / -1; }
+}

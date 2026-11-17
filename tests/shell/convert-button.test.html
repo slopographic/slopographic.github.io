@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shell · Convert… in every app header: nothing loads before the click, the dialog opens with the app's file</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shell/header.js, shared/convert/dialog.js, shared/convert/load.js, shared/convert/provided.js, shared/convert/results.js,
+  //   shared/convert/dialog.css, tables/js/ui/main.js, notes/js/main.js, hex/js/actions.js
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  async function open(app, w, h, query = '') {
+    const f = document.createElement('iframe');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    f.src = `../../${app}/index.html${query}`;
+    document.body.append(f);
+    await waitFor(() => f.contentDocument && f.contentDocument.querySelector('.sh-switch'), { timeout: 30000 });
+    await sleep(300);
+    return f;
+  }
+  /** Files of the converter the frame has fetched (the Resource Timing list holds every request the page made). */
+  const convertRequests = (W) => W.performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\/shared\/convert\/|\/convert\/js\/|\/convert\/css\//.test(n));
+  const dialog = (D) => D.querySelector('.sl-cvt-dlg');
+
+  describe('Convert… in the header', () => {
+    it('Slop Tables: the button is there, nothing of the converter loads until it is clicked; then the workbook is preloaded as XLSX', async () => {
+      const f = await open('tables', 1280, 800), D = f.contentDocument, W = f.contentWindow;
+      const b = D.querySelector('header .sh-convert');
+      expect(!!b).toBe(true);
+      expect(b.classList.contains('slop-hbtn')).toBe(true);
+      expect(b.getAttribute('aria-haspopup')).toBe('dialog');
+      await waitFor(() => W.SlopTables && W.SlopTables.ready, { timeout: 20000 });
+      await sleep(1500);   // the page's idle work is done
+      expect(convertRequests(W)).toEqual([]);
+      expect(!!W.SlopConvert).toBe(false);
+      b.focus();
+      b.click();
+      const dlg = await waitFor(() => dialog(D) && dialog(D).querySelector('.cv-file') && dialog(D), { timeout: 30000 });
+      expect(convertRequests(W).some((n) => n.endsWith('/shared/convert/dialog.js'))).toBe(true);
+      expect(dlg.querySelector('.sl-cvt-from').textContent).toMatch(/^From Slop Tables: .+\.xlsx/);
+      expect(dlg.querySelector('.cv-file .cv-file-name').textContent).toMatch(/\.xlsx$/);
+      // the Escape key closes it and focus goes back to the header button
+      await waitFor(() => dlg.contains(D.activeElement));
+      D.activeElement.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await waitFor(() => !dialog(D));
+      expect(D.activeElement).toBe(b);
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('the command palette has Convert files…, and it opens the same dialog', async () => {
+      const f = await open('notes', 1280, 800), D = f.contentDocument, W = f.contentWindow;
+      await waitFor(() => W.SlopCmd && W.SlopCmd.get('shell.convert'), { timeout: 20000 });
+      expect(W.SlopCmd.list().find((c) => c.id === 'shell.convert').title).toBe('Convert files…');
+      W.SlopCmd.run('shell.convert', { source: 'api' });
+      const dlg = await waitFor(() => dialog(D) && dialog(D).querySelector('.cv-tool') && dialog(D), { timeout: 30000 });
+      dlg.querySelector('.sui-x').click();
+      await waitFor(() => !dialog(D));
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('390 px: Convert is an icon on screen, or (no room) the first row of the Theme menu; the header keeps one row', async () => {
+      const f = await open('hex', 390, 760), D = f.contentDocument, W = f.contentWindow;
+      await sleep(500);
+      const b = D.querySelector('.sh-convert'), hdr = b.closest('header');
+      const was = b.hidden, h1 = hdr.getBoundingClientRect().height;
+      b.hidden = true; W.SlopHbtn.check(hdr);
+      const h0 = hdr.getBoundingClientRect().height;
+      b.hidden = was; W.SlopHbtn.check(hdr);
+      expect(h1).toBeLessThanOrEqual(h0 + 1);   // Convert never makes the header taller
+      expect(D.documentElement.scrollWidth).toBe(390);
+      await sleep(100);
+      if (!b.hidden && b.getBoundingClientRect().width) {
+        const r = b.getBoundingClientRect();
+        expect(r.right <= 390.5 && r.left >= 0).toBe(true);
+        expect(W.getComputedStyle(b.querySelector('.slop-hbtn-txt')).display).toBe('none');
+        b.click();
+      } else {
+        D.querySelector('.sh-theme').click();
+        const row = await waitFor(() => [...D.querySelectorAll('.sui-menu .sui-row')].find((r) => r.textContent.includes('Convert files…')));
+        row.click();
+      }
+      const dlg = await waitFor(() => dialog(D) && dialog(D).querySelector('.cv-tool') && dialog(D), { timeout: 30000 });
+      await sleep(300);
+      expect(dlg.offsetWidth).toBe(390);
+      expect(dlg.offsetHeight).toBe(W.innerHeight);
+      expect(D.documentElement.scrollWidth).toBe(390);
+      expect(dlg.querySelector('.sl-cvt-from').hidden).toBe(true);   // a new blank tab: nothing handed over
+      const dt = new W.DataTransfer();
+      dt.items.add(new W.File(['a,b\n1,2\n'], 'list.csv', { type: 'text/csv' }));
+      dlg.parentElement.dispatchEvent(new W.DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+      await waitFor(() => dlg.querySelector('.cv-file'), { timeout: 15000 });
+      dlg.querySelector('.cv-tool').convertTool.setTarget('csv-to-json');
+      dlg.querySelector('.cv-form button[type=submit]').click();
+      await waitFor(() => dlg.querySelector('.cv-out-item .sl-cvt-save'), { timeout: 30000 });
+      expect(dlg.querySelector('.cv-out-item .cv-file-name').textContent).toBe('list.json');
+      expect(W.HexApp.doc() ? W.HexApp.doc().name : '').not.toBe('list.csv');   // the app under the dialog took nothing
+      dlg.querySelector('.sui-x').click();
+      f.remove();
+    }, { timeout: 60000 });
+
+    it('File convert itself has no Convert… button (it is the tool)', async () => {
+      const f = await open('convert', 1280, 800);
+      expect(f.contentDocument.querySelector('.sh-convert')).toBe(null);
+      f.remove();
+    }, { timeout: 40000 });
+  });
+
+  run({ name: 'Shell Convert button' });
+  </script>
+</body>
+</html>

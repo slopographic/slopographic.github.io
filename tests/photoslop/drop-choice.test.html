@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopDropChoice module tests</title>
+</head>
+<body>
+  <div id="host" style="position:relative;height:240px;width:600px;margin:8px"><span id="inside">a document area</span></div>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/drop/choice.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  // SlopDropChoice (shared/drop/choice.js): ask, which is the intake's one Add or New question (SlopIntake.choose) with
+  // the old answers, and the drop-zone helper that PhotoSlop uses for its Place and Open zones.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const C = window.SlopDropChoice;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const host = document.getElementById('host');
+  const files = (...names) => names.map((n) => new File(['x'], n, { type: 'image/png' }));
+  const dialog = () => document.querySelector('.sui-dlg.si-choose');
+  const btn = (label) => [...document.querySelectorAll('.si-choose .sui-foot .sui-btn')].find((b) => b.textContent === label);
+  const drag = (el, type, withFiles = true) => {
+    const dt = new DataTransfer();
+    if (withFiles) dt.items.add(new File(['x'], 'a.png', { type: 'image/png' }));
+    else dt.setData('text/plain', 'words');
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+  };
+
+  describe('SlopDropChoice.ask: the dialog', () => {
+    it('resolves null with no file, and never shows a dialog', async () => {
+      expect(await C.ask({ files: [], hasDocument: true })).toBe(null);
+      expect(dialog()).toBe(null);
+    });
+
+    it('resolves new at once when no document is open (nothing to add to)', async () => {
+      expect(await C.ask({ files: files('a.png'), hasDocument: false })).toBe('new');
+      expect(dialog()).toBe(null);
+    });
+
+    it('offers the two choices with the given labels, and Add to current resolves current', async () => {
+      const p = C.ask({ files: files('a.png'), hasDocument: true, labels: { current: 'Add to current', new: 'Create new' } });
+      await waitFor(() => dialog(), { timeout: 2000 });
+      expect(dialog().getAttribute('role')).toBe('dialog');
+      expect(dialog().textContent).toContain('a.png');
+      expect(btn('Add to current')).toBeTruthy();
+      expect(btn('Create new')).toBeTruthy();
+      btn('Add to current').click();
+      expect(await p).toBe('current');
+      await waitFor(() => !dialog(), { timeout: 2000 }); // the dialog is gone once it has answered
+    });
+
+    it('Create new resolves new, with the default labels', async () => {
+      const p = C.ask({ files: files('a.png', 'b.png'), hasDocument: true });
+      await waitFor(() => dialog(), { timeout: 2000 });
+      expect(dialog().textContent).toContain('2 files');
+      expect(btn('Add to current')).toBeTruthy();
+      btn('Create new').click();
+      expect(await p).toBe('new');
+      await waitFor(() => !dialog(), { timeout: 2000 });
+    });
+
+    it('Cancel resolves null', async () => {
+      await waitFor(() => !dialog(), { timeout: 2000 }); // the last answer's dialog has gone
+      const p = C.ask({ files: files('a.png'), hasDocument: true });
+      await waitFor(() => dialog(), { timeout: 2000 });
+      btn('Cancel').click();
+      expect(await p).toBe(null);
+      await waitFor(() => !dialog(), { timeout: 2000 });
+    });
+  });
+
+  describe('SlopDropChoice.zones: the drop-zone helper', () => {
+    const zones = C.zones(host, { labels: { new: 'Open here', current: 'Place here', newHint: 'a new document', currentHint: () => 'into ' + (window.docName || 'this one') } });
+    const box = () => host.querySelector('.sdc-zones');
+    const zoneEl = (kind) => host.querySelector('[data-choice="' + kind + '"]');
+
+    it('is attached to the host and hidden until a file drag is over it', async () => {
+      expect(box().hidden).toBe(true);
+      expect(zoneEl('new').textContent).toContain('Open here');
+      expect(zoneEl('current').textContent).toContain('Place here');
+      drag(document.getElementById('inside'), 'dragenter');
+      expect(box().hidden).toBe(false);
+      drag(document.getElementById('inside'), 'dragleave');
+      expect(box().hidden).toBe(true);
+    });
+
+    it('at(e) says which zone the event is over, and null outside the zones', async () => {
+      drag(document.getElementById('inside'), 'dragenter');
+      const cur = zoneEl('current');
+      cur.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }));
+      expect(zones.at({ target: cur })).toBe('current');
+      expect(zones.at({ target: zoneEl('new') })).toBe('new');
+      expect(zones.at({ target: document.getElementById('inside') })).toBe(null);
+      expect(zones.at(null)).toBe(null);
+      zones.hide();
+    });
+
+    it('marks the zone under the pointer while a file is over it, and reads the hint fresh each time', async () => {
+      window.docName = 'Poster';
+      drag(document.getElementById('inside'), 'dragenter');
+      expect(zoneEl('current').querySelector('span').textContent).toBe('into Poster');
+      drag(zoneEl('current'), 'dragover');
+      expect(zoneEl('current').classList.contains('hot')).toBe(true);
+      expect(zoneEl('new').classList.contains('hot')).toBe(false);
+      drag(zoneEl('new'), 'dragover');
+      expect(zoneEl('new').classList.contains('hot')).toBe(true);
+      expect(zoneEl('current').classList.contains('hot')).toBe(false);
+      zones.hide();
+      window.docName = 'Other';
+      drag(document.getElementById('inside'), 'dragenter');
+      expect(zoneEl('current').querySelector('span').textContent).toBe('into Other');
+      zones.hide();
+    });
+
+    it('ignores drags without files (text) and does not show for them', async () => {
+      drag(document.getElementById('inside'), 'dragenter', false);
+      expect(box().hidden).toBe(true);
+    });
+
+    it('destroy removes the zones and their listeners', async () => {
+      const z2 = C.zones(host, {});
+      expect(host.querySelectorAll('.sdc-zones').length).toBe(2);
+      z2.destroy();
+      expect(host.querySelectorAll('.sdc-zones').length).toBe(1);
+      drag(document.getElementById('inside'), 'dragenter');
+      expect(box().hidden).toBe(false);
+      zones.hide();
+    });
+
+    it('returns null for a missing host', async () => {
+      expect(C.zones(null, {})).toBe(null);
+    });
+  });
+
+  SlopTest.run({ name: 'SlopDropChoice module' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: opening any file</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/openfile.js, code/js/encops.js, code/js/ops.js, code/js/viewers.js, code/js/lang.js, code/js/dialogs.js
+  // Any file opens: text in other encodings (UTF-16, an old Western one) with its line endings kept and written back the same way,
+  // a way to reopen with another encoding and to change the line endings, a file that is not text as bytes with what it looks like,
+  // a text file too big for the editor as bytes, and a language guessed from the name or the first lines.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H, textOf, typeText, dialog, clickButton } = CT;
+  let w;
+  const current = () => w.SlopCode.docs.current();
+  const status = () => w.document.getElementById('cd-status').textContent;
+  const bytesOf = async (id) => new Uint8Array(await (await H().get(id)).blob.arrayBuffer());
+  const put = (name, body) => H().put(body instanceof Uint8Array ? new Blob([body]) : text(body), { name, from: 'test' });
+  async function open(id, name) {
+    await w.SlopCode.openRecord(await H().get(id));
+    await waitFor(() => current() && current().name === name);
+  }
+  const u16le = (s) => { const b = new Uint8Array(2 + s.length * 2); b[0] = 0xff; b[1] = 0xfe; for (let i = 0; i < s.length; i++) { b[2 + i * 2] = s.charCodeAt(i) & 255; b[3 + i * 2] = s.charCodeAt(i) >> 8; } return b; };
+  const latin1 = (s) => Uint8Array.from(s, (c) => c.charCodeAt(0));
+  const pickIn = (sel) => { const s = dialog(w).querySelector('select'); s.value = sel; s.dispatchEvent(new w.Event('change', { bubbles: true })); };
+
+  describe('Slop Code: other encodings and line endings', () => {
+    it('UTF-16 with CRLF: shown as text, written back as UTF-16 with CRLF', async () => {
+      w = await frame('../../code/');
+      const id = await put('u16.txt', u16le('héllo\r\nwörld\r\n'));
+      await open(id, 'u16.txt');
+      expect(textOf(w)).toBe('héllo\nwörld\n');
+      expect(status()).toContain('UTF-16 LE');
+      expect(status()).toContain('CRLF');
+      await typeText(w, '!');
+      expect(await w.SlopCode.saveDoc()).toBe(true);
+      const b = await bytesOf(id);
+      expect([b[0], b[1]]).toEqual([0xff, 0xfe]);
+      expect(new TextDecoder('utf-16le').decode(b.slice(2))).toBe('héllo\r\nwörld\r\n!');
+    }, { timeout: 40000 });
+    it('an old Western file (Windows-1252) keeps its single bytes', async () => {
+      const body = "Ceci est un café très chaud, voilà le résumé de la réunion d'hier soir.\n";
+      const id = await put('w1252.txt', latin1(body));
+      await open(id, 'w1252.txt');
+      expect(textOf(w)).toBe(body);
+      expect(status()).toContain('Windows-1252');
+      await typeText(w, 'é');
+      await w.SlopCode.saveDoc();
+      const b = await bytesOf(id);
+      expect(b.length).toBe(body.length + 1);
+      expect(b[b.length - 1]).toBe(0xe9);
+    });
+    it('Reopen with encoding reads the same bytes another way', async () => {
+      const id = await put('u8.txt', 'café\n');
+      await open(id, 'u8.txt');
+      expect(textOf(w)).toBe('café\n');
+      w.SlopCode.actions.encoding();
+      await waitFor(() => dialog(w));
+      pickIn('windows-1252');
+      clickButton(w, 'Reopen');
+      await waitFor(() => current().name === 'u8.txt' && textOf(w) === 'cafÃ©\n');
+      expect(status()).toContain('Windows-1252');
+    });
+    it('Line endings: changing them counts as a change and is written at the next save', async () => {
+      const id = await put('eol.txt', 'a\r\nb\r\n');
+      await open(id, 'eol.txt');
+      expect(status()).toContain('CRLF');
+      expect(current().dirty).toBe(false);
+      w.SlopCode.actions.eol();
+      await waitFor(() => dialog(w));
+      pickIn('lf');
+      clickButton(w, 'Set');
+      await waitFor(() => current().dirty);
+      await w.SlopCode.saveDoc();
+      expect(Array.from(await bytesOf(id))).toEqual([97, 10, 98, 10]);
+      expect(current().dirty).toBe(false);
+      expect(status()).toContain('LF');
+    });
+  });
+
+  describe('Slop Code: a file that is not text', () => {
+    it('opens as bytes, with what it looks like', async () => {
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1f, 0x15, 0xc4, 0x89]);
+      const id = await put('picture.dat', png);
+      await open(id, 'picture.dat');
+      const viewer = () => w.document.getElementById('cd-viewer');
+      await waitFor(() => viewer().querySelector('.cd-bin .cd-hex-scroll'), { timeout: 8000 });
+      expect(viewer().textContent).toContain('not a text file');
+      expect(viewer().textContent).toContain('PNG image');
+      await waitFor(() => viewer().querySelector('.cd-hex-scroll').innerText.includes('89 50 4e 47'));
+      expect(status()).toContain('Not text');
+    });
+    it('a text file too big for the editor opens as bytes, read only', async () => {
+      const id = await put('big.txt', new Uint8Array(8 * 1024 * 1024 + 64).fill(97));
+      await open(id, 'big.txt');
+      await waitFor(() => w.document.querySelector('#cd-viewer .cd-hex-scroll'), { timeout: 15000 });
+      expect(w.document.getElementById('cd-viewer').textContent).toContain('Too big to edit here');
+      expect(w.document.getElementById('cd-save').disabled).toBe(true);
+    }, { timeout: 60000 });
+  });
+
+  describe('Slop Code: the language from the name or the first lines', () => {
+    const labelNow = () => status().split('  ·  ')[0];
+    const highlighted = () => w.document.querySelectorAll('.cd-editor .cm-line span[class]').length;
+    it('a whole file name (Dockerfile), an extension (yaml) and a shebang with no extension', async () => {
+      let id = await put('Dockerfile', 'FROM alpine\nRUN echo hi\n');
+      await open(id, 'Dockerfile');
+      expect(labelNow()).toBe('Dockerfile');
+      await waitFor(() => highlighted() > 0, { timeout: 8000 });
+      id = await put('conf.yaml', 'name: demo\nitems:\n  - 1\n');
+      await open(id, 'conf.yaml');
+      expect(labelNow()).toBe('YAML');
+      await waitFor(() => highlighted() > 0, { timeout: 8000 });
+      id = await put('run-me', '#!/usr/bin/env python3\nprint(1)\n');
+      await open(id, 'run-me');
+      expect(labelNow()).toBe('Python');
+      id = await put('mystery', '{"a": 1}\n');
+      await open(id, 'mystery');
+      expect(labelNow()).toBe('JSON');
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: opening any file' });
+  </script>
+</body>
+</html>

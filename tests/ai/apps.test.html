@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: apps, files and layout</title></head>
+<body>
+<script src="../harness.js"></script>
+    <script src="../../shared/profile/profile.js"></script>
+    <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+    <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script>try { localStorage.setItem('slop-firstrun:slopisolate', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="util.js"></script>
+  <script>window.SLOP_DRIVE_DB = 'slop-apps-test-' + Math.random().toString(36).slice(2, 8);</script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="../../shared/ai/engines.js"></script>
+  <script src="../../shared/ai/tools.js"></script>
+  <script src="../../shared/ai/apptools.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const K = SlopAIKit, H = SlopHub;
+  const blob = (text, type) => new Blob([text], { type });
+  const toolsWith = (opened) => K.appTools.build({ hub: H, apps: () => SLOP_APPS, open: (url) => opened.push(url) });
+  let ids = [];
+
+  describe('Control apps: send work to an app through Slop Drive', () => {
+    it('open_app with "file" opens the app on that Drive file (by name)', async () => {
+      const id = await H.put(blob('<svg/>', 'image/svg+xml'), { name: 'poster.svg', from: 'ai' }); ids.push(id);
+      const opened = [];
+      const r = await K.tools.dispatch({ name: 'open_app', arguments: { id: 'vector', file: 'poster.svg' } }, toolsWith(opened));
+      expect(r.ok).toBe(true);
+      expect(opened[0]).toMatch(/\/slopvector\/\?drive=/);
+      expect(opened[0]).toContain(id);
+      expect(r.result).toBe('Opened SlopVector with poster.svg.');
+    });
+    it('open_app with "file" takes a Drive id, and warns when the app does not take that type', async () => {
+      const id = await H.put(blob('hello', 'text/plain'), { name: 'notes.txt', from: 'ai' }); ids.push(id);
+      const opened = [];
+      const r = await K.tools.dispatch({ name: 'open_app', arguments: { id: 'cutout', file: id } }, toolsWith(opened));
+      expect(opened[0]).toContain('/slopisolate/?drive=' + id);
+      expect(r.result).toMatch(/may not open text\/plain/);
+    });
+    it('open_app reports a missing file or app without opening anything', async () => {
+      const opened = [];
+      const t = toolsWith(opened);
+      const a = await K.tools.dispatch({ name: 'open_app', arguments: { id: 'vector', file: 'no-such-file.svg' } }, t);
+      const b = await K.tools.dispatch({ name: 'open_app', arguments: { id: 'nope', file: 'poster.svg' } }, t);
+      expect(a.ok).toBe(false); expect(a.error).toMatch(/No Slop Drive file/);
+      expect(b.ok).toBe(false); expect(b.error).toMatch(/No app/);
+      expect(opened.length).toBe(0);
+    });
+    it('read_file returns the text of a text file and refuses images', async () => {
+      const t = await H.put(blob('# Title\n\nBody text.', 'text/markdown'), { name: 'brief.md', from: 'ai' }); ids.push(t);
+      const img = await H.put(blob('\x89PNG', 'image/png'), { name: 'photo.png', from: 'ai' }); ids.push(img);
+      const tools = toolsWith([]);
+      const ok = await K.tools.dispatch({ name: 'read_file', arguments: { file: 'brief.md' } }, tools);
+      expect(ok.ok).toBe(true);
+      expect(ok.result).toContain('Body text.');
+      const no = await K.tools.dispatch({ name: 'read_file', arguments: { file: 'photo.png' } }, tools);
+      expect(no.ok).toBe(false);
+      expect(no.error).toMatch(/not a text file/);
+    });
+    it('cleans up its Drive files', async () => { for (const id of ids) await H.remove(id); ids = []; });
+  });
+
+  describe('Slop AI: the chat layout, the Apps list and the model switcher', () => {
+    let W, D, AI;
+    const $ = (s) => D.querySelector(s), $$ = (s) => [...D.querySelectorAll(s)];
+    const fire = (el, type) => el.dispatchEvent(new (type === 'pointerenter' ? PointerEvent : MouseEvent)(type, { bubbles: true }));
+    it('the chat view has a sidebar with New chat and the list, a model chip, a composer and the Apps list', async () => {
+      W = await AT.app(); AI = W.AI; D = W.document; AT.answer(W);
+      AI.setTab('chat');
+      expect($('#convs #btnNewChat')).toBeTruthy();
+      expect($('#convs #convList')).toBeTruthy();
+      expect($('#modelChip')).toBeTruthy();
+      expect($('.composer textarea.input')).toBeTruthy();
+      expect($('.composer .send')).toBeTruthy();
+      expect($('.empty.hello')).toBeTruthy();
+      expect($('#appsLaunch .apps-h').textContent).toBe('Apps');
+    });
+    it('the Apps list shows every registry app except Slop AI, each opening in a new tab', () => {
+      const want = SLOP_APPS.filter((a) => a.kind === 'app' && a.id !== 'ai');
+      const rows = $$('#appsLaunch .app-row');
+      expect(rows.map((r) => r.dataset.app)).toEqual(want.map((a) => a.id));
+      const link = $('#appsLaunch .app-row[data-app="vector"] a.app-link');
+      expect(link.target).toBe('_blank');
+      expect(link.getAttribute('href')).toMatch(/\/slopvector\/$/);
+      expect($('#appsLaunch .app-row[data-app="vector"] b').textContent).toBe('SlopVector');
+    });
+    it('the Apps menu opens an app in a new tab, and can open a Drive file in it', async () => {
+      W.__opened.length = 0;
+      $('#appsLaunch .app-row[data-app="pdf"] .app-more').click();
+      await waitFor(() => D.querySelector('.sui-menu'));
+      const items = $$('.sui-menu .sui-lbl').map((x) => x.textContent);
+      expect(items).toContain('Open a Slop Drive file in it…');
+      [...D.querySelectorAll('.sui-row')].find((r) => r.textContent.includes('Open in a new tab')).click();
+      expect(W.__opened.pop()).toMatch(/\/pdf\/$/);
+    });
+    it('Enter sends the message and the reply streams into the list', async () => {
+      AI.newChat();
+      await AI.E.load('Qwen2.5-0.5B-Instruct-q4f16_1-MLC', { skipConsent: true });
+      const ta = $('.composer textarea.input');
+      ta.value = 'Write a haiku about slime';
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await waitFor(() => $$('.chat-main .msg.bot').length >= 1 && !AI.chat.busy, { timeout: 8000 });
+      expect($$('.chat-main .msg.user').pop().textContent).toContain('Write a haiku about slime');
+      expect(AI.chat.conv.messages.length).toBe(2);
+    });
+    it('the model chip lists downloaded models and switches to one', async () => {
+      AI.E.unload(); await waitFor(() => !AI.E.ready());
+      localStorage.setItem('slop-ai.fake-cache', JSON.stringify({ 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC': Date.now(), 'Llama-3.2-1B-Instruct-q4f16_1-MLC': Date.now() }));
+      try {
+        $('#modelChip').click();
+        await waitFor(() => [...$$('.sui-menu .sui-lbl')].some((x) => x.textContent === 'Load a downloaded model'));
+        const parent = [...$$('.sui-row')].find((r) => r.textContent.includes('Load a downloaded model'));
+        fire(parent, 'pointerenter');
+        await waitFor(() => $$('.sui-menu[data-level="1"] .sui-lbl').length === 2);
+        // The menu lists downloaded models in catalog order, which is not alphabetical; check the set, not the order.
+        expect($$('.sui-menu[data-level="1"] .sui-lbl').map((x) => x.textContent).sort()).toEqual(['Llama 3.2 1B', 'Qwen2.5 0.5B']);
+        [...$$('.sui-menu[data-level="1"] .sui-row')].find((r) => r.textContent.includes('Qwen2.5 0.5B')).click();
+        await waitFor(() => AI.E.ready());
+        expect(AI.E.model.id).toBe('Qwen2.5-0.5B-Instruct-q4f16_1-MLC');
+        await waitFor(() => $('#modelChip').textContent.includes('Qwen2.5 0.5B'));
+      } finally { localStorage.removeItem('slop-ai.fake-cache'); W.SlopUI.closeMenu(); }
+    });
+    it('"Open SlopVector with poster.svg" lets the model open the app on that Drive file', async () => {
+      const id = await W.SlopHub.put(new Blob(['<svg/>'], { type: 'image/svg+xml' }), { name: 'poster.svg', from: 'ai' });
+      try {
+        AI.newChat(); $('#btnTools').click();
+        W.__opened.length = 0;
+        await AI.chat.send('Open SlopVector with poster.svg');
+        await waitFor(() => W.__opened.length);
+        expect(W.__opened[0]).toContain('/slopvector/?drive=' + id);
+        expect($('.chat-main .msg.tool').textContent).toContain('open_app');
+      } finally { await W.SlopHub.remove(id); }
+    });
+    it('no sideways scroll with the Apps list on a phone-width screen', async () => {
+      const f = W.__frame; f.style.width = '390px'; f.style.height = '844px';
+      await sleep(150);
+      expect(D.documentElement.scrollWidth <= W.innerWidth).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'Slop AI: apps, files and layout' });
+  </script>
+</body>
+</html>

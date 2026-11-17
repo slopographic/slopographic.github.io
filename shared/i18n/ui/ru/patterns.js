@@ -1,0 +1,23 @@
+/* Shared components, ru: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'ui.patterns.ipv4': 'Адрес IPv4',
+  'ui.patterns.ipv6': 'Адрес IPv6',
+  'ui.patterns.mac': 'Адрес MAC',
+  'ui.patterns.email': 'Адрес e-mail',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'Идентификатор ключа доступа AWS',
+  'ui.patterns.aws_secret': 'Секретный ключ AWS',
+  'ui.patterns.github_token': 'Токен GitHub',
+  'ui.patterns.slack_token': 'Токен Slack',
+  'ui.patterns.stripe_key': 'Ключ Stripe',
+  'ui.patterns.google_api_key': 'Ключ API Google',
+  'ui.patterns.private_key': 'Закрытый ключ',
+  'ui.patterns.bearer': 'Токен Bearer',
+  'ui.patterns.basic_auth_url': 'Пароль в URL',
+  'ui.patterns.secret_assignment': 'Присвоение секрета',
+  'ui.patterns.hash': 'Хеш (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Номер кредитной карты',
+  'ui.patterns.iban': 'IBAN',
+});

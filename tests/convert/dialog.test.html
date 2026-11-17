@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: the Convert dialog is the real tool in a SlopUI dialog</title>
+<link rel="stylesheet" href="../../shared/slopui.css"></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+<script src="../../shared/slopui.js"></script>
+<script src="../../vendor/pdf-lib/pdf-lib.min.js"></script>
+<script type="module">
+// Covers: shared/convert/dialog.js, shared/convert/dialog.css, shared/convert/load.js, shared/convert/provided.js,
+//   shared/convert/results.js, convert/js/core/pdf-extra.js, convert/js/ui/mount-tool.js
+// The page loads no drop zone, no hub and no File convert stylesheet: the dialog brings what it needs (load.js).
+import { open, pdfMaker } from '../../shared/convert/dialog.js';
+const { describe, it, expect, waitFor } = SlopTest;
+
+/** A one-page PDF with the words "Convert me" (pdf-lib, the vendored build). */
+async function samplePdf(text = 'Convert me', name = 'sample.pdf') {
+  const doc = await PDFLib.PDFDocument.create();
+  const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+  doc.addPage([300, 200]).drawText(text, { x: 20, y: 90, size: 24, font });
+  return new File([await doc.save()], name, { type: 'application/pdf' });
+}
+const runBtn = (ctl) => ctl.element.querySelector('.cv-form button[type=submit]');
+const closed = () => waitFor(() => !document.querySelector('.sl-cvt-dlg'));
+
+describe('Convert dialog', () => {
+  it('mounts the real tool in a SlopUI dialog, with the PDF conversions and no image or CSV ones', async () => {
+    const ctl = open({ file: await samplePdf() });
+    await ctl.ready;
+    expect(ctl.element.classList.contains('sui-dlg')).toBe(true);
+    expect(ctl.element.getAttribute('role')).toBe('dialog');
+    expect(!!ctl.element.querySelector('.cv-tool.cv-compact')).toBe(true);
+    expect(!!window.SlopDrop && !!window.SlopDrop.attach).toBe(true);
+    const ids = ctl.targets();
+    for (const id of ['pdf-to-images', 'pdf-to-text', 'pdf-to-docx', 'split-pdf']) expect(ids.includes(id)).toBe(true);
+    for (const id of ['to-png', 'images-to-pdf', 'csv-to-json']) expect(ids.includes(id)).toBe(false);
+    expect(ctl.element.querySelector('.cv-file .cv-file-name').textContent).toBe('sample.pdf');
+    ctl.close();
+    await closed();
+  });
+
+  it('converts a PDF to PNG (target pdf-to-png), and the result has Download, Save to Slop Drive and Open in…', async () => {
+    const ctl = open({ file: await samplePdf(), target: 'pdf-to-png' });
+    await ctl.ready;
+    expect(ctl.element.querySelector('.cv-to').dataset.target).toBe('pdf-to-images');
+    runBtn(ctl).click();
+    await waitFor(() => ctl.results().length === 1, { timeout: 60000 });
+    const [out] = ctl.results();
+    expect(out.name).toBe('sample-page-1.png');
+    expect(Array.from(new Uint8Array(await out.blob.slice(0, 4).arrayBuffer()))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    const li = await waitFor(() => { const r = ctl.element.querySelector('.cv-out-item'); return r && r.querySelector('.sl-cvt-save') && r; }, { timeout: 15000 });
+    expect(li.querySelector('a[download]').getAttribute('download')).toBe('sample-page-1.png');
+    expect(!!window.SlopHub).toBe(true);
+    const openIn = li.querySelector('.sl-cvt-open');
+    expect(!!openIn).toBe(true);
+    openIn.click();
+    const menu = await waitFor(() => document.querySelector('.sui-menu'));
+    expect(menu.textContent).toContain('Open in PhotoSlop');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    ctl.close();
+    await closed();
+  }, { timeout: 90000 });
+
+  it('a second PDF added merges with the first; a file dropped on the dialog is added too', async () => {
+    const ctl = open({ file: await samplePdf('First', 'a.pdf') });
+    await ctl.ready;
+    const dt = new DataTransfer();
+    dt.items.add(await samplePdf('Second', 'b.pdf'));
+    let below = 0;
+    const count = () => { below++; };
+    window.addEventListener('drop', count);
+    const back = ctl.element.parentElement;
+    back.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    back.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+    await waitFor(() => ctl.tool.items.length === 2, { timeout: 15000 });
+    window.removeEventListener('drop', count);
+    expect(below).toBe(0);   // the page under the dialog never sees the drop
+    expect(ctl.targets().includes('merge-pdf')).toBe(true);
+    ctl.tool.setTarget('merge-pdf');
+    runBtn(ctl).click();
+    await waitFor(() => ctl.results().length === 1, { timeout: 60000 });
+    expect(ctl.results()[0].name).toBe('merged.pdf');
+    ctl.close();
+    await closed();
+  }, { timeout: 90000 });
+
+  it('PDF to text (now in the catalog) gives the words of the page, and its note is shown', async () => {
+    const ctl = open({ file: await samplePdf('Plain words here'), target: 'pdf-to-docx' });
+    await ctl.ready;
+    expect(ctl.element.querySelector('.sl-cvt-notes').textContent).toContain('Text-based');
+    ctl.tool.setTarget('pdf-to-text');
+    runBtn(ctl).click();
+    await waitFor(() => ctl.results().length === 1, { timeout: 60000 });
+    const [out] = ctl.results();
+    expect(out.name).toBe('sample.txt');
+    expect((await out.blob.text()).includes('Plain words here')).toBe(true);
+    ctl.close();
+    await closed();
+  }, { timeout: 90000 });
+
+  it('onPdf: each file starts on the conversion that makes it a PDF; one that cannot is named; the PDF is handed over', async () => {
+    expect([pdfMaker('png'), pdfMaker('html'), pdfMaker('txt'), pdfMaker('xlsx')]).toEqual(['images-to-pdf', 'html-to-pdf', 'txt-to-pdf', '']);
+    let got = null;
+    const svg = new File(['<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="#c33"/></svg>'], 'logo.svg', { type: 'image/svg+xml' });
+    const ctl = open({ files: [svg], target: 'images-to-pdf', onPdf: (outs, names) => { got = { outs, names }; } });
+    await ctl.ready;
+    expect(ctl.element.querySelector('.cv-to').dataset.target).toBe('images-to-pdf');
+    expect(ctl.element.querySelector('.sl-cvt-err').hidden).toBe(true);
+    runBtn(ctl).click();
+    await waitFor(() => got, { timeout: 60000 });
+    expect(got.names).toEqual(['logo.svg']);
+    expect((await got.outs[0].blob.text()).startsWith('%PDF-')).toBe(true);
+    await closed();
+    const bad = open({ files: [new File([new Uint8Array([80, 75, 3, 4])], 'budget.xlsx')], onPdf: () => {} });
+    await bad.ready;
+    expect(bad.element.textContent).toContain('cannot be converted to PDF here');
+    bad.close();
+    await closed();
+  }, { timeout: 90000 });
+
+  it('with no files, the page’s provider is asked: "From <app>: name", Remove takes them out; none: an empty drop zone', async () => {
+    const offer = (e) => e.detail.provide(async () => [{ name: 'Budget.csv', blob: new Blob(['a,b\n1,2\n'], { type: 'text/csv' }) }], { app: 'Slop Sheets' });
+    window.addEventListener('slop:convert-files', offer);
+    const ctl = open({});
+    await ctl.ready;
+    window.removeEventListener('slop:convert-files', offer);
+    const from = ctl.element.querySelector('.sl-cvt-from');
+    expect(from.hidden).toBe(false);
+    expect(from.textContent).toContain('From Slop Sheets: Budget.csv');
+    expect(ctl.tool.items.map((i) => i.name)).toEqual(['Budget.csv']);
+    from.querySelector('button').click();
+    expect(ctl.tool.items.length).toBe(0);
+    expect(from.hidden).toBe(true);
+    ctl.close();
+    await closed();
+    const none = open({});
+    await none.ready;
+    expect(none.tool.items.length).toBe(0);
+    expect(none.element.querySelector('.sl-cvt-from').hidden).toBe(true);
+    expect(!!none.element.querySelector('.cv-drop button')).toBe(true);
+    none.close();
+    await closed();
+  }, { timeout: 30000 });
+
+  it('Escape closes the dialog and focus returns to the button that opened it', async () => {
+    const b = document.createElement('button');
+    b.textContent = 'Open';
+    document.body.append(b);
+    b.focus();
+    const ctl = open({ file: await samplePdf() });
+    await ctl.ready;
+    await waitFor(() => ctl.element.contains(document.activeElement));
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await ctl.done;
+    await closed();
+    expect(document.activeElement).toBe(b);
+    b.remove();
+  }, { timeout: 30000 });
+});
+
+SlopTest.run({ name: 'File convert dialog' });
+</script>
+</body>
+</html>

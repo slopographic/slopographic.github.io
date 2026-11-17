@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QR SLOP in Swedish</title>
+  <!-- Covers: qr/i18n/index.js, qr/js/app.js, qr/js/batch.js, qr/js/commands.js, qr/js/export.js, qr/js/forms.js, qr/js/layout.js, qr/js/logo.js, qr/js/main.js, qr/js/matrix.js, qr/js/panel-content.js, qr/js/panel-design.js, qr/js/payload.js, qr/js/preview.js, qr/js/save.js, qr/js/state.js, qr/js/templates.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'QR SLOP', path: '../../qr/index.html', ns: 'qr',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#qr-edit .sf-h') && doc.querySelector('#qr-kinds .qr-chip'),
+    checks: [
+      ['#qr-tab-templates', 'Mallar', 'Templates'],
+      ['#qr-kinds .qr-chip[data-kind="text"]', 'Vanlig text', 'Plain text'],
+      ['#qr-name', 'Ytterdörr', 'Front door', 'placeholder'],
+      ['#qr-dl-png', 'Ladda ned PNG', 'Download PNG'],
+      ['#qr-off', 'Fyll i formuläret', 'Fill in the form'],
+      ['#qr-edit .sf-h', 'Redigera', 'Edit'],
+    ],
+  });
+  SlopTest.run({ name: 'QR SLOP in Swedish' });
+  </script>
+</body>
+</html>

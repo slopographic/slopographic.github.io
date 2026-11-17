@@ -1,0 +1,22 @@
+/* SEO copy, ko: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'seo.task.code.open-filemaker-file.crumb': 'FileMaker 파일 열기',
+  'seo.task.code.open-filemaker-file.title': 'FileMaker 파일 온라인으로 열기: .fmp12, .fp7 테이블 보기',
+  'seo.task.code.open-filemaker-file.description': 'FileMaker 데이터베이스(.fmp12, .fp7, .fp5, .fp3)를 브라우저에서 열어 FileMaker 없이 테이블과 레코드를 읽으세요. 검색, CSV·JSON 내보내기 가능. 업로드 없음.',
+  'seo.task.code.open-filemaker-file.h1': 'FileMaker 파일 온라인으로 열기',
+  'seo.task.code.open-filemaker-file.lead': 'FileMaker 파일에는 레코드 테이블이 들어 있으며, 보통은 FileMaker가 있어야 볼 수 있습니다. 파일을 Slop Code에 놓으면 테이블이 스크롤, 검색, 내보내기가 가능한 그리드로 열리며 설치할 필요가 없습니다.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Slop Code를 열고 .fmp12, .fp7, .fp5 또는 .fp3 파일을 페이지에 놓거나 Slop Drive에서 선택하세요.',
+  'seo.task.code.open-filemaker-file.steps.1': '파일이 읽기 전용 그리드로 열립니다. 목록에서 테이블을 고르세요. 행은 스크롤할 때 불러오므로 큰 파일도 빠르게 유지됩니다.',
+  'seo.task.code.open-filemaker-file.steps.2': '검색창으로 테이블을 검색하거나, 텍스트 종류(IP 주소, 이메일 주소, 키)를 골라 그것이 들어 있는 다음 행으로 이동하세요.',
+  'seo.task.code.open-filemaker-file.steps.3': '내보내기를 선택하면 테이블을 CSV 또는 JSON으로 저장하거나 다른 앱에서 열 수 있습니다.',
+  'seo.task.code.open-filemaker-file.body.0': '페이지가 파일 형식을 직접 읽습니다. FileMaker Pro 3~6 파일(.fp3, .fp5, .fmp), Pro 7~12 파일(.fp7, .fmp12), FileMaker가 만드는 테이블 내보내기(.fmpxml)를 지원합니다. 리더는 오픈소스 fmptools를 JavaScript로 옮긴 것입니다.',
+  'seo.task.code.open-filemaker-file.body.1': '테이블, 열 이름, 레코드가 표시됩니다. 컨테이너 필드의 이미지와 파일, 레이아웃, 스크립트, 관계, 값 목록은 읽지 않으며, 암호화된 파일은 먼저 FileMaker에서 열어야 합니다.',
+  'seo.task.code.open-filemaker-file.faq.0.0': '파일을 열려면 FileMaker가 필요한가요?',
+  'seo.task.code.open-filemaker-file.faq.0.1': '아니요. 페이지가 브라우저에서 파일을 읽어 테이블과 행을 보여 줍니다. 데이터베이스나 스크립트는 실행하지 않습니다.',
+  'seo.task.code.open-filemaker-file.faq.1.0': '내 파일이 업로드되나요?',
+  'seo.task.code.open-filemaker-file.faq.1.1': '아니요. 파일은 이 기기에서 읽히며, Slopographic이나 다른 누구에게도 아무것도 전송되지 않습니다.',
+  'seo.task.code.open-filemaker-file.faq.2.0': '데이터를 바꿀 수 있나요?',
+  'seo.task.code.open-filemaker-file.faq.2.1': '아니요. 파일은 읽기 전용으로 표시되며 절대 변경되지 않습니다. 다른 앱에서 데이터를 작업하려면 테이블을 CSV 또는 JSON으로 내보내세요.',
+  'seo.task.code.open-filemaker-file.faq.3.0': '어떤 FileMaker 파일을 열 수 있나요?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'FileMaker Pro 3~12 파일(.fp3, .fp5, .fp7, .fmp12)과 FMPXMLRESULT 형식의 테이블 내보내기입니다. 이후 버전의 FileMaker로 만든 최신 .fmp12 파일도 암호화되지 않았다면 같은 방식으로 열립니다.',
+});

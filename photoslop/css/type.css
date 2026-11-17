@@ -1,0 +1,8 @@
+/* PhotoSlop type: the on-canvas text box, the Character panel and the type options */
+.type-edit { white-space: pre; cursor: text; user-select: text; -webkit-user-select: text; padding: 0; min-height: 1em; }
+.type-edit span { white-space: pre; }
+.type-opts { display: contents; }
+.type-color { width: 26px; height: 20px; border: 1px solid var(--line); border-radius: 3px; padding: 0; cursor: pointer; }
+.char-panel { display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 8px 10px; align-items: center; }
+.char-panel .opt { display: inline-flex; align-items: center; gap: 4px; }
+.char-panel select { max-width: 150px; }

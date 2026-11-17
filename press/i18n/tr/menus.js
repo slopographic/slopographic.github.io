@@ -1,0 +1,22 @@
+/* Slop Press, Turkish: the menu bar’s menus and submenus (ui/menus.js, ui/context.js) and the command groups. Same keys as press/i18n/en/menus.js. Terms: shared/i18n/glossary-tr.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'press.menu.layout': 'Düzen',
+  'press.menu.type': 'Yazı',
+  'press.menu.object': 'Nesne',
+  'press.menu.window': 'Pencere',
+  'press.menu.tools': 'Araçlar',
+  'press.menu.styles': 'Stiller',
+  'press.menu.send_to': 'Şuraya gönder',
+  'press.menu.pages': 'Sayfalar',
+  'press.menu.para_style': 'Paragraf stili',
+  'press.menu.char_style': 'Karakter stili',
+  'press.menu.alignment': 'Hizalama',
+  'press.menu.special_char': 'Özel karakter ekle',
+  'press.menu.composer': 'Düzenleyici',
+  'press.menu.arrange': 'Sırala',
+  'press.menu.fitting': 'Sığdırma',
+  'press.menu.text_wrap': 'Metin kaydırma',
+  'press.menu.theme': 'Tema',
+  'press.menu.hub_unavailable': 'Slop Hub kullanılamıyor',
+  'press.menu.none': '(yok)',
+});

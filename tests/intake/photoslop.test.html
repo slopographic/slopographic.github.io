@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in PhotoSlop: every way in is the same path</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app" src="../../photoslop/index.html"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: photoslop/js/app/intake.js, photoslop/js/app/main.js, photoslop/js/app/tabs.js, photoslop/js/app/welcome.js, photoslop/js/io/files.js, photoslop/js/io/hub.js
+  // Covers: photoslop/js/ui/menus.js, photoslop/js/brushes/panel.js, photoslop/js/watermark/panel.js, shared/watermark/panel.js, photoslop/js/io/config.js, photoslop/js/layers/fx-preset-picker.js
+  // Covers: photoslop/js/layers/fx-rows.js, photoslop/js/ui/panels.js, photoslop/js/type/edit.js
+  // PhotoSlop, a reference app of the one intake: Open… and Place Image as Layer… (the picker), a drop with its zone's
+  // mode, a paste (Add or New asked), Open from Slop Drive (the tab keeps the Drive record), ?drive=<id> (launch) and the
+  // welcome sample all reach the one reader with the same events; the brushes and the watermark logo come in as parts of
+  // their own; the first-use notice shows once per batch whichever source.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let win, W, seen = [], events = [], notices = 0;
+  async function png(name) {
+    const c = win.document.createElement('canvas'); c.width = 24; c.height = 16;
+    c.getContext('2d').fillRect(0, 0, 24, 16);
+    return new win.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const dtOf = (files) => { const dt = new win.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const docs = () => W.DOCS.length, layers = () => W.D.layers.length;
+  /** One source: waits for its batch, checks it reached the reader with that source, the events and one notice. */
+  async function through(source, start, n = 1) {
+    seen = []; events = []; notices = 0;
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen.map((s) => s[0])).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'photoslop' && e[2] === source)).toBe(true);
+    expect(notices).toBe(1);
+    return seen;
+  }
+
+  describe('PhotoSlop: one way in', () => {
+    it('boots with its spec registered and its parts', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      win = frame.contentWindow;
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      const SI = win.SlopIntake, s = SI.spec('photoslop'), reader = s.process;
+      for (const id of ['photoslop.brushes', 'photoslop.logo']) expect(!!SI.spec(id)).toBe(true);
+      s.process = (f, ctx) => { seen.push([ctx.source, ctx.mode]); return reader(f, ctx); };
+      s.notice = { title: 'First use', lines: ['test'] };
+      win.SlopFirstRun = { once: async () => { notices++; return true; } };
+      for (const t of ['before', 'file', 'after']) SI.on(t, (d) => { events.push([t, d.app, d.source]); }, { app: 'photoslop' });
+      const back = win.document.querySelector('.ps-welcome'); if (back) back.remove();
+    }, { timeout: 40000 });
+    it('Open… opens a tab (mode new); Place Image as Layer… adds a layer (mode add)', async () => {
+      let files = [await png('open.png')];
+      win.SlopUI.pickFiles = async () => files;
+      const d0 = docs();
+      const s = await through('picker', () => W.openFilePicker(false));
+      expect(s[0][1]).toBe('new');
+      expect(docs()).toBe(d0 + 1);
+      files = [await png('place.png')];
+      const l0 = layers();
+      const p = await through('picker', () => W.openFilePicker(true));
+      expect(p[0][1]).toBe('add');
+      expect(layers()).toBe(l0 + 1);
+    });
+    it('a drop on the document area: the zone it lands on is the mode (no question)', async () => {
+      const d0 = docs();
+      const area = win.document.querySelector('.docarea');
+      const dt = dtOf([await png('dropped.png')]);
+      const s = await through('drop', () => area.dispatchEvent(new win.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })));
+      expect(s[0][1]).toBe('new');
+      expect(docs()).toBe(d0 + 1);
+    });
+    it('a paste asks Add to the open document or New document', async () => {
+      const real = win.SlopUI.dialog;
+      let asked = 0;
+      win.SlopUI.dialog = (o) => { asked++; const b = o.buttons.find((x) => x.label.startsWith('Add to')); b.act(); o.onClose && o.onClose(true); };
+      const l0 = layers();
+      const s = await through('paste', async () => win.document.body.dispatchEvent(new win.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('pasted.png')]) })));
+      win.SlopUI.dialog = real;
+      expect(asked).toBe(1);
+      expect(s[0][1]).toBe('add');
+      expect(layers()).toBe(l0 + 1);
+    });
+    it('Open from Slop Drive opens a tab that keeps the Drive record; ?drive=<id> (launch) too', async () => {
+      const blob = await png('drive.png');
+      win.SlopHub.pickFromDrive = async () => ({ id: 'rec-1', name: 'drive.png', type: 'image/png', blob });
+      await through('drive', () => W.openFromDrive(false));
+      expect(W.CUR.driveId).toBe('rec-1');
+      win.SlopHub.consumeLaunch = async () => ({ id: 'rec-2', name: 'sent.png', type: 'image/png', blob });
+      await through('launch', () => win.SlopIntake.launch({ to: 'photoslop', mode: 'new' }));
+      expect(W.CUR.driveId).toBe('rec-2');
+    });
+    it('the welcome sample', async () => {
+      await through('sample', () => win.SlopIntake.sample(() => win.SlopSamples.photos(1, { width: 200, height: 120 }), { to: 'photoslop', mode: 'new' }));
+    }, { timeout: 30000 });
+    it('brushes and the watermark logo are parts of their own (the picker goes to them, not to the document)', async () => {
+      const got = [];
+      win.importBrushFiles = async (files) => { got.push('brushes:' + files.length); };
+      const logos = () => win.wmState().spec.layers.filter((L) => L.kind === 'logo').length;
+      win.SlopUI.pickFiles = async () => [await png('tip.png')];
+      seen = [];
+      await win.SlopIntake.pick({ to: 'photoslop.brushes' });
+      const n = logos();
+      // the logo part is the shared watermark panel's (shared/watermark/panel.js): the picture becomes a logo layer
+      await win.SlopIntake.pick({ to: 'photoslop.logo' });
+      await waitFor(() => logos() === n + 1, { timeout: 8000 });
+      expect(got).toEqual(['brushes:1']);
+      expect(seen.length).toBe(0);
+    });
+  });
+  run({ name: 'Shared intake: PhotoSlop' });
+</script>
+</body>
+</html>

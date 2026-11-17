@@ -1,0 +1,104 @@
+/* SlopFmpView (shared/fmp/view.js): the read-only database viewer. Colours come from the app's own --sui-* tokens, then its
+   common tokens (--panel, --fg, --accent), then the shared theme's --sl-*, and only then the light or dark fallback below
+   (the same chain as shared/slopui.css and shared/drop/panel.js). Muted text keeps 4.5:1 on the surface. */
+.sfv {
+  --sfv-bg: var(--sui-bg, var(--panel, var(--sl-surface, #ffffff)));
+  --sfv-fg: var(--sui-fg, var(--fg, var(--sl-text, #1d1d23)));
+  --sfv-accent: var(--sui-accent, var(--accent, var(--sl-accent, #3b5bdb)));
+  --sfv-on-accent: var(--sui-accent-ink, var(--accent-ink, var(--sl-on-accent, #ffffff)));
+  --sfv-ring: var(--sui-ring, var(--sl-accent, var(--sfv-accent)));
+  --sfv-danger: var(--sui-danger, #c0392b);
+  --sfv-font: var(--sui-font, var(--ui, system-ui, -apple-system, "Segoe UI", sans-serif));
+  --sfv-muted: color-mix(in srgb, var(--sfv-fg) 70%, transparent);
+  --sfv-line: var(--sui-line, color-mix(in srgb, var(--sfv-fg) 20%, transparent));
+  --sfv-head: color-mix(in srgb, var(--sfv-fg) 9%, var(--sfv-bg));
+  --sfv-stripe: color-mix(in srgb, var(--sfv-fg) 4%, var(--sfv-bg));
+  --sfv-hover: color-mix(in srgb, var(--sfv-fg) 9%, var(--sfv-bg));
+  --sfv-hit: color-mix(in srgb, var(--sfv-accent) 22%, var(--sfv-bg));
+  display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: 100%; min-width: 0; min-height: 0;
+  background: var(--sfv-bg); color: var(--sfv-fg); font: 13px/1.35 var(--sfv-font);
+}
+@media (prefers-color-scheme: dark) {
+  .sfv {
+    --sfv-bg: var(--sui-bg, var(--panel, var(--sl-surface, #1d1d22)));
+    --sfv-fg: var(--sui-fg, var(--fg, var(--sl-text, #ececf1)));
+    --sfv-accent: var(--sui-accent, var(--accent, var(--sl-accent, #8fa8ff)));
+    --sfv-on-accent: var(--sui-accent-ink, var(--accent-ink, var(--sl-on-accent, #10131f)));
+    --sfv-danger: var(--sui-danger, #ff8a80);
+  }
+}
+.sfv *, .sfv *::before, .sfv *::after { box-sizing: border-box; }
+
+/* header and table picker */
+.sfv-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 10px 14px 6px; }
+.sfv-title { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 650; }
+.sfv-fmt, .sfv-tcount, .sfv-info, .sfv-find-st { color: var(--sfv-muted); font-size: 12px; }
+.sfv-picker { padding: 0 14px; border-bottom: 1px solid var(--sfv-line); }
+.sfv-picker:empty { display: none; }
+.sfv-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin; }
+.sfv-tab { flex: none; display: inline-flex; align-items: baseline; gap: 6px; max-width: 240px; min-height: max(36px, var(--slop-hit, 0px)); padding: 8px 12px;
+  border: 0; border-bottom: 2px solid transparent; background: none; color: var(--sfv-muted); font: inherit; cursor: pointer; }
+.sfv-tab:hover { color: var(--sfv-fg); }
+.sfv-tab[aria-selected="true"] { color: var(--sfv-fg); border-bottom-color: var(--sfv-accent); font-weight: 600; }
+.sfv-tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfv-tr { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .85; }
+.sfv-select { max-width: 100%; margin: 6px 0; min-height: max(32px, var(--slop-hit, 0px)); padding: 4px 8px; border: 1px solid var(--sfv-line);
+  border-radius: 6px; background: var(--sfv-bg); color: inherit; font: inherit; }
+
+/* toolbar: find, counts, export */
+.sfv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 14px; }
+.sfv-slot, .sfv-find, .sfv-export { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.sfv-bar > .sfv-slot:first-child { flex: 1 1 340px; }
+.sfv-find { flex: 1 1 auto; flex-wrap: nowrap; }
+.sfv-find-st { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfv-find-in { flex: 1 1 120px; min-width: 0; max-width: 280px; min-height: max(30px, var(--slop-hit, 0px)); padding: 4px 8px; border: 1px solid var(--sfv-line);
+  border-radius: 6px; background: var(--sfv-bg); color: inherit; font: inherit; }
+.sfv-info { margin-left: auto; font-variant-numeric: tabular-nums; }
+.sfv-btn { min-height: max(30px, var(--slop-hit, 0px)); padding: 0 12px; border: 1px solid var(--sfv-line); border-radius: 6px; white-space: nowrap;
+  background: color-mix(in srgb, var(--sfv-fg) 6%, var(--sfv-bg)); color: inherit; font: inherit; cursor: pointer; }
+.sfv-btn:hover { background: color-mix(in srgb, var(--sfv-fg) 13%, var(--sfv-bg)); }
+.sfv-btn-main { border-color: transparent; background: var(--sfv-accent); color: var(--sfv-on-accent); font-weight: 600; }
+.sfv-btn-main:hover { background: var(--sfv-accent); filter: brightness(1.08); }
+.sfv-tab:focus-visible, .sfv-btn:focus-visible, .sfv-select:focus-visible, .sfv-find-in:focus-visible, .sfv-scroll:focus-visible { outline: 2px solid var(--sfv-ring); outline-offset: -2px; }
+.sfv-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 14px 6px; padding: 6px 10px; border: 1px solid var(--sfv-danger); border-radius: 6px; }
+.sfv-alert[hidden] { display: none; }
+@media (max-width: 560px) {
+  .sfv-find { flex-wrap: wrap; }
+  .sfv-find-in { flex-basis: 100%; max-width: none; }
+  .sfv-info { order: 3; flex-basis: 100%; margin-left: 0; }
+}
+
+/* the grid: header and row-number column stay in place; only the rows in view exist (view-grid.js) */
+.sfv-panel { display: flex; flex: 1 1 auto; min-height: 0; margin: 0 14px 12px; overflow: hidden; border: 1px solid var(--sfv-line); border-radius: 8px; }
+/* data-touch-surface marks the surface for the touch layer, whose rule says touch-action: none: here a finger scrolls the table
+   and the text can be selected, so the grid says so (more specific than the layer's rule). */
+.sfv-scroll[data-touch-surface] { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: auto; touch-action: pan-x pan-y; overscroll-behavior: contain;
+  -webkit-user-select: text; user-select: text; background: var(--sfv-bg); }
+.sfv-sizer { position: relative; overflow: clip; } /* clip, not hidden: rows below the last one add no scroll, and the header stays sticky */
+.sfv-hrow { position: sticky; top: 0; z-index: 3; display: flex; border-bottom: 1px solid var(--sfv-line); background: var(--sfv-head); }
+.sfv-h { flex: none; display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 0 12px; overflow: hidden; border-right: 1px solid var(--sfv-line); }
+.sfv-hn, .sfv-ht { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfv-hn { font-weight: 600; }
+.sfv-ht { color: var(--sfv-muted); font-size: 11px; }
+.sfv-body { position: absolute; left: 0; right: 0; min-width: 100%; }
+.sfv-r { display: flex; height: var(--sfv-row, 28px); }
+.sfv-odd { background: var(--sfv-stripe); }
+.sfv-r:hover { background: var(--sfv-hover); }
+.sfv-r.sfv-hit { background: var(--sfv-hit); }
+.sfv-n { flex: none; position: sticky; left: 0; z-index: 2; padding: 0 8px; border-right: 1px solid var(--sfv-line); background: var(--sfv-head);
+  color: var(--sfv-muted); font-variant-numeric: tabular-nums; line-height: var(--sfv-row, 28px); text-align: right; }
+.sfv-h.sfv-n { z-index: 4; align-items: flex-end; position: sticky; left: 0; padding: 0 8px; background: var(--sfv-head); }
+.sfv-c { flex: none; height: var(--sfv-row, 28px); padding: 0 12px; overflow: hidden; border-right: 1px solid color-mix(in srgb, var(--sfv-line) 55%, transparent);
+  line-height: var(--sfv-row, 28px); text-overflow: ellipsis; white-space: nowrap; }
+.sfv-m { background: color-mix(in srgb, var(--sfv-accent) 35%, transparent); outline: 1px solid var(--sfv-accent); outline-offset: -1px; }
+.sfv-skel { border-right: 0; background: linear-gradient(var(--sfv-line), var(--sfv-line)) 12px 50% / min(55%, 220px) 8px no-repeat; }
+@media (prefers-reduced-motion: no-preference) { .sfv-skel { animation: sfv-pulse 1.2s ease-in-out infinite; } }
+@keyframes sfv-pulse { 50% { opacity: .45; } }
+.sfv-empty { position: sticky; left: 0; width: max-content; max-width: 100%; margin: 0; padding: 18px; color: var(--sfv-muted); }
+
+/* the screen for a file that did not open */
+.sfv-err { align-items: center; justify-content: center; gap: 8px; padding: 32px 20px; text-align: center; }
+.sfv-err-icon { display: grid; place-items: center; width: 40px; height: 40px; border: 2px solid var(--sfv-danger); border-radius: 50%; color: var(--sfv-danger); font-size: 20px; font-weight: 700; }
+.sfv-err-title { max-width: min(520px, 100%); overflow-wrap: anywhere; text-wrap: balance; font-size: 15px; font-weight: 650; }
+.sfv-err-msg, .sfv-err-detail { max-width: min(480px, 100%); margin: 0; color: var(--sfv-muted); line-height: 1.5; text-wrap: balance; }
+.sfv-err-detail { font-size: 12px; overflow-wrap: anywhere; }

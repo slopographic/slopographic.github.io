@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <title>Buddy · shake anger, treats and faces</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+</head>
+<body>
+  <script src="boot.js"></script>
+  <script type="module">
+  import { shakeScore, SHAKE, calmValue, ITEMS } from '../../shared/buddy/care.js';
+  import { pool } from '../../shared/buddy/lines.js';
+  import { delayFor } from '../../shared/buddy/treats.js';
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { openApp, turnOn, frames } = BuddyTest;
+  let win, S, M;
+  const ready = openApp('', { clear: true }).then(async (w) => { win = w; S = await turnOn(w); M = S.M; S.toggleHud(true); });
+  /** Drag samples: n moves, alternating ±amp px every `ms`. */
+  const wiggle = (n, amp, ms) => Array.from({ length: n }, (_, i) => [i * ms, 200 + (i % 2 ? amp : -amp), 300]);
+
+  describe('shake detection', () => {
+    it('scores gentle wiggles low and hard shaking high', () => {
+      expect(shakeScore(wiggle(6, 4, 160))).toBeLessThan(SHAKE.giggle);
+      const soft = shakeScore(wiggle(10, 12, 100));
+      expect(soft).toBeGreaterThanOrEqual(SHAKE.giggle);
+      expect(soft).toBeLessThan(SHAKE.mad);
+      expect(shakeScore(wiggle(20, 60, 50))).toBeGreaterThanOrEqual(SHAKE.mad);
+      expect(shakeScore([[0, 0, 0], [100, 300, 0], [200, 600, 0]])).toBe(0);   // a fast straight drag is not a shake
+    });
+    it('hard shaking while dragging makes him woozy and adds rage', async () => {
+      await ready;
+      M.rage = 0;
+      let t = performance.now();
+      for (let i = 0; i < 20; i++) S.care.onDrag((t += 50), 200 + (i % 2 ? 60 : -60), 300);
+      expect(M.rage).toBeGreaterThanOrEqual(1);
+      expect(pool('shake').concat(pool('ouch'))).toContain(M.bubble.querySelector('.say-text').textContent);
+      M.rage = 0;
+    });
+  });
+
+  describe('treats', () => {
+    it('each item calms a different amount; favourite double, least favourite spits', () => {
+      expect(calmValue('cookie', 'juice', 'candy')).toBe(1);
+      expect(calmValue('juice', 'juice', 'candy')).toBe(2.4);
+      expect(calmValue('candy', 'juice', 'candy')).toBe(-0.5);
+      expect(new Set(ITEMS.map((i) => i.calm)).size).toBe(ITEMS.length);
+    });
+    it('the least favourite gets spat out and makes him madder', async () => {
+      await ready;
+      M.hate = 'cookie'; M.fav = 'juice'; M.rage = 1.6;
+      const d = S.care.feed('cookie');
+      expect(d).toBeCloseTo(0.5, 1e-6);
+      expect(pool('spit')).toContain(M.bubble.querySelector('.say-text').textContent);
+      S.care.feed('juice');
+      expect(M.rage).toBe(0);
+      expect(M.bubble.textContent).toContain('OMG GOO JUICE');
+    });
+    it('once MAD he stays mad (no draining) until he gets something', async () => {
+      await ready;
+      M.rage = 2;
+      await Promise.all([sleep(700), frames(win, 20)]);   // time and frames enough to drain, were he draining
+      expect(M.rage).toBe(2);
+      M.rage = 1;
+      await waitFor(() => M.rage < 1, { timeout: 3000 });  // below MAD the meter drains again
+      M.rage = 0;
+    });
+    it('petting helps a little, but not at full rage', async () => {
+      await ready;
+      M.rage = 2.6;
+      const xp = S.xp;
+      S.pet();
+      expect(S.xp).toBe(xp);
+      expect(pool('nopets')).toContain(M.bubble.querySelector('.say-text').textContent);
+      M.rage = 1.2;
+      S.pet();
+      expect(M.rage).toBeLessThan(1.2);
+      M.rage = 0;
+    });
+    it('the Give tray shows when he is angry; a tap places a treat that he goes and eats', async () => {
+      await ready;
+      const doc = win.document, tray = doc.querySelector('.sh-give');
+      M.rage = 0; S.care.tick(0, 0);
+      await Promise.all([sleep(300), frames(win, 5)]);
+      expect(tray.hidden).toBe(true);
+      M.rage = 1.2; M.fav = 'juice'; M.hate = 'plush';
+      await waitFor(() => !tray.hidden, { timeout: 3000 });
+      expect(tray.querySelector('.sh-give-body').hidden).toBe(true);   // the section opens only when pressed
+      tray.querySelector('.sh-give-l').click();
+      const btn = tray.querySelector('[data-item="cookie"]');
+      btn.click();
+      expect(S.treats.list().length).toBe(1);
+      expect(doc.querySelectorAll('.sloppo-treat').length).toBe(1);
+      await sleep(300);
+      expect(btn.disabled).toBe(true);                 // restocking
+      await waitFor(() => S.treats.list().length === 0, { timeout: 8000 });
+      expect(M.rage).toBe(0.2 > M.rage ? M.rage : 0);  // 1.2 - 1 (cookie) and a bit of melting
+      expect(M.rage).toBeLessThan(0.25);
+    }, { timeout: 15000 });
+    it('when really angry he turns his back on treats, and Restore page clears them', async () => {
+      await ready;
+      M.rage = 2.6; M.stock = {};
+      expect(delayFor('cookie', 2.6, false)).toBe(Infinity);
+      expect(S.treats.delayFor('juice', 2, false)).toBeLessThan(S.treats.delayFor('cookie', 2, false));   // favourites break through
+      await HomeWait();
+      const t = S.treats.offer('candy');
+      expect(!!t).toBe(true);
+      expect(M.backUntil).toBeGreaterThan(performance.now());
+      await sleep(1500);
+      expect(S.treats.list().length).toBe(1);
+      S.restore();
+      expect(S.treats.list().length).toBe(0);
+      expect(win.document.querySelectorAll('.sloppo-treat').length).toBe(0);
+      M.rage = 0;
+    }, { timeout: 15000 });
+  });
+
+  describe('faces', () => {
+    it('no blush unless in love; no fangs when angry', async () => {
+      await ready;
+      M.moodUntil = 0; M.rage = 0;
+      await HomeWait();   // in the air (Restore page above can drop him) his face is the surprised one, hearts or not
+      await Promise.all([sleep(200), frames(win, 3)]);
+      expect(M.svg.querySelector('.m-cheeks').style.opacity).toBe('0');
+      S.pet();
+      await waitFor(() => M.svg.querySelector('.m-cheeks').style.opacity === '1', { timeout: 2000 });
+      M.moodUntil = 0;
+      S.unleash();
+      await sleep(100);
+      expect(S.face()).toEqual(['angry', 'frown']);
+      expect(M.svg.querySelectorAll('.m-mouth path[fill="#fff"]').length).toBe(0);
+      S.restore();
+    });
+  });
+
+  async function HomeWait() { await waitFor(() => M.mode === 'perched', { timeout: 6000 }); }
+  ready.then(() => run());
+  </script>
+</body>
+</html>

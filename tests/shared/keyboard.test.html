@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>shared/input/keyboard.js: what is typed stays above the on-screen keyboard</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; width: 390px; height: 700px; }</style>
+</head>
+<body>
+<script src="../harness.js"></script>
+<script>
+// Covers: shared/input/keyboard.js, shared/ui/sheet.js, shell/shell.js
+// The keyboard is simulated as browsers report it: the visual viewport shrinks by its height (a stand-in visualViewport,
+// as Playwright cannot raise a real one), in WebKit and Chromium (tests/run.mjs --touch).
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+const H = 700, KB = 300;
+/** A phone-sized page in a frame, with the module and a stand-in visual viewport. */
+async function page(body) {
+  const f = document.createElement('iframe');
+  f.srcdoc = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+    <body style="margin:0;font:16px sans-serif">${body}
+    <script src="../../shared/ui/sheet.js"><\/script><script src="../../shared/input/keyboard.js"><\/script></body></html>`;
+  document.body.append(f);
+  await waitFor(() => f.contentWindow && f.contentWindow.SlopKeyboard, { timeout: 5000 });
+  const w = f.contentWindow, vv = new w.EventTarget();
+  Object.assign(vv, { width: 390, height: H, offsetTop: 0, offsetLeft: 0, scale: 1 });
+  w.SlopKeyboard._viewport(vv);
+  const kb = async (h) => { vv.height = H - h; vv.dispatchEvent(new w.Event('resize')); await sleep(40); };
+  return { f, w, D: f.contentDocument, kb };
+}
+const inView = (w, el) => { const r = el.getBoundingClientRect(), v = w.SlopKeyboard.visible(); return r.top >= v.top - 0.5 && r.bottom <= v.bottom + 0.5; };
+
+describe('SlopKeyboard: the height', () => {
+  it('a keyboard is the visual viewport shrinking while a field has focus: --slop-kb, slop-kb-open, the event', async () => {
+    const { f, w, D, kb } = await page('<input id="i" style="margin-top:20px">');
+    const seen = []; w.addEventListener('slopkeyboard', (e) => seen.push(e.detail.height));
+    await kb(KB);
+    expect(w.SlopKeyboard.height()).toBe(0);   // no field has focus: a toolbar, not a keyboard
+    D.getElementById('i').focus(); await kb(KB);
+    expect([w.SlopKeyboard.height(), D.documentElement.style.getPropertyValue('--slop-kb'), D.documentElement.classList.contains('slop-kb-open')]).toEqual([KB, KB + 'px', true]);
+    expect(w.SlopKeyboard.visible()).toEqual({ top: 0, bottom: H - KB });
+    await kb(40);   // a small drop is the browser's own bar
+    expect(w.SlopKeyboard.height()).toBe(0);
+    await kb(KB); await kb(0);
+    expect([D.documentElement.classList.contains('slop-kb-open'), seen]).toEqual([false, [KB, 0, KB, 0]]);
+    f.remove();
+  });
+});
+
+describe('SlopKeyboard: the edited field shows above it', () => {
+  it('a field low in a scrolling list scrolls up; [data-slop-kb="hide"] hides while it is up', async () => {
+    const { f, w, D, kb } = await page(`<div id="list" style="height:${H}px;overflow:auto"><div style="height:640px"></div>
+      <textarea id="t" style="display:block;height:60px"></textarea><div style="height:400px"></div></div>
+      <nav id="bar" data-slop-kb="hide" style="position:fixed;bottom:0;height:50px">bar</nav>`);
+    const t = D.getElementById('t'); t.focus({ preventScroll: true }); D.getElementById('list').scrollTop = 0;
+    expect(inView(w, t)).toBe(false);
+    await kb(KB);
+    expect([inView(w, t), D.getElementById('list').scrollTop > 0, t.style.translate]).toEqual([true, true, '']);
+    expect(w.getComputedStyle(D.getElementById('bar')).visibility).toBe('hidden');
+    await kb(0);
+    expect(w.getComputedStyle(D.getElementById('bar')).visibility).toBe('visible');
+    f.remove();
+  });
+  it('an editor over a canvas that cannot scroll lifts above it, and comes back when the keyboard goes down', async () => {
+    const { f, w, D, kb } = await page(`<div style="position:fixed;inset:0;overflow:hidden"><canvas width="390" height="700"></canvas>
+      <textarea id="t" style="position:absolute;left:20px;top:560px;width:200px;height:40px"></textarea></div>`);
+    const t = D.getElementById('t'); t.focus({ preventScroll: true });
+    await kb(KB);
+    expect([inView(w, t), /^0(px)? -\d/.test(t.style.translate)]).toEqual([true, true]);
+    await kb(0);
+    expect([t.style.translate, Math.round(t.getBoundingClientRect().top)]).toEqual(['', 560]);
+    f.remove();
+  });
+  it("an app's editor: its pan hook gets how far to move, and its own rect is what must show", async () => {
+    const { f, w, D, kb } = await page('<div id="stage" style="position:fixed;inset:0"><textarea id="t" style="position:absolute;left:0;top:600px;width:2px;height:16px"></textarea></div>');
+    const t = D.getElementById('t'), calls = [];
+    D.getElementById('stage').slopKeyboard = { rect: () => ({ top: 500, bottom: 530 }), reveal: (n) => { calls.push(Math.round(n.dy)); } };
+    t.focus({ preventScroll: true }); await kb(KB);
+    expect([calls[0], t.style.translate]).toEqual([530 - (H - KB - 16), '']);
+    const tr = w.SlopKeyboard.track(t, { reveal: () => false });   // track() wins over the property; false: the default lifts
+    t.blur(); t.focus({ preventScroll: true }); await sleep(60); w.SlopKeyboard.reveal();
+    expect(inView(w, t)).toBe(true);
+    tr.untrack(); f.remove();
+  });
+  it('a scroller marked data-slop-kb-pad grows room at its end, so its last line scrolls up (Slop PDF page view)', async () => {
+    const { f, w, D, kb } = await page(`<div id="v" data-slop-kb-pad style="position:fixed;inset:0;overflow:auto"><div style="height:${H}px;position:relative">
+      <div id="ce" contenteditable="true" style="position:absolute;top:620px;left:10px;width:300px">last line</div></div></div>`);
+    const v = D.getElementById('v'), ce = D.getElementById('ce');
+    expect(v.scrollHeight).toBe(H);
+    ce.focus({ preventScroll: true }); await kb(KB);
+    expect([inView(w, ce), v.scrollTop > 0, !!D.querySelector('.slop-kb-spacer')]).toEqual([true, true, true]);
+    ce.blur(); await sleep(30); await kb(0);
+    expect(D.querySelector('.slop-kb-spacer')).toBe(null);
+    f.remove();
+  });
+  it('a tall contenteditable shows its caret, not its top', async () => {
+    const lines = Array.from({ length: 40 }, (_, i) => '<div>line ' + i + '</div>').join('');
+    const { f, w, D, kb } = await page(`<div style="position:fixed;inset:0;overflow:hidden"><div id="ce" contenteditable="true" style="position:absolute;top:0;width:300px;line-height:20px">${lines}</div></div>`);
+    const ce = D.getElementById('ce'); ce.focus({ preventScroll: true });
+    const r = D.createRange(); r.selectNodeContents(ce.children[30]); r.collapse(false); w.getSelection().removeAllRanges(); w.getSelection().addRange(r);
+    await kb(KB);
+    const c = w.getSelection().getRangeAt(0).getClientRects()[0] || ce.children[30].getBoundingClientRect(), v = w.SlopKeyboard.visible();
+    expect(c.bottom <= v.bottom && c.top >= v.top).toBe(true);
+    f.remove();
+  });
+});
+
+describe('SlopKeyboard and the sheets', () => {
+  it('an open bottom sheet rises above the keyboard; a drawer ends at its top; both come back', async () => {
+    const { f, w, D, kb } = await page(`<div id="app"><aside id="p"><p style="height:200px">Settings</p><input id="i"></aside>
+      <nav id="side"><input id="j"></nav></div>`);
+    const sheet = w.SlopSheet.attach({ root: D.getElementById('app'), panel: D.getElementById('p') });
+    D.head.append(Object.assign(D.createElement('style'), { textContent: '* { transition: none !important; }' }));
+    sheet.open(); D.getElementById('i').focus({ preventScroll: true }); await kb(KB);
+    const p = D.getElementById('p');
+    expect([Math.round(p.getBoundingClientRect().bottom) <= H - KB, inView(w, D.getElementById('i'))]).toEqual([true, true]);
+    await kb(0);
+    expect([p.style.translate, Math.round(p.getBoundingClientRect().bottom)]).toEqual(['', H]);
+    const drawer = w.SlopSheet.attach({ root: D.getElementById('app'), panel: D.getElementById('side'), side: 'start' });
+    drawer.open(); D.getElementById('j').focus({ preventScroll: true }); await kb(KB);
+    expect([sheet.isOpen(), Math.round(D.getElementById('side').getBoundingClientRect().bottom)]).toEqual([false, H - KB]);
+    await kb(0);
+    expect(Math.round(D.getElementById('side').getBoundingClientRect().bottom)).toBe(H);
+    f.remove();
+  });
+});
+SlopTest.run({ name: 'shared/input keyboard' });
+</script>
+</body>
+</html>

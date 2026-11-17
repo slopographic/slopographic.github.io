@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CRM and Inventory · helpers on SlopBiz</title>
+  <!-- Covers: crm/js/core/util.js, crm/js/ui/commands.js, crm/js/ui/detail.js, crm/js/ui/app.js, inventory/js/core/util.js, inventory/js/ui/commands.js, shared/biz/biz.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script><script src="../../shared/biz/i18n/en/biz.js"></script><script src="../../crm/i18n/en/forms.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../crm/js/core/util.js"></script>
+  <script src="../../inventory/i18n/en/views.js"></script>
+  <script src="../../inventory/js/core/util.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  describe('CRM and Inventory helpers', () => {
+    it('share SlopBiz settings, money and the DOM builder (one copy)', () => {
+      expect(SlopCrm.util.settings).toBe(SlopBiz.settings);
+      expect(SlopCrm.util.money).toBe(SlopBiz.money);
+      expect(SlopInv.util.settings).toBe(SlopBiz.settings);
+      expect(SlopInv.util.money).toBe(SlopBiz.money);
+      expect(SlopInv.util.h).toBe(SlopBiz.h);
+    });
+    it('Inventory refusals keep their own words, the message in brackets, and field labels', () => {
+      expect(SlopInv.util.refusal({ ok: false, code: 'in_use', message: 'it has stock moves' })).toBe('Cannot delete (it has stock moves)');
+      expect(SlopInv.util.refusal({ ok: false, code: 'invalid', errors: [{ field: 'sku', message: 'is required' }] })).toBe('SKU is required');
+      expect(SlopInv.util.refusal({ ok: false, code: 'conflict' })).toBe('Another product already uses that SKU or EAN');
+    });
+    it('CRM refusals show the data layer message, else a plain fallback', () => {
+      expect(SlopCrm.util.refusal({ ok: false, message: 'Name is required' })).toBe('Name is required');
+      expect(SlopCrm.util.refusal(null)).toBe('Could not save. Nothing changed.');
+    });
+    it('settings give the currency key every business app reads', async () => {
+      const s = await SlopCrm.util.settings();
+      expect(typeof s.currency).toBe('string');
+      expect(typeof s.locale).toBe('string');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in the AI tool pages: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1000px; height: 700px; border: 0; display: block; }</style>
+</head>
+<body>
+<script src="../harness.js"></script>
+<script>
+  // Covers: aitools/intake.js, aitools/denoise/denoise.js, aitools/ocr/ocr.js, aitools/portrait/portrait.js, aitools/portrait/compose.js, aitools/speech/speech.js, aitools/tags/tags.js
+  // Each AI tool page takes one file through the one intake: a drop on its box, its "choose a file" button, a paste and
+  // (Auto tags) a photo picked from Slop Drive reach the page's one reader with the same events. A paste before the
+  // tool's gate has shown the page is not taken.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const TOOLS = [
+    { dir: 'denoise', id: 'ai-denoise', file: ['p.png', 'image/png'] },
+    { dir: 'ocr', id: 'ai-ocr', file: ['p.png', 'image/png'] },
+    { dir: 'portrait', id: 'ai-portrait', file: ['p.png', 'image/png'], stub: true }, // its reader runs the cut-out model
+    { dir: 'speech', id: 'ai-speech', file: ['a.wav', 'audio/wav'] },
+    { dir: 'tags', id: 'ai-tags', file: ['p.png', 'image/png'] },
+  ];
+  async function open(t) {
+    const fr = document.createElement('iframe');
+    fr.src = '../../aitools/' + t.dir + '/index.html';
+    document.body.append(fr);
+    await waitFor(() => { try { return fr.contentWindow.SlopIntake.spec(t.id) && fr.contentDocument.getElementById('chooseFile'); } catch (e) { return false; } }, { timeout: 20000 });
+    const W = fr.contentWindow, D = W.document, seen = [], events = [];
+    const s = W.SlopIntake.spec(t.id), reader = s.process;
+    s.process = (f, ctx) => { seen.push(ctx.source); return t.stub ? f.name : reader(f, ctx); };
+    for (const k of ['before', 'file', 'after']) W.SlopIntake.on(k, (d) => { events.push([k, d.app, d.source]); });
+    return { fr, W, D, seen, events };
+  }
+  async function fileIn(P, t) {
+    if (t.file[1] === 'image/png') {
+      const c = P.D.createElement('canvas'); c.width = 40; c.height = 30; c.getContext('2d').fillRect(0, 0, 40, 30);
+      return new P.W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], t.file[0], { type: 'image/png' });
+    }
+    return new P.W.File([new Uint8Array(64)], t.file[0], { type: t.file[1] });
+  }
+  const dtOf = (W, files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function through(P, t, source, start) {
+    P.seen.length = 0; P.events.length = 0;
+    await start();
+    await waitFor(() => P.events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(P.seen).toEqual([source]);
+    expect(P.events.map((e) => e[0])).toEqual(['before', 'file', 'after']);
+    expect(P.events.every((e) => e[1] === t.id && e[2] === source)).toBe(true);
+  }
+
+  for (const t of TOOLS) {
+    describe('AI tools, ' + t.dir + ': one way in', () => {
+      let P;
+      it('no paste is taken before the gate has shown the page; then a drop on the box', async () => {
+        P = await open(t);
+        const ui = P.D.getElementById('ui'), f = await fileIn(P, t);
+        ui.hidden = true;
+        await P.W.SlopIntake.take([f], { to: t.id, source: 'paste' });
+        expect(P.seen).toEqual([]);
+        ui.hidden = false;
+        await through(P, t, 'drop', () => P.D.getElementById('drop').dispatchEvent(new P.W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf(P.W, [f]) })));
+      }, { timeout: 40000 });
+      it('choose a file', async () => {
+        const f = await fileIn(P, t);
+        P.W.SlopUI = Object.assign(P.W.SlopUI || {}, { pickFiles: async () => [f] });
+        await through(P, t, 'picker', () => P.D.getElementById('chooseFile').click());
+      });
+      it('a paste', async () => {
+        const f = await fileIn(P, t);
+        await through(P, t, 'paste', () => P.D.body.dispatchEvent(new P.W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf(P.W, [f]) })));
+      });
+      if (t.dir === 'tags') it('a photo picked from Slop Drive keeps its record (Save updates it)', async () => {
+        const blob = await fileIn(P, t);
+        P.W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'drive.png', type: 'image/png', blob, meta: { tags: ['cat'] } });
+        await through(P, t, 'drive', () => P.D.getElementById('pickDrive').click());
+        expect(P.D.getElementById('tagText').value).toBe('cat');
+      });
+    });
+  }
+  run({ name: 'Shared intake: AI tools' });
+</script>
+</body>
+</html>

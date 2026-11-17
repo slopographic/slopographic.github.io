@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Colors: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: colors/js/io.js, colors/js/main.js
+  // Slop Colors on the one intake: the header's Open…, the card's Open picture…, a drop on the zone, a paste and a file sent
+  // from another app (?drive=) reach the same reader; a picture opens in the eyedropper, a palette file becomes the palette.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const gpl = (name, rgb) => new W.File([`GIMP Palette\nName: ${name}\n#\n${rgb}\tOne\n`], name + '.gpl', { type: '' });
+  async function png(colour) {
+    const c = document.createElement('canvas'); c.width = 20; c.height = 20;
+    const x = c.getContext('2d'); x.fillStyle = colour; x.fillRect(0, 0, 20, 20);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'flat.png', { type: 'image/png' });
+  }
+  async function through(source, start, check) {
+    seen = [];
+    await start();
+    await waitFor(() => seen.length && check(), { timeout: 15000 });
+    expect(seen).toEqual([source]);
+  }
+  async function boot(src) {
+    const fr = document.getElementById('app');
+    fr.src = src;
+    await waitFor(() => { try { return fr.contentWindow.CO && fr.contentWindow.CO.main && fr.contentWindow.SlopIntake.spec('colors') && fr.contentDocument.querySelector('#co-download'); } catch (e) { return false; } }, { timeout: 30000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('colors'), reader = s.process;
+    s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+  }
+  const pal = () => W.CO.state.get().palette;
+  describe('Slop Colors: one way in', () => {
+    it('Open… in the header (a palette file)', async () => {
+      localStorage.removeItem('slop-colors');
+      await boot('../../colors/index.html');
+      W.SlopUI.pickFiles = async () => [gpl('Picked', '255 0 0')];
+      await through('picker', () => D.querySelector('#co-bar .sab-btn').click(), () => pal().name === 'Picked');
+      expect(pal().colors).toEqual([{ hex: '#ff0000', name: 'One' }]);
+    }, { timeout: 40000 });
+    it('Open picture… in the card (a picture)', async () => {
+      const f = await png('#00ff00');
+      W.SlopUI.pickFiles = async () => [f];
+      await through('picker', () => D.getElementById('co-pic-open').click(), () => W.CO.picture.colors().length && W.CO.picture.colors()[0].hex === '#00ff00');
+      expect(D.getElementById('co-pic').hidden).toBe(false);
+    });
+    it('a drop on the zone', async () => {
+      await through('drop', () => D.querySelector('#co-drop').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([gpl('Dropped', '0 0 255')]) })), () => pal().name === 'Dropped');
+    });
+    it('a paste', async () => {
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([gpl('Pasted', '1 2 3')]) })), () => pal().name === 'Pasted');
+      expect(pal().colors[0].hex).toBe('#010203');
+    });
+    it('a file sent from another app (?drive=)', async () => {
+      const id = await W.SlopHub.put(await png('#123456'), { name: 'sent.png', from: 'test' });
+      seen = [];
+      const fr = document.getElementById('app');
+      W.__old = true;
+      fr.src = '../../colors/index.html?drive=' + encodeURIComponent(id);
+      await waitFor(() => { try { const w = fr.contentWindow; return !w.__old && w.CO && w.CO.picture && w.CO.picture.colors().length; } catch (e) { return false; } }, { timeout: 30000 });
+      W = fr.contentWindow;
+      expect(W.CO.picture.colors()[0].hex).toBe('#123456');
+    }, { timeout: 40000 });
+    it('a file that is neither a picture nor a palette is refused with the reason', async () => {
+      const r = await W.SlopIntake.take([new W.File(['x'], 'notes.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })], { to: 'colors' });
+      expect(r.added.length).toBe(0);
+      expect(r.skipped.length + (r.refused ? r.refused.length || 0 : 0)).toBeGreaterThan(0);
+    });
+  });
+  run({ name: 'Shared intake: Slop Colors' });
+</script>
+</body>
+</html>

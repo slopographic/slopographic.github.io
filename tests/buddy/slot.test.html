@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mascot slot · a profile's own mascot plays the page's moments</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <!-- Covers: shared/mascot/slot.js, shared/mascot/moments.js, shared/mascot/ui.js, shared/mascot/interact.js, shared/ui/menubutton.js, brand/profiles/overlays/acme/mascot.js, brand/profiles/overlays/acme/icon.js -->
+  <button type="button" id="open" data-mascot-point style="position:fixed;left:20px;top:20px">Open a file</button>
+  <script src="../harness.js"></script>
+  <script type="module">
+  import * as S from '../../shared/mascot/slot.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  const played = [];
+  document.addEventListener('mascot-played', (e) => played.push(e.detail.moment));
+  const last = () => played[played.length - 1];
+  let hidden = 0;
+  const dock = () => document.querySelector('.mascot-slot');
+  const head = () => dock().querySelector('[data-anim]');
+  const ptr = (type, x, y, o = {}) => dock().dispatchEvent(new PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, pointerId: 7, button: 0, isPrimary: true, pointerType: 'mouse' }, o)));
+  const centre = () => { const r = dock().getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const menu = () => document.querySelector('.smb-menu[role="menu"]:not([hidden])');
+
+  describe('the mascot slot with the sample overlay', () => {
+    it('loads the overlay and greets when shown', async () => {
+      try { localStorage.removeItem('slop.mascot.pos'); } catch (e) { /* storage blocked */ }
+      await S.start({ overlay: '../../brand/profiles/overlays/acme/', z: 10, hide: () => { hidden++; S.show(false); } });
+      expect(S.state().name).toBe('Acme Bot');
+      expect(S.state().live).toBe(true);
+      expect(S.moment('greeting')).toBe(false);          // hidden: nothing plays
+      S.show(true);
+      expect(last()).toBe('greeting');
+      const dock = document.querySelector('.mascot-slot');
+      expect(dock.hidden).toBe(false);
+      expect(dock.tagName).toBe('BUTTON');                    // a real button, named after the mascot
+      expect(dock.getAttribute('aria-label')).toBe('Acme Bot');
+      expect(getComputedStyle(dock).pointerEvents).toBe('auto');
+      expect(dock.querySelector('[data-anim]').dataset.anim).toBe('hello');
+      await waitFor(() => last() === 'point', { timeout: 5000 });   // then it shows the page's [data-mascot-point]
+      expect(dock.querySelector('[data-anim]').dataset.anim).toBe('point');
+    });
+    it('a running task, its end and an error', async () => {
+      const tile = document.createElement('div');
+      tile.className = 'sflow'; tile.dataset.state = 'idle';
+      document.body.append(tile);
+      tile.dataset.state = 'run';
+      await waitFor(() => last() === 'working');
+      expect(S.state().holding).toBe('working');
+      tile.dataset.state = 'done';
+      await waitFor(() => last() === 'done');
+      tile.dataset.state = 'run';
+      await waitFor(() => last() === 'working');
+      tile.dataset.state = 'error';
+      await waitFor(() => last() === 'error');
+      expect(document.querySelector('.mascot-slot [data-anim]').dataset.anim).toBe('oops');
+    });
+    it('a busy app (the PDF editor: aria-busy set, then taken off) never leaves it shaking in the working loop', async () => {
+      const app = document.createElement('div');
+      document.body.append(app);
+      const n = played.length;
+      for (let i = 0; i < 3; i++) {                                 // short spells: nothing plays
+        app.setAttribute('aria-busy', 'true'); await new Promise((r) => setTimeout(r, 150)); app.removeAttribute('aria-busy');
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      expect(played.length).toBe(n);
+      expect(S.state().busy).toBe(0);
+      app.setAttribute('aria-busy', 'true');                        // a long one works, and its removal ends the loop
+      await waitFor(() => last() === 'working', { timeout: 4000 });
+      expect(S.state().holding).toBe('working');
+      app.removeAttribute('aria-busy');
+      await waitFor(() => last() === 'done');
+      expect(S.state().holding).toBe(null);
+      expect(S.state().busy).toBe(0);
+      app.setAttribute('aria-busy', 'true');                        // removed from the page while busy: ends too
+      await waitFor(() => last() === 'working', { timeout: 4000 });
+      app.remove();
+      await waitFor(() => last() === 'done', { timeout: 8000 });
+      expect(S.state().busy).toBe(0);
+    });
+    it('points at a control when a page asks, and plays any named moment', async () => {
+      document.dispatchEvent(new CustomEvent('mascot-moment', { detail: { moment: 'point', target: document.getElementById('open') } }));
+      expect(last()).toBe('point');
+      document.dispatchEvent(new CustomEvent('mascot-moment', { detail: { moment: 'idle' } }));
+      expect(last()).toBe('idle');
+      expect(S.state().holding).toBe('idle');
+      document.dispatchEvent(new CustomEvent('mascot-moment', { detail: { moment: 'nope' } }));
+      expect(last()).toBe('idle');
+    });
+    it('hidden, it plays nothing', () => {
+      S.show(false);
+      expect(document.querySelector('.mascot-slot').hidden).toBe(true);
+      expect(S.moment('done')).toBe(false);
+    });
+  });
+
+  describe('the mascot is a button: menu, drag, hooks', () => {
+    it('a click opens the helper menu; Escape closes it; the keyboard opens it again', async () => {
+      S.show(true);
+      await S.parts().ui.menu;
+      dock().click();
+      await waitFor(() => menu());
+      const labels = [...menu().querySelectorAll('.smb-row')].map((r) => r.textContent.trim());
+      expect(labels.includes('Tips') && labels.includes('Move to the other side') && labels.includes('Hide')).toBe(true);
+      menu().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await waitFor(() => !menu());
+      dock().focus();
+      dock().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));   // Enter and Space are the button's own click
+      await waitFor(() => menu());
+      menu().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await waitFor(() => !menu());
+    });
+    it('a drag moves it, is remembered, tilts the overlay and never opens the menu; it stays clear of the edges', async () => {
+      const [x, y] = centre(), before = dock().getBoundingClientRect();
+      ptr('pointerdown', x, y); ptr('pointermove', x - 40, y - 30); ptr('pointermove', x - 120, y - 60);
+      expect(head().dataset.react).toBe('drag');
+      ptr('pointerup', x - 120, y - 60);
+      dock().click();                                       // the click that follows a drag
+      await new Promise((r) => setTimeout(r, 50));
+      expect(!!menu()).toBe(false);
+      expect(head().dataset.react).toBe('drop');
+      const after = dock().getBoundingClientRect();
+      expect(Math.round(before.left - after.left)).toBe(120);
+      expect(JSON.parse(localStorage.getItem('slop.mascot.pos')).right).toBe(Math.round(innerWidth - after.right));
+      ptr('pointerdown', ...centre()); ptr('pointermove', -500, -500); ptr('pointerup', -500, -500);
+      const r = dock().getBoundingClientRect();
+      expect(r.left >= 8 && r.top >= 8).toBe(true);
+    });
+    it('Move to the other side, Tips and Hide', async () => {
+      await new Promise((r) => setTimeout(r, 20));          // the last drag's click guard lapses (a real click comes at once)
+      const side = dock().getBoundingClientRect().left < innerWidth / 2;
+      dock().click(); await waitFor(() => menu());
+      [...menu().querySelectorAll('.smb-row')].find((r) => /other side/.test(r.textContent)).click();
+      expect(dock().getBoundingClientRect().left < innerWidth / 2).toBe(!side);
+      dock().click(); await waitFor(() => menu());
+      [...menu().querySelectorAll('.smb-row')].find((r) => r.textContent.trim() === 'Tips').click();
+      expect(document.querySelector('.ms-say').textContent.length > 10).toBe(true);
+      dock().click(); await waitFor(() => menu());
+      [...menu().querySelectorAll('.smb-row')].find((r) => r.textContent.trim() === 'Hide').click();
+      expect(hidden).toBe(1);
+      expect(dock().hidden).toBe(true);
+      S.show(true);
+    });
+    it('hover, the pointer nearby, a tap and a double click reach the overlay', async () => {
+      ptr('pointerenter', ...centre());
+      expect(head().dataset.react).toBe('hover');
+      const [x, y] = centre();
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: x + 100, clientY: y, bubbles: true }));
+      await waitFor(() => head().dataset.look && head().dataset.look !== '0,0');
+      expect(Number(head().dataset.look.split(',')[0]) > 0).toBe(true);
+      ptr('pointerdown', x, y); ptr('pointerup', x, y);
+      expect(head().dataset.react).toBe('poke');
+      dock().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(last()).toBe('done');
+      S.stop();
+    });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

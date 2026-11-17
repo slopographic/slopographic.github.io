@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows in Swedish</title>
+  <!-- Covers: workflows/index.html, workflows/i18n/index.js, workflows/js/core/text.js, workflows/js/core/templates.js, workflows/js/core/compat.js, workflows/js/ui/markup.js, workflows/js/ui/mount.js, workflows/js/ui/library.js, workflows/js/ui/steps.js, workflows/js/ui/addmenu.js, workflows/js/ui/commands.js, workflows/js/ui/run.js, workflows/js/ui/state.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Workflows', path: '../../workflows/index.html', ns: 'workflows',
+    ready: (doc) => doc.documentElement.dataset.wfReady === '1' && doc.querySelector('#wf-side .sf-p-h') && doc.querySelector('#wf-saved li'),
+    checks: [
+      ['#wf-new', 'Nytt arbetsflöde', 'New workflow'],
+      ['#wf-add', 'Lägg till steg', 'Add step'],
+      ['#wf-empty-h', 'Kedja ihop appar', 'Chain apps'],
+      ['#wf-side .sf-p-h', 'Filer och körning', 'Files and run'],
+      ['#wf-saved .wf-li-empty', 'Inget sparat', 'Nothing saved'],
+      ['#wf-share', 'Kopiera en länk', 'Copy a link', 'title'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Workflows in Swedish' });
+  </script>
+</body>
+</html>

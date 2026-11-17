@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Projects: list sort, task editor (checklist, waits for, loops refused), project settings and columns, JSON backup and CSV, import, delete and undo</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: projects/js/ui/list.js, projects/js/ui/editor.js, projects/js/ui/editor-parts.js, projects/js/ui/project.js, projects/js/ui/files.js, projects/js/ui/task-panel.js
+  // Covers: projects/js/core/io.js, projects/js/core/sample.js, projects/js/core/board.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, got = null;
+  const $ = (id) => D.getElementById(id);
+  const P = () => W.SlopProjects;
+  const task = (title) => P().state.tasks.find((t) => t.title === title);
+  const titles = () => [...D.querySelectorAll('.plist tbody tr')].map((r) => r.querySelector('.linkish').textContent);
+  const set = (el, v) => { el.value = v; el.dispatchEvent(new W.Event('input', { bubbles: true })); el.dispatchEvent(new W.Event('change', { bubbles: true })); };
+  const dlgButton = (label) => [...D.querySelectorAll('.sui-dlg .sui-foot button, .pj-task .sf-p-foot button')].find((b) => b.textContent === label);   // a dialog, or the task panel's foot
+  async function boot(hash) {
+    const f = document.getElementById('app');
+    f.src = '../../projects/index.html' + hash;
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopProjects && f.contentWindow.SlopProjects.app && f.contentWindow.SlopProjects.app.reload && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+    W = f.contentWindow; D = W.document;
+    W.SlopUI.download = (blob, name) => { got = { blob, name }; };
+  }
+
+  describe('Slop Projects list and files', () => {
+    it('the list sorts by a heading, and again for the other way, with aria-sort', async () => {
+      await boot('#list');
+      await W.SlopData.store.erase(); await W.SlopData.store.ready();
+      try { W.localStorage.removeItem('slop-projects.sort'); W.localStorage.removeItem('slop-projects.project'); } catch (e) { /* blocked */ }
+      await boot('#list');
+      await P().files.trySample();
+      await waitFor(() => titles().length === 10);
+      expect(titles()[0]).toBe('Build the pages');   // board order first
+      D.querySelector('th[data-key="end"] button').click();
+      await waitFor(() => titles()[0] === 'Write the brief');
+      expect(titles()[9]).toBe('Tell the newsletter');   // no date: last
+      expect(D.querySelector('th[data-key="end"]').getAttribute('aria-sort')).toBe('ascending');
+      D.querySelector('th[data-key="end"] button').click();
+      await waitFor(() => titles()[0] === 'Launch');
+      expect(titles()[9]).toBe('Tell the newsletter');
+      expect(D.querySelector('th[data-key="end"]').getAttribute('aria-sort')).toBe('descending');
+      D.querySelector('th[data-key="priority"] button').click();
+      await waitFor(() => D.querySelector('.plist tbody tr td:nth-child(4)').textContent === 'High');
+    });
+
+    it('the editor adds a checklist item and a dependency, refuses a loop, and saves', async () => {
+      P().editor.open({ task: task('Write the brief') });
+      await waitFor(() => $('peTitle') && $('peTitle').value === 'Write the brief');
+      const pick = $('peDepAdd');
+      set(pick, task('Launch').id);   // Launch waits (through others) for the brief: a loop
+      await waitFor(() => /already waits for this task/.test((D.querySelector('.sui-toast') || {}).textContent || ''));
+      set($('peCheckNew'), 'Sign-off');
+      $('peCheckNew').dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      expect(D.querySelectorAll('.pe-check li').length).toBe(4);
+      set($('peTags'), 'planning, kickoff');
+      dlgButton('Save').click();
+      await waitFor(() => !P().taskPanel.isOpen());
+      await waitFor(() => task('Write the brief').checklist.length === 4);
+      expect(task('Write the brief').tags).toEqual(['planning', 'kickoff']);
+      expect(task('Write the brief').deps).toEqual([]);
+    });
+
+    it('a new task with only a start is a one-day task; one that waits for another is saved with the link', async () => {
+      P().editor.open({});
+      await waitFor(() => $('peTitle'));
+      set($('peTitle'), 'Order business cards'); set($('peStart'), '2026-12-01'); set($('peWho'), 'Dana');
+      set($('peDepAdd'), task('Launch').id);
+      dlgButton('Add task').click();
+      await waitFor(() => !!task('Order business cards'));
+      const t = task('Order business cards');
+      expect([t.start, t.end, t.assignee, t.column]).toEqual(['2026-12-01', '2026-12-01', 'Dana', 'todo']);
+      expect(t.deps).toEqual([task('Launch').id]);
+    });
+
+    it('project settings rename a column and remove one; its cards go to the column before it', async () => {
+      P().projectDialog.open();
+      await waitFor(() => $('ppName'));
+      const rows = () => [...D.querySelectorAll('.pc-cols li')];
+      set(rows()[1].querySelector('input'), 'In progress');
+      rows()[2].querySelectorAll('button')[2].click();   // remove Review
+      expect(rows().length).toBe(3);
+      dlgButton('Save').click();
+      await waitFor(() => P().state.project.columns.length === 3);
+      expect(P().state.project.columns.map((c) => c.name)).toEqual(['To do', 'In progress', 'Done']);
+      expect(task('Design the home page').column).toBe('doing');
+    });
+
+    it('downloads a JSON backup and a CSV of the tasks', async () => {
+      got = null;
+      P().files.exportJson();
+      await waitFor(() => !!got);
+      expect(got.name).toBe('Website launch.json');
+      const backup = JSON.parse(await got.blob.text());
+      expect(backup.format).toBe('slop-projects');
+      expect(backup.tasks.length).toBe(11);
+      W.__backup = backup;
+      got = null;
+      P().files.exportCsv();
+      await waitFor(() => !!got);
+      const text = (await got.blob.text()).replace(/^﻿/, '');
+      expect(got.name).toBe('Website launch.csv');
+      expect(text.split('\r\n')[0]).toBe('Title,Column,Assignee,Priority,Start,End,Due,Tags,Checklist,Depends on,Customer,Description');
+      expect(text).toContain('Order business cards,To do,Dana,,2026-12-01,2026-12-01,,,,Launch,,');
+    });
+
+    it('opening a backup adds a second project with new ids and opens it', async () => {
+      const first = P().state.project.id;
+      const file = new W.File([JSON.stringify(W.__backup)], 'Website launch.json', { type: 'application/json' });
+      await P().files.openFile(file);
+      await waitFor(() => P().state.projects.length === 2 && P().state.project.id !== first);
+      expect(P().state.tasks.length).toBe(11);
+      const cards = P().state.tasks.find((t) => t.title === 'Order business cards');
+      expect(cards.deps).toEqual([P().state.tasks.find((t) => t.title === 'Launch').id]);
+      expect($('pPick').options.length).toBe(2);
+      let bad = null;
+      try { await P().files.openFile(new W.File(['{"nope": 1}'], 'x.json')); } catch (e) { bad = e.message; }
+      expect(bad).toBe('The backup has no project name.');
+    });
+
+    it('deleting a project removes its tasks; Undo brings them back', async () => {
+      const p = P().state.project;
+      W.SlopUI.confirm = async () => true;
+      await P().actions.deleteProject(p);
+      await waitFor(() => P().state.projects.length === 1);
+      expect((await W.SlopData.store.list('projectTasks', { index: 'projectId', value: p.id })).value.length).toBe(0);
+      await P().actions.undo();
+      await waitFor(() => P().state.projects.length === 2);
+      expect((await W.SlopData.store.list('projectTasks', { index: 'projectId', value: p.id })).value.length).toBe(11);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

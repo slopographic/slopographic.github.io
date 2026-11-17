@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · timesheets: entries, billing to a draft invoice, release</title>
+  <!-- Covers: shared/data/timesheets.js, shared/data/schema-defs.js, shared/data/schema.js, shared/data/store.js, shared/data/bundle-check.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/data/timesheets.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData, st = S.store, T = S.timesheets;
+  let ada, bob;
+  async function fresh() {
+    const r = await st.erase(); if (!r.ok) throw new Error(r.message);
+    await st.ready();
+    ada = (await st.put('customers', { name: 'Ada', stage: 'customer' })).value;
+    bob = (await st.put('customers', { name: 'Bob', stage: 'customer' })).value;
+  }
+  async function entry(o = {}) {
+    const r = await st.put('timeEntries', { date: '2026-10-20', customerId: ada.id, project: 'Website', description: 'Design', minutes: 90, rate: 8000, ...o });
+    if (!r.ok) throw new Error(r.message);
+    return r.value;
+  }
+
+  describe('timesheets', () => {
+    beforeEach(fresh);
+    it('pure helpers: amount (minutes at the hourly rate, rounded), h:mm, the invoice line', () => {
+      expect(T.amountOf({ minutes: 90, rate: 8000 })).toBe(12000);
+      expect(T.amountOf({ minutes: 20, rate: 10000 })).toBe(3333);
+      expect(T.amountOf({ minutes: 1, rate: 30 })).toBe(1);
+      expect(T.hm(90)).toBe('1:30');
+      expect(T.hm(5)).toBe('0:05');
+      expect(T.lineOf({ date: '2026-10-20', project: 'Website', description: 'Design', minutes: 90, rate: 8000 }, 2000))
+        .toEqual({ description: '2026-10-20 · Website: Design (1:30 h)', qty: 1, unitPrice: 12000, taxRate: 2000 });
+    });
+    it('an entry is billable by default; billable time needs a customer; minutes are 1 to 1440', async () => {
+      const e = await entry();
+      expect(e.billable).toBe(true);
+      expect((await st.put('timeEntries', { date: '2026-10-20', description: 'x', minutes: 10 })).ok).toBe(false);
+      expect((await st.put('timeEntries', { date: '2026-10-20', description: 'Admin', minutes: 10, billable: false })).ok).toBe(true);
+      expect((await st.put('timeEntries', { date: '2026-10-20', customerId: ada.id, description: 'x', minutes: 0 })).ok).toBe(false);
+      expect((await st.put('timeEntries', { date: '2026-10-20', customerId: ada.id, description: 'x', minutes: 1441 })).ok).toBe(false);
+    });
+    it('billing: one draft invoice, one line per entry by date, the entries linked; billed time cannot change', async () => {
+      const a = await entry({ date: '2026-10-21', minutes: 60 });
+      const b = await entry({ date: '2026-10-20', minutes: 30, project: '' });
+      const r = await T.toInvoice([a.id, b.id], { dueDate: '2026-11-20', taxRate: 2000 });
+      expect(r.ok).toBe(true);
+      expect(r.value.status).toBe('draft');
+      expect(r.value.customerId).toBe(ada.id);
+      expect(r.value.dueDate).toBe('2026-11-20');
+      expect(r.value.lines.map((l) => [l.description, l.unitPrice])).toEqual([['2026-10-20 · Design (0:30 h)', 4000], ['2026-10-21 · Website: Design (1:00 h)', 8000]]);
+      expect(r.value.total).toBe(14400);
+      const after = (await st.get('timeEntries', a.id)).value;
+      expect(after.invoiceId).toBe(r.value.id);
+      expect((await st.put('timeEntries', { ...after, minutes: 5 })).code).toBe('invalid_transition');
+      expect((await st.put('timeEntries', { ...after, description: 'Design and review' })).ok).toBe(true);
+      expect((await T.toInvoice([a.id])).code).toBe('conflict');
+      expect((await st.remove('timeEntries', a.id)).ok).toBe(false);
+    });
+    it('refused: two customers, non-billable time, nothing chosen, an entry that is gone', async () => {
+      const a = await entry(), b = await entry({ customerId: bob.id });
+      const n = await entry({ billable: false, customerId: undefined });
+      expect((await T.toInvoice([a.id, b.id])).message).toBe('bill one customer at a time');
+      expect((await T.toInvoice([n.id])).code).toBe('conflict');
+      expect((await T.toInvoice([])).code).toBe('invalid');
+      expect((await T.toInvoice(['gone'])).code).toBe('not_found');
+      expect((await st.list('invoices')).value.length).toBe(0);
+    });
+    it('time on a deleted draft invoice is open again: release unlinks it, and it bills anew', async () => {
+      const a = await entry();
+      const inv = (await T.toInvoice([a.id])).value;
+      expect((await T.release(a.id)).code).toBe('invalid_transition');
+      expect((await st.remove('invoices', inv.id)).ok).toBe(true);
+      const invoices = new Map([[inv.id, (await st.list('invoices', { includeDeleted: true })).value.find((x) => x.id === inv.id)]]);
+      expect(T.isOpen((await st.get('timeEntries', a.id)).value, invoices)).toBe(true);
+      const rel = await T.release(a.id);
+      expect(rel.ok).toBe(true);
+      expect(rel.value.invoiceId).toBe(undefined);
+      expect((await st.put('timeEntries', { ...rel.value, minutes: 45 })).ok).toBe(true);
+      expect((await T.toInvoice([a.id])).ok).toBe(true);
+    });
+    it('backups: a time entry pointing at a missing customer is refused; an older export without time entries restores', async () => {
+      await entry();
+      const b = (await S.exporter.exportBundle()).value;
+      expect(S.bundleCheck.validateBundle(b).ok).toBe(true);
+      const bad = JSON.parse(JSON.stringify(b));
+      bad.collections.timeEntries[0].customerId = 'gone';
+      expect(S.bundleCheck.validateBundle(bad).errors.some((e) => e.includes('timeEntries[0]: customerId gone does not exist'))).toBe(true);
+      const old = JSON.parse(JSON.stringify(b));
+      delete old.collections.timeEntries;
+      expect(S.bundleCheck.validateBundle(old).ok).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

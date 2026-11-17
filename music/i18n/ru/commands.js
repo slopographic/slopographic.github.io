@@ -1,0 +1,28 @@
+/* Slop Music, Russian: the titles and groups of the commands in the Ctrl+K palette (js/app/ai-commands.js). Same keys as
+ * music/i18n/en/commands.js. Terms: shared/i18n/glossary-ru.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'music.cmd.play': 'Воспроизвести',
+  'music.cmd.pause': 'Пауза',
+  'music.cmd.play_pause': 'Воспроизвести или пауза',
+  'music.cmd.play_track': 'Воспроизвести трек…',
+  'music.cmd.play_playlist': 'Воспроизвести плейлист…',
+  'music.cmd.next': 'Следующий трек',
+  'music.cmd.previous': 'Предыдущий трек',
+  'music.cmd.seek': 'Перемотка',
+  'music.cmd.volume': 'Задать громкость',
+  'music.cmd.speed': 'Задать скорость',
+  'music.cmd.shuffle': 'Перемешать',
+  'music.cmd.repeat': 'Повтор',
+  'music.cmd.queue_track': 'Добавить трек в очередь…',
+  'music.cmd.find_tracks': 'Найти треки…',
+  'music.cmd.tag_track': 'Добавить метку к треку…',
+  'music.cmd.create_playlist': 'Новый плейлист…',
+  'music.cmd.rename_playlist': 'Переименовать плейлист…',
+  'music.cmd.add_to_playlist': 'Добавить трек в плейлист…',
+  'music.cmd.remove_from_playlist': 'Убрать трек из плейлиста…',
+  'music.cmd.delete_playlist': 'Удалить плейлист…',
+  'music.cmd.export_playlist': 'Экспортировать плейлист…',
+  'music.cmd.group_player': 'Проигрыватель',
+  'music.cmd.group_library': 'Медиатека',
+  'music.cmd.group_playlists': 'Плейлисты',
+});

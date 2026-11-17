@@ -1,0 +1,22 @@
+/* SEO copy, nl: the FileMaker file page (shared/seo/tasks/filemaker.mjs). Rules: shared/seo/i18n/README.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'seo.task.code.open-filemaker-file.crumb': 'Een FileMaker-bestand openen',
+  'seo.task.code.open-filemaker-file.title': 'FileMaker-bestand online openen: bekijk .fmp12- en .fp7-tabellen',
+  'seo.task.code.open-filemaker-file.description': 'Open FileMaker-database (.fmp12, .fp7, .fp5, .fp3) in de browser en lees tabellen en records zonder FileMaker. Zoek, exporteer naar CSV of JSON. Geen upload.',
+  'seo.task.code.open-filemaker-file.h1': 'FileMaker-bestand online openen',
+  'seo.task.code.open-filemaker-file.lead': 'Een FileMaker-bestand bevat tabellen met records en normaal heb je FileMaker nodig om ze te zien. Zet het bestand op Slop Code en de tabellen openen als raster waarin je kunt scrollen, zoeken en exporteren, zonder iets te installeren.',
+  'seo.task.code.open-filemaker-file.steps.0': 'Open Slop Code en zet het .fmp12-, .fp7-, .fp5- of .fp3-bestand op de pagina, of kies het in Slop Drive.',
+  'seo.task.code.open-filemaker-file.steps.1': 'Het bestand opent als raster om alleen te lezen. Kies een tabel uit de lijst: rijen laden terwijl je scrolt, dus een groot bestand blijft snel.',
+  'seo.task.code.open-filemaker-file.steps.2': 'Doorzoek de tabel met het zoekveld, of kies een soort tekst (een IP-adres, een e-mailadres, een sleutel) om naar de volgende rij te springen die er een bevat.',
+  'seo.task.code.open-filemaker-file.steps.3': 'Kies Exporteren om de tabel als CSV of JSON op te slaan, of open hem in een andere app.',
+  'seo.task.code.open-filemaker-file.body.0': 'De pagina leest het bestandsformaat zelf: bestanden van FileMaker Pro 3 tot 6 (.fp3, .fp5, .fmp), Pro 7 tot 12 (.fp7, .fmp12) en de tabelexport die FileMaker schrijft (.fmpxml). De lezer is een JavaScript-port van het opensourceprogramma fmptools.',
+  'seo.task.code.open-filemaker-file.body.1': 'Je ziet de tabellen, de kolomnamen en de records. Afbeeldingen en bestanden in containervelden, indelingen, scripts, relaties en waardelijsten worden niet gelezen, en een versleuteld bestand moet eerst in FileMaker worden geopend.',
+  'seo.task.code.open-filemaker-file.faq.0.0': 'Heb ik FileMaker nodig om het bestand te openen?',
+  'seo.task.code.open-filemaker-file.faq.0.1': 'Nee. De pagina leest het bestand in je browser en toont de tabellen en rijen. Ze voert de database en de scripts niet uit.',
+  'seo.task.code.open-filemaker-file.faq.1.0': 'Wordt mijn bestand geüpload?',
+  'seo.task.code.open-filemaker-file.faq.1.1': 'Nee. Het bestand wordt op dit apparaat gelezen en er wordt niets naar Slopographic of iemand anders gestuurd.',
+  'seo.task.code.open-filemaker-file.faq.2.0': 'Kan ik de gegevens wijzigen?',
+  'seo.task.code.open-filemaker-file.faq.2.1': 'Nee. Het bestand wordt alleen-lezen getoond en nooit gewijzigd. Exporteer een tabel als CSV of JSON om de gegevens in een andere app te bewerken.',
+  'seo.task.code.open-filemaker-file.faq.3.0': 'Welke FileMaker-bestanden kan het openen?',
+  'seo.task.code.open-filemaker-file.faq.3.1': 'Bestanden van FileMaker Pro 3 tot 12 (.fp3, .fp5, .fp7, .fmp12) en tabelexports in het formaat FMPXMLRESULT. Nieuwere .fmp12-bestanden van latere FileMaker-versies openen op dezelfde manier, tenzij ze versleuteld zijn.',
+});

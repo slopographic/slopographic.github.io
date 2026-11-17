@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive: FileMaker files</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: drive/js/ui/viewer.js
+  // A FileMaker file in Slop Drive previews as its tables (the shared viewer, shared/fmp), not as a blank "other" card.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const XML = '<?xml version="1.0" encoding="UTF-8"?>\n<FMPXMLRESULT xmlns="http://www.filemaker.com/fmpxmlresult"><ERRORCODE>0</ERRORCODE>'
+    + '<PRODUCT BUILD="" NAME="FileMaker" VERSION="Pro 12"/><DATABASE DATEFORMAT="MM/dd/yyyy" LAYOUT="" NAME="Parts" RECORDS="1" TIMEFORMAT="h:mm:ss a"/>'
+    + '<METADATA><FIELD EMPTYOK="YES" MAXREPEAT="1" NAME="Part" TYPE="TEXT"/></METADATA>'
+    + '<RESULTSET FOUND="1"><ROW MODID="1" RECORDID="1"><COL><DATA>sprocket</DATA></COL></ROW></RESULTSET></FMPXMLRESULT>';
+  describe('Slop Drive: FileMaker files', () => {
+    it('the viewer shows the tables of the file', async () => {
+      const W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'), { width: 1280, height: 780 });
+      const r = { id: 'x', name: 'parts.fmpxml', type: '', blob: new Blob([XML], { type: 'application/xml' }) };
+      const sink = [];
+      const viewer = W.DR.viewerFor(r, false, sink);
+      W.document.body.append(viewer.el);
+      await waitFor(() => viewer.el.textContent.includes('sprocket'), { timeout: 20000 });
+      viewer.el.remove(); sink.forEach((u) => URL.revokeObjectURL(u));
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop Drive: FileMaker files' });
+  </script>
+</body>
+</html>

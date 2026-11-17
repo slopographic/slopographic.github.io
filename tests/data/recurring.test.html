@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · repeating invoices: dates, schedules from an invoice, making due drafts</title>
+  <!-- Covers: shared/data/recurring.js, shared/i18n/ui/en/calendar.js, shared/i18n/ui/sv/calendar.js, shared/data/ledger.js, shared/data/schema-defs.js, shared/data/store.js, shared/data/bundle-check.js, shared/docs/model.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/data/recurring.js"></script>
+  <script src="../../shared/docs/model.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, waitFor, run } = SlopTest;
+  const S = window.SlopData, st = S.store, R = S.recurring;
+  let inv;
+  async function fresh() {
+    await st.erase(); await st.ready();
+    const c = (await st.put('customers', { name: 'Ada', stage: 'customer' })).value;
+    inv = (await st.put('invoices', { customerId: c.id, date: '2026-01-31', notes: 'Hosting', lines: [{ description: 'Hosting', qty: 1, unitPrice: 2500, taxRate: 2000 }] })).value;
+  }
+
+  describe('repeating invoices: dates', () => {
+    it('months keep the day, clamped to short months; weeks add seven days', () => {
+      expect(R.step('2026-01-31', 1, 'month')).toBe('2026-02-28');
+      expect(R.step('2026-02-28', 1, 'month', 31)).toBe('2026-03-31');
+      expect(R.step('2028-01-31', 1, 'month', 31)).toBe('2028-02-29');
+      expect(R.step('2026-11-15', 3, 'month')).toBe('2027-02-15');
+      expect(R.step('2026-12-28', 1, 'week')).toBe('2027-01-04');
+      expect(R.describe({ every: 1, unit: 'month' })).toBe('every month');
+      expect(R.describe({ every: 2, unit: 'week' })).toBe('every 2 weeks');
+      expect(S.ledger.addDays('2026-12-31', 1)).toBe('2027-01-01');
+      expect(window.SlopDocs.model.addDays('2026-03-01', -1)).toBe('2026-02-28');
+    });
+    it('the repeat in words follows the language, with plural forms (shared/i18n/ui/<code>/calendar.js)', async () => {
+      const I = window.SlopI18n;
+      I.set('sv');
+      await I.ready();
+      await waitFor(() => document.documentElement.lang === 'sv', { timeout: 10000 });
+      try {
+        expect([R.describe({ every: 1, unit: 'month' }), R.describe({ every: 2, unit: 'week' }), R.describe({ every: 1, unit: 'week' })]).toEqual(['varje månad', 'var 2:e vecka', 'varje vecka']);
+      } finally { I.set('en'); localStorage.removeItem('slop-profile'); SlopTest.english(); }
+      expect(R.describe({ every: 3, unit: 'month' })).toBe('every 3 months');
+    });
+    it('due dates: every missed period up to today, not past the end, none when paused', () => {
+      const s = { nextDate: '2026-01-31', every: 1, unit: 'month', anchorDay: 31, active: true };
+      expect(R.dueDates(s, '2026-04-10')).toEqual({ dates: ['2026-01-31', '2026-02-28', '2026-03-31'], next: '2026-04-30' });
+      expect(R.dueDates({ ...s, endDate: '2026-02-28' }, '2026-04-10').dates).toEqual(['2026-01-31', '2026-02-28']);
+      expect(R.dueDates({ ...s, active: false }, '2026-04-10').dates).toEqual([]);
+      expect(R.dueDates(s, '2026-01-30').dates).toEqual([]);
+      expect(R.dueDates({ ...s, unit: 'week', every: 1, nextDate: '2020-01-01' }, '2026-01-01').dates.length).toBe(R.CATCH_UP);
+    });
+  });
+
+  describe('repeating invoices: data', () => {
+    beforeEach(fresh);
+    it('a schedule from an invoice copies its customer, notes and lines, and keeps the day of the month', async () => {
+      const r = await R.fromInvoice(inv.id, { every: 1, unit: 'month', start: '2026-02-28', dueDays: 14 });
+      expect(r.ok).toBe(true);
+      expect([r.value.customerId, r.value.notes, r.value.lines.length, r.value.anchorDay, r.value.active, r.value.made]).toEqual([inv.customerId, 'Hosting', 1, 28, true, 0]);
+      expect((await R.fromInvoice('gone', { start: '2026-02-01' })).code).toBe('not_found');
+      expect((await st.put('schedules', { ...r.value, endDate: '2026-01-01' })).ok).toBe(false);
+    });
+    it('makeDue makes one draft per due period with its due date, moves the schedule on, and never twice', async () => {
+      const s = (await R.fromInvoice(inv.id, { start: '2026-01-31', dueDays: 14 })).value;
+      const r = await R.makeDue('2026-03-05');
+      expect(r.ok).toBe(true);
+      expect(r.value.made.map((x) => [x.date, x.dueDate, x.status, x.total, x.scheduleId])).toEqual([
+        ['2026-01-31', '2026-02-14', 'draft', 3000, s.id], ['2026-02-28', '2026-03-14', 'draft', 3000, s.id]]);
+      const after = (await st.get('schedules', s.id)).value;
+      expect([after.nextDate, after.made, after.lastInvoiceId]).toEqual(['2026-03-31', 2, r.value.made[1].id]);
+      expect((await R.makeDue('2026-03-05')).value.made.length).toBe(0);
+      expect(R.due([after], '2026-03-31').length).toBe(1);
+    });
+    it('a schedule that reaches its end makes its last draft and stops', async () => {
+      const s = (await R.fromInvoice(inv.id, { start: '2026-01-31', endDate: '2026-02-28' })).value;
+      await R.makeDue('2026-06-01');
+      const after = (await st.get('schedules', s.id)).value;
+      expect([after.active, after.made, after.nextDate]).toEqual([false, 2, '2026-02-28']);
+    });
+    it('backups: a schedule pointing at a missing customer is refused; an older export without schedules restores', async () => {
+      await R.fromInvoice(inv.id, { start: '2026-02-01' });
+      const b = (await S.exporter.exportBundle()).value;
+      expect(S.bundleCheck.validateBundle(b).ok).toBe(true);
+      const bad = JSON.parse(JSON.stringify(b)); bad.collections.schedules[0].customerId = 'gone';
+      expect(S.bundleCheck.validateBundle(bad).ok).toBe(false);
+      const old = JSON.parse(JSON.stringify(b)); delete old.collections.schedules;
+      expect(S.bundleCheck.validateBundle(old).ok).toBe(true);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

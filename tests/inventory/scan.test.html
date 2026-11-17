@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Inventory · scanning, undo and the camera</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <!-- SlopI18n with the English tables, so the messages read as on the page -->
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script><script src="../../shared/biz/i18n/en/biz.js"></script><script src="../../inventory/i18n/en/page.js"></script><script src="../../inventory/i18n/en/views.js"></script>
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/stock.js"></script>
+  <script src="../../shared/data/purchases.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/bundle-check.js"></script>
+  <script src="../../shared/data/export.js"></script>
+  <script src="../../shared/biz/biz.js"></script>
+  <script src="../../inventory/js/core/util.js"></script>
+  <script src="../../inventory/js/core/csv.js"></script>
+  <script src="../../inventory/js/core/products.js"></script>
+  <script src="../../inventory/js/core/import.js"></script>
+  <script src="../../inventory/js/core/rows.js"></script>
+  <script src="../../inventory/js/core/stock-ops.js"></script>
+  <script src="../../inventory/js/core/count.js"></script>
+  <script src="../../inventory/js/core/scan.js"></script>
+  <script src="../../inventory/js/scan/wedge.js"></script>
+  <script src="../../inventory/js/scan/camera.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const S = window.SlopData;
+  const NS = window.SlopInv;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const fresh = async () => { const r = await S.store.erase(); if (!r.ok) throw new Error(r.message); const q = await S.store.ready(); if (!q.ok) throw new Error(q.message); NS.count.cancel(); };
+  const ean13 = (body12) => body12 + S.barcode.checkDigit(body12);
+  const CODE = ean13('400638133393'); // 4006381333931, a valid EAN-13
+  const OTHER = ean13('500000000001');
+  async function product(sku, ean, extra = {}) {
+    const r = await NS.products.save({ sku, name: `${sku} item`, price: 1250, taxRate: 2000, ean, ...extra });
+    if (!r.ok) throw new Error(NS.util.refusal(r));
+    return r.value;
+  }
+  const onHand = async (id, loc = 'main') => (await S.stock.onHand(id, loc)).value;
+
+  describe('EAN lookup and Receive', () => {
+    it('a valid EAN-13 finds its product, and Receive raises on-hand by one', async () => {
+      await fresh();
+      const p = await product('W-1', CODE);
+      const e = await NS.scan.scan(CODE, { action: 'receive', location: 'main', qty: 1 });
+      expect(e.status).toBe('received');
+      expect(e.productId).toBe(p.id);
+      expect(e.onHandBefore).toBe(0);
+      expect(e.onHandAfter).toBe(1);
+      expect(await onHand(p.id)).toBe(1);
+    });
+
+    it('each scan is one movement: a second Receive makes two', async () => {
+      await fresh();
+      const p = await product('W-2', CODE);
+      await NS.scan.scan(CODE, { action: 'receive' });
+      await NS.scan.scan(CODE, { action: 'receive' });
+      expect(await onHand(p.id)).toBe(2);
+      const moves = await S.store.list('stockMovements', { index: 'productId', value: p.id });
+      expect(moves.value.length).toBe(2);
+    });
+
+    it('a SKU typed into the scanner finds the product too', async () => {
+      await fresh();
+      const p = await product('SKU-77', CODE);
+      const e = await NS.scan.scan('SKU-77', { action: 'lookup' });
+      expect(e.status).toBe('found');
+      expect(e.productId).toBe(p.id);
+    });
+
+    it('Look up only changes nothing', async () => {
+      await fresh();
+      const p = await product('W-3', CODE);
+      const e = await NS.scan.scan(CODE, { action: 'lookup' });
+      expect(e.status).toBe('found');
+      expect(await onHand(p.id)).toBe(0);
+    });
+
+    it('an unknown valid EAN offers to create a product, and the new product keeps the EAN', async () => {
+      await fresh();
+      const e = await NS.scan.scan(OTHER, { action: 'receive' });
+      expect(e.status).toBe('unknown');
+      expect(e.canCreate).toBe(true);
+      const made = await NS.products.save({ sku: 'NEW-1', name: 'New item', price: 300, taxRate: 0, ean: e.code });
+      expect(made.ok).toBe(true);
+      const found = await S.stock.lookupBarcode(OTHER);
+      expect(found.value.id).toBe(made.value.id);
+      expect(found.value.ean).toBe(OTHER);
+    });
+
+    it('an invalid check digit is rejected with a message, and nothing is written', async () => {
+      await fresh();
+      await product('W-4', CODE);
+      const bad = CODE.slice(0, 12) + String((Number(CODE[12]) + 1) % 10);
+      const e = await NS.scan.scan(bad, { action: 'receive' });
+      expect(e.status).toBe('rejected');
+      expect(e.message).toContain('should be');
+      const moves = await S.store.list('stockMovements');
+      expect(moves.value.length).toBe(0);
+    });
+  });
+
+  describe('sales below zero', () => {
+    it('a sale that would go below zero is refused in plain words, and stock is unchanged', async () => {
+      await fresh();
+      const p = await product('S-1', CODE);
+      await NS.scan.scan(CODE, { action: 'receive', qty: 1 });
+      const e = await NS.scan.scan(CODE, { action: 'sell', qty: 2 });
+      expect(e.status).toBe('refused');
+      expect(e.message).toContain('below zero');
+      expect(e.message).toContain('only 1 on hand');
+      expect(await onHand(p.id)).toBe(1);
+    });
+
+    it('the stock rule holds for a direct sale too, and allowNegative is off by default', async () => {
+      await fresh();
+      const p = await product('S-2', CODE);
+      const r = await NS.stockOps.sell({ productId: p.id, location: 'main', qty: 1 });
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('insufficient_stock');
+    });
+  });
+
+  describe('keyboard-wedge scanner', () => {
+    const typeBurst = async (input, code, gapMs) => {
+      for (const ch of code) {
+        input.value += ch;
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+        await sleep(gapMs);
+      }
+    };
+    const enter = (input, repeat = false) => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat, bubbles: true }));
+
+    it('a fast burst of characters followed by Enter is one scan, marked as a scanner', async () => {
+      const input = document.createElement('input');
+      document.body.append(input);
+      const seen = [];
+      const off = NS.wedge.attachWedge(input, (text, o) => seen.push({ text, source: o.source }));
+      await typeBurst(input, CODE, 3);
+      enter(input);
+      await sleep(10);
+      expect(seen.length).toBe(1);
+      expect(seen[0].text).toBe(CODE);
+      expect(seen[0].source).toBe('scanner');
+      expect(input.value).toBe('');
+      off();
+      input.remove();
+    });
+
+    it('slow typing followed by Enter is still one scan, marked as keyboard', async () => {
+      const input = document.createElement('input');
+      document.body.append(input);
+      const seen = [];
+      const off = NS.wedge.attachWedge(input, (text, o) => seen.push({ text, source: o.source }));
+      await typeBurst(input, 'ABC-9', 90);
+      enter(input);
+      expect(seen.length).toBe(1);
+      expect(seen[0].source).toBe('keyboard');
+      off();
+      input.remove();
+    });
+
+    it('a held Enter key (repeat) does not scan twice, and an empty Enter scans nothing', async () => {
+      const input = document.createElement('input');
+      document.body.append(input);
+      const seen = [];
+      const off = NS.wedge.attachWedge(input, (text) => seen.push(text));
+      await typeBurst(input, CODE, 3);
+      enter(input);
+      enter(input, true);
+      enter(input);
+      expect(seen.length).toBe(1);
+      off();
+      input.remove();
+    });
+  });
+
+  describe('undo', () => {
+    it('Undo of a receive leaves a counter-movement, and on-hand returns to its value before the scan', async () => {
+      await fresh();
+      const p = await product('U-1', CODE);
+      await NS.scan.scan(CODE, { action: 'receive', qty: 1 });
+      const e = await NS.scan.scan(CODE, { action: 'receive', qty: 3 });
+      const before = await onHand(p.id);
+      expect(before).toBe(4);
+      const u = await NS.scan.undoLast([e]);
+      expect(u.ok).toBe(true);
+      expect(await onHand(p.id)).toBe(1);
+      expect(e.status).toBe('undone');
+      const moves = await S.store.list('stockMovements', { index: 'productId', value: p.id });
+      expect(moves.value.length).toBe(3);
+      const original = await S.store.get('stockMovements', e.movementId);
+      expect(original.value.qty).toBe(3);
+      const counter = moves.value.find((m) => m.ref === `undo:${e.movementId}`);
+      expect(counter.qty).toBe(-3);
+    });
+
+    it('Undo of a sale puts the stock back', async () => {
+      await fresh();
+      const p = await product('U-2', CODE);
+      await NS.scan.scan(CODE, { action: 'receive', qty: 5 });
+      const s = await NS.scan.scan(CODE, { action: 'sell', qty: 2 });
+      expect(await onHand(p.id)).toBe(3);
+      await NS.scan.undo(s);
+      expect(await onHand(p.id)).toBe(5);
+    });
+
+    it('Undo is refused when the counter-movement would take stock below zero', async () => {
+      await fresh();
+      const p = await product('U-3', CODE);
+      const r = await NS.scan.scan(CODE, { action: 'receive', qty: 1 });
+      await NS.scan.scan(CODE, { action: 'sell', qty: 1 });
+      const u = await NS.scan.undo(r);
+      expect(u.ok).toBe(false);
+      expect(u.message).toContain('below zero');
+      expect(await onHand(p.id)).toBe(0);
+    });
+
+    it('a count tally is taken back out of the count, without a movement', async () => {
+      await fresh();
+      await product('U-4', CODE);
+      NS.count.start('main');
+      const c = await NS.scan.scan(CODE, { action: 'count', qty: 2 });
+      expect(c.status).toBe('counted');
+      const moves = await S.store.list('stockMovements');
+      expect(moves.value.length).toBe(0);
+      await NS.scan.undo(c);
+      expect(NS.count.snapshot().lines.length).toBe(0);
+    });
+
+    it('Count without an open count is refused', async () => {
+      await fresh();
+      await product('U-5', CODE);
+      NS.count.cancel();
+      const c = await NS.scan.scan(CODE, { action: 'count' });
+      expect(c.status).toBe('refused');
+      expect(c.message).toContain('No count is open');
+    });
+  });
+
+  describe('camera mode', () => {
+    it('shows an honest message when BarcodeDetector is missing (checked with a stub)', async () => {
+      const saved = window.BarcodeDetector;
+      delete window.BarcodeDetector;
+      try {
+        expect(NS.camera.support().ok).toBe(false);
+        let said = '';
+        const cam = NS.camera.createCamera({ video: document.createElement('video'), onCode() {}, onStatus: (t) => { said = t; } });
+        const started = await cam.start();
+        expect(started).toBe(false);
+        expect(said).toContain('BarcodeDetector');
+        expect(said).toContain('keyboard or scanner mode');
+        expect(cam.running).toBe(false);
+      } finally {
+        if (saved !== undefined) window.BarcodeDetector = saved;
+      }
+    });
+
+    it('a camera error is named plainly', async () => {
+      expect(NS.camera.cameraError({ name: 'NotAllowedError' })).toContain('permission was refused');
+      expect(NS.camera.cameraError({ name: 'NotFoundError' })).toContain('No camera');
+    });
+  });
+
+  run({ name: 'Inventory · scanning, undo and the camera' });
+  </script>
+</body>
+</html>

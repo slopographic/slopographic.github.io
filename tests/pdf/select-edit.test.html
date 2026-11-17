@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop PDF: select and edit, copy and paste</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The select tool edits what it selects (page text, page pictures, added annotations) with transform handles at once,
+       several at a time, copy / paste in place / paste on pages, drags between pages, and the assistant's commands for them.
+       The PDFs are made in the test with the app's pdf-lib.
+       Covers: pdf/js/editor/select-edit.js, pdf/js/editor/para-xform.js, pdf/js/editor/annot-xform.js, pdf/js/editor/multi-sel.js,
+         pdf/js/editor/cross-page.js, pdf/js/editor/clip.js, pdf/js/editor/para-bar.js, pdf/js/editor/xform.js, pdf/js/tools/sel-panel.js,
+         pdf/js/ui/ai-edit.js, pdf/css/select-edit.css -->
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script src="objects.helpers.js"></script>
+  <script src="para.helpers.js"></script>
+  <script src="select-edit.helpers.js"></script>
+  <script src="pdf.spec-select-edit.js"></script>
+  <script src="pdf.spec-clip.js"></script>
+  <script>SlopTest.run({ name: 'Slop PDF: select and edit, copy and paste' });</script>
+</body>
+</html>

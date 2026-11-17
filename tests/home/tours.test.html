@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · guided tours menu</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, sleep, waitFor, run } = SlopTest;
+  let win, doc;
+  const ready = HomeTest.openHome().then((w) => { win = w; doc = w.document; });
+  const menu = () => doc.querySelector('dialog.stour-menu');
+  const cards = () => [...menu().querySelectorAll('.stour-card')];
+  const shown = () => cards().filter((c) => !c.closest('li').hidden);
+
+  describe('guided tours menu', () => {
+    it('opens as a centred modal with at least 26 tour cards', async () => {
+      await ready;
+      const btn = doc.querySelector('.nav .stour-btn');
+      btn.click();
+      const dlg = menu();
+      expect(dlg.open).toBe(true);
+      expect(dlg.matches(':modal')).toBe(true);
+      const r = dlg.getBoundingClientRect();
+      expect(Math.abs(r.left + r.width / 2 - win.innerWidth / 2) < 2).toBe(true);
+      expect(Math.abs(r.top + r.height / 2 - win.innerHeight / 2) < 2).toBe(true);
+      expect(cards().length >= 26).toBe(true);
+      const first = cards()[0];
+      expect(first.getAttribute('href')).toBe(first.closest('li').dataset.app + '/?tour=1');
+      expect(first.querySelector('svg.stour-icon')).not.toBe(null);
+      dlg.close();
+    });
+    it('the search box filters the cards by name as you type, and restores them when cleared', async () => {
+      await ready;
+      doc.querySelector('.nav .stour-btn').click();
+      const search = menu().querySelector('.stour-search');
+      const name = win.SLOP_APPS.find((a) => a.id === 'photoslop').name;   // the image editor, by the build's name for it (here PhotoSlop)
+      search.value = name.toLowerCase();
+      search.dispatchEvent(new win.Event('input'));
+      expect(shown().length).toBe(1);
+      expect(shown()[0].querySelector('strong').textContent).toBe(name);
+      search.value = 'zzz';
+      search.dispatchEvent(new win.Event('input'));
+      expect(shown().length).toBe(0);
+      expect(menu().querySelector('.stour-empty').hidden).toBe(false);
+      search.value = '';
+      search.dispatchEvent(new win.Event('input'));
+      expect(shown().length).toBe(cards().length);
+      menu().close();
+    });
+    it('closing returns focus to the Tours button that opened it', async () => {
+      await ready;
+      const btn = doc.querySelector('.nav .stour-btn');
+      btn.click();
+      menu().querySelector('.stour-menu-x').click();
+      expect(menu().open).toBe(false);
+      await waitFor(() => doc.activeElement === btn, { timeout: 3000 });
+      expect(doc.activeElement === btn).toBe(true);
+    });
+  });
+
+  ready.then(() => sleep(100)).then(() => run());
+  </script>
+</body>
+</html>

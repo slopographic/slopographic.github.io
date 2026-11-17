@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · one file download (SlopUI.download) and the apps that use it</title>
+  <!-- Covers: shared/slopui.js, photoslop/js/core/util.js, img3d/js/app/export.js, effects/js/render/export.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../photoslop/js/core/util.js"></script>
+  <script src="../../img3d/js/app/export.js"></script>
+  <script src="../../effects/js/render/export.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  describe('one file download', () => {
+    it('SlopUI.download clicks a link to an object URL with the file name', () => {
+      const clicked = [];
+      const orig = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () { clicked.push({ name: this.download, href: this.href }); };
+      try { SlopUI.download(new Blob(['x']), 'a.txt'); } finally { HTMLAnchorElement.prototype.click = orig; }
+      expect(clicked.length).toBe(1);
+      expect(clicked[0].name).toBe('a.txt');
+      expect(clicked[0].href.startsWith('blob:')).toBe(true);
+    });
+    it('Photoslop, Slop Image to 3D and Slop Effects hand their files to SlopUI.download', () => {
+      const got = [], orig = SlopUI.download;
+      SlopUI.download = (blob, name) => got.push(name);
+      try {
+        download(new Blob(['p']), 'picture.png');                       // photoslop/js/core/util.js
+        window.SlopImg3D.exporter.download(new Blob(['m']), 'mesh.obj'); // img3d/js/app/export.js
+        window.SlopEffects.render.download(new Blob(['v']), 'comp.webm'); // effects/js/render/export.js
+      } finally { SlopUI.download = orig; }
+      expect(got).toEqual(['picture.png', 'mesh.obj', 'comp.webm']);
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

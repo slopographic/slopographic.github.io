@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Drive test frame</title>
+  <!-- A bare page with the shared kit, for the Drive model, picker, backup and guard tests.
+       ?db=<name> picks the Slop Drive database; ?foreign=1 gives the page its own window.SlopUI (like the homepage). -->
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script>
+    var q = new URLSearchParams(location.search);
+    if (q.get('db')) window.SLOP_DRIVE_DB = q.get('db');
+    if (q.get('foreign')) window.SlopUI = { randSeed: function () { return 1; } };
+  </script>
+  <script src="../../shared/apps.js"></script>
+  <script>if (!new URLSearchParams(location.search).get('foreign')) document.write('<link rel="stylesheet" href="../../shared/slopui.css"><script src="../../shared/slopui.js"><\/script>');</script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/intake/outtake.js"></script>
+  <script src="../../shared/ops/entry.js"></script>
+  <script src="../../shared/guard.js" defer></script>
+</head>
+<body><p>Slop Drive test frame</p></body>
+</html>

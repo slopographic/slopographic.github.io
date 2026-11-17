@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-needs" content="mascot=builtin">
+  <title>Homepage · Sloppo chaos, rage and Restore page</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  let win, doc, S, M, pristine;
+  // The page itself changes as cards scroll into view (lazy screenshots load or fall back, clips attach):
+  // compare without those parts.
+  // Regions marked data-live change on their own (the hero's app globe, built after load and turning every frame, and its
+  // keyboard list, filled when the globe starts): compare without them, whenever they arrive.
+  const main = () => {
+    const m = doc.querySelector('main').cloneNode(true);
+    m.querySelectorAll('[data-live]').forEach((n) => n.remove());
+    return m.innerHTML.replace(/<img[^>]*>|<video[\s\S]*?<\/video>| data-clip="[^"]*"| has-img/g, '');
+  };
+  const leftovers = () => doc.querySelectorAll('.sloppo-layer > :not(.sloppo):not(.sloppo-fx)').length;
+  const ready = HomeTest.openHome().then(async (w) => {
+    win = w; doc = w.document; S = w.SlopMascot; M = S.M;
+    doc.documentElement.style.scrollBehavior = 'auto';
+    await sleep(1500);                         // let missing screenshots fall back to tiles
+    await waitFor(() => w.SlopGlobe && w.SlopGlobe.state() === 'running', { timeout: 20000 });   // chaos and Restore with the globe turning
+    S.toggleHud(true);                         // the HUD card is collapsed by default: open it for its buttons
+    pristine = main();
+  });
+  async function onApps() {
+    win.scrollTo(0, doc.getElementById('apps').offsetTop - 60);
+    await sleep(50);
+    S.leapIn();
+    await HomeTest.settled(win);
+  }
+  async function restoreAndCheck() {
+    doc.querySelector('.sh-restore').click();
+    await sleep(80);
+    expect(S.journal).toBe(0);
+    expect(doc.querySelector('.sh-restore').hidden).toBe(true);
+    expect(leftovers()).toBe(0);
+    if (main() !== pristine) {
+      const a = pristine, b = main(); let i = 0; while (a[i] === b[i]) i++;
+      throw new Error('page not restored near: ' + b.slice(Math.max(0, i - 40), i + 120) + '\n  expected: ' + a.slice(Math.max(0, i - 40), i + 120));
+    }
+  }
+
+  describe('Unleash', () => {
+    it('toggles chaos mode from the HUD', async () => {
+      await ready;
+      const btn = doc.querySelector('.sh-unleash');
+      btn.click();
+      expect(M.chaos).toBe(true);
+      expect(btn.getAttribute('aria-pressed')).toBe('true');
+      expect(M.el.classList.contains('is-chaos')).toBe(true);
+      expect(S.face()).toEqual(['angry', 'frown']);
+      btn.click();
+      expect(M.chaos).toBe(false);
+      expect(btn.textContent).toBe('Unleash');
+    });
+    for (const name of ['bite', 'eat', 'knock', 'goo', 'blast', 'blackhole']) {
+      it(`${name} changes the page, and Restore page undoes it`, async () => {
+        await ready;
+        await onApps();
+        let did = false;
+        for (let i = 0; i < 4 && !did; i++) { did = await S.act(name); if (!did) { await HomeTest.settled(win); await sleep(200); } }
+        expect(did).toBe(true);
+        await sleep(name === 'knock' ? 600 : 200);
+        expect(S.journal).toBeGreaterThan(0);
+        expect(doc.querySelector('.sh-restore').hidden).toBe(false);
+        if (name === 'goo' || name === 'blast') expect(leftovers()).toBeGreaterThan(0);   // overlays in the mascot layer
+        else expect(main() === pristine).toBe(false);
+        await restoreAndCheck();
+      }, { timeout: 25000 });
+    }
+    it('eating leaves at least one letter of a heading', async () => {
+      await ready;
+      await onApps();
+      for (let i = 0; i < 6; i++) await S.act('eat');
+      for (const h of doc.querySelectorAll('h1[data-perch], h2[data-perch]')) {
+        const spans = h.querySelectorAll('.sloppo-ch');
+        if (spans.length) expect([...spans].some((s) => s.style.visibility !== 'hidden')).toBe(true);
+      }
+      await restoreAndCheck();
+    }, { timeout: 30000 });
+    it('a running chaos session is fully undone, even mid-action', async () => {
+      await ready;
+      await onApps();
+      S.unleash();
+      await waitFor(() => S.journal >= 4, { timeout: 20000 });
+      await restoreAndCheck();
+      expect(M.chaos).toBe(false);
+      await sleep(1500);                       // nothing keeps changing the page afterwards
+      expect(main() === pristine).toBe(true);
+    }, { timeout: 30000 });
+  });
+
+  describe('RAGE', () => {
+    it('1st hard landing: dizzy and OUCH; 2nd: annoyed; 3rd: RAGE with chaos', async () => {
+      await ready;
+      await onApps();
+      S.bonk();
+      expect(M.mood).toBe('dizzy');
+      expect(M.raging).toBe(0);
+      S.bonk();
+      expect(M.mood).toBe('annoyed');
+      expect(S.face()).toEqual(['angry', 'frown']);
+      S.bonk();
+      expect(M.raging).toBeGreaterThan(0);
+      expect(M.chaos).toBe(true);
+      expect(M.el.classList.contains('is-rage')).toBe(true);
+      expect(doc.querySelector('.sh-rage').hidden).toBe(false);
+      expect(doc.querySelector('.sh-unleash').textContent).toBe('RAGE');
+      await waitFor(() => S.journal > 0, { timeout: 15000 });
+    }, { timeout: 25000 });
+    it('calms down when rage runs out, and Restore page undoes the damage', async () => {
+      await ready;
+      M.raging = performance.now() + 50;
+      await waitFor(() => !M.raging, { timeout: 3000 });
+      expect(M.chaos).toBe(false);
+      expect(M.el.classList.contains('is-rage')).toBe(false);
+      await sleep(400);
+      await restoreAndCheck();
+    }, { timeout: 15000 });
+    it('the rage meter drains over time', async () => {
+      await ready;
+      M.rage = 1;
+      await sleep(600);
+      expect(M.rage).toBeLessThan(1);
+      expect(M.rage).toBeGreaterThan(0.8);
+      M.rage = 0;
+    });
+  });
+
+  ready.then(() => sleep(100)).then(() => run());
+  </script>
+</body>
+</html>

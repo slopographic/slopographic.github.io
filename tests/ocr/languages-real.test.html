@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop OCR · the real models per script: Swedish with å ä ö, Russian, Arabic in reading order, and the suggestion after a quick first read (downloads the models)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } pre { white-space: pre-wrap; padding: 8px; }</style>
+</head>
+<body>
+  <pre id="log"></pre>
+  <script src="../harness.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/ocr-models.js"></script>
+  <script src="../../aitools/model-registry.js"></script>
+  <script src="../../aitools/download.js"></script>
+  <script type="module">
+  // Covers: aitools/workers/ocr-engine.js, aitools/workers/infer.worker.js, aitools/ocr-models.js, shared/ocr/suggest.js
+  // The real models from the cdn (the pinned commit in aitools/ocr-models.js; every file checked against its SHA-256 as the
+  // installer does) run in the real worker on pictures of text rendered for these tests (tests/ocr/fixtures/, CC0, see
+  // SOURCES.txt). Needs the network: about 45 MB.
+  import { suggestModel } from '../../shared/ocr/suggest.js';
+  const { describe, it, expect, run } = SlopTest;
+  const R = window.SlopAIModels, O = window.SlopOcrModels;
+  const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+  const sha256Hex = async (b) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', b)), (x) => x.toString(16).padStart(2, '0')).join('');
+
+  let worker = null, seq = 0;
+  const pending = new Map();
+  function call(type, data, transfer = []) {
+    if (!worker) {
+      worker = new Worker('../../aitools/workers/infer.worker.js');
+      worker.onmessage = (e) => { const p = pending.get(e.data.id); if (!p || e.data.type === 'progress') return; pending.delete(e.data.id); e.data.type === 'done' ? p.res(e.data.data) : p.rej(new Error(e.data.message)); };
+    }
+    const id = ++seq;
+    return new Promise((res, rej) => { pending.set(id, { res, rej }); worker.postMessage({ id, type, data }, transfer); });
+  }
+  async function load(id) {
+    const files = {};
+    for (const f of R.byId(id).files) {
+      files[f.name] = f.path ? await (await fetch('../../' + f.path)).arrayBuffer() : await SlopAIDownload.fetchFile(f, { fetch: (u, o) => fetch(u, o), sha256Hex, allowedUrl: R.allowedUrl });
+      if (f.path) expect(await sha256Hex(files[f.name])).toBe(f.sha256);
+    }
+    await call('load', { model: id, files }, Object.values(files));
+  }
+  async function read(model, picture) {
+    const bitmap = await createImageBitmap(await (await fetch('fixtures/' + picture)).blob());
+    const r = await call('ocr', { model, bitmap, w: bitmap.width, h: bitmap.height }, [bitmap]);
+    log(`${model} on ${picture}: ${r.lines.map((l) => `${l.text} (${l.score.toFixed(2)})`).join(' | ')}`);
+    read.skipped = r.skipped;
+    return r.lines;
+  }
+  const text = (lines) => lines.map((l) => l.text).join('\n');
+  const squash = (s) => s.replace(/\s+/g, ' ').trim();
+
+  describe('OCR in more scripts, with the real models', () => {
+    it('the quick model reads Swedish without its accents, and the suggestion is the Latin model for Swedish', async () => {
+      await load('ppocr-v4');
+      const lines = await read('ppocr-v4', 'swedish.png');
+      expect(text(lines)).not.toContain('å');
+      const s = suggestModel(lines, { model: 'ppocr-v4', catalog: O, locale: 'sv' });
+      expect(s && s.model).toBe('ppocr-v6-small');
+      expect(s.language).toBe('sv');
+    }, { timeout: 180000 });
+    it('the Latin script model (PP-OCRv6 small) reads Swedish with å, ä and ö', async () => {
+      await load('ppocr-v6-small');
+      const t = squash(text(await read('ppocr-v6-small', 'swedish.png')));
+      expect(t).toContain('Öland');
+      expect(t).toContain('äpplen');
+      expect(t).toContain('Smörgåsbord på Öland');
+      for (const c of ['å', 'ä', 'ö', 'Ö', 'Ä']) expect(t).toContain(c);
+    }, { timeout: 180000 });
+    it('the Cyrillic model reads Russian', async () => {
+      await load('ppocr-v5-cyrillic');
+      const t = squash(text(await read('ppocr-v5-cyrillic', 'russian.png')));
+      expect(t).toContain('Съешь же ещё этих');
+      expect(t).toContain('французских');
+      expect(t).toContain('Москва');
+    }, { timeout: 180000 });
+    it('the Arabic model reads Arabic, in reading order (right to left as typed)', async () => {
+      await load('ppocr-v5-arabic');
+      const lines = await read('ppocr-v5-arabic', 'arabic.png');
+      const t = squash(text(lines));
+      expect(t).toContain('مرحبا');
+      expect(t).toContain('بالعالم');
+      expect(t.indexOf('مرحبا')).toBeLessThan(t.indexOf('بالعالم'));
+      expect(lines.length).toBe(2);
+    }, { timeout: 180000 });
+    it('the Latin script model on Russian finds lines it cannot read: unclear, and the Cyrillic model for a Russian browser', async () => {
+      const lines = await read('ppocr-v6-small', 'russian.png');
+      expect(read.skipped).toBeGreaterThan(0);
+      const s = suggestModel(lines, { model: 'ppocr-v6-small', catalog: O, locale: null, skipped: read.skipped });
+      expect(s && s.reason).toBe('unclear');
+      const ru = suggestModel(lines, { model: 'ppocr-v6-small', catalog: O, locale: 'ru', skipped: read.skipped });
+      expect(ru.model).toBe('ppocr-v5-cyrillic');
+    }, { timeout: 60000 });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+/* Shared components, pt-BR: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('pt-BR', {
+  'ui.patterns.ipv4': 'Endereço IPv4',
+  'ui.patterns.ipv6': 'Endereço IPv6',
+  'ui.patterns.mac': 'Endereço MAC',
+  'ui.patterns.email': 'Endereço de e-mail',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'ID de chave de acesso da AWS',
+  'ui.patterns.aws_secret': 'Chave secreta da AWS',
+  'ui.patterns.github_token': 'Token do GitHub',
+  'ui.patterns.slack_token': 'Token do Slack',
+  'ui.patterns.stripe_key': 'Chave do Stripe',
+  'ui.patterns.google_api_key': 'Chave de API do Google',
+  'ui.patterns.private_key': 'Chave privada',
+  'ui.patterns.bearer': 'Token Bearer',
+  'ui.patterns.basic_auth_url': 'Senha na URL',
+  'ui.patterns.secret_assignment': 'Atribuição de segredo',
+  'ui.patterns.hash': 'Hash (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Número de cartão de crédito',
+  'ui.patterns.iban': 'IBAN',
+});

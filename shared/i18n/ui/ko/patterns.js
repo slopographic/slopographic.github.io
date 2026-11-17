@@ -1,0 +1,23 @@
+/* Shared components, Korean: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'ui.patterns.ipv4': 'IPv4 주소',
+  'ui.patterns.ipv6': 'IPv6 주소',
+  'ui.patterns.mac': 'MAC 주소',
+  'ui.patterns.email': '이메일 주소',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS 액세스 키 ID',
+  'ui.patterns.aws_secret': 'AWS 비밀 키',
+  'ui.patterns.github_token': 'GitHub 토큰',
+  'ui.patterns.slack_token': 'Slack 토큰',
+  'ui.patterns.stripe_key': 'Stripe 키',
+  'ui.patterns.google_api_key': 'Google API 키',
+  'ui.patterns.private_key': '개인 키',
+  'ui.patterns.bearer': 'Bearer 토큰',
+  'ui.patterns.basic_auth_url': 'URL 속 비밀번호',
+  'ui.patterns.secret_assignment': '비밀 값 할당',
+  'ui.patterns.hash': '해시(MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': '신용카드 번호',
+  'ui.patterns.iban': 'IBAN',
+});

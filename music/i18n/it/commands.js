@@ -1,0 +1,28 @@
+/* Slop Music, Italian: the titles and groups of the commands in the Ctrl+K palette (js/app/ai-commands.js). Their
+ * descriptions and arguments are for the assistant and stay English. Terms: shared/i18n/glossary-it.md. */
+window.SlopI18n && window.SlopI18n.add('it', {
+  'music.cmd.play': 'Riproduci',
+  'music.cmd.pause': 'Pausa',
+  'music.cmd.play_pause': 'Riproduci o metti in pausa',
+  'music.cmd.play_track': 'Riproduci un brano…',
+  'music.cmd.play_playlist': 'Riproduci una playlist…',
+  'music.cmd.next': 'Brano successivo',
+  'music.cmd.previous': 'Brano precedente',
+  'music.cmd.seek': 'Cerca nel brano',
+  'music.cmd.volume': 'Imposta il volume',
+  'music.cmd.speed': 'Imposta la velocità',
+  'music.cmd.shuffle': 'Riproduzione casuale',
+  'music.cmd.repeat': 'Ripeti',
+  'music.cmd.queue_track': 'Aggiungi un brano alla coda…',
+  'music.cmd.find_tracks': 'Trova brani…',
+  'music.cmd.tag_track': 'Etichetta un brano…',
+  'music.cmd.create_playlist': 'Nuova playlist…',
+  'music.cmd.rename_playlist': 'Rinomina playlist…',
+  'music.cmd.add_to_playlist': 'Aggiungi un brano a una playlist…',
+  'music.cmd.remove_from_playlist': 'Rimuovi un brano da una playlist…',
+  'music.cmd.delete_playlist': 'Elimina playlist…',
+  'music.cmd.export_playlist': 'Esporta una playlist…',
+  'music.cmd.group_player': 'Lettore',
+  'music.cmd.group_library': 'Libreria',
+  'music.cmd.group_playlists': 'Playlist',
+});

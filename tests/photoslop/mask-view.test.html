@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop mask editing shows the result</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="masks-helpers.js"></script>
+  <script>
+  // Covers: photoslop/js/core/view.js, photoslop/js/layers/masks.js, photoslop/js/ui/panels.js, photoslop/js/ui/menus.js,
+  //   photoslop/js/tools/state.js, photoslop/css/layout.css
+  // Painting on a layer mask showed a red overlay where the mask hid, not the picture: you could not see what the mask
+  // hid until you clicked the layer thumbnail. Now the canvas shows the composited result while painting (as Photoshop
+  // does); the red overlay is a toggle (Alt-click the mask thumbnail, View ▸ Mask Overlay); the thumbnails say which one
+  // painting edits.
+  const { describe, it, expect } = SlopTest;
+  const doc = () => win.document;
+  const thumbs = () => { const row = doc().querySelector('.layers li.layer.active'); return { px: row.querySelector('.lp-thumb:not(.mask)'), mask: row.querySelector('.lp-thumb.mask') }; };
+  /** The canvas on screen at a document point, drawn now. */
+  function screenAt(x, y) {
+    W.dirty(true); W.draw();
+    const s = W.eval(`toScreen(${x}, ${y})`), d = W.eval('V.dpr');
+    return [...W.eval('V.g').getImageData(Math.round(s.x * d), Math.round(s.y * d), 1, 1).data];
+  }
+  const white = (p) => p[0] > 235 && p[1] > 235 && p[2] > 235;
+  const point = (p) => { const el = W.eval('V.el'), r = el.getBoundingClientRect(), s = W.eval(`toScreen(${p.x}, ${p.y})`); return [r.left + s.x, r.top + s.y]; };
+
+  describe('PhotoSlop: painting a mask shows what it hides', () => {
+    it('boots', async () => { await bootApp(); expect(typeof W.toggleMaskOverlay).toBe('function'); }, { timeout: 40000 });
+
+    it('black on a new mask: the canvas shows the layer below under the stroke, live and after, with no red overlay', async () => {
+      await makeDoc('#0000ff');   // a blue layer over the white page
+      W.addMask('reveal');
+      thumbs().mask.click();   // edit the mask, as a user does
+      expect(W.UI.editMask).toBe(true);
+      expect(W.UI.maskOverlay).toBe(false);
+      W.selectTool('brush'); W.eval('T.brush.size = 30; T.brush.pressure = false'); W.setColor('fg', '#000000');
+      expect(screenAt(90, 50).slice(0, 3)).toEqual([0, 0, 255]);
+      const el = W.eval('V.el');
+      el.dispatchEvent(ev('pointerdown', ...point({ x: 60, y: 50 })));
+      el.dispatchEvent(ev('pointermove', ...point({ x: 90, y: 50 })));
+      el.dispatchEvent(ev('pointermove', ...point({ x: 120, y: 50 })));
+      const mid = screenAt(90, 50);
+      expect(white(mid)).toBe(true, 'mid-stroke ' + mid);   // the white page shows through, not the blue, not red
+      el.dispatchEvent(ev('pointerup', ...point({ x: 120, y: 50 })));
+      await sleep(60);
+      expect(maskAt(W.activeLayer(), 90, 50)).toBeLessThan(60);
+      expect(colorAt(90, 50).slice(0, 3)).toEqual([255, 255, 255]);   // the composite: the layer is transparent there
+      const after = screenAt(90, 50);
+      expect(white(after)).toBe(true, 'after the stroke ' + after);
+      expect(screenAt(10, 150).slice(0, 3)).toEqual([0, 0, 255]);   // unpainted: the layer still shows
+      expect(W.UI.editMask).toBe(true);   // still editing the mask
+    });
+
+    it('the thumbnails say what painting edits: the mask has the frame, then the pixels', () => {
+      let t = thumbs();
+      expect(t.mask.classList.contains('target')).toBe(true);
+      expect(t.mask.getAttribute('aria-current')).toBe('true');
+      expect(t.px.classList.contains('target')).toBe(false);
+      expect(t.mask.title.startsWith('Editing the layer mask')).toBe(true);
+      expect(win.getComputedStyle(t.mask).outlineStyle).toBe('solid');
+      t.px.click();
+      t = thumbs();
+      expect(W.UI.editMask).toBe(false);
+      expect(t.px.classList.contains('target')).toBe(true);
+      expect(t.px.getAttribute('aria-current')).toBe('true');
+      expect(t.mask.classList.contains('target')).toBe(false);
+      expect(t.mask.hasAttribute('aria-current')).toBe(false);
+    });
+
+    it('the red overlay only on request: Alt-click the mask thumbnail or View ▸ Mask Overlay, and again to hide it', () => {
+      const alt = () => thumbs().mask.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+      alt();
+      expect(W.UI.editMask && W.UI.maskOverlay).toBe(true);
+      const red = screenAt(90, 50);
+      expect(red[0] > 200 && red[1] < 200 && red[2] < 200).toBe(true, 'tinted ' + red);
+      expect(menuItem('View', 'Mask Overlay').check()).toBe(true);
+      alt();
+      expect(W.UI.maskOverlay).toBe(false);
+      expect(white(screenAt(90, 50))).toBe(true);
+      run('View', 'Mask Overlay');
+      expect(W.UI.maskOverlay).toBe(true);
+      thumbs().mask.click();   // a plain click edits the mask with the result showing
+      expect(W.UI.editMask).toBe(true);
+      expect(W.UI.maskOverlay).toBe(false);
+      expect(white(screenAt(90, 50))).toBe(true);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop mask view' });
+  </script>
+</body>
+</html>

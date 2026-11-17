@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Signature presets from a task page's link: ?mail=outlook opens the Outlook steps</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:860px" src="../../signature/index.html?mail=outlook"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: signature/js/app.js, signature/index.html
+  const { describe, it, expect, waitFor } = SlopTest;
+  const W = () => document.getElementById('app').contentWindow;
+  const open = () => [...W().document.querySelectorAll('.sg-how details')].filter((d) => d.open).map((d) => d.dataset.mail);
+  describe('Slop Signature presets', () => {
+    it('opens the steps for the mail program in the address, and only those', async () => {
+      await waitFor(() => W().SlopSignature && W().SlopSignature.app, { timeout: 20000 });
+      expect(open()).toEqual(['outlook']);
+      expect(W().localStorage.getItem('slop-signature') || '').not.toContain('outlook');   // not remembered
+    });
+    it('presetOf: known mail programs only', async () => {
+      const P = W().SlopSignature.app.presetOf;
+      expect(P('?mail=gmail')).toEqual({ mail: 'gmail' });
+      expect(P('?mail=outlook-web&x=1')).toEqual({ mail: 'outlook-web' });
+      expect(P('?mail=apple')).toEqual({ mail: 'apple' });
+      expect(P('?mail=<b>')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+    it('every mail program in the page has a preset name', async () => {
+      expect([...W().document.querySelectorAll('.sg-how details')].map((d) => d.dataset.mail)).toEqual(['gmail', 'outlook', 'outlook-web', 'apple']);
+    });
+  });
+  SlopTest.run({ name: 'Slop Signature presets' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Hex in Swedish</title>
+  <!-- Covers: hex/i18n/index.js, hex/js/actions.js, hex/js/bytes.js, hex/js/commands.js, hex/js/main.js, hex/js/panel.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Hex', path: '../../hex/index.html', ns: 'hex',
+    ready: (doc) => doc.body.classList.contains('ready') && doc.querySelector('#hx-side .sf-h'),
+    checks: [
+      ['#hx-open2', 'Öppna en fil', 'Open a file'],
+      ['.hx-empty-t', 'Öppna valfri fil', 'Open any file'],
+      ['#hx-goto', 'Position, t.ex.', 'Offset, e.g.', 'placeholder'],
+      ['#hx-side .sf-h', 'Detaljer', 'Details'],
+      ['#hx-sample', 'Prova med en exempel-PDF', 'Try it with a sample PDF'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Hex in Swedish' });
+  </script>
+</body>
+</html>

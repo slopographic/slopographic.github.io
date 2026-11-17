@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides tabs</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: slides/js/ui/tabs.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+
+  /** Load the editor in the iframe and wait until it has booted (body.ready is set last in ui/main.js). */
+  async function open() {
+    f.src = '../../slides/';
+    await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready') && f.contentWindow.SS && f.contentWindow.SS.tabs.api(), { timeout: 30000 });
+    return f.contentWindow;
+  }
+  const tabEls = (W) => [...W.document.querySelectorAll('#tabs .sl-doctab')];
+  /** Gives the open presentation a title, as one edit (an undo step, the tab is marked unsaved). */
+  const rename = (W, title) => W.SS.app.change('Rename', () => { W.SS.app.deck.title = title; });
+
+  describe('Slop Slides tabs', () => {
+    it('two tabs switch, and a reload brings both back with their decks', async () => {
+      // A clean start: no tabs stored from an earlier run of this page.
+      localStorage.removeItem('slop.doctabs.slides.v1');
+      await new Promise((r) => { const q = indexedDB.deleteDatabase('slop-doctabs'); q.onsuccess = q.onerror = q.onblocked = () => r(); });
+      let W = await open();
+      rename(W, 'First deck');
+      W.document.querySelector('#tabs .sl-doctabs-new').click(); // + opens a blank presentation after the active tab
+      expect(tabEls(W).length).toBe(2);
+      expect(W.SS.app.deck.title).toBe('Untitled presentation');
+      rename(W, 'Second deck');
+      tabEls(W)[0].click(); // switch back to the first tab
+      expect(W.SS.app.deck.title).toBe('First deck');
+      expect(tabEls(W)[0].getAttribute('aria-selected')).toBe('true');
+      await W.SS.tabs.flush();
+
+      // Reload the page: the same two tabs, the first one on screen.
+      W.__beforeReload = true;
+      W.location.reload();
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready') && !f.contentWindow.__beforeReload, { timeout: 30000 });
+      W = f.contentWindow;
+      await sleep(100);
+      expect(tabEls(W).length).toBe(2);
+      expect(W.SS.app.deck.title).toBe('First deck');
+      tabEls(W)[1].click();
+      expect(W.SS.app.deck.title).toBe('Second deck');
+      tabEls(W)[0].click();
+      expect(W.SS.app.deck.title).toBe('First deck');
+    }, { timeout: 90000 });
+  });
+  describe('Slop Slides: the tab follows the deck name', () => {
+    it('naming the deck in the title field renames its tab and file; undo puts the old name back', async () => {
+      const W = f.contentWindow;
+      W.document.querySelector('#tabs .sl-doctabs-new').click(); // a blank presentation in a new tab
+      await sleep(30);
+      const title = () => tabEls(W).find((t) => t.getAttribute('aria-selected') === 'true').textContent;
+      expect(title()).toContain('Untitled presentation');
+      const field = W.document.getElementById('title');
+      field.value = 'Spring launch';
+      field.dispatchEvent(new W.Event('change'));
+      await sleep(30);
+      expect(W.SS.app.deck.title).toBe('Spring launch');
+      expect(title()).toContain('Spring launch');
+      expect(title().includes('Untitled')).toBe(false);
+      expect(W.SS.app.doc.name).toBe('Spring launch.sslide');
+      expect(W.SS.tabs.api().tabs().find((t) => t.active).title).toBe('Spring launch');
+      W.SS.app.undo();
+      await sleep(30);
+      expect(W.SS.app.deck.title).toBe('Untitled presentation');
+      expect(title()).toContain('Untitled presentation');
+    }, { timeout: 60000 });
+  });
+  run({ name: 'Slop Slides tabs' });
+  </script>
+</body>
+</html>

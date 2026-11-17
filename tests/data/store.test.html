@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · store (IndexedDB)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData;
+  const st = S.store;
+  const fresh = async () => { const r = await st.erase(); if (!r.ok) throw new Error(r.message); const q = await st.ready(); if (!q.ok) throw new Error(q.message); };
+  const cust = (o = {}) => ({ name: 'Ada', categories: ['vip'], stage: 'lead', ...o });
+  const prod = (o = {}) => ({ sku: 'B-1', name: 'Bolt', price: 1050, taxRate: 2000, ean: '4006381333931', ...o });
+
+  describe('setup', () => {
+    beforeEach(fresh);
+    it('seeds the default chart, settings and numbering on first open', async () => {
+      const accts = await st.list('accounts');
+      expect(accts.ok).toBe(true);
+      expect(accts.value.length).toBe(S.schema.DEFAULT_CHART.length);   // 8 with Accounts Payable
+      expect((await st.get('settings', 'main')).value.defaultCurrency).toBe('USD');
+      expect((await S.numbering.peek('invoice')).value).toBe('INV-0001');
+      expect((await S.numbering.peek('order')).value).toBe('ORD-0001');
+    });
+    it('get of a missing record is ok with a null value', async () => {
+      const r = await st.get('customers', 'nope');
+      expect(r.ok).toBe(true);
+      expect(r.value).toBe(null);
+    });
+    it('erase empties the store, and it is seeded again on next use', async () => {
+      await st.put('customers', cust());
+      await st.erase();
+      expect((await st.list('customers')).value.length).toBe(0);
+      expect((await st.list('accounts')).value.length).toBe(S.schema.DEFAULT_CHART.length);
+    });
+  });
+
+  describe('put, get, validation', () => {
+    beforeEach(fresh);
+    it('stamps id, time and version, and returns the saved record', async () => {
+      const r = await st.put('customers', cust());
+      expect(r.ok).toBe(true);
+      expect(typeof r.value.id).toBe('string');
+      expect(r.value.version).toBe(1);
+      expect(r.value.createdAt).toBeGreaterThan(0);
+      const back = await st.get('customers', r.value.id);
+      expect(back.value.name).toBe('Ada');
+    });
+    it('an update bumps the version and keeps createdAt', async () => {
+      const a = (await st.put('customers', cust())).value;
+      const b = (await st.put('customers', { ...a, stage: 'customer' })).value;
+      expect(b.version).toBe(2);
+      expect(b.createdAt).toBe(a.createdAt);
+      expect(b.stage).toBe('customer');
+    });
+    it('an invalid record is refused with errors and nothing is written', async () => {
+      const r = await st.put('customers', cust({ stage: 'won', name: '' }));
+      expect(r.ok).toBe(false);
+      expect(r.code).toBe('invalid');
+      expect(r.errors.length).toBeGreaterThan(0);
+      expect((await st.list('customers')).value.length).toBe(0);
+    });
+    it('lists by index: pipeline stage and a multi-entry tag', async () => {
+      await st.put('customers', cust({ name: 'A', stage: 'customer', categories: ['vip', 'wholesale'] }));
+      await st.put('customers', cust({ name: 'B', stage: 'lead', categories: ['vip'] }));
+      expect((await st.list('customers', { index: 'stage', value: 'customer' })).value.length).toBe(1);
+      expect((await st.list('customers', { index: 'categories', value: 'vip' })).value.length).toBe(2);
+      expect((await st.list('customers', { index: 'name', lower: 'A', upper: 'A' })).value[0].name).toBe('A');
+    });
+    it('a customer removal is a soft delete: hidden from lists, kept for get with includeDeleted', async () => {
+      const a = (await st.put('customers', cust())).value;
+      const r = await st.remove('customers', a.id);
+      expect(r.value.soft).toBe(true);
+      expect((await st.list('customers')).value.length).toBe(0);
+      expect((await st.get('customers', a.id)).value).toBe(null);
+      expect((await st.get('customers', a.id, { includeDeleted: true })).value.deletedAt > 0).toBe(true);
+      expect((await st.put('customers', { ...a, name: 'Z' })).code).toBe('deleted');
+      expect((await st.remove('customers', a.id)).code).toBe('not_found');
+    });
+    it('unique SKU and EAN are enforced', async () => {
+      await st.put('products', prod());
+      expect((await st.put('products', prod({ ean: undefined }))).code).toBe('conflict');
+      expect((await st.put('products', prod({ sku: 'B-2', ean: '4006381333931' }))).code).toBe('conflict');
+      expect((await st.put('products', prod({ sku: 'B-2', ean: undefined }))).ok).toBe(true);
+    });
+  });
+
+  describe('posting rules and transactions', () => {
+    beforeEach(fresh);
+    it('journal, payments and stock movements can only be written by the posting modules', async () => {
+      expect((await st.put('journal', { date: '2026-10-11', source: 'x', lines: [{ account: '1000', debit: 1 }, { account: '4000', credit: 1 }] })).code).toBe('posting_required');
+      expect((await st.put('stockMovements', { productId: 'p', qty: 1, reason: 'receipt', date: '2026-10-11' })).code).toBe('posting_required');
+      expect((await st.put('payments', { invoiceId: 'i', amount: 1, date: '2026-10-11' })).code).toBe('posting_required');
+    });
+    it('an invoice cannot change status outside billing', async () => {
+      const c = (await st.put('customers', cust())).value;
+      const d = (await st.put('invoices', { customerId: c.id, date: '2026-10-11', lines: [{ description: 'x', qty: 1, unitPrice: 100, taxRate: 0 }] })).value;
+      expect(d.status).toBe('draft');
+      expect((await st.put('invoices', { ...d, status: 'issued' })).code).toBe('posting_required');
+    });
+    it('transact commits every write together', async () => {
+      const r = await st.transact(async (tx) => {
+        await tx.put('customers', cust({ name: 'One' }));
+        await tx.put('customers', cust({ name: 'Two' }));
+        return true;
+      });
+      expect(r.ok).toBe(true);
+      expect((await st.list('customers')).value.length).toBe(2);
+    });
+    it('a failing step rolls back the whole transaction, including earlier writes', async () => {
+      const r = await st.transact(async (tx) => {
+        await tx.put('customers', cust({ name: 'Kept?' }));
+        await tx.put('customers', cust({ name: '', stage: 'won' }));
+        return true;
+      });
+      expect(r.ok).toBe(false);
+      expect((await st.list('customers')).value.length).toBe(0);
+    });
+    it('returning a failure from transact aborts it too', async () => {
+      const r = await st.transact(async (tx) => {
+        await tx.put('customers', cust({ name: 'Nope' }));
+        return tx.fail({ ok: false, code: 'custom', message: 'stop' });
+      });
+      expect(r.code).toBe('custom');
+      expect((await st.list('customers')).value.length).toBe(0);
+    });
+    it('a taken number rolls back with a failed document, so the sequence has no gap', async () => {
+      const r = await st.transact(async (tx) => {
+        const n = await S.numbering.allocate(tx, 'invoice');
+        if (!n.ok) return n;
+        return tx.fail({ ok: false, code: 'boom', message: 'save failed after numbering' });
+      });
+      expect(r.ok).toBe(false);
+      expect((await S.numbering.peek('invoice')).value).toBe('INV-0001');
+      expect((await S.numbering.next('invoice')).value).toBe('INV-0001');
+      expect((await S.numbering.next('invoice')).value).toBe('INV-0002');
+    });
+    it('subscribers hear about committed changes, not failed ones', async () => {
+      const seen = [];
+      const off = st.subscribe((e) => seen.push(e));
+      await st.put('customers', cust());
+      await st.put('customers', cust({ name: '' }));
+      off();
+      expect(seen.length).toBe(1);
+      expect(seen[0].changes[0].collection).toBe('customers');
+      expect(seen[0].changes[0].kind).toBe('put');
+      expect(seen[0].source).toBe('local');
+    });
+  });
+  run({ name: 'Data · store' });
+  </script>
+</body>
+</html>

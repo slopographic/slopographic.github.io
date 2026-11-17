@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop Docs touch</title>
+  <style>html, body { margin: 0; height: 100%; overflow: hidden; background: #111; } iframe { display: block; width: 100vw; height: 100vh; border: 0; }</style>
+</head>
+<body>
+  <!-- Covers: docs/js/ui/input.js, docs/js/ui/toolbar.js, docs/js/ui/hf.js, docs/js/ui/outline.js -->
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let frame, win, doc, E, S;
+  const menuOpen = () => !!doc.querySelector('.sui-menu[data-level="0"]');
+  const closeMenus = async () => { doc.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); for (const m of doc.querySelectorAll('.sui-menu')) m.remove(); await sleep(50); };
+  const pageBox = () => doc.querySelector('.page[data-pi="0"]').getBoundingClientRect();
+  /** A point on page 0's first line of block bi, x page points in. */
+  function onLine(bi, x = 6) {
+    const L = S.lineList.find((l) => l.pi === 0 && l.b === bi), b = pageBox(), k = S.R.k();
+    return { el: doc.documentElement, x: b.left + (L.x + x) * k, y: b.top + (L.y + L.line.h / 2) * k };
+  }
+  const collapsed = () => E.O.collapsed(S.sel);
+  /** TouchKit.busyTaps, then past the double-tap time (the next tap is a first one). */
+  const busyTaps = async (t, n) => { await TouchKit.busyTaps(t, n); await sleep(400); };
+
+  describe('Slop Docs on touch', () => {
+    it('opens the editor with a document, and the touch layer is on', async () => {
+      frame = document.createElement('iframe');
+      frame.src = '../../docs/index.html';
+      document.body.append(frame);
+      await waitFor(() => frame.contentWindow && frame.contentWindow.SlopDocs && frame.contentWindow.SlopDocs.ready && frame.contentWindow.SlopTouch && frame.contentWindow.SlopTouch.ready, { timeout: 25000 });
+      win = frame.contentWindow; doc = win.document; E = win.SlopDocEngine; S = win.SlopDocs;
+      window.SEEN = []; for (const t of ['pointerdown', 'pointerup', 'pointercancel', 'click', 'dblclick', 'contextmenu']) win.addEventListener(t, (e) => SEEN.push(t + ':' + e.pointerId + ':' + e.isTrusted + ':' + (e.target.className || e.target.tagName) + ':' + Math.round(performance.now())), true);
+      const d = E.M.newDoc();
+      d.blocks = [E.M.para('Intro'), E.M.para('Alpha', 'H1'), E.M.para('Wonderful words appear here on the page'), E.M.para('Beta', 'H1'), E.M.para('Last line')];
+      S.setDoc(d, { file: { name: 'Touch.sdoc' } });
+      await waitFor(() => S.layout && S.lineList.length > 3 && doc.querySelector('.page[data-pi="0"]'), { timeout: 8000 });
+      expect(getComputedStyle(doc.getElementById('pages')).webkitTouchCallout || 'none').toBe('none');
+    }, { timeout: 40000 });
+
+    it('a tap places the caret where the finger lifts', async () => {
+      await TouchKit.tap(onLine(2, 30));
+      await waitFor(() => S.sel.f.b === 2);
+      expect(collapsed()).toBe(true);
+      expect(S.sel.f.o).toBeGreaterThan(0);
+    });
+
+    it('a double tap selects the word under it', async () => {
+      await TouchKit.doubleTap(onLine(2, 4));
+      try { await waitFor(() => !collapsed(), { timeout: 2000 }); } catch (e) { throw new Error('DEBUG ' + SEEN.join(',')); }
+      expect(S.sel.a.b).toBe(2);
+      expect(Math.abs(S.sel.f.o - S.sel.a.o)).toBe('Wonderful'.length);
+    });
+
+    it('on a busy page taps are timed by when they happened: a quick tap handled late places the caret, a late double tap selects the word', async () => {
+      await busyTaps(onLine(4, 4), 1);
+      expect(S.sel.f.b).toBe(4);
+      expect(collapsed()).toBe(true);
+      await busyTaps(onLine(2, 4), 2);
+      expect(S.sel.a.b).toBe(2);
+      expect(Math.abs(S.sel.f.o - S.sel.a.o)).toBe('Wonderful'.length);
+    });
+
+    it('a finger drag over the text is a scroll, not a selection', async () => {
+      await TouchKit.tap(onLine(4, 4));
+      await waitFor(() => S.sel.f.b === 4 && collapsed());
+      const stage = doc.getElementById('stage'), top0 = stage.scrollTop;
+      await TouchKit.drag(onLine(2, 4), 0, -80);
+      expect(collapsed()).toBe(true);
+      if (TouchKit.real && stage.scrollHeight > stage.clientHeight + 40) expect(stage.scrollTop).toBeGreaterThan(top0); // the browser scrolled the page
+    });
+
+    it('a long press on the text opens the paragraph menu (and leaves no tap behind)', async () => {
+      await TouchKit.longPress(onLine(2, 30));
+      await waitFor(menuOpen, { timeout: 3000 });
+      await sleep(300);
+      expect(menuOpen()).toBe(true);
+      await closeMenus();
+    });
+
+    it('a double tap on the header area opens the header and footer panel', async () => {
+      doc.getElementById('stage').scrollTop = 0;
+      await sleep(100);
+      const b = pageBox();
+      await TouchKit.doubleTap({ el: doc.documentElement, x: b.left + b.width / 2, y: b.top + 12 });
+      await waitFor(() => doc.querySelector('.sui-back:not(.sui-out) .hf-dlg'), { timeout: 3000 });
+      const close = [...doc.querySelectorAll('.sui-back:not(.sui-out) button')].find((x) => /Cancel|Close|Done/.test(x.textContent));
+      if (close) close.click();
+      await sleep(200);
+    });
+
+    it('a long press on an outline heading opens its menu', async () => {
+      const show = doc.querySelector('.ol-show');
+      if (doc.querySelector('.app').classList.contains('ol-shut') && show) show.click();
+      const row = await waitFor(() => [...doc.querySelectorAll('.ol-row')].find((r) => r.offsetParent && /Alpha/.test(r.textContent)), { timeout: 5000 });
+      SEEN.length = 0;
+      await TouchKit.longPress(row);
+      try { await waitFor(menuOpen, { timeout: 3000 }); } catch (e) { throw new Error('DEBUG ' + SEEN.join(',')); }
+      await closeMenus();
+    });
+  });
+  SlopTest.run({ name: 'Slop Docs touch' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+/* Shared components, Traditional Chinese (Taiwan): the spreadsheet file messages (old .xls, .ods, .xlsx), the parts of a workbook that are kept or left out, and the sort and filter buttons of a sheet. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('zh-TW', {
+  'ui.sheets.xls_old': '不支援舊版 .xls 檔案。請在 Excel 或 LibreOffice 中開啟此檔案，並另存為 .xlsx、.ods 或 .csv。',
+  'ui.sheets.ods_not_zip': '此 .ods 檔案不是有效的試算表（不是 zip 套件）。',
+  'ui.sheets.xlsx_not_zip': '此 .xlsx 檔案不是有效的活頁簿（不是 zip 套件）。',
+  'ui.sheets.ods_no_content': '不是 OpenDocument 試算表（沒有 content.xml）',
+  'ui.sheets.ods_not_sheet': '此 OpenDocument 檔案不是試算表',
+  'ui.sheets.no_sheets': '此活頁簿沒有任何工作表',
+  'ui.sheets.xlsx_no_workbook': '不是 Excel 活頁簿（沒有 xl/workbook.xml）',
+  'ui.sheets.xlsx_missing': '活頁簿中缺少 {part}',
+  'ui.sheets.part_pictures': '圖片',
+  'ui.sheets.part_charts': '圖表',
+  'ui.sheets.part_chart_sheets': '圖表工作表',
+  'ui.sheets.part_pivots': '樞紐分析表（會保留其數值）',
+  'ui.sheets.part_comments': '註解',
+  'ui.sheets.part_macros': '巨集',
+  'ui.sheets.part_cond': '條件式格式設定',
+  'ui.sheets.part_validation': '資料驗證',
+  'ui.sheets.part_filters': '篩選',
+  'ui.sheets.sort_col': '排序第 {col} 欄',
+  'ui.sheets.filter_col': '篩選第 {col} 欄',
+  'ui.sheets.col_filtered': '第 {col} 欄已套用篩選',
+});

@@ -1,0 +1,56 @@
+/* Slop Font: the page, the header, the glyph grid (the list) and the panel's controls, in the List · View · Panel layout
+   (shared/frame/frame.css). Colours come from the --sl-* tokens that shared/theme/theme.js sets on every page (with
+   fallbacks); the editor's canvas reads the --fc-* ones below (js/editor/draw.js). The middle views: views.css. */
+:root {
+  --fc-bg: var(--sl-background, #161616); --fc-panel: var(--sl-surface, #1f1f1f); --fc-line: var(--sl-border, #333);
+  --fc-fg: var(--sl-text, #ececec); --fc-dim: var(--sl-muted, color-mix(in srgb, var(--fc-fg) 72%, var(--fc-bg)));
+  --fc-accent: var(--sl-accent, #d4ff3a); --fc-radius: 10px;
+  --fc-canvas: var(--fc-bg); --fc-ink: var(--fc-fg); --fc-guide: color-mix(in srgb, var(--fc-fg) 30%, transparent);
+  --fc-base: color-mix(in srgb, var(--fc-fg) 62%, transparent); --fc-point: #3b82f6; --fc-box: color-mix(in srgb, var(--fc-fg) 6%, transparent);
+  --sf-list-w: 300px;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--fc-bg); color: var(--fc-fg); font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  display: flex; flex-direction: column; overflow: hidden; }
+h2, h3, p { margin: 0; }
+.fc-bar { position: sticky; top: 0; z-index: 5; background: var(--fc-panel); border-bottom: 1px solid var(--fc-line); padding: 0 16px;
+  --slop-hbtn-h: 36px; --slop-hbtn-radius: 8px; --slop-hbtn-bg: var(--fc-panel); --slop-hbtn-line: var(--fc-line); --slop-hbtn-fs: 13px; }
+.fc-bar .brand { display: grid; place-items: center; width: 36px; height: 36px; flex: none; color: var(--fc-accent); text-decoration: none; }
+.fc-main { flex: 1 1 auto; min-height: 0; }
+
+/* the glyph grid */
+.fc-list { display: flex; flex-direction: column; min-height: 0; }
+.fc-list-head { display: grid; gap: 8px; padding: 12px; border-bottom: 1px solid var(--fc-line); background: var(--fc-bg); }
+.fc-list-head select, .fc-list-head input { font: inherit; width: 100%; padding: 7px 9px; min-height: 36px; border-radius: 8px; border: 1px solid var(--fc-line);
+  background: var(--fc-panel); color: var(--fc-fg); }
+.fc-count { font-size: 12px; color: var(--fc-dim); }
+.fc-cells { flex: 1 1 auto; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; padding: 10px 12px 24px; align-content: start; }
+.fc-cell { display: grid; grid-template-rows: 1fr auto; gap: 2px; padding: 4px 3px 3px; min-height: 76px; border-radius: 8px; border: 1px solid var(--fc-line);
+  background: var(--fc-panel); color: var(--fc-fg); cursor: pointer; font: inherit; }
+.fc-cell:hover { border-color: color-mix(in srgb, var(--fc-fg) 45%, transparent); }
+.fc-cell:focus-visible { outline: 3px solid var(--fc-accent); outline-offset: 1px; }
+.fc-cell.fc-on { border-color: var(--fc-point); box-shadow: inset 0 0 0 1px var(--fc-point); }
+.fc-cell.fc-empty { border-style: dashed; background: transparent; }
+.fc-cell-art { display: grid; place-items: center; min-height: 46px; }
+.fc-cell-art svg { width: 100%; height: 46px; fill: currentColor; }
+.fc-cell-ghost { font-size: 24px; line-height: 46px; color: color-mix(in srgb, var(--fc-fg) 62%, transparent); }
+.fc-cell-lab { font-size: 11px; color: var(--fc-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* the panel's controls */
+.fc-panel input[type=text], .fc-panel input[type=number], .fc-panel select, .fc-panel textarea, .fc-pane input[type=text], .fc-pane input[type=number], .fc-pane textarea {
+  font: inherit; width: 100%; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--fc-line); background: var(--fc-bg); color: var(--fc-fg); min-height: 36px; }
+.fc-panel textarea, .fc-pane textarea { resize: vertical; }
+.fc-panel output { font: 600 14px/36px var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.fc-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fc-duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.fc-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.fc-row { display: flex; align-items: flex-end; gap: 8px; }
+.fc-row > .sf-field { flex: 1 1 auto; min-width: 0; }
+.fc-row > .sui-btn { margin-bottom: 8px; }
+.fc-check { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+@media (pointer: coarse) {
+  .fc-panel input, .fc-panel select, .fc-pane input, .fc-list-head input, .fc-list-head select { min-height: 44px; }
+  .fc-cell { min-height: 84px; }
+}

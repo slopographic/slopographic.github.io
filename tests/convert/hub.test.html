@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: hub cards, search and phone layout</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/ui/cards.js
+import { PAGES } from '../../convert/js/core/pages.js';
+const { describe, it, expect, waitFor, sleep } = SlopTest;
+
+// The hub is loaded in an iframe at a chosen width, so the layout is measured as a phone or desktop would draw it.
+async function openHub(width) {
+  const frame = document.createElement('iframe');
+  frame.style.cssText = `width:${width}px;height:900px;border:0;display:block`;
+  frame.src = '../../convert/index.html';
+  document.body.append(frame);
+  await new Promise((r) => frame.addEventListener('load', r, { once: true }));
+  const doc = frame.contentDocument;
+  await waitFor(() => doc.querySelectorAll('.cv-pair').length > 0);
+  return { frame, doc, win: frame.contentWindow, close: () => frame.remove() };
+}
+const visibleCards = (doc) => [...doc.querySelectorAll('.cv-pair')].filter((c) => !c.hidden);
+const typeIn = async (doc, text) => {
+  const box = doc.getElementById('cv-search');
+  box.value = text;
+  box.dispatchEvent(new doc.defaultView.Event('input', { bubbles: true }));
+  await sleep(10);
+};
+
+describe('hub: one card per catalogue pair', () => {
+  it('renders a card for every page in the catalogue, linked to its page, with its file types', async () => {
+    const hub = await openHub(1024);
+    try {
+      const cards = [...hub.doc.querySelectorAll('.cv-pair')];
+      expect(cards.length).toBe(PAGES.length);
+      for (const p of PAGES) {
+        const card = hub.doc.querySelector(`.cv-pair[data-pair="${p.slug}"]`);
+        expect(card).toBeTruthy();
+        expect(card.querySelector('.cv-pair-go').getAttribute('href')).toBe(`${p.slug}/`);
+        expect(card.querySelector('.sflow-from b').textContent).toBe(p.pair[0]);   // SlopFlow tiles (shared/ui/flow.js)
+        expect(card.querySelector('.sflow-to b').textContent).toBe(p.pair[1]);
+        expect(card.querySelector('.sflow').getAttribute('aria-label')).toBe(`${p.pair[0]} to ${p.pair[1]}`);
+        expect(card.querySelector('.cv-pair-desc').textContent).toBe(p.summary);
+        expect(card.closest('.cv-cat').dataset.cat).toBe(p.cat);
+      }
+    } finally { hub.close(); }
+  });
+
+  it('search filters the cards by name and file type, and says so when nothing matches', async () => {
+    const hub = await openHub(1024);
+    try {
+      await typeIn(hub.doc, 'webp');
+      const expected = PAGES.filter((p) => JSON.stringify([p.label, p.pair, p.summary, p.from]).toLowerCase().includes('webp')).map((p) => p.slug).sort();
+      expect(visibleCards(hub.doc).map((c) => c.dataset.pair).sort()).toEqual(expected);
+      expect(hub.doc.getElementById('cv-cards-empty').hidden).toBe(true);
+      // A group with no match is hidden, so no empty heading is left on the page.
+      expect(hub.doc.querySelector('.cv-cat[data-cat="Data"]').hidden).toBe(true);
+
+      await typeIn(hub.doc, 'pdf png');
+      expect(visibleCards(hub.doc).map((c) => c.dataset.pair).sort()).toEqual(['pdf-to-png', 'png-to-pdf']);
+
+      await typeIn(hub.doc, 'no such format');
+      expect(visibleCards(hub.doc).length).toBe(0);
+      expect(hub.doc.getElementById('cv-cards-empty').hidden).toBe(false);
+
+      await typeIn(hub.doc, '');
+      expect(visibleCards(hub.doc).length).toBe(PAGES.length);
+    } finally { hub.close(); }
+  });
+
+  it('at 390 px the cards are one column and the page does not scroll sideways', async () => {
+    const hub = await openHub(390);
+    try {
+      const grids = [...hub.doc.querySelectorAll('.cv-pairs')];
+      expect(grids.length).toBeGreaterThan(0);
+      for (const g of grids) {
+        const tracks = hub.win.getComputedStyle(g).gridTemplateColumns.trim().split(/\s+/);
+        expect(tracks.length).toBe(1);
+      }
+      const root = hub.doc.documentElement;
+      expect(root.scrollWidth <= root.clientWidth).toBe(true);
+      for (const c of visibleCards(hub.doc)) expect(c.getBoundingClientRect().right <= root.clientWidth + 0.5).toBe(true);
+    } finally { hub.close(); }
+  });
+});
+
+SlopTest.run({ name: 'File convert: hub cards' });
+</script>
+</body>
+</html>

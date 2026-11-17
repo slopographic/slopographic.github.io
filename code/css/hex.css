@@ -1,0 +1,35 @@
+/* Slop Code: the hex view (js/hexview.js). It fills its host: a header line, two small forms, the dump in a scroller, and a
+ * byte line and a status line under it. Colours are the Slop Code tokens from base.css, so light and dark follow the theme.
+ * --cd-hex-row is the row height (20px unless the page sets it); the script measures the rows, so any CSS length works. */
+.cd-hex { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--cd-bg); color: var(--cd-fg); font: 13px/1.4 var(--cd-sans); }
+.cd-hex-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; padding: 8px 12px; border-bottom: 1px solid var(--cd-line); background: var(--cd-panel); }
+.cd-hex-name { font-weight: 700; overflow-wrap: anywhere; }
+.cd-hex-size, .cd-hex-kind { color: var(--cd-dim); }
+.cd-hex-bar { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 8px 12px; border-bottom: 1px solid var(--cd-line); background: var(--cd-panel); }
+.cd-hex-form { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0; }
+.cd-hex-form label { display: flex; align-items: center; gap: 8px; color: var(--cd-dim); white-space: nowrap; }
+.cd-hex-in { box-sizing: border-box; min-height: max(30px, var(--slop-hit, 0px)); padding: 0 8px; border: 1px solid var(--cd-line); border-radius: 6px; background: var(--cd-bg); color: var(--cd-fg); font: 13px var(--cd-mono); }
+.cd-hex-goto { width: 14ch; }
+.cd-hex-findbox { width: 24ch; max-width: 100%; }
+.cd-hex-in:focus-visible, .cd-hex-btn:focus-visible { outline: 2px solid var(--cd-accent); outline-offset: 1px; }
+.cd-hex-btn { min-height: max(30px, var(--slop-hit, 0px)); padding: 0 10px; border: 1px solid var(--cd-line); border-radius: 6px; background: var(--cd-bg); cursor: pointer; }
+.cd-hex-btn:hover { background: var(--cd-hover); }
+
+/* The dump. data-touch-surface (shared/input/touch.css) would stop a finger scrolling: a drag has to scroll here. */
+.cd-hex-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; outline: none; overscroll-behavior: contain; }
+.cd-hex-scroll[data-touch-surface] { touch-action: pan-x pan-y; }
+.cd-hex-scroll:focus-visible { outline: 2px solid var(--cd-accent); outline-offset: -2px; }
+.cd-hex-space { position: relative; min-width: 100%; }
+.cd-hex-rows { position: absolute; left: 0; top: 0; min-width: 100%; width: max-content; }
+.cd-hex-row { box-sizing: border-box; height: var(--cd-hex-row, 20px); padding: 0 12px; white-space: pre; color: var(--cd-fg); font: 13px/var(--cd-hex-row, 20px) var(--cd-mono); font-variant-ligatures: none; }
+.cd-hex-alt { background: color-mix(in srgb, var(--cd-fg) 4%, transparent); }
+.cd-hex-off { color: var(--cd-faint); }
+.cd-hex-c { color: var(--cd-dim); }
+.cd-hex-b, .cd-hex-c { cursor: pointer; border-radius: 2px; }
+.cd-hex-b:hover, .cd-hex-c:hover { background: var(--cd-hover); }
+.cd-hex .cd-hex-sel { background: var(--cd-accent); color: var(--cd-ink); }
+.cd-hex-empty { margin: 0; padding: 24px 16px; color: var(--cd-dim); }
+
+.cd-hex-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; min-height: 1.4em; padding: 6px 12px; border-top: 1px solid var(--cd-line); background: var(--cd-panel); font: 12px var(--cd-mono); }
+.cd-hex-info { color: var(--cd-fg); }
+.cd-hex-status { color: var(--cd-dim); }

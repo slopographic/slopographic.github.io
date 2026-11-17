@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Image to 3D assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1200px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real page in an iframe. The depth model is marked as removed, so nothing is downloaded and brightness is the depth. -->
+  <script>try { localStorage.setItem('slop-firstrun:img3d', '1'); localStorage.setItem('slop-img3d:depth-had', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: img3d/js/app/ai-commands.js, img3d/js/app/main.js, img3d/js/core/prepare.js, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('img3d.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+  function picture(from = '#202020', to = '#e0e0e0') {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 48;
+    const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 64, 48);
+    gr.addColorStop(0, from); gr.addColorStop(1, to); g.fillStyle = gr; g.fillRect(0, 0, 64, 48);
+    return new Promise((res) => c.toBlob(res, 'image/png'));
+  }
+
+  describe('Slop Image to 3D assistant commands', () => {
+    it('prepare() loads the commands; new_from_picture makes a mesh from a Slop Drive picture', async () => {
+      const f = document.createElement('iframe');
+      f.src = '../../img3d/index.html';
+      document.body.append(f);
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopImg3D && f.contentWindow.SlopImg3D.app && f.contentWindow.SlopCmd, { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      for (const t of ['new-from-picture', 'set-options', 'export-model']) expect(!!C.get('img3d.ai.' + t)).toBe(true);
+      expect(SlopCmdArgs.jsonSchema(C.get('img3d.ai.set-options').args).properties.mode.enum).toEqual(['mesh', 'points', 'splats']);
+      await W.SlopHub.put(await picture(), { name: 'ramp.png' });
+      const r = await run('new-from-picture', { file: 'ramp.png' });
+      expect(r.value).toMatch(/mesh from ramp/);
+      expect(C.state().open).toMatch(/brightness/);
+    }, { timeout: 60000 });
+
+    it('set_options switches to points and back; the checkpoint restores the options', async () => {
+      const back = C.checkpoint();
+      const r = await run('set-options', { mode: 'points', scale: 0.6, invert: true });
+      expect(r.value).toMatch(/^Now points/);
+      expect(W.SlopImg3D.app.state().item.kind).toBe('points');
+      expect(W.document.getElementById('scale').value).toBe('0.6');
+      back();
+      expect(W.document.getElementById('mode').value).toBe('mesh');
+      expect(W.document.getElementById('invert').checked).toBe(false);
+      await waitFor(() => W.SlopImg3D.app.idle() && W.SlopImg3D.app.state().item.kind === 'mesh', { timeout: 20000 });
+    }, { timeout: 40000 });
+
+    it('export_model: GLB, OBJ and a Slop 3D scene to Slop Drive, read back', async () => {
+      const g = await run('export-model', { format: 'glb' });
+      const b = new Uint8Array(await (await W.SlopHub.get(driveId(g))).blob.arrayBuffer());
+      expect(new TextDecoder().decode(b.slice(0, 4))).toBe('glTF');
+      const o = await run('export-model', { format: 'obj' });
+      expect(await (await W.SlopHub.get(driveId(o))).blob.text()).toMatch(/\nv [-\d.]+ [-\d.]+ [-\d.]+/);
+      const s = await run('export-model', { format: 's3d' });
+      const scene = JSON.parse(await (await W.SlopHub.get(driveId(s))).blob.text());
+      expect(scene.format).toBe('slop-3d');
+      expect(Object.values(scene.nodes).some((n) => n.type === 'mesh')).toBe(true);
+    }, { timeout: 60000 });
+
+    it('import_depth_map adds a depth map from Slop Drive and the mesh follows it', async () => {
+      const A = W.SlopImg3D.app, before = A.state().prep.depth[0];
+      expect(before < 0.2).toBe(true);   // brightness: the dark corner is far
+      await W.SlopHub.put(await picture('#f0f0f0', '#101010'), { name: 'ramp-depth.png' });
+      const r = await run('import-depth-map', { file: 'ramp-depth.png' });
+      expect(r.value).toMatch(/depth map ramp-depth/);
+      expect(A.state().prep.source).toBe('map');
+      expect(A.state().prep.depth[0] > 0.8).toBe(true);   // the map says that corner is near
+      expect(C.state().open).toMatch(/depth map/);
+      expect((await C.exec('img3d.ai.import-depth-map', {})).ok).toBe(false);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Image to 3D assistant commands' });
+  </script>
+</body>
+</html>

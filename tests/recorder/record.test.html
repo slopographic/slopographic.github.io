@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Recorder: record, pause, trim and save with fake devices</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 1280px; height: 800px; }</style></head>
+<body>
+  <!-- Covers: recorder/index.html, recorder/js/main.js, recorder/js/capture.js, recorder/js/record.js, recorder/js/output.js, recorder/js/save.js, recorder/js/settings.js, recorder/js/view.js, recorder/js/core/state.js, recorder/js/core/webm.js, recorder/js/core/plan.js -->
+  <script src="../harness.js"></script>
+  <script src="fake.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  async function open(fake) {
+    const f = document.createElement('iframe');
+    f.src = '../../recorder/index.html';
+    document.body.replaceChildren(f);
+    await waitFor(() => { const W = f.contentWindow; return W && W.document.body && W.document.body.classList.contains('ready') && W.SlopRec && W.SlopRec.app; }, { timeout: 30000 });
+    const W = f.contentWindow;
+    try { W.localStorage.removeItem('slop.recorder.settings'); } catch (e) { /* none */ }
+    return { W, D: W.document, R: W.SlopRec, dev: RecFake.install(W, fake) };
+  }
+  /** The length the browser's own player reads from a file, in seconds. */
+  async function played(W, blob) {
+    const v = W.document.createElement('video'), url = W.URL.createObjectURL(blob);
+    v.muted = true; v.src = url;
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('the file does not play')); });
+    const out = { duration: v.duration, w: v.videoWidth, h: v.videoHeight };
+    W.URL.revokeObjectURL(url);
+    return out;
+  }
+  const footer = (D) => [...D.querySelectorAll('.sf-p-foot button:not(.sf-foot-more)')].filter((b) => !b.hidden).map((b) => b.textContent.trim());
+
+  describe('Slop Recorder with a fake screen and a tone', () => {
+    it('records about two seconds with a pause in the middle: the pause is left out and the WebM says its length', async () => {
+      const { W, D, R } = await open();
+      R.settings.set({ source: 'screen', countdown: 0, mic: false, systemAudio: true });
+      expect(footer(D)[0]).toBe('Record');
+      // Every time below is read from the app's own clock just before and after each call, so the checks hold however
+      // much a busy machine stretches the sleeps or delays the recorder's start event (once 1.9 s, all of it in the file).
+      const now = () => W.performance.now(), t0 = now();
+      await R.app.record();
+      const t1 = now();
+      expect(R.app.state()).toBe('recording');
+      expect(D.getElementById('rc-live').hidden).toBe(false);
+      expect(footer(D)).toEqual(['Stop', 'Pause']);
+      await sleep(1100);
+      const p0 = now(); R.app.pause(); const p1 = now();
+      expect(D.getElementById('rc-badge').dataset.state).toBe('paused');
+      await sleep(700);
+      const r0 = now(); R.app.resume(); const r1 = now();
+      await sleep(1000);
+      const s0 = now(), stopping = R.app.stop(), s1 = now(), rec = await stopping;
+      expect(R.app.state()).toBe('review');
+      // the timer: the pause counted as a pause, and the recording from MediaRecorder.start (inside record()) to Stop without it
+      expect(rec.pausedMs).toBeGreaterThan(r0 - p1 - 1);
+      expect(rec.pausedMs).toBeLessThan(r1 - p0 + 1);
+      expect(rec.elapsed).toBeGreaterThan(s0 - t1 - rec.pausedMs - 1);
+      expect(rec.elapsed).toBeLessThan(s1 - t0 - rec.pausedMs + 1);
+      // the file, measured from its own frames: as long as the timer, so the 0.7 s pause is not in it. A frame's worth either
+      // way: the file starts at the first frame after start and ends one frame (estimated, at most 0.1 s) after its last one;
+      // the 1 s timeslice adds nothing (stop flushes the last chunk). Seen within 40 ms, also with --jobs=3.
+      expect(Math.abs(rec.ms - rec.elapsed)).toBeLessThan(150);
+      const bytes = new Uint8Array(await rec.blob.arrayBuffer());
+      expect(Math.abs(R.webm.readDuration(bytes) - rec.ms)).toBeLessThan(1);
+      const p = await played(W, rec.blob);
+      expect(Number.isFinite(p.duration)).toBe(true);
+      expect(Math.abs(p.duration - rec.ms / 1000)).toBeLessThan(0.3);
+      expect(p.w).toBe(640);
+      expect(footer(D)).toContain('Download');
+      expect(footer(D)).toContain('Save to Slop Drive');
+      expect(D.getElementById('rc-trim').hidden).toBe(false);
+    }, { timeout: 40000 });
+
+    it('trims the recording to one second; the saved WebM plays with that length; it goes to Slop Drive and Open in lists SlopCut first', async () => {
+      const { W, D, R } = await open();
+      R.settings.set({ source: 'screen', countdown: 0, mic: true, systemAudio: true });
+      await R.app.record();
+      await sleep(2600);
+      const rec = await R.app.stop();
+      expect(rec.blob.size).toBeGreaterThan(1000);
+      const t = R.view.setTrim(0.6, 1.6);
+      expect(t).toEqual({ start: 0.6, end: 1.6 });
+      expect(D.getElementById('rc-kept').textContent).toContain('0:01.0');
+      const out = await R.save.file();
+      expect(out.name).toMatch(/^Recording .*\.webm$/);
+      const p = await played(W, out.blob);
+      expect(Math.abs(p.duration - 1.0)).toBeLessThan(0.3);
+      const r = await R.save.toDrive();
+      const back = await W.SlopHub.get(r.id);
+      expect(back.name).toBe(out.name);
+      expect(back.blob.size).toBe(out.blob.size);
+      const items = R.save.openInItems();
+      const cut = W.SLOP_APPS.find((a) => a.id === 'slopedit');   // the video editor, by the build's name for it (here SlopCut)
+      expect([cut.name, W.slopAppName(cut)].some((n) => items[0].label.includes(n))).toBe(true);
+      expect(items.some((i) => /Save to Slop Drive/.test(i.label))).toBe(true);
+    }, { timeout: 40000 });
+
+    it('screen + webcam: the webcam is drawn into the corner of the screen picture', async () => {
+      const { W, R, dev } = await open({ display: { w: 640, h: 360 }, camera: { w: 320, h: 240 } });
+      R.settings.set({ source: 'pip', countdown: 0, mic: false, corner: 'tl', pipSize: 30 });
+      await R.app.record();
+      expect(dev.calls.map((c) => c.kind)).toEqual(['display', 'user']);
+      const live = W.document.getElementById('rc-live');
+      await waitFor(() => live.videoWidth === 640, { timeout: 5000 });
+      await sleep(400);
+      const c = W.document.createElement('canvas'); c.width = 640; c.height = 360;
+      const x = c.getContext('2d'); x.drawImage(live, 0, 0);
+      const corner = [...x.getImageData(60, 60, 1, 1).data], screen = [...x.getImageData(500, 300, 1, 1).data];
+      // the webcam (hue 200, blue) is in the top left; the screen (hue 0 onwards, red-orange) around it
+      expect(corner[2]).toBeGreaterThan(corner[0]);
+      expect(screen[0]).toBeGreaterThan(screen[2]);
+      const rec = await R.app.stop();
+      expect((await played(W, rec.blob)).w).toBe(640);
+    }, { timeout: 40000 });
+
+    it('the countdown counts before recording, and Cancel ends it with nothing recorded', async () => {
+      const { D, R } = await open();
+      R.settings.set({ source: 'camera', countdown: 3, mic: false });
+      await R.app.record();
+      expect(R.app.state()).toBe('countdown');
+      expect(D.getElementById('rc-count').textContent).toBe('3');
+      expect(footer(D)).toEqual(['Cancel']);
+      R.app.cancel();
+      expect(R.app.state()).toBe('idle');
+      expect(D.getElementById('rc-count').hidden).toBe(true);
+      expect(R.app.recording()).toBe(null);
+    }, { timeout: 30000 });
+
+    it('microphone only: a sound recording, saved as WebM or WAV (a WAV of the trimmed part)', async () => {
+      const { W, D, R } = await open();
+      R.settings.set({ source: 'mic', countdown: 0 });
+      const fmts = [...D.getElementById('rc-format').options].filter((o) => !o.hidden).map((o) => o.value);
+      expect(fmts).toEqual(['webm', 'wav']);
+      await R.app.record();
+      await sleep(1500);
+      const rec = await R.app.stop();
+      expect(rec.audioOnly).toBe(true);
+      expect(rec.blob.type).toMatch(/^audio\//);
+      R.settings.set({ format: 'wav' });
+      R.view.setTrim(0.2, 1.2);
+      const out = await R.save.file();
+      expect(out.name).toMatch(/\.wav$/);
+      const AC = new W.OfflineAudioContext(1, 1, 48000), buf = await AC.decodeAudioData(await out.blob.arrayBuffer());
+      expect(Math.abs(buf.duration - 1.0)).toBeLessThan(0.05);
+    }, { timeout: 40000 });
+
+    it('a refused screen says so in plain words and leaves the recorder ready', async () => {
+      const { D, R } = await open({ refuse: 'display' });
+      R.settings.set({ source: 'screen', countdown: 0 });
+      let err = null;
+      try { await R.app.record(); } catch (e) { err = e; }
+      expect(err && err.message).toMatch(/Sharing the screen was not allowed/);
+      expect(R.app.state()).toBe('idle');
+      expect(footer(D)[0]).toBe('Record');
+    }, { timeout: 30000 });
+
+    it('a recording opened from this device is ready to trim, with its length read from the file', async () => {
+      const { W, R } = await open();
+      R.settings.set({ source: 'screen', countdown: 0, mic: false });
+      await R.app.record();
+      await sleep(1200);
+      const rec = await R.app.stop();
+      R.app.discard();
+      const file = new W.File([rec.blob], 'demo.webm', { type: 'video/webm' });
+      await W.SlopIntake.take([file], { to: 'recorder' });
+      await waitFor(() => R.app.recording() && R.app.recording().name === 'demo.webm');
+      expect(Math.abs(R.app.recording().ms - rec.ms)).toBeLessThan(5);
+      expect(R.view.duration()).toBeGreaterThan(0.9);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

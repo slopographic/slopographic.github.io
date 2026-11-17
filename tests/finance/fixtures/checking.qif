@@ -1,0 +1,31 @@
+!Account
+NEveryday Checking
+TBank
+^
+!Type:Bank
+D10/20'26
+T1,200.00
+PACME LTD
+MInvoice INV-0001
+N1001
+LSales
+CX
+^
+D10/21'26
+T-4.50
+PCoffee Corner
+LMeals
+^
+D10/22/2026
+U-89.00
+T-89.00
+POffice Chairs Inc
+SFurniture
+$-80.00
+SSales tax
+$-9.00
+^
+!Type:Cat
+NSales
+I
+^

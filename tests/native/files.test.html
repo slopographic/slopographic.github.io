@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Store app · files in the Files app, Open in, save in place, iCloud Drive</title>
+  <!-- Covers: shared/native/files-sync.js, shared/native/save.js, shared/native/files-plan.js -->
+  <!-- a stand-in for the app: Capacitor with the SiteFiles plugin (fake-files.js), and the iOS shell's native config -->
+  <script src="fake-files.js"></script>
+  <script>
+    window.NATIVE_CONFIG = { tag: 'test', start: '/', local: {}, open: { pdf: location.pathname } };
+    window.SLOP_DRIVE_DB = 'native-files-test-' + Date.now();
+    localStorage.removeItem('slop-native-files');
+    // a PDF handed over by another app, opened in place: this page is where PDFs open (NATIVE_CONFIG.open)
+    __fs.put('cache', 'opened/t1/doc.pdf', '%PDF original');
+    __fs.opened.push({ token: 't1', name: 'doc.pdf', path: 'opened/t1/doc.pdf', inPlace: true, inside: '', rel: '' });
+    sessionStorage.clear();
+  </script>
+  <script src="../../mobile/ios/native.js"></script>
+  <script src="../../mobile/ios/files.js"></script>
+  <script src="../../shared/native-app.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="../../shared/native/words.js"></script>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <section id="native-files" hidden></section>
+  <script src="../../shared/native/settings.js"></script>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const fs = __fs, H = SlopHub;
+  const F = () => SlopNative.files();
+  const sync = async () => { await H.nativeSync; return SlopNativeSync.run(); };
+  const pdfDir = () => SlopNativePlan.safeName(SLOP_APPS.find((a) => a.id === 'pdf').name);
+  const text = async (id) => (await H.get(id)).blob.text();
+  const byName = async (name) => (await H.list({ trashed: 'any' })).find((r) => r.name === name);
+
+  describe('the app gives the site its files', () => {
+    it('SlopNative.files() is the app storage in the iPhone/iPad app', () => {
+      expect(SlopNative.isStoreApp()).toBe(true);
+      expect(F()).toBe(window.SlopNativeFiles);
+      expect(typeof F().write).toBe('function');
+    });
+    it('a file opened from another app comes in through launchQueue, as an installed web app gets it', async () => {
+      const got = await new Promise((res) => window.launchQueue.setConsumer((p) => res(p.files)));
+      expect(got.length).toBe(1);
+      const file = await got[0].getFile();
+      expect(file.name).toBe('doc.pdf');
+      expect(await file.text()).toBe('%PDF original');
+      expect(F().opened()).toEqual([{ token: 't1', name: 'doc.pdf', inPlace: true }]);
+    });
+  });
+
+  describe("Slop Drive in the app's folder", () => {
+    it('the first sync writes what Slop Drive already has (it stays in Slop Drive too)', async () => {
+      const a = await H.put(new Blob(['%PDF a'], { type: 'application/pdf' }), { name: 'a.pdf', from: 'pdf' });
+      const n = await H.put(new Blob(['hello']), { name: 'note.txt', folderId: null });
+      await sync();
+      expect(fs.text('documents', pdfDir() + '/a.pdf')).toBe('%PDF a');
+      expect(fs.text('documents', 'note.txt')).toBe('hello');
+      expect(await text(a)).toBe('%PDF a');
+      expect(await text(n)).toBe('hello');
+    });
+    it('a file added in Files comes into Slop Drive, in its folder', async () => {
+      fs.put('documents', 'Trips/plan.md', '# Plan');
+      await sync();
+      const r = await byName('plan.md');
+      expect(!!r).toBe(true);
+      expect((await H.getFolder(r.folderId)).name).toBe('Trips');
+      expect(await text(r.id)).toBe('# Plan');
+    });
+    it('a change in Files reaches Slop Drive, and a change in Slop Drive reaches the file', async () => {
+      const r = await byName('note.txt');
+      fs.put('documents', 'note.txt', 'hello from Files');
+      await sync();
+      expect(await text(r.id)).toBe('hello from Files');
+      await H.update(r.id, { blob: new Blob(['hello from the app']) });
+      await sync();
+      expect(fs.text('documents', 'note.txt')).toBe('hello from the app');
+    });
+    it('a rename moves the file, the Trash removes it, and a delete in Files sends it to the Trash', async () => {
+      const r = await byName('note.txt');
+      await H.update(r.id, { name: 'renamed.txt' });
+      await sync();
+      expect(fs.has('documents', 'note.txt')).toBe(false);
+      expect(fs.text('documents', 'renamed.txt')).toBe('hello from the app');
+      await H.update(r.id, { trashedAt: Date.now() }, { touch: false });
+      await sync();
+      expect(fs.has('documents', 'renamed.txt')).toBe(false);
+      const p = await byName('plan.md');
+      fs.del('documents', 'Trips/plan.md');
+      await sync();
+      expect(!!(await H.get(p.id)).trashedAt).toBe(true);
+    });
+    it('two Drive files with one name get their own files', async () => {
+      await H.put(new Blob(['one']), { name: 'same.txt', folderId: null });
+      await H.put(new Blob(['two']), { name: 'same.txt', folderId: null });
+      await sync();
+      expect([fs.text('documents', 'same.txt'), fs.text('documents', 'same (2).txt')].sort()).toEqual(['one', 'two']);
+    });
+  });
+
+  describe('saving in the app', () => {
+    it('a download goes into the folder under a free name, with Save as… and Share…', async () => {
+      await F().saveDownload(new Blob(['out 1']), 'out.pdf');
+      await F().saveDownload(new Blob(['out 2']), 'out.pdf');
+      expect(fs.text('documents', 'out.pdf')).toBe('out 1');
+      expect(fs.text('documents', 'out (2).pdf')).toBe('out 2');
+      const note = document.querySelector('.native-note');
+      expect(note.textContent).toContain('Saved in Files: out (2).pdf');
+      const buttons = [...note.querySelectorAll('button')], saveAs = buttons.find((b) => b.textContent === 'Save as…'), share = buttons.find((b) => b.textContent === 'Share…');
+      expect(buttons[0].textContent).toBe('Save over doc.pdf');   // this page was opened with a PDF in place
+      saveAs.click();
+      await waitFor(() => fs.exported.length);
+      expect(fs.exported[0]).toEqual(['documents', 'out (2).pdf']);
+      expect(!!share).toBe(true);
+    });
+    it('a download link (a[download]) in the app saves there too', async () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['linked'])); a.download = 'linked.txt';
+      a.click();
+      await waitFor(() => fs.has('documents', 'linked.txt'));
+      expect(fs.text('documents', 'linked.txt')).toBe('linked');
+    });
+    it('a file opened in place is saved back over it', async () => {
+      await F().saveDownload(new Blob(['%PDF edited']), 'doc.pdf');
+      expect(fs.back.t1).toBe('%PDF edited');
+      expect(document.querySelector('.native-note').textContent).toContain('Saved to doc.pdf, where you opened it.');
+      expect(fs.has('documents', 'doc.pdf')).toBe(false);
+    });
+    it('a result under another name (doc-edited.pdf) can be saved over the file opened in place, from the note', async () => {
+      fs.back = {};
+      await F().saveDownload(new Blob(['%PDF v2']), 'doc-edited.pdf');
+      expect(fs.text('documents', 'doc-edited.pdf')).toBe('%PDF v2');
+      const over = document.querySelector('.native-note button');
+      expect(over.textContent).toBe('Save over doc.pdf');
+      over.click();
+      await waitFor(() => fs.back.t1);
+      expect(fs.back.t1).toBe('%PDF v2');
+    });
+  });
+
+  describe('iCloud Drive', () => {
+    it('Settings › Files shows where the files are and the iCloud Drive switch', async () => {
+      const box = document.getElementById('native-files');
+      await waitFor(() => !box.hidden);
+      expect(box.querySelector('h2').textContent).toBe('Files');
+      expect(box.textContent).toContain('On My iPad');
+      expect(box.querySelector('#native-icloud').checked).toBe(false);
+    });
+    it('turning it on moves every file to iCloud Drive; off brings them back', async () => {
+      await sync();
+      const sw = document.getElementById('native-icloud');
+      sw.click();
+      await waitFor(() => /iCloud Drive now/.test(document.getElementById('native-files').textContent), { timeout: 15000 });
+      expect(fs.text('icloud', pdfDir() + '/a.pdf')).toBe('%PDF a');
+      expect(fs.has('documents', pdfDir() + '/a.pdf')).toBe(false);
+      expect(fs.text('icloud', 'out.pdf')).toBe('out 1');
+      const off = await SlopNativeSync.setICloud(false);
+      expect(off.icloudOn).toBe(false);
+      expect(fs.text('documents', pdfDir() + '/a.pdf')).toBe('%PDF a');
+      expect(fs.has('icloud', pdfDir() + '/a.pdf')).toBe(false);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>

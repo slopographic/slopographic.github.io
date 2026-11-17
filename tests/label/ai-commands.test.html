@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopLabel assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The designer in a same-origin iframe; every assistant command runs through SlopCmd.exec with arguments and the label
+       model is checked; the PDF export is read back from Slop Drive.
+       Covers: label/js/ui/ai-commands.js, label/js/ui/ai-files.js, label/js/ui/commands.js, shared/commands/sources.js -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W = null, WIN = null, C = null;
+  const run = async (id, args) => { const r = await C.exec('label.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const objs = () => W.App.doc.objects;
+  const last = () => objs()[objs().length - 1];
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+
+  describe('SlopLabel assistant commands', () => {
+    it('prepare() loads the commands on demand; schemas; only delete_object is destructive', async () => {
+      f.src = '../../label/index.html';
+      await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname.endsWith('/label/index.html') && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 30000 });
+      WIN = f.contentWindow; W = new Proxy({}, { get: (_, k) => WIN.eval(String(k)) }); C = WIN.SlopCmd;
+      expect(C.get('label.ai.add-text')).toBe(null);
+      await C.prepare();
+      const ids = ['new-label', 'add-text', 'add-barcode', 'add-qr', 'add-shape', 'add-image', 'set-property', 'data-merge', 'delete-object', 'export', 'undo'];
+      for (const id of ids) expect(!!C.get('label.ai.' + id)).toBe(true);
+      expect(C.list().filter((c) => /^label\.ai\./.test(c.id) && c.destructive).map((c) => c.id)).toEqual(['label.ai.delete-object']);
+      const js = SlopCmdArgs.jsonSchema(C.get('label.ai.add-barcode').args);
+      expect(js.properties.type.enum).toContain('ean13');
+      expect(js.required).toEqual(['value']);
+      expect(SlopCmdArgs.jsonSchema(C.get('label.ai.data-merge').args).properties.rows.type).toBe('array');
+    }, { timeout: 40000 });
+
+    it('new_label opens a new tab with a size, a preset or a stock', async () => {
+      const n = W.LabelTabs.api.tabs().length;
+      let r = await run('new-label', { width: 60, height: 40, name: 'Jar' });
+      expect(W.LabelTabs.api.tabs().length).toBe(n + 1);
+      expect([W.App.doc.label.w, W.App.doc.label.h, W.App.doc.name]).toEqual([60, 40, 'Jar']);
+      expect(objs().length).toBe(0);
+      r = await run('new-label', { preset: 'stock-avery-l7160', name: 'Sheet' });
+      expect(r.value).toMatch(/3 × 7 per sheet/);
+      await run('new-label', { width: 60, height: 40, name: 'Jar 2' });
+    });
+
+    it('add_text, add_barcode, add_qr, add_shape: one undo step each, with the edge warning and fit', async () => {
+      const h0 = W.App.hist.idx;
+      let r = await run('add-text', { text: 'Honey', x: 5, y: 5, size: 14, bold: true });
+      expect(W.App.hist.idx).toBe(h0 + 1);
+      expect([last().type, last().content, last().bold, last().size]).toEqual(['text', 'Honey', true, 14]);
+      expect(r.value).not.toMatch(/Warning/);
+      r = await run('add-text', { text: 'A very long product name that cannot fit', x: 2, y: 20, size: 30 });
+      expect(r.value).toMatch(/Warning: it runs [\d.]+ mm past the right edge/);
+      r = await run('add-text', { text: 'A very long product name that cannot fit', x: 2, y: 20, size: 30, fit: true });
+      expect(r.value).not.toMatch(/Warning/);
+      expect(last().size).toBeLessThan(30);
+      r = await run('add-barcode', { value: '590123412345', type: 'ean13', x: 5, y: 15, w: 40, h: 15 });
+      expect([last().type, last().symbology]).toEqual(['barcode', 'ean13']);
+      expect((await C.exec('label.ai.add-barcode', { value: 'abc', type: 'ean13' })).ok).toBe(false);
+      await run('add-qr', { value: 'https://slopographic.com', x: 40, y: 2, size: 15 });
+      expect(last().symbology).toBe('qrcode');
+      expect(Math.abs(last().w - 15)).toBeLessThan(3.5);   // the module snaps to whole printer dots, so the size moves in steps
+      await run('add-shape', { shape: 'rect', x: 1, y: 1, w: 58, h: 38, line_width: 0.5 });
+      expect([last().type, last().stroke]).toEqual(['rect', 0.5]);
+      W.undo();
+      expect(last().type).toBe('barcode');
+    });
+
+    it('add_image from Slop Drive and from this site', async () => {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 20; c.getContext('2d').fillRect(0, 0, 40, 20);
+      await WIN.SlopHub.put(await new Promise((res) => c.toBlob(res, 'image/png')), { name: 'logo.png' });
+      await run('add-image', { file: 'logo.png', x: 2, y: 2, w: 10 });
+      expect([last().type, last().w, last().h]).toEqual(['image', 10, 5]);
+      expect(W.App.doc.assets[last().asset].startsWith('data:image/png')).toBe(true);
+      await run('add-image', { url: '/favicon.svg', x: 30, y: 2, w: 8 });
+      expect(last().type).toBe('image');
+      expect((await C.exec('label.ai.add-image', { url: 'https://example.com/a.png' })).ok).toBe(false);
+    }, { timeout: 20000 });
+
+    it('set_property, data_merge, delete_object', async () => {
+      const honey = objs().find((o) => o.content === 'Honey');
+      await run('set-property', { object: honey.id, set: { content: '{Product}', size: 16, x: 3, name: 'Product name' } });
+      await run('set-property', { object: 'product name', set: { bold: false } });
+      const t = objs().find((o) => o.content === '{Product}');
+      expect([t.size, t.x, t.bold, t.name]).toEqual([16, 3, false, 'Product name']);
+      expect((await C.exec('label.ai.set-property', { object: 'nope', set: { x: 1 } })).ok).toBe(false);
+      const r = await run('data-merge', { columns: ['Product', 'EAN'], rows: [['Clover', '590123412345'], { Product: 'Heather', EAN: '400638133393' }, ['Lime', '501234567890']] });
+      expect(r.value).toMatch(/Merged 3 records/);
+      expect(W.recordCount(W.App.doc)).toBe(3);
+      expect(W.App.doc.data.rows[1]).toEqual(['Heather', '400638133393']);
+      const n = objs().length;
+      await run('delete-object', { object: objs()[objs().length - 1].id });
+      expect(objs().length).toBe(n - 1);
+    });
+
+    it('export: a PDF of every record to Slop Drive, read back; PNG and the project file', async () => {
+      const r = await run('export', { format: 'pdf', name: 'jars' });
+      expect(r.value).toMatch(/jars\.pdf.*3 records/);
+      const rec = await WIN.SlopHub.get(driveId(r));
+      const text = new TextDecoder('latin1').decode(new Uint8Array(await rec.blob.arrayBuffer()));
+      expect(text.startsWith('%PDF-')).toBe(true);
+      expect((text.match(/\/Type\s*\/Page\b/g) || []).length).toBe(3);
+      const p = await run('export', { format: 'png' });
+      const png = await WIN.SlopHub.get(driveId(p));
+      expect(png.blob.type).toBe('image/png');
+      const s = await run('export', { format: 'sloplabel' });
+      const proj = JSON.parse(await (await WIN.SlopHub.get(driveId(s))).blob.text());
+      expect(proj.app).toBe('sloplabel');
+      expect(proj.data.rows.length).toBe(3);
+    }, { timeout: 30000 });
+
+    it('state() and the rollback close the tabs the assistant opened and undo its edits', async () => {
+      const st = C.state();
+      expect(st.app).toBe('SlopLabel');
+      expect(st.data.records).toBe(3);
+      const T = W.App.T, n = W.LabelTabs.api.tabs().length, count = objs().length;
+      const back = C.checkpoint();
+      await run('add-text', { text: 'Extra' });
+      await run('new-label', { width: 30, height: 20 });
+      expect(W.LabelTabs.api.tabs().length).toBe(n + 1);
+      expect(back()).toBe(true);
+      await waitFor(() => W.App.T === T);
+      expect(W.LabelTabs.api.tabs().length).toBe(n);
+      expect(objs().length).toBe(count);
+    });
+  });
+  SlopTest.run({ name: 'SlopLabel assistant commands' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+/* Slop AI, Russian: Build a mini-app (the builder chat, the preview and the templates). The templates' prompts and their HTML
+ * stay English (the prompt is what the model is asked). Same keys as ai/i18n/en/build.js. Terms: shared/i18n/glossary-ru.md. */
+window.SlopI18n && window.SlopI18n.add('ru', {
+  'ai.build.new': 'Новое мини-приложение',
+  'ai.build.hello': 'Создайте мини-приложение',
+  'ai.build.hello_lead': 'Опишите приложение, игру или страницу. Модель напишет один HTML-файл, и он запустится прямо здесь, в песочнице. Или начните с шаблона:',
+  'ai.build.placeholder': 'Опишите приложение или что нужно изменить',
+  'ai.build.none_yet': 'Мини-приложений пока нет',
+  'ai.build.delete_q': 'Удалить это мини-приложение?',
+  'ai.build.delete_body': 'Его чат и код будут удалены.',
+  'ai.build.no_html': 'В ответе нет полного HTML-файла. Попросите ещё раз или напишите «отправь весь файл».',
+  'ai.build.starter_reply': 'Стартовый шаблон. Скажите, что изменить.',
+  'ai.build.from_chat': 'Мини-приложение из чата',
+  'ai.build.tpl_tip': 'Начать с шаблона «{name}»',
+  'ai.build.preview': 'Просмотр',
+  'ai.build.code': 'Код',
+  'ai.build.modes': 'Просмотр или код',
+  'ai.build.back_chat': '← Чат',
+  'ai.build.preview_title': 'Просмотр мини-приложения (в песочнице)',
+  'ai.build.sandboxed': '🔒 песочница',
+  'ai.build.sandbox_tip': 'sandbox="allow-scripts", без same-origin, без сети',
+  'ai.build.restart': 'Перезапустить приложение',
+  'ai.build.download_tip': 'Скачать .html',
+  'ai.build.nothing': 'Пока нечего показать',
+  'ai.build.nothing_lead': 'Приложение появится здесь, как только модель пришлёт полный HTML-файл.',
+
+  'ai.tpl.game': 'Игра',
+  'ai.tpl.game_blurb': 'Ловите падающий Slop',
+  'ai.tpl.calculator': 'Калькулятор',
+  'ai.tpl.calculator_blurb': 'Аккуратный калькулятор',
+  'ai.tpl.landing': 'Посадочная страница',
+  'ai.tpl.landing_blurb': 'Сайт из одной страницы',
+});

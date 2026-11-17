@@ -1,0 +1,20 @@
+/* Slop AI shared words, Dutch: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-nl.md. */
+window.SlopI18n && window.SlopI18n.add('nl', {
+  'ui.ai.cloud.or_signin': 'Inloggen met {name}',
+  'ui.ai.cloud.or_note': 'Nog geen sleutel? Log in en {name} maakt een sleutel voor deze browser, betaald met je eigen {name}-tegoed. Je kunt hem begrenzen of intrekken op {link}.',
+  'ui.ai.cloud.or_privacy': 'Het inloggen gaat rechtstreeks van deze browser naar {name}; niets gaat via servers van {brand}.',
+  'ui.ai.cloud.or_manage': 'Je {name}-sleutels, gemaakt door in te loggen of met de hand, kun je begrenzen of intrekken op {link}. Sleutel vergeten haalt een sleutel alleen uit deze browser.',
+  'ui.ai.cloud.or_going': '{name} wordt geopend…',
+  'ui.ai.cloud.or_finishing': 'Inloggen bij {name} wordt afgerond…',
+  'ui.ai.cloud.or_done': 'Ingelogd met {name}: de sleutel voor deze browser is bewaard als een geplakte sleutel.',
+  'ui.ai.cloud.or_denied': 'Toegang is bij {name} niet toegestaan, dus er is niets verbonden. Druk op Inloggen met {name} om het opnieuw te proberen, of plak een sleutel.',
+  'ui.ai.cloud.or_state': 'Deze inlog is niet in dit tabblad begonnen en is daarom geweigerd om je account te beschermen. Druk op Inloggen met {name} om opnieuw te beginnen.',
+  'ui.ai.cloud.or_used': 'Die inlogcode is al gebruikt of verlopen (codes gelden 10 minuten). Druk op Inloggen met {name} om opnieuw te beginnen.',
+  'ui.ai.cloud.or_failed': '{name} gaf geen sleutel ({why}). Druk op Inloggen met {name} om het opnieuw te proberen, of plak een sleutel.',
+  'ui.ai.cloud.or_offline': 'Deze browser is offline, dus het inloggen kon niet worden afgerond. Maak verbinding met internet en druk dan opnieuw op Inloggen met {name}.',
+  'ui.ai.cloud.or_network': '{name} was niet bereikbaar om het inloggen af te ronden. Controleer je verbinding en druk dan opnieuw op Inloggen met {name}.',
+  'ui.ai.cloud.or_no_crypto': 'Deze browser kan hier niet inloggen met {name} (daarvoor is Web Crypto op een https-pagina nodig). Plak in plaats daarvan een sleutel.',
+  'ui.ai.cloud.or_key_label': '{brand} in deze browser',
+  'ui.ai.cloud.or_badge': 'Inloggen',
+  'ui.ai.cloud.or_badge_t': 'Geen sleutel om te kopiëren: log in met je {name}-account en er wordt een sleutel voor deze browser gemaakt.',
+});

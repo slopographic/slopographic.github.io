@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Resize presets from a task page's link: ?kb=100&format=jpg</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" style="width:1280px;height:800px" src="../../resize/index.html?kb=100&format=webp"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: resize/js/app/settings.js, resize/js/app/main.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const W = () => document.getElementById('app').contentWindow;
+  describe('Slop Resize presets', () => {
+    it('reads the file size limit and the format from the address, for this visit only', async () => {
+      await waitFor(() => W().SlopResize && W().SlopResize.app && W().document.getElementById('rs-mode').value === 'bytes', { timeout: 30000 });
+      const s = W().SlopResize.settings.read();
+      expect([s.mode, s.maxKB, s.w, s.h, s.mime]).toEqual(['bytes', 100, 0, 0, 'image/webp']);
+      const saved = Object.keys(W().localStorage).filter((k) => /resize/.test(k)).map((k) => W().localStorage.getItem(k)).join(' ');
+      expect(saved).not.toContain('"maxKB":100');   // not remembered
+    }, { timeout: 40000 });
+    it('presetOf: known values only', async () => {
+      const P = W().SlopResize.settings.presetOf;
+      expect(P('?w=1080&h=1080&fill=cover&format=jpg')).toEqual({ mode: 'size', w: 1080, h: 1080, fill: 'cover', mime: 'image/jpeg' });
+      expect(P('?long=1920')).toEqual({ mode: 'long', long: 1920 });
+      expect(P('?scale=400&resample=nearest&format=png')).toEqual({ mode: 'scale', scale: 400, resample: 'nearest', mime: 'image/png' });
+      expect(P('?kb=200&w=1200')).toEqual({ mode: 'bytes', w: 1200, h: 0, maxKB: 200 });
+      expect(P('?w=99999&h=-5&kb=x&fill=<b>&format=exe&resample=bad')).toEqual({});
+      expect(P('')).toEqual({});
+    });
+  });
+  SlopTest.run({ name: 'Slop Resize presets' });
+  </script>
+</body>
+</html>

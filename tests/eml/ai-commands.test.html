@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop EML: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script src="eml.helpers.js"></script>
+  <script>
+  // Covers: eml/js/ai-commands.js, eml/js/commands.js, eml/js/app.js, eml/js/view.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('eml.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slop EML: assistant commands', () => {
+    it('new_message writes an .eml the app reads back; search and select', async () => {
+      f.src = '../../eml/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.EmlApp && f.contentWindow.SlopCmd && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      await run('new-message', { to: 'ada@example.com', from: 'me@example.com', subject: 'Hive report – week 3', text: 'All colonies are well.' });
+      await run('new-message', { to: 'bob@example.com', subject: 'Invoice', text: 'See attached.', html: '<p>See <b>attached</b>.</p>', name: 'invoice' });
+      const st = C.state();
+      expect(st.messages.length).toBe(2);
+      expect(st.messages.map((m) => m.subject)).toContain('Hive report – week 3');
+      await run('select-message', { message: 'hive' });
+      expect(C.state().current.text).toContain('All colonies are well.');
+      const s = await run('search-messages', { query: 'invoice' });
+      expect(s.value).toMatch(/^1 message/);
+      await run('search-messages', { query: '' });
+    }, { timeout: 30000 });
+
+    it('export_messages: the current one as PDF and all as a CSV list to Slop Drive; open_file; the rollback closes', async () => {
+      await run('select-message', { message: 'hive' });
+      let r = await run('export-messages', { format: 'pdf', scope: 'current' });
+      const pdf = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1]);
+      const read = await EH.readPdf(await pdf.blob.arrayBuffer());
+      expect(read.pages.join(' ')).toContain('All colonies are well.');
+      r = await run('export-messages', { format: 'csv', scope: 'all' });
+      const csv = await (await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1])).blob.text();
+      expect(csv).toContain('Invoice');
+      r = await run('export-messages', { format: 'eml', scope: 'current' });
+      const eml = await W.SlopHub.get(/id ([^)\s]+)\)/.exec(r.value)[1]);
+      const back = C.checkpoint();
+      await run('open-file', { file: eml.name });
+      expect(C.state().messages.length).toBe(3);
+      back();
+      expect(C.state().messages.length).toBe(2);
+      await run('close-message', { message: 'invoice' });
+      expect(C.state().messages.length).toBe(1);
+    }, { timeout: 60000 });
+
+    it('add_recipient and add_attachment rewrite the message; a second attachment joins the same multipart; the rollback puts it back', async () => {
+      await run('new-message', { to: 'ada@example.com', subject: 'Plans', text: 'The plans are attached.', name: 'plans' });
+      const back = C.checkpoint();
+      await run('add-recipient', { address: 'Bob Smith <bob@example.com>', field: 'cc', message: 'plans' });
+      await run('add-recipient', { address: 'cy@example.com', message: 'plans' });
+      const again = await run('add-recipient', { address: 'CY@example.com', message: 'plans' });
+      expect(again.value).toMatch(/already/);
+      let d = W.EmlApp.current();
+      expect(d.summary.cc).toContain('bob@example.com');
+      expect(d.summary.to).toContain('ada@example.com');
+      expect(d.summary.to).toContain('cy@example.com');
+      await W.SlopHub.put(new Blob(['beehive plan v1'], { type: 'text/plain' }), { name: 'plan.txt', from: 'test' });
+      await W.SlopHub.put(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 255])], { type: 'image/png' }), { name: 'tiny.png', from: 'test' });
+      let r = await run('add-attachment', { file: 'plan.txt', message: 'plans' });
+      expect(r.value).toMatch(/1 attachment/);
+      r = await run('add-attachment', { file: 'tiny.png', name: 'Bild ä.png', message: 'plans' });
+      expect(r.value).toMatch(/2 attachment/);
+      d = W.EmlApp.current();
+      expect(d.msg.text).toContain('The plans are attached.');
+      expect(d.attachments.map((x) => x.name)).toEqual(['plan.txt', 'Bild ä.png']);
+      expect(new TextDecoder().decode(d.attachments[0].bytes)).toBe('beehive plan v1');
+      expect(Array.from(d.attachments[1].bytes)).toEqual([0x89, 0x50, 0x4e, 0x47, 0, 255]);
+      expect(C.state().messages.find((m) => m.subject === 'Plans').attachments).toBe(2);
+      back();
+      d = W.EmlApp.docs().find((x) => x.summary.subject === 'Plans');
+      expect(d.attachments.length).toBe(0);
+      expect(d.summary.cc).toBe('');
+      expect(d.summary.to).toBe('ada@example.com');
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop EML: assistant commands' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop OCR · Language and model: a quick first read, the suggestion, the dialog, a real download and the read again with å ä ö (downloads the models)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1000px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="Slop OCR page"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>
+  <script type="module">
+  // Covers: shared/ocr/choose.js, shared/ocr/family.js, shared/ocr/languages.js, ocr/js/app.js, aitools/ocr-models.js, aitools/model-registry.js
+  // The real page in a frame. The bundled PP-OCRv4 model is installed first as Get more would (about 15 MB from Hugging Face);
+  // the Latin script model then comes from the dialog's Download button (about 26 MB from the pinned cdn commit).
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const load = () => new Promise((resolve) => {
+    frame.onload = () => resolve();
+    frame.src = '../../ocr/index.html?t=' + Date.now();
+  }).then(() => waitFor(() => {
+    const d = frame.contentDocument;
+    return d && d.getElementById('gate') && (d.getElementById('gate').children.length > 0 || !d.getElementById('ui').hidden);
+  }, { timeout: 15000 }));
+  const doc = () => frame.contentDocument;
+  const win = () => frame.contentWindow;
+  const $ = (id) => doc().getElementById(id);
+  const btn = (root, text) => [...root.querySelectorAll('button')].find((b) => b.textContent.startsWith(text));
+  async function addFile(name) {
+    const blob = await (await fetch('fixtures/' + name)).blob();
+    const dt = new DataTransfer(); dt.items.add(new File([blob], name, { type: 'image/png' }));
+    const input = doc().querySelector('#drop input[type=file]'); // the zone's Choose files (the intake's picker)
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+    await waitFor(() => !$('read').disabled, { timeout: 8000 });
+  }
+
+  describe('Language and model in Slop OCR', () => {
+    it('the page has the button, and the OCR models are in the model index', async () => {
+      await load();
+      expect($('lang').textContent).toBe('Language and model');
+      expect(win().SlopAIModels.byId('ppocr-v6-small').tool).toBe('ocr');
+      expect(win().SlopAIModels.byId('ppocr-v5-cyrillic').tool).toBe('ocr');
+      expect($('lang').title).toBe('Detect automatically');
+    });
+    it('reads Swedish with the quick model first, then offers the Latin script model', async () => {
+      const M = win().SlopAIManager;
+      if ((await M.status('ppocr-v4')) !== 'installed') await M.install('ppocr-v4');
+      await load();
+      await waitFor(() => !$('ui').hidden, { timeout: 8000 });
+      await addFile('swedish.png');
+      $('read').click();
+      await waitFor(() => $('dlTxt').disabled === false, { timeout: 240000, step: 250 });
+      expect($('text').value).not.toContain('å');
+      const line = await waitFor(() => doc().querySelector('#suggest .ocr-suggest'), { timeout: 3000 });
+      expect(line.textContent).toContain('PP-OCRv6 small');
+      expect(line.textContent).toContain('accented letters');
+    }, { timeout: 300000 });
+    it('the suggestion opens the dialog on that model; Swedish ranks it first; Download, then Use reads the page again', async () => {
+      btn($('suggest'), 'Use ').click();
+      const box = await waitFor(() => doc().querySelector('.spm-dlg'), { timeout: 3000 });
+      const search = box.querySelector('.spm-search');
+      search.value = 'swe'; search.dispatchEvent(new Event('input'));
+      const sv = await waitFor(() => [...box.querySelectorAll('.spm-lang')].find((l) => l.textContent === 'Swedish'));
+      sv.click();
+      const first = await waitFor(() => box.querySelector('.spm-model'), { timeout: 3000 });
+      expect(first.dataset.id).toBe('ppocr-v6-small');
+      expect(first.textContent).toContain('Recommended for Swedish');
+      expect(first.textContent).toContain('Apache 2.0');
+      expect(await win().SlopAIManager.status('ppocr-v6-small')).toBe('needs-download');   // nothing until Download
+      btn(first, 'Download').click();
+      await waitFor(async () => (await win().SlopAIManager.status('ppocr-v6-small')) === 'installed', { timeout: 240000, step: 500 });
+      const use = await waitFor(() => { const b = box.querySelector('.sui-foot .sui-primary'); return b && !b.disabled && b; }, { timeout: 5000 });
+      use.click();
+      await waitFor(() => $('text').value.includes('å'), { timeout: 240000, step: 250 });
+      const t = $('text').value;
+      expect(t).toContain('Smörgåsbord på Öland');
+      expect(t).toContain('äpplen');
+      expect($('lang').title).toContain('Swedish');
+      expect($('lang').title).toContain('PP-OCRv6 small');
+      expect(doc().querySelector('#suggest .ocr-suggest')).toBe(null);   // a chosen language: no suggestion
+      expect(win().localStorage.getItem('slop.ocr.language')).toBe(null);   // not pinned unless asked
+    }, { timeout: 300000 });
+    it('removes the models it stored (about 40 MB), so the pages after it in this browser have their storage', async () => {
+      const M = win().SlopAIManager;
+      for (const id of ['ppocr-v6-small', 'ppocr-v4']) { await M.remove(id); expect(await M.status(id)).toBe('needs-download'); }
+      expect(await M.usage(['ppocr-v6-small', 'ppocr-v4'])).toBe(0);
+    }, { timeout: 30000 });
+  });
+  run({ name: 'Slop OCR chooser' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Paint Classic: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: photoslop/classic/paint/17-files.js, photoslop/classic/hub.js
+  // Slop Paint Classic on the one intake: File ▸ Open (mode open) and Paste From (mode paste), a drop on the window, a
+  // pasted picture, Open from Slop Drive (linked) and ?drive=<id> (launch) reach the same reader; when the app's own copy
+  // is newer, a paste is left to the app.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, P, seen = [];
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 20; c.height = 10; c.getContext('2d').fillRect(0, 0, 20, 10);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  async function through(tag, start) { const k = seen.length; await start(); await waitFor(() => seen.length === k + 1, { timeout: 10000 }); expect(seen[k]).toBe(tag); }
+  describe('Slop Paint Classic: one way in', () => {
+    it('File ▸ Open, Paste From, a drop, a paste, Slop Drive and launch', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../photoslop/classic/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopPaint && fr.contentWindow.SlopPaint.fileInput && fr.contentWindow.SlopIntake.spec('paint-classic'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document; P = W.SlopPaint;
+      const s = W.SlopIntake.spec('paint-classic'), reader = s.process;
+      s.process = (f, ctx) => { seen.push(ctx.source + ':' + (ctx.mode || '')); return reader(f, ctx); };
+      W.SlopUI.pickFiles = async () => [await png('a.png')];
+      P.st.fileMode = 'open';
+      await through('picker:open', () => P.fileInput.click());
+      P.st.fileMode = 'paste';
+      await through('picker:paste', () => P.fileInput.click());
+      P.st.fileMode = 'open';
+      await through('drop:open', async () => D.getElementById('win').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([await png('b.png')]) })));
+      P.st.clipInternalNewer = false;
+      await through('paste:', async () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([await png('c.png')]) })));
+      W.SlopUI.confirm = async () => true; P.msgBox = async () => 'No';
+      W.SlopHub.pickFromDrive = async () => ({ id: 'd1', name: 'd.png', type: 'image/png', blob: await png('d.png') });
+      await through('drive:open', () => W.slopPaint.drive.ACTIONS.openDrive());
+      W.SlopHub.consumeLaunch = async () => ({ id: 'd2', name: 'e.png', type: 'image/png', blob: await png('e.png') });
+      await through('launch:open', () => W.SlopIntake.launch({ to: 'paint-classic', mode: 'open' }));
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Paint Classic' });
+</script>
+</body>
+</html>

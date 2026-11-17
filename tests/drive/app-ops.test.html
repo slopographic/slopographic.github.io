@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Drive app: folders, move, trash</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: drive/js/core/store.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  let W, DR, H;
+  const byName = (n, folder) => { const all = [...(folder ? DR.S.folders : DR.S.files).values()].filter((x) => x.name === n); return all.find((x) => x.id === (W.keep || {})[n]) || all[0]; };
+  const pin = (n, folder) => { W.keep = W.keep || {}; W.keep[n] = byName(n, folder).id; };
+  const names = () => DR.visible().map((x) => x.name);
+  const ask = (answer) => { W.SlopUI.prompt = async () => answer; W.SlopUI.confirm = async () => true; };
+
+  describe('boot', () => {
+    it('opens the Drive app on an empty drive with Sloppo', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      expect(W.document.querySelector('[data-empty="drive"]')).toBeTruthy();
+      // the empty drive shows the built-in mascot; a build without it shows none (drive/js/ui/empty.js)
+      if (BRAND_FACTS.mascot === 'builtin') expect(W.document.querySelector('[data-empty] canvas.sloppo')).toBeTruthy();
+      else expect(W.document.querySelector('[data-empty] canvas.sloppo').hidden).toBe(true);
+      expect(W.document.title).toContain('Slop Drive');
+    });
+  });
+
+  describe('folders', () => {
+    it('creates nested folders and navigates with breadcrumbs and the tree', async () => {
+      ask('Projects');
+      const p = await DR.newFolder(null);
+      DR.go(p);
+      const s = await DR.newFolder(p, 'Spuds');
+      expect(DR.pathOf(s).map((f) => f.name)).toEqual(['Projects', 'Spuds']);
+      DR.go(s);
+      const crumbs = [...W.document.querySelectorAll('#crumbs .crumb')].map((b) => b.textContent);
+      expect(crumbs).toEqual(['Slop Drive', 'Projects', 'Spuds']);
+      W.document.querySelectorAll('#crumbs .crumb')[1].click();
+      expect(DR.S.cwd).toBe(p);
+      expect(names()).toEqual(['Spuds']);
+      expect(W.document.querySelector(`#tree [data-key="d:${s}"]`)).toBeTruthy();
+      W.document.querySelector(`#tree [data-key="d:${s}"]`).click();
+      expect(DR.S.cwd).toBe(s);
+      DR.up();
+      expect(DR.S.cwd).toBe(p);
+    });
+    it('gives clashing names a number and renames', async () => {
+      const a = await DR.newFolder(null, 'Same'), b = await DR.newFolder(null, 'Same');
+      expect(DR.S.folders.get(b).name).toBe('Same (2)');
+      await DR.rename(DR.S.folders.get(b), 'Other');
+      expect(DR.S.folders.get(b).name).toBe('Other');
+      await DR.rename(DR.S.folders.get(b), 'Same');
+      expect(DR.S.folders.get(b).name).toBe('Same (2)');
+      await DR.purge([DR.S.folders.get(a), DR.S.folders.get(b)], { ask: false });
+    });
+  });
+
+  describe('files: upload, move, copy', () => {
+    it('imports files and whole folders with their paths', async () => {
+      DR.go(byName('Projects', true).id);
+      await DR.importFiles([{ file: new W.File(['hello'], 'notes.txt', { type: 'text/plain' }), path: 'notes.txt' },
+        { file: new W.File([await DT.png()], 'a.png', { type: 'image/png' }), path: 'Pics/a.png' },
+        { file: new W.File([await DT.png('#f00')], 'b.png'), path: 'Pics/Deep/b.png' }]);
+      const pics = byName('Pics', true);
+      pin('a.png'); pin('Pics', true);
+      expect(pics.parent).toBe(byName('Projects', true).id);
+      expect(byName('b.png').type).toBe('image/png');
+      expect(DR.pathOf(byName('b.png').parent).map((f) => f.name)).toEqual(['Projects', 'Pics', 'Deep']);
+      expect(names()).toEqual(['Pics', 'Spuds', 'notes.txt']);
+    });
+    it('moves files and folders, refusing to put a folder inside itself', async () => {
+      const notes = byName('notes.txt'), pics = byName('Pics', true), deep = byName('Deep', true);
+      await DR.move([notes], pics.id);
+      expect(byName('notes.txt').parent).toBe(pics.id);
+      expect(DR.canMove([pics], deep.id)).toBe(false);
+      expect(await DR.move([pics], deep.id)).toBe(0);
+      expect(byName('Pics', true).parent).toBe(byName('Projects', true).id);
+      await DR.move([byName('Deep', true)], null);
+      expect(byName('Deep', true).parent).toBe(null);
+      expect(byName('b.png').parent).toBe(byName('Deep', true).id);
+    });
+    it('drops onto breadcrumbs, the root and folders via data-drop targets', async () => {
+      const deep = byName('Deep', true);
+      await DR.dropOn(byName('Projects', true).id, [deep]);
+      expect(byName('Deep', true).parent).toBe(byName('Projects', true).id);
+      await DR.dropOn('root', [byName('notes.txt')]);
+      expect(byName('notes.txt').parent).toBe(null);
+      await DR.dropOn('star', [byName('notes.txt')]);
+      expect(byName('notes.txt').starred).toBe(true);
+    });
+    it('copies files and folders deeply, with fresh names', async () => {
+      const pics = byName('Pics', true);
+      const ids = await DR.copy([pics], pics.parent);
+      const copy = DR.item(ids[0]);
+      expect(copy.name).toBe('Pics (2)');
+      const inner = DR.descendants(copy.id);
+      expect(inner.files.map((r) => r.name).sort()).toEqual(['a.png']);
+      await DR.duplicate([byName('notes.txt')]);
+      expect([...DR.S.files.values()].filter((r) => /^notes/.test(r.name)).map((r) => r.name).sort()).toEqual(['notes (2).txt', 'notes.txt']);
+      expect(await (byName('notes (2).txt').blob.text())).toBe('hello');
+    });
+    it('cut and paste moves; copy and paste copies', async () => {
+      DR.go(null);
+      DR.select(['f:' + byName('notes (2).txt').id]);
+      DR.clipCopy(true);
+      DR.go(byName('Spuds', true).id);
+      await DR.paste();
+      expect(byName('notes (2).txt').parent).toBe(byName('Spuds', true).id);
+      expect(DR.S.clip).toBe(null);
+    });
+  });
+
+  describe('trash', () => {
+    it('trashing a folder hides it and everything inside', async () => {
+      const pics = byName('Pics', true), a = byName('a.png');
+      await DR.trash([pics]);
+      expect(DR.hidden(byName('a.png'))).toBe(true);
+      expect(DR.liveFiles().some((r) => r.id === a.id)).toBe(false);
+      DR.goSection('trash');
+      expect(names()).toEqual(['Pics']);
+      expect(W.document.querySelector('#places [data-section="trash"] small').textContent).toBe('1');
+    });
+    it('restores into the old folder, or the root when that folder is gone', async () => {
+      const notes = byName('notes.txt'), proj = byName('Projects', true);
+      await DR.move([notes], proj.id);
+      await DR.trash([byName('notes.txt')]);
+      await DR.trash([byName('Projects', true)]);
+      expect(DR.trashTops().map((x) => x.name)).toEqual(['Projects']); // notes.txt sits inside the trashed folder
+      await DR.restore([byName('notes.txt')]);
+      expect(byName('notes.txt').parent).toBe(null);
+      await DR.restore([byName('Projects', true)]);
+      expect(DR.hidden(byName('Pics', true))).toBe(true); // Pics was trashed on its own
+      await DR.restore([byName('Pics', true)]);
+      expect(byName('Pics', true).parent).toBe(byName('Projects', true).id);
+      expect(DR.hidden(byName('a.png'))).toBe(false);
+    });
+    it('deletes forever and empties the Trash, folders with their contents', async () => {
+      ask(null);
+      const deep = byName('Deep', true), b = byName('b.png');
+      await DR.trash([deep]);
+      await DR.trash([byName('notes.txt')]);
+      expect(DR.trashTops().length).toBe(2);
+      await DR.emptyTrash();
+      expect(DR.S.folders.has(deep.id)).toBe(false);
+      expect(DR.S.files.has(b.id)).toBe(false);
+      expect(DR.trashTops().length).toBe(0);
+      expect(await H.get(b.id)).toBe(undefined);
+    });
+  });
+
+  describe('find', () => {
+    it('Recent, Starred, search and the kind filter', async () => {
+      await DR.setStar([byName('Pics', true)], true);
+      DR.goSection('starred');
+      expect(names()).toEqual(['Pics']);
+      DR.goSection('recent');
+      expect(names().length).toBe(DR.liveFiles().length);
+      DR.go(null);
+      DR.S.query = 'png'; DR.render();
+      expect(names().every((n) => /png/i.test(n) || /PNG/.test(n))).toBe(true);
+      expect(names()).toContain('a.png');
+      DR.S.query = ''; DR.S.kind = 'image'; DR.go(byName('Pics', true).id, { keepQuery: true });
+      expect(names()).toEqual(['a.png']);
+      DR.S.kind = 'folder'; DR.render();
+      expect(names()).toEqual([]);
+      expect(W.document.querySelector('[data-empty="search"]')).toBeTruthy();
+      DR.S.kind = 'all'; DR.render();
+    });
+  });
+
+  describe('download and open with', () => {
+    it('zips a folder with its tree', async () => {
+      const entries = DR.zipEntries([byName('Projects', true)]);
+      const names = entries.map((e) => e.name);
+      expect(names).toContain('Projects/');
+      expect(names).toContain('Projects/Pics/a.png');
+      const z = await W.SlopZip.unzip(await W.SlopZip.zip(entries));
+      expect(z.length).toBe(entries.length);
+    });
+    it('offers the apps that accept the type and opens them through ?drive=', async () => {
+      const a = byName('a.png');
+      const apps = DR.appsFor(a).map((x) => x.id);
+      expect(apps).toContain('photoslop'); expect(apps).not.toContain('drive');
+      const opened = []; W.open = (u) => { opened.push(u); return {}; };
+      await DR.openWith(a, 'photoslop');
+      expect(opened[0]).toBe(H.urlOf(H.appById('photoslop'), { drive: a.id }));
+      expect(byName('a.png').opened).toBeGreaterThan(0);
+      expect((await H.list({ trashed: 'any' })).length).toBe(DR.S.files.size); // no copy was made
+    });
+  });
+  SlopTest.run({ name: 'Slop Drive app: folders, move, trash' });
+  </script>
+</body>
+</html>

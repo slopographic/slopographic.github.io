@@ -1,0 +1,23 @@
+/* A printable business sheet (shared/biz/sheet.js): on screen a card, in print only the sheet, in black on white. A wide table
+ * scrolls inside .sheet-scroll on a phone, never the page. */
+.doc-sheet { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.sheet-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.sheet-title { text-align: right; }
+.sheet-title h2 { margin: 0 0 4px; font-size: 22px; }
+.sheet-to { display: grid; gap: 2px; }
+.sheet-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2); }
+.sheet-total b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.sheet-scroll { overflow-x: auto; min-width: 0; }
+.sheet-scroll td, .sheet-scroll th { white-space: nowrap; }
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  .no-print, .smb-bar, .tabs, .topbar, .toolbar { display: none !important; }
+  .main { padding: 0 !important; max-width: none !important; }
+  .doc-sheet { border: 0; padding: 0; background: #fff; color: #000; }
+  .doc-sheet .stat { border-color: #999; background: #fff; }
+}
+/* A box to tick and a row of lines to sign (a delivery note) */
+.sheet-box { font-size: 18px; line-height: 1; }
+.sheet-sign { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+.sheet-sign > div { border-top: 1px solid var(--line-strong, #999); padding-top: 4px; font-size: 12px; color: var(--mute); }
+@media (max-width: 480px) { .sheet-sign { grid-template-columns: 1fr; gap: 26px; } }

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PDF passwords: AES-256 encryption opened by pdf.js</title></head>
+<body>
+<!-- Files made by shared/pdf-crypto/encrypt.js, opened by the real pdf.js (vendor/pdfjs): it asks for a password, refuses a
+     wrong one, opens with the user or the owner password, the text and the picture are intact, and the permissions read back.
+     Also the browser's WebCrypto path of decrypt.js on a qpdf file. -->
+<script src="../harness.js"></script>
+<script src="../../vendor/pdf-lib/pdf-lib.min.js"></script>
+<script src="../../shared/pdf-crypto/legacy.js"></script>
+<script src="../../shared/pdf-crypto/aes256.js"></script>
+<script src="../../shared/pdf-crypto/security.js"></script>
+<script src="../../shared/pdf-crypto/decrypt.js"></script>
+<script src="../../shared/pdf-crypto/encrypt.js"></script>
+<script type="module">
+import * as pdfjs from '../../vendor/pdfjs/pdf.min.js';
+pdfjs.GlobalWorkerOptions.workerSrc = '../../vendor/pdfjs/pdf.worker.min.js';
+const { describe, it, expect, pixel } = SlopTest;
+const C = window.SlopPdfCrypto, L = window.PDFLib;
+
+/** A red 8 x 8 picture as PNG bytes, from a canvas. */
+async function redPng() {
+  const c = Object.assign(document.createElement('canvas'), { width: 8, height: 8 });
+  const g = c.getContext('2d'); g.fillStyle = '#ff0000'; g.fillRect(0, 0, 8, 8);
+  return new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/png'))).arrayBuffer());
+}
+async function sample() {
+  const d = await L.PDFDocument.create();
+  const page = d.addPage([400, 300]);
+  page.drawText('Quarterly secret report', { x: 20, y: 250, size: 16, font: await d.embedFont(L.StandardFonts.Helvetica) });
+  page.drawImage(await d.embedPng(await redPng()), { x: 20, y: 20, width: 100, height: 100 });
+  d.setTitle('Secret title');
+  return d.save();
+}
+async function open(bytes, password) {
+  return pdfjs.getDocument({ data: bytes.slice(), password, isEvalSupported: false, verbosity: 0 }).promise;
+}
+const failure = (bytes, password) => open(bytes, password).then(() => null, (e) => ({ name: e.name, code: e.code }));
+async function textOf(doc) { return (await (await doc.getPage(1)).getTextContent()).items.map((i) => i.str).join(' '); }
+async function draw(doc) {
+  const page = await doc.getPage(1), vp = page.getViewport({ scale: 1 });
+  const canvas = Object.assign(document.createElement('canvas'), { width: vp.width, height: vp.height });
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  return canvas;
+}
+
+let enc;
+describe('AES-256 files in pdf.js', () => {
+  it('asks for a password, and refuses a wrong one', async () => {
+    enc = await C.encryptPdf(await sample(), { userPassword: 'tomato', ownerPassword: 'potato', permissions: { print: false, copy: false } });
+    expect(await failure(enc)).toEqual({ name: 'PasswordException', code: pdfjs.PasswordResponses.NEED_PASSWORD });
+    expect(await failure(enc, 'Tomato')).toEqual({ name: 'PasswordException', code: pdfjs.PasswordResponses.INCORRECT_PASSWORD });
+  }, { timeout: 30000 });
+  it('opens with the user and with the owner password: text, title and the picture are intact', async () => {
+    for (const pw of ['tomato', 'potato']) {
+      const doc = await open(enc, pw);
+      expect(await textOf(doc)).toContain('Quarterly secret report');
+      expect((await doc.getMetadata()).info.Title).toBe('Secret title');
+      const px = pixel(await draw(doc), 70, 230);   // inside the picture (PDF y 20 to 120 is canvas y 180 to 280)
+      expect(px[0]).toBeGreaterThan(200); expect(px[1]).toBe(0);
+      await doc.destroy();
+    }
+  }, { timeout: 30000 });
+  it('the permissions read back in pdf.js: no printing, no copying, the rest allowed', async () => {
+    const doc = await open(enc, 'tomato'), F = pdfjs.PermissionFlag, perms = await doc.getPermissions();
+    expect(perms.includes(F.PRINT)).toBe(false); expect(perms.includes(F.COPY)).toBe(false); expect(perms.includes(F.PRINT_HIGH_QUALITY)).toBe(false);
+    expect(perms.includes(F.MODIFY_CONTENTS)).toBe(true); expect(perms.includes(F.FILL_INTERACTIVE_FORMS)).toBe(true); expect(perms.includes(F.COPY_FOR_ACCESSIBILITY)).toBe(true);
+    await doc.destroy();
+  });
+  it('with no user password it opens without asking, and the limits stay', async () => {
+    const free = await C.encryptPdf(await sample(), { permissions: { modify: false } });
+    const doc = await open(free);
+    expect(await textOf(doc)).toContain('Quarterly secret report');
+    expect((await doc.getPermissions()).includes(pdfjs.PermissionFlag.MODIFY_CONTENTS)).toBe(false);
+    await doc.destroy();
+  });
+});
+
+describe('Removing a password', () => {
+  it('decryptPdf gives a plain file that pdf.js opens without a password', async () => {
+    const plain = await C.decryptPdf(enc, 'tomato');
+    expect(C.isEncrypted(plain)).toBe(false);
+    const doc = await open(plain);
+    expect(await textOf(doc)).toContain('Quarterly secret report');
+    expect(await doc.getPermissions()).toBe(null);
+    await doc.destroy();
+  });
+  it('a qpdf AES-256 file with object streams, through this browser\'s WebCrypto', async () => {
+    const bytes = new Uint8Array(await (await fetch('fixtures/qpdf-aes256.pdf')).arrayBuffer());
+    expect((await C.inspect(bytes)).needsPassword).toBe(true);
+    const doc = await open(await C.decryptPdf(bytes, 'Ëigner'));
+    expect(await textOf(doc)).toContain('Known answer page');
+    await doc.destroy();
+    let code = ''; try { await C.decryptPdf(bytes, 'x'); } catch (e) { code = e.code; }
+    expect(code).toBe('password');
+  });
+});
+
+SlopTest.run({ name: 'PDF passwords (shared/pdf-crypto)' });
+</script>
+</body>
+</html>

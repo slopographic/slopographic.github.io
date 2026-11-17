@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Time: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1100px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/commands/args.js"></script>
+  <script>
+  // Covers: time/js/ai-commands.js, time/js/commands.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const f = document.getElementById('app');
+  let W, C;
+  const run = async (id, args) => { const r = await C.exec('time.ai.' + id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slop Time: assistant commands', () => {
+    it('add and remove cities, convert a time, a countdown, export the clock', async () => {
+      f.src = '../../time/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopTime && f.contentWindow.SlopTime.world && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('time.world') && f.contentWindow.SlopHub && f.contentWindow.SlopData, { timeout: 15000 });   // time.world: the page's own commands (and its prepare) are in
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      await run('add-city', { city: 'Lisbon' });
+      expect(C.state().cities).toContain('Europe/Lisbon');
+      const r = await run('convert-time', { time: '09:00', date: '2026-01-15', from: 'Europe/London', to: ['Asia/Tokyo', 'America/New_York'] });
+      expect(r.value.rows.map((x) => x.time)).toEqual(['18:00', '04:00']);
+      expect((await C.exec('time.ai.add-city', { city: 'Zzyzzx Nowhere' })).ok).toBe(false);
+      await run('set-countdown', { duration: '4:30' });
+      const e = await run('export-clocks', {});
+      const csv = await (await W.SlopHub.get(/id ([^)\s]+)\)/.exec(e.value)[1])).blob.text();
+      expect(csv).toContain('Europe/Lisbon');
+      const back = C.checkpoint();
+      await run('remove-city', { city: 'Europe/Lisbon' });
+      expect(C.state().cities).not.toContain('Europe/Lisbon');
+      back();
+      expect(C.state().cities).toContain('Europe/Lisbon');
+    }, { timeout: 30000 });
+
+    it('create_meeting puts a meeting in the shared calendar store', async () => {
+      await run('create-meeting', { title: 'Hive sync', date: '2026-10-12', start: '10:00', end: '10:30', zone: 'Europe/London' });
+      const list = (await W.SlopData.store.list('events')).value;
+      expect(list.some((x) => x.title === 'Hive sync' && x.kind === 'meeting')).toBe(true);
+    }, { timeout: 20000 });
+  });
+  SlopTest.run({ name: 'Slop Time: assistant commands' });
+  </script>
+</body>
+</html>

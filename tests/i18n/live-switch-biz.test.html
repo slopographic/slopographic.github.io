@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business apps opened in English follow a live switch to Swedish</title>
+  <meta name="slop-test-limit" content="600">
+  <!-- Covers: tests/i18n/live-switch.js, shared/ui/list.js, shared/biz/panel.js, shared/docs/doc-layout.js -->
+  <!-- Covers: orders/js/ui/list.js, orders/js/ui/delivery.js, quotes/js/ui/list.js, purchases/js/ui/list.js -->
+  <!-- Covers: timesheets/js/ui/list.js, expenses/js/ui/list.js, invoices/js/ui/list.js, invoices/js/ui/repeat.js -->
+  <!-- Covers: inventory/js/ui/app.js, inventory/js/ui/product-form.js, ledger/js/ui/app.js, ledger/js/ui/journal.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="live-switch.js"></script>
+  <script>
+  // Each app opens in English, then SlopI18n.set('sv') runs in its window: the record list's empty note and name
+  // (SlopList), the record panel's name and footer (SlopBiz.panel) and the forms built once must read Swedish.
+  const S = LiveSwitch.spec, q = (s) => (doc) => doc.querySelector(s);
+  S({ name: 'Orders', path: '../../orders/index.html', ready: q('#oRows .sl-empty'),
+    checks: [['#oRows .sl-empty', 'orders.li.empty'], ['#oRows .sl-list', 'orders.li.label', 'aria-label'],
+      ['#view-delivery .btn:not(.primary):not(.small)', 'orders.dn.label_tip', 'title']] });
+  S({ name: 'Quotes', path: '../../quotes/index.html', ready: q('#qRows .sl-empty'), checks: [['#qRows .sl-empty', 'quotes.li.empty']] });
+  S({ name: 'Purchases', path: '../../purchases/index.html', ready: q('#pRows .sl-empty'), checks: [['#pRows .sl-empty', 'purchases.li.empty']] });
+  S({ name: 'Timesheets', path: '../../timesheets/index.html', ready: q('#tRows .sl-empty'), checks: [['#tRows .sl-empty', 'timesheets.li.empty']] });
+  S({ name: 'Expenses', path: '../../expenses/index.html', ready: q('#xRows .sl-empty'), checks: [['#xRows .sl-empty', 'expenses.li.empty']] });
+  S({ name: 'Invoices', path: '../../invoices/index.html', ready: q('#iOutstanding .sl-empty'),
+    checks: [['#iOutstanding .sl-empty', 'invoices.li.owed_empty'], ['#iRows .sl-list', 'invoices.li.label', 'aria-label']], labels: ['biz.doc.details'] });
+  S({ name: 'Inventory', path: '../../inventory/index.html', ready: q('#pFields .fhint'),
+    checks: [['#pFormTitle', 'inventory.pf.new'], ['#pFields .frow:last-child .fhint', 'inventory.pf.reorder_hint'], ['#pFields .flabel', 'inventory.f.sku']],
+    labels: ['inventory.ap.product'] });
+  S({ name: 'Ledger', path: '../../ledger/index.html', ready: q('#jLines .line-row button'),
+    checks: [['#jLines .line-row button', 'ledger.j.remove', 'aria-label'], ['#jLines .l-dr', 'ledger.j.debit', 'placeholder'],
+      ['#view-journal .sf-foot-more', 'ledger.gen.new_entry']], labels: ['ledger.gen.new_account', 'ledger.gen.new_rate'] });
+  SlopTest.run({ name: document.title });
+  </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Gallery: the look (header and drawer, 1440 and 390 wide)</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; height: 800px; }</style></head>
+<body>
+  <!-- Covers: gallery/css/gallery.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  /** The app in a fresh iframe of this width, once the shell's buttons are in its header. */
+  async function open(width) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../gallery/index.html';
+    document.body.append(f);
+    await waitFor(() => { const D = f.contentDocument; return D && D.readyState === 'complete' && D.querySelector('header.topbar .sh-hdr .slop-hbtn'); }, { timeout: 30000 });
+    return f.contentDocument;
+  }
+  const shown = (n) => n.getBoundingClientRect().width > 0;
+  /** How many rows these controls sit on (by their middles: the home link is shorter than the buttons). */
+  const rows = (els) => new Set(els.map((n) => { const r = n.getBoundingClientRect(); return Math.round((r.top + r.bottom) / 2); })).size;
+
+  describe('Slop Gallery: the look', () => {
+    it('at 1440px one header row, its buttons as tall as the shared header buttons', async () => {
+      const D = await open(1440);
+      expect([...D.querySelectorAll('header')].filter(shown).length).toBe(1);
+      const btns = [...D.querySelectorAll('header.topbar .tb-btn, header.topbar .slop-hbtn')].filter(shown);
+      expect(rows(btns)).toBe(1);
+      const hb = D.querySelector('header.topbar .sh-hdr .slop-hbtn').getBoundingClientRect().height;
+      for (const b of btns) expect(b.getBoundingClientRect().height).toBe(hb);
+    }, { timeout: 40000 });
+
+    it('at 390px the header is two rows (the toolbar on its own), the closed drawer casts no shadow, and nothing scrolls sideways', async () => {
+      const D = await open(390);
+      expect(D.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+      expect(rows([...D.querySelectorAll('header.topbar button, header.topbar a')].filter(shown))).toBe(2);
+      expect(D.defaultView.getComputedStyle(D.getElementById('side')).boxShadow).toBe('none');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop Gallery: the look' });
+  </script>
+</body>
+</html>

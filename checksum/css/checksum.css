@@ -1,0 +1,26 @@
+/* Checksum: a small page. Colours come from the site theme tokens (shared/slopui.css). */
+body { margin: 0; background: var(--sl-background, #f4f2ec); color: var(--sl-text, #111); font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+/* SlopFrame's view (the file and its hash) and the settings panel on the right (shared/frame/frame.css) */
+.ck-frame { flex: 1 1 auto; min-height: 0; }
+.ck-top { flex: none; }
+/* header: home link (the app icon, brand/brand.js) and the name; the shell adds Theme, Apps and the bell at the end */
+.ck-top { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--sl-surface, #fff); border-bottom: 1px solid var(--sl-border, #ddd); min-width: 0; }
+.ck-top .brand { display: grid; place-items: center; width: 32px; height: 32px; flex: none; color: var(--sl-accent, #2a6df4); text-decoration: none; }
+.ck-top h1 { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.ck { padding: 20px 16px 48px; display: grid; gap: 16px; align-content: start; }
+.ck > * { width: 100%; max-width: 680px; justify-self: center; box-sizing: border-box; }
+.ck-lede, .ck-note { margin: 0; color: var(--sl-muted, #555); font-size: 14px; line-height: 1.5; }
+.ck-card { background: var(--sl-surface, #fff); border: 1px solid var(--sl-border, #ddd); border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+.ck-card h2 { margin: 0; font-size: 16px; }
+.ck-drop { font: inherit; color: inherit; background: transparent; width: 100%; display: grid; place-items: center; min-height: 96px; border: 2px dashed var(--sl-border, #bbb); border-radius: 10px; cursor: pointer; padding: 12px; text-align: center; }
+.ck-drop:focus-visible, .ck-drop.over { border-color: var(--sl-accent, #2a6df4); }
+.ck-row { display: grid; gap: 6px; font-size: 14px; }
+.ck-row select, .ck-row input { font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--sl-border, #bbb); background: var(--sl-surface, #fff); color: inherit; }
+.ck-hash { display: block; font-family: var(--mono, ui-monospace, monospace); font-size: 13px; word-break: break-all; min-height: 2.4em; padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--sl-text, #000) 6%, transparent); }
+.ck-btn { justify-self: start; font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--sl-border, #bbb); background: transparent; color: inherit; cursor: pointer; }
+.ck-btn:disabled { opacity: .5; cursor: default; }
+.ck-status, .ck-verdict { margin: 0; font-size: 14px; min-height: 1.4em; }
+.ck-status:empty { min-height: 0; }
+.ck-verdict.ok { color: #1a7f37; font-weight: 600; }
+.ck-verdict.bad { color: #b42318; font-weight: 600; }

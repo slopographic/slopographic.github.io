@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: own keys kept, forgotten, never exported; every provider; phones</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script src="../../shared/backup/zip.js"></script>
+  <script src="../../shared/backup/codec.js"></script>
+  <script src="../../shared/backup/core.js"></script>
+  <script>
+  // Covers: shared/ai/cloud/keys.js, shared/ai/cloud/connect.js, shared/ai/cloud/openai.js, shared/ai/cloud/gemini.js,
+  //   shared/ai/cloud/compat.js, shared/ai/cloud/providers.js, shared/backup/core.js, shared/backup/central.js, shared/ai/panel.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const KEY = 'sk-ant-api03-REMEMBER-ME-0123456789';
+  let P, F;
+  const q = (s) => P.document.querySelector(s);
+  const dialog = () => [...P.document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  async function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.cloud|^slop-ai\.permissions|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.(cloud|permissions)/.test(k)) sessionStorage.removeItem(k);
+    // empty the key store (deleting the database would wait for any page that still has it open)
+    await new Promise((res) => { const r = indexedDB.open('slop-ai-keys'); r.onerror = () => res(); r.onupgradeneeded = () => { r.transaction.abort(); };
+      r.onsuccess = () => { const d = r.result; if (!d.objectStoreNames.contains('keys')) { d.close(); return res(); } const t = d.transaction('keys', 'readwrite'); t.objectStore('keys').clear(); t.oncomplete = t.onerror = () => { d.close(); res(); }; }; });
+  }
+  const keys = () => P.SlopAIKit.cloud.keys;
+  async function open(provider, width = 900) {
+    if (P && P.__frame) P.__frame.remove();
+    P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width, height: 760 });
+    F = CU.install(P, provider);
+    P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+  }
+  /** The full model choice: the header's model menu ▸ AI settings… */
+  async function settings() {
+    q('.sap-status').click();
+    (await waitFor(() => [...P.document.querySelectorAll('.smb-row')].find((r) => r.textContent === 'AI settings…'))).click();
+  }
+  async function connect(provider, key) {
+    if (!q('.sap-cloud')) await settings();
+    const box = await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+    if (!box.open) q('.sap-cloud summary').click();
+    const s = q('.sap-cloud-provider'); s.value = provider; s.dispatchEvent(new P.Event('change'));
+    await sleep(30);
+    if (key != null) q('.sap-cloud-key').value = key;
+  }
+  async function send(text, who) {
+    const done = P.SlopAIPanel.send(text);
+    const d = await waitFor(dialog);
+    expect(d.textContent).toContain(who);
+    [...d.querySelectorAll('button')].find((b) => b.textContent === 'Continue').click();
+    await done;
+  }
+
+  describe('keys: remembered on this device, restored on the next page, forgotten, never exported', () => {
+    it('Remember on this device keeps the key in IndexedDB only; the next page uses it without asking', async () => {
+      await wipe(); await open('anthropic');
+      await connect('anthropic', KEY);
+      q('.sap-cloud-remember').checked = true;
+      q('.sap-cloud-use').click();
+      await waitFor(() => /^Claude · /.test(q('.sap-status').textContent));
+      expect(await keys().remembered('anthropic')).toBe(true);
+      expect(sessionStorage.getItem('slop-ai.cloud.key:anthropic')).toBe(null);
+      await open('anthropic');
+      await waitFor(() => q('.sap-status').textContent === 'Claude · Claude Opus 5.5', { timeout: 15000 });
+      expect(q('.sap-cloud')).toBe(null);
+    }, { timeout: 40000 });
+
+    it('the site backup and its localStorage copy do not contain the key', async () => {
+      const b = await SlopBackupCore.exportAll();
+      const r = await SlopBackupCore.read(b.blob);
+      expect(r.dbs.map((d) => d.name)).not.toContain('slop-ai-keys');
+      const all = JSON.stringify(r.local) + JSON.stringify(r.dbs);
+      expect(all.includes(KEY)).toBe(false);
+      expect(all.includes('REMEMBER-ME')).toBe(false);
+      expect((await SlopBackupCore.dbNames()).includes('slop-ai-keys')).toBe(false);
+    }, { timeout: 30000 });
+
+    it('Forget key removes it everywhere and the panel stops using it', async () => {
+      await settings();
+      await waitFor(() => q('.sap-cloud-forget') && !q('.sap-cloud-forget').disabled);
+      q('.sap-cloud-forget').click();
+      await waitFor(() => /is gone from this browser/.test(q('.sap-cloud-msg').textContent));
+      expect(await keys().remembered('anthropic')).toBe(false);
+      expect(await keys().get('anthropic')).toBe('');
+      expect(keys().settings().active).toBe('');
+      expect(q('.sap-status').textContent).not.toContain('Claude');
+      await open('anthropic');
+      await waitFor(() => q('.sap-cloud'), { timeout: 15000 });
+      expect(q('.sap-status').textContent).not.toContain('Claude');
+    }, { timeout: 30000 });
+
+    it('session only (the default): the key is in this tab, not on the device', async () => {
+      await connect('anthropic', KEY);
+      expect(q('.sap-cloud-remember').checked).toBe(false);
+      q('.sap-cloud-use').click();
+      await waitFor(() => /^Claude · /.test(q('.sap-status').textContent));
+      expect(await keys().remembered('anthropic')).toBe(false);
+      expect(sessionStorage.getItem('slop-ai.cloud.key:anthropic')).toBe(KEY);
+      await keys().forget('anthropic');
+      expect(sessionStorage.getItem('slop-ai.cloud.key:anthropic')).toBe(null);
+    }, { timeout: 20000 });
+  });
+
+  describe('every provider: connect, test, one chat that runs a command', () => {
+    for (const [provider, key, who, models, url] of [
+      ['openai', 'sk-proj-TEST-0123456789', 'OpenAI', ['gpt-6-astra', 'gpt-5.6-terra'], 'https://api.openai.com/v1/responses'],
+      ['gemini', 'AIzaTEST0123456789abcdef', 'Google', ['gemini-3.8-pro', 'gemini-3.8-flash'], 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-pro:streamGenerateContent?alt=sse'],
+      ['openrouter', 'sk-or-v1-TEST0123456789', 'OpenRouter', ['anthropic/claude-sonnet-5.5', 'openai/gpt-6-astra'], 'https://openrouter.ai/api/v1/chat/completions'],
+    ]) {
+      it(`${who}: models from its own list, then run_command through its tool format`, async () => {
+        await wipe(); await open(provider);
+        await connect(provider, key);
+        q('.sap-cloud-test').click();
+        await waitFor(() => /^Connected to /.test(q('.sap-cloud-msg').textContent));
+        expect([...q('.sap-cloud-model').options].map((o) => o.value).slice(0, 2)).toEqual(models);
+        q('.sap-cloud-use').click();
+        await waitFor(() => q('.sap-status').classList.contains('cloud'));
+        const fmt = provider === 'openrouter' ? CU.compat : CU[provider];
+        F.replies.push(fmt.call('run_command', { id: 'demo.bold' }), fmt.text('Bold now.'));
+        await send('make it bold', who);
+        expect(P.ran).toEqual(['demo.bold']);
+        const chat = F.requests.filter((r) => r.method === 'POST');
+        expect(chat[0].url).toBe(url);
+        expect(JSON.stringify(chat.map((r) => r.body)).includes(key)).toBe(false);
+        expect(q('.sap-list').textContent).toContain('Bold now.');
+        if (provider === 'openrouter') expect(document.body && [...P.document.querySelectorAll('.sap-usage')].pop().textContent).toMatch(/about \$|less than \$0\.01/);
+        else expect([...P.document.querySelectorAll('.sap-usage')].pop().textContent).toContain('price not known here');
+      }, { timeout: 40000 });
+    }
+
+    it('Ollama on this computer: no key, the address, and plain help when the browser cannot reach it', async () => {
+      await wipe(); await open('ollama');
+      await connect('ollama');
+      expect(q('.sap-cloud-key').closest('label').hidden).toBe(true);
+      expect(q('.sap-cloud-base').value).toBe('http://localhost:11434/v1');
+      F.offline = true;
+      q('.sap-cloud-test').click();
+      await waitFor(() => /Nothing answers at http:\/\/localhost:11434\/v1/.test(q('.sap-cloud-msg').textContent));
+      expect(q('.sap-cloud-diag').textContent).toContain('choose Allow');
+      expect(q('.sap-cloud-local').textContent).toContain('OLLAMA_ORIGINS');
+      expect(q('.sap-cloud-local').textContent).toContain(location.origin);
+      F.offline = false;
+      q('.sap-cloud-base').value = 'http://192.168.0.9:11434/v1';
+      q('.sap-cloud-use').click();
+      await waitFor(() => /mixed content.*https:\/\/ address, or http:\/\/localhost/.test(q('.sap-cloud-msg').textContent));
+    }, { timeout: 30000 });
+  });
+
+  describe('phones', () => {
+    it('at 390 px the connect form fits the bottom sheet', async () => {
+      await wipe(); await open('anthropic', 390);
+      await connect('anthropic', '');
+      await sleep(300);
+      const sheet = q('.sap').getBoundingClientRect(), form = q('.sap-cloud').getBoundingClientRect();
+      expect(q('.sap-host').classList.contains('ssh-phone')).toBe(true);
+      expect(form.right).toBeLessThan(sheet.right + 1);
+      expect(q('.sap-list').scrollWidth).toBeLessThan(q('.sap-list').clientWidth + 2);
+      expect(P.document.documentElement.scrollWidth).toBeLessThan(392);
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop AI: own keys and providers' });
+  </script>
+</body>
+</html>

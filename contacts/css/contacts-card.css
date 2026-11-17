@@ -1,0 +1,88 @@
+/* Slop Contacts: the card (read and edit). Large avatar and name, labelled rows, sections with subtle separators. */
+.card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.card-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); min-height: 52px; flex: none; }
+.card-bar-t { font-weight: 600; }
+.mode-switch { display: inline-flex; margin-left: auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+.mode-btn { font: inherit; font-size: 13px; padding: 5px 12px; border: 0; background: none; color: var(--mute); cursor: pointer; }
+.mode-btn + .mode-btn { border-left: 1px solid var(--line); }
+.mode-btn.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.card-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 22px 40px; }
+.card-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 14px 0 12px; }
+.card-name { font-size: 26px; font-weight: 700; margin: 8px 0 0; line-height: 1.15; overflow-wrap: anywhere; }
+.card-sub { margin: 0; color: var(--mute); font-size: 15px; }
+.card-fields { border-top: 1px solid var(--line); margin-top: 6px; }
+.field { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+.field-k { color: var(--mute); font-size: 13px; text-transform: capitalize; }
+.field-v { overflow-wrap: anywhere; }
+.field-v a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.card-groups { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0 0; }
+.chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--panel-2); color: var(--ink); }
+.card-sec { padding: 18px 0 4px; border-top: 1px solid var(--line); margin-top: 14px; }
+.sec-h { font-size: 13px; font-weight: 700; margin: 0 0 10px; color: var(--ink); }
+.sub-h { font-size: 12px; color: var(--mute); margin: 8px 0 4px; }
+.notes { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.muted { color: var(--mute); margin: 0; font-size: 14px; }
+.pipe { display: grid; gap: 10px; }
+.pipe-f { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 14px; }
+.pipe-f span:first-child { color: var(--mute); }
+.pipe-f select, .pipe-f input[type="date"] { min-height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); padding: 0 8px; width: 100%; max-width: 260px; }
+.pipe-date { display: flex; align-items: center; gap: 10px; }
+.docs { list-style: none; margin: 0; padding: 0; }
+.doc { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
+.doc a { color: var(--ink); font-weight: 500; text-decoration: none; border-bottom: 1px solid var(--line); }
+.doc-meta { color: var(--mute); font-size: 13px; }
+.act-form { display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; gap: 8px; margin-bottom: 10px; }
+.act-form input { min-height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); padding: 0 10px; min-width: 0; }
+.acts { list-style: none; margin: 0; padding: 0; }
+.acts li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.act-date { color: var(--mute); font-size: 13px; }
+.act-text { overflow-wrap: anywhere; }
+.card-empty { display: flex; align-items: center; justify-content: center; height: 100%; padding: 40px; }
+.card-empty-h { color: var(--mute); font-size: 15px; text-align: center; margin: 0; }
+
+/* Edit mode: the card is a form in a fixed frame. Header (title), body (scrolls; the gutter is reserved so a scrollbar
+ * never changes the width), footer (Cancel and Save, always in view). The content is one fixed-width column. */
+.ed-form { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--sl-surface); }
+.ed-head { flex: none; padding: 12px 22px; border-bottom: 1px solid var(--sl-border); min-height: 52px; display: flex; align-items: center; gap: 8px; }
+.ed-title { font-size: 16px; font-weight: 700; margin: 0; }
+.ed-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.ed-in { width: 100%; max-width: 640px; margin: 0 auto; padding: 4px 22px 28px; }
+.ed-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 10px 22px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--sl-border); background: var(--sl-surface); }
+.ed-foot:has(.ed-msg:empty) { display: none; }   /* Cancel and Save are the card's footer (the shared footer, js/app/card.js) */
+.ed-msg { color: var(--sl-danger); font-size: 14px; margin: 0; min-height: 1.3em; line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ed-sec { padding: 16px 0 6px; border-top: 1px solid var(--sl-border); }
+.ed-sec:first-child { border-top: 0; padding-top: 8px; }
+.ed-sec-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; margin-bottom: 4px; }
+.ed-sec-h { font-size: 13px; font-weight: 700; margin: 0; color: var(--sl-text); }
+.ed-sub { margin-top: 10px; }
+.ed-sub-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.ed-hint { font-size: 12px; color: var(--sl-text-muted); margin: 6px 0 0; }
+.ed-photo { display: flex; flex-direction: column; align-items: center; gap: 8px; height: 176px; padding-top: 4px; }
+.ed-photo .avatar.av-big img { width: 100%; height: 100%; }
+.ed-photo-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; min-height: 32px; }
+.ed-photo-acts .sui-btn { min-height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sl-border); background: var(--sl-surface); cursor: pointer; font-size: 13px; }
+.ed-photo-acts .sui-btn[hidden] { display: none; }
+.ed-photo-note { display: block; width: 100%; min-height: 1.3em; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin: 0; }
+.ed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 14px; }
+.ed-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ed-k { font-size: 12px; color: var(--sl-text-muted); }
+.ed-f input, .ed-f textarea, .ed-row input, .ed-row textarea, .ed-row select, .ed-label {
+  width: 100%; min-width: 0; min-height: 38px; border-radius: 8px; border: 1px solid var(--sl-border); background: var(--sl-surface); padding: 7px 10px; font-size: 15px; }
+.ed-f textarea, .ed-row textarea { resize: vertical; min-height: 0; }
+.ed-form input:focus, .ed-form textarea:focus, .ed-form select:focus { outline: 2px solid var(--sl-text); outline-offset: 0; border-color: transparent; }
+.ed-rows { display: flex; flex-direction: column; gap: 8px; }
+.ed-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 72px; gap: 8px; align-items: start; }
+.ed-rm { justify-self: end; min-height: 38px; display: inline-flex; align-items: center; }
+.ed-sub + .ed-grid { margin-top: 14px; }
+.ed-sub + .ed-sub { margin-top: 14px; }
+@media (max-width: 959px) {
+  .card-scroll { padding: 6px 16px 40px; }
+  .card-name { font-size: 24px; }
+  .act-form { grid-template-columns: 1fr; }
+  .field { grid-template-columns: 96px minmax(0, 1fr); }
+  .pipe-f { grid-template-columns: 1fr; gap: 4px; }
+  .pipe-f select, .pipe-f input[type="date"] { max-width: none; }
+  .ed-in { padding: 4px 16px 24px; }
+  .ed-head, .ed-foot { padding-left: 16px; padding-right: 16px; }
+  .card-bar, .ed-head { padding-inline-end: 56px; }   /* the sheet's × (shared/ui/sheet.js) sits in the corner */
+}

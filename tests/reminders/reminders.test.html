@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Reminders · a snoozed reminder comes back at the snooze time (fake clock)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:1100px;height:720px;border:0;position:fixed;left:0;top:0;background:#111';
+  frame.src = '../../reminders/index.html';
+  document.body.append(frame);
+  const w = () => frame.contentWindow, d = () => frame.contentDocument;
+  const booted = () => w() && w().SlopReminderEngine && d().getElementById('rBoot') && d().getElementById('rBoot').hidden;
+  const T0 = Date.UTC(2026, 9, 11, 12, 0);   // a fixed instant; the fake clock only moves when the test moves it
+  let now = T0, fired = [];
+  const rowFor = (title) => [...d().querySelectorAll('.rm-row')].find((r) => r.querySelector('b') && r.querySelector('b').textContent === title);
+
+  describe('snooze comes back at the snooze time', () => {
+    it('fires a due custom reminder once, and fires it again after a 5 minute snooze', async () => {
+      await waitFor(booted, { timeout: 20000 });
+      w().SlopReminders.setClock(() => now);
+      w().SlopReminderEngine.onFire((it) => { if (it.title === 'Ring back') fired.push(it.fireAt); });
+      await w().SlopReminderEngine.addCustom('Ring back', now - 1000);
+      await waitFor(() => fired.length === 1, { timeout: 8000 });
+      expect(fired.length).toBe(1);
+      await waitFor(() => rowFor('Ring back'), { timeout: 6000 });
+      const snap = await w().SlopReminderEngine.snapshot(now);
+      const item = snap.value.items.find((x) => x.title === 'Ring back');
+      expect((await w().SlopReminderEngine.snooze(item, '5m')).ok).toBe(true);
+      await waitFor(async () => { await w().SlopReminderEngine.scan(); return true; }, { timeout: 4000 });
+      expect(fired.length).toBe(1);
+    });
+
+    it('stays quiet before the snooze time', async () => {
+      now = T0 + 4 * 60000;
+      await w().SlopReminderEngine.scan();
+      await w().SlopReminderEngine.scan();
+      expect(fired.length).toBe(1);
+      await waitFor(() => rowFor('Ring back') && rowFor('Ring back').textContent.includes('snoozed until'), { timeout: 4000 });
+      expect(rowFor('Ring back').textContent).toContain('snoozed until');
+    });
+
+    it('comes back at the snooze time', async () => {
+      now = T0 + 5 * 60000;
+      await waitFor(async () => { await w().SlopReminderEngine.scan(); return fired.length === 2; }, { timeout: 8000 });
+      expect(fired.length).toBe(2);
+      expect(fired[1]).toBe(T0 + 5 * 60000);
+    });
+
+    it('a due reminder shows in the in-app notifications with its title and a line of when', async () => {
+      await waitFor(() => w().SlopNotify, { timeout: 20000 });   // the shell loads SlopNotify a little after boot
+      await w().SlopReminderEngine.addCustom('Notify me', now - 1000);
+      const found = () => w().SlopNotify.history().find((r) => r.title === 'Notify me');
+      await waitFor(async () => { await w().SlopReminderEngine.scan(); return found(); }, { timeout: 8000 });
+      expect(found().body).toContain('Reminder ·');
+    });
+  });
+
+  describe('a repeating event in Later', () => {
+    it('a weekly event shows its next occurrence once, with "Every week", not a row per week for a year', async () => {
+      // Covers: reminders/js/app.js, shared/reminders/core.js, shared/reminders/engine.js
+      const start = T0 + 2 * 86400000;
+      const r = await w().SlopData.store.put('events', { title: 'Weekly sync', allDay: false, start, end: start + 3600000, tz: 'UTC', color: 'blue', kind: 'event', freq: 'weekly', remind: 15 });
+      expect(r.ok).toBe(true);
+      await w().SlopRemindersUI.app.render();
+      const later = () => [...d().querySelectorAll('.rm-group[aria-label="Later"] .rm-row')].filter((x) => x.querySelector('b').textContent === 'Weekly sync');
+      await waitFor(() => later().length === 1, { timeout: 6000 });
+      expect(later()[0].querySelector('.rm-sub').textContent).toContain('Every week');
+      expect(later()[0].querySelector('.rm-when').textContent).toContain(w().SlopTime.dateTimeText(start - 15 * 60000, w().SlopTime.deviceZone()).slice(0, 6));
+      expect(d().querySelector('.rm-group[aria-label="Later"] .side-n').textContent).toBe(String(d().querySelectorAll('.rm-group[aria-label="Later"] .rm-row').length));
+    });
+  });
+
+  run({ name: 'Reminders · snooze' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+/* PhotoSlop, Swedish: palette titles of the canvas, tool and window commands (app/commands.js). Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('sv', {
+  'photoslop.cmd.opacity_toast': 'Opacitet {pct} %',
+  'photoslop.cmd.cycle_tools': 'Växla mellan {tools}',
+  'photoslop.cmd.swap_colors': 'Byt förgrunds- och bakgrundsfärg',
+  'photoslop.cmd.default_colors': 'Standardfärger (svart/vitt)',
+  'photoslop.cmd.brush_bigger': 'Större pensel',
+  'photoslop.cmd.brush_smaller': 'Mindre pensel',
+  'photoslop.cmd.brush_harder': 'Hårdare pensel',
+  'photoslop.cmd.brush_softer': 'Mjukare pensel',
+  'photoslop.cmd.tool_opacity': 'Verktygets opacitet {pct} %',
+  'photoslop.cmd.nudge_left': 'Flytta {n} px åt vänster',
+  'photoslop.cmd.nudge_right': 'Flytta {n} px åt höger',
+  'photoslop.cmd.nudge_up': 'Flytta {n} px uppåt',
+  'photoslop.cmd.nudge_down': 'Flytta {n} px nedåt',
+  'photoslop.cmd.next_doc': 'Nästa dokument',
+  'photoslop.cmd.prev_doc': 'Föregående dokument',
+  'photoslop.cmd.go_to_doc': 'Gå till dokument {i}',
+  'photoslop.cmd.restore_aspect': 'Återställ ursprungliga proportioner',
+  'photoslop.cmd.guides_panel': 'Stödlinjepanel (stödlinjelayouter)',
+  'photoslop.cmd.search_key': 'Sök kommandon ({key})',
+  'photoslop.cmd.nav_preset': 'Navigeringsförinställning…',
+});

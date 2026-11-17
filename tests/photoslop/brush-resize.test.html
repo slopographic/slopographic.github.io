@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop brush resize</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  /** Right-button drag on the canvas: the brush size follows across, hardness follows down. */
+  describe('PhotoSlop right-drag brush resize', () => {
+    it('changes size and hardness live, with no history step, and suppresses the menu after a drag', async () => {
+      await new Promise((res) => { const q = indexedDB.deleteDatabase('slopshop'); q.onsuccess = q.onerror = q.onblocked = () => res(); });
+      f.src = '../../photoslop/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.document.body && f.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      const W = f.contentWindow;
+      const ev = (type, x, y, buttons) => new W.PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'mouse', button: 2, buttons, clientX: x, clientY: y });
+      W.eval("selectTool('brush')");
+      await sleep(50);
+      const el = W.eval('V.el'), r = el.getBoundingClientRect();
+      const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2;
+      const size0 = W.eval('T.brush.size'), hard0 = W.eval('T.brush.hardness'), states0 = W.eval('Hist.states.length');
+      el.dispatchEvent(ev('pointerdown', x0, y0, 2));
+      el.dispatchEvent(ev('pointermove', x0 + 30, y0 + 20, 2));
+      el.dispatchEvent(ev('pointermove', x0 + 60, y0 + 40, 2));
+      await sleep(30);
+      // live: the readout is drawn and the value is already in the brush settings
+      expect(W.eval('V.resize.moved')).toBe(true);
+      expect(W.eval('T.brush.size')).toBeGreaterThan(size0);
+      expect(W.eval('T.brush.hardness')).toBeLessThan(hard0);
+      el.dispatchEvent(ev('pointerup', x0 + 60, y0 + 40, 0));
+      await sleep(30);
+      expect(W.eval('V.resize')).toBe(null);
+      expect(W.eval('T.brush.size')).toBeGreaterThan(size0);
+      expect(W.eval('Hist.states.length')).toBe(states0); // undo-free
+      expect(W.eval('T.brush.hardness')).toBeGreaterThanOrEqual(0);
+      // the menu event that follows a drag is swallowed
+      const menu = new W.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x0, clientY: y0, button: 2 });
+      el.dispatchEvent(menu);
+      expect(menu.defaultPrevented).toBe(true);
+      expect(W.document.querySelector('.sui-menu')).toBe(null);
+    }, { timeout: 40000 });
+  });
+  </script>
+  <script>run({ name: 'PhotoSlop brush resize' });</script>
+</body>
+</html>

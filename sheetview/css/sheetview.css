@@ -1,0 +1,83 @@
+/* Slop Sheets viewer: the page chrome (header, file and sheet tabs, the status bar, the empty state and the filter
+ * popover). The colours are the app's --sl-* tokens only. The grid itself is shared/sheets/table.css.
+ * On a phone the header wraps, the tabs scroll sideways and the grid scrolls inside its box, with a 16px gutter. */
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--sl-background); color: var(--sl-text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+.sv-app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* The shared drop panel reads --sui-* tokens: point them at this app's colours. */
+.sv-app { --sui-panel: var(--sl-surface); --sui-text: var(--sl-text); --sui-line: var(--sl-border); --sui-muted: var(--sl-text); --sui-accent: var(--sl-accent); }
+
+.sv-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--sl-border); background: var(--sl-surface); }
+.sv-brand { display: flex; align-items: center; gap: 8px; }
+.sv-brand h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .01em; }
+.sv-brand .brand { display: grid; place-items: center; width: 28px; height: 28px; flex: none; color: var(--sl-text); }
+.sv-brand .brand-mark { width: 20px; height: 20px; fill: currentColor; }
+.sv-name { flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; opacity: .8; }
+.sv-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sv-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.sv-pick select { font: inherit; color: var(--sl-text); background: var(--sl-background); border: 1px solid var(--sl-border); border-radius: 6px; padding: 0 6px; }
+/* one height for the header's buttons and pickers */
+.sv-top .sv-btn, .sv-pick select { box-sizing: border-box; height: 32px; padding-top: 0; padding-bottom: 0; }
+
+.sv-btn { font: inherit; font-size: 13px; color: var(--sl-text); background: var(--sl-surface); border: 1px solid var(--sl-border); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.sv-btn:hover:not(:disabled) { border-color: var(--sl-accent); }
+.sv-btn:disabled { opacity: .5; cursor: default; }
+.sv-btn:focus-visible, .sv-doctab-name:focus-visible, .sv-sheettab:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+.sv-primary { background: var(--sl-accent); color: var(--sl-on-accent); border-color: var(--sl-accent); }
+.sv-mini { font-size: 12px; padding: 3px 9px; }
+
+.sv-tabs { display: flex; gap: 4px; padding: 6px 16px 0; overflow-x: auto; flex: 0 0 auto; border-bottom: 1px solid var(--sl-border); }
+.sv-doctab { display: inline-flex; align-items: center; border: 1px solid var(--sl-border); border-bottom: 0; border-radius: 6px 6px 0 0; background: var(--sl-surface); white-space: nowrap; }
+.sv-doctab.on { background: var(--sl-background); border-color: var(--sl-accent); }
+.sv-doctab-name { font: inherit; font-size: 13px; color: var(--sl-text); background: none; border: 0; padding: 5px 8px; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.sv-doctab-x { font: inherit; color: var(--sl-text); background: none; border: 0; padding: 0 8px 0 2px; cursor: pointer; opacity: .7; }
+.sv-sheets { padding-top: 4px; padding-bottom: 4px; }
+.sv-sheettab { font: inherit; font-size: 13px; color: var(--sl-text); background: none; border: 1px solid transparent; border-radius: 6px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+.sv-sheettab.on { background: var(--sl-accent); color: var(--sl-on-accent); border-color: var(--sl-accent); font-weight: 600; }
+
+.sv-dropstrip { flex: 0 0 auto; padding: 6px 16px; border-bottom: 1px solid var(--sl-border); }
+.sv-dropstrip .sd-zone { opacity: .85; }
+.sv-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.sv-empty { margin: auto; width: 100%; max-width: 640px; box-sizing: border-box; padding: 24px 16px; text-align: center; }
+.sv-empty-t { font-size: 18px; margin: 0 0 8px; }
+.sv-empty-s { margin: 0 auto 16px; max-width: 460px; opacity: .8; }
+.sv-empty-b { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.sv-empty .sd-preview { margin-bottom: 14px; }
+
+.sv-view { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.sv-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 6px 16px; border-bottom: 1px solid var(--sl-border); font-size: 13px; }
+.sv-status { min-width: 0; opacity: .85; }
+.sv-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+/* Filter popover: fixed to the window, placed under its column button. */
+.sv-filter { position: fixed; z-index: 1000; width: 280px; max-width: calc(100vw - 8px); display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--sl-surface); color: var(--sl-text); border: 1px solid var(--sl-border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); font-size: 13px; }
+.sv-fh { font-weight: 700; }
+.sv-fsearch, .sv-fcontains, .sv-fnum, .sv-fop { font: inherit; color: var(--sl-text); background: var(--sl-background); border: 1px solid var(--sl-border); border-radius: 6px; padding: 5px 8px; min-width: 0; width: 100%; box-sizing: border-box; }
+.sv-flist { max-height: 220px; overflow-y: auto; border: 1px solid var(--sl-border); border-radius: 6px; padding: 4px; }
+.sv-fitem { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+.sv-fitem:hover { background: var(--sl-background); }
+.sv-ftext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-fcount { opacity: .75; font-variant-numeric: tabular-nums; }
+.sv-fnote { font-size: 12px; opacity: .8; }
+.sv-fbulk, .sv-ffoot { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.sv-fbulk { justify-content: flex-start; }
+.sv-fsep { width: 100%; margin: 0; border: 0; border-top: 1px solid var(--sl-border); }
+.sv-fnumrow { display: flex; gap: 6px; }
+.sv-fnumrow .sv-fop { width: auto; flex: 0 0 auto; }
+.sv-fnumrow .sv-fnum { flex: 1 1 auto; }
+
+/* Phones: a 16px gutter, no sideways page scroll (the grid and the tabs scroll inside their boxes). */
+@media (max-width: 600px) {
+  .sv-top { padding: 10px 16px; }
+  .sv-brand { flex: 1 1 auto; }
+  /* the tools take one row that scrolls sideways, instead of four wrapped rows */
+  .sv-tools { width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+  .sv-tools > * { flex: none; white-space: nowrap; }
+  .sv-bar { padding: 6px 16px; }
+}
+/* The panel on the right (js/panel.js, shared/frame/frame.css): Look, Send, and Export at its foot. */
+.sv-body { flex: 1 1 auto; min-height: 0; }
+.sv-side .sv-pick { display: grid; gap: 6px; font-size: 12.5px; font-weight: 600; }
+.sv-side .sv-pick select { height: 34px; }
+.sv-side .sf-foot-acts .sv-btn, .sv-side .sf-acts .sv-btn { min-height: 36px; font-weight: 700; }

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shell · the shared header buttons match the app's, stay on screen, and the Theme menu works on every page</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: shared/ui/video.js, shared/theme/theme.js, shell/header.js, shell/shell.js, shell/shell.css, shell/notify.js, shared/ui/hbtn.css, shared/ui/hbtn.js,
+  //   shared/drive-link.js, shared/tour/mount.js, shared/tour/tour.css, slides/css/app.css,
+  //   photoslop/css/layout.css, photoslop/css/extras.css, home/home.css, shared/viewmode/viewmode.css, brand/brand.css
+  // Slides once had six looks in one bar (24 to 34 px tall, square to round, the browser's own button for Tour) and,
+  // below about 1800 px, pushed Drive, Tour, View and Apps out of sight. Now they are one look and always reachable.
+  const { describe, it, expect, waitFor, run, sleep } = SlopTest;
+  async function open(app, w, h) {
+    const f = document.createElement('iframe');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    f.src = `../../${app}/index.html`;
+    document.body.append(f);
+    const D = () => f.contentDocument;
+    await waitFor(() => D() && D().querySelector('.sh-switch') && D().querySelector('.slopvm-btn') && D().querySelector('.sdl'), { timeout: 30000 });
+    await sleep(400);
+    return f;
+  }
+  const shared = (D) => [...D.querySelectorAll('header .slop-hbtn')].filter((n) => n.getBoundingClientRect().width);
+
+  describe('Slides top bar', () => {
+    for (const [w, h] of [[1886, 900], [1366, 800], [390, 800]]) {
+      it(`${w} px: Drive, Tour, View, Theme, Apps and the bell are on screen (or folded into More), one look, as tall as the app's buttons`, async () => {
+        const f = await open('slides', w, h), D = f.contentDocument, W = f.contentWindow;
+        const list = shared(D), folded = D.querySelectorAll('header [data-hbtn-folded]').length;
+        expect(list.length + folded).toBeGreaterThanOrEqual(6);
+        expect(list.includes(D.querySelector('header .sh-ai'))).toBe(true);   // AI stays: the others fold first (shared/ui/hbtn.js)
+        const own = D.getElementById('btnFile').getBoundingClientRect().height;   // Save is at the inspector's foot
+        for (const n of list) {
+          const r = n.getBoundingClientRect();
+          expect(r.left >= 0 && r.right <= W.innerWidth + 0.5).toBe(true, `${n.className} at ${Math.round(r.left)}–${Math.round(r.right)}`);
+          if (w > 560) expect(Math.abs(r.height - own)).toBeLessThan(1.5);
+        }
+        const looks = new Set(list.map((n) => { const c = W.getComputedStyle(n); return [Math.round(n.getBoundingClientRect().height), c.borderTopLeftRadius, c.borderTopWidth, c.fontSize].join('|'); }));
+        expect(looks.size).toBe(1, [...looks].join(' / '));
+        f.remove();
+      }, { timeout: 40000 });
+    }
+  });
+
+  describe('other apps', () => {
+    it('PhotoSlop: the shared buttons are as tall as its own top-bar buttons', async () => {
+      const f = await open('photoslop', 1600, 900), D = f.contentDocument;
+      const own = D.querySelector('.topbar .top-btn').getBoundingClientRect().height;
+      for (const n of shared(D)) expect(Math.abs(n.getBoundingClientRect().height - own)).toBeLessThan(1.5);
+      f.remove();
+    }, { timeout: 40000 });
+    it('PDF: Show panels is hidden in Full and shown in Focus, whichever stylesheet loads last', async () => {
+      const f = await open('pdf', 1366, 800), D = f.contentDocument, W = f.contentWindow;
+      W.SlopViewMode.set('full'); await sleep(100);
+      expect(W.getComputedStyle(D.querySelector('.slopvm-reveal')).display).toBe('none');
+      W.SlopViewMode.set('focus'); await sleep(100);
+      expect(W.getComputedStyle(D.querySelector('.slopvm-reveal')).display).not.toBe('none');
+      W.SlopViewMode.set('full');
+      f.remove();
+    }, { timeout: 40000 });
+  });
+
+  describe('Theme menu', () => {
+    // the themes the build offers (tests/brand-facts.js): a profile can hide some and name Light and Dark after the brand
+    const EN = { light: 'Light', dark: 'Dark', classic: 'Classic 98', lime: 'Slopographic Lime' };
+    const SV = { light: 'Ljust', dark: 'Mörkt', classic: 'Klassiskt 98', lime: 'Slopographic Lime' };
+    const themeNames = (names) => BRAND_FACTS.themes.map((id) => (BRAND_FACTS.themeBrand && (id === 'light' || id === 'dark') ? `${BRAND_FACTS.themeBrand} ${names[id]}` : names[id]));
+    it('every shell page has a Theme button: System and each theme, the current one checked; a pick paints the page', async () => {
+      const f = await open('slides', 1366, 800), D = f.contentDocument, W = f.contentWindow;
+      const before = W.SlopTheme.get();
+      const b = D.querySelector('.sh-theme');
+      expect(!!b).toBe(true);
+      b.click();
+      const menu = await waitFor(() => D.querySelector('.sui-menu'));
+      const labels = [...menu.querySelectorAll('.sui-lbl')].map((n) => n.textContent);
+      // Convert… and AI give up their place in a full header (shared/ui/hbtn.js): the menu then offers them first
+      const moved = [['.sh-ai', 'Ask Slop AI…'], ['.sh-convert', 'Convert files…'], ['.sh-lang', 'Language…']].filter(([s]) => D.querySelector(s) && D.querySelector(s).hidden).map(([, l]) => l);
+      expect(labels).toEqual(moved.concat(['System'], themeNames(EN)));
+      expect(menu.querySelectorAll('[aria-checked="true"]').length).toBe(1);
+      expect(b.getAttribute('aria-expanded')).toBe('true');
+      [...menu.querySelectorAll('.sui-row')].find((r) => r.textContent.includes('Dark')).click();
+      expect(D.documentElement.getAttribute('data-slop-theme')).toBe('dark');
+      await waitFor(() => b.getAttribute('aria-expanded') === 'false');
+      // the theme names are chrome keys (shell.theme_<id>): in Swedish the menu, built on open, reads Swedish
+      const swapped = new Promise((ok) => W.addEventListener('slopi18n', ok, { once: true }));
+      W.SlopI18n.set('sv'); await swapped;
+      b.click();
+      const sv = await waitFor(() => D.querySelector('.sui-menu'));
+      const svLabels = [...sv.querySelectorAll('.sui-lbl')].map((n) => n.textContent);
+      expect(svLabels.slice(-BRAND_FACTS.themes.length)).toEqual(themeNames(SV));
+      D.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      W.SlopI18n.set('en');
+      W.SlopTheme.set(before);
+      f.remove();
+    }, { timeout: 40000 });
+  });
+  describe('Tutorial', () => {
+    const boot = async (app) => {
+      const f = document.createElement('iframe');
+      f.style.width = '1400px'; f.style.height = '800px';
+      f.src = `../../${app}/index.html`;
+      document.body.append(f);
+      await waitFor(() => f.contentDocument && f.contentDocument.querySelector('.sh-switch'), { timeout: 30000 });
+      return f;
+    };
+    it('an app with a video tutorial links it in the header and plays it in a dialog on a click; an app without one has no link', async () => {
+      if (!BRAND_FACTS.media) {   // a build without media has no tutorials: no link in any header
+        const f = await boot('pdf');
+        expect(f.contentDocument.querySelector('header .sh-tutorial')).toBe(null);
+        return f.remove();
+      }
+      const pdf = await boot('pdf'), a = pdf.contentDocument.querySelector('header .sh-tutorial');
+      expect([a.getAttribute('href'), a.target, a.rel]).toEqual(['https://www.youtube.com/watch?v=sLjcd23fOhw', '_blank', 'noopener']);
+      expect(a.getAttribute('aria-label')).toBe('Watch the Slop PDF video tutorial');
+      expect(a.getBoundingClientRect().width > 0).toBe(true);
+      // a plain click plays it in a dialog on the page (privacy-enhanced player), and nothing navigates away
+      const D = pdf.contentDocument;
+      expect(D.querySelector('iframe[src*="youtube"]')).toBe(null);   // nothing from YouTube before the click
+      a.dispatchEvent(new pdf.contentWindow.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+      await waitFor(() => D.querySelector('.svid-dlg iframe'), { timeout: 5000 });
+      const ifr = D.querySelector('.svid-dlg iframe');
+      expect(ifr.src.startsWith('https://www.youtube-nocookie.com/embed/sLjcd23fOhw?')).toBe(true);
+      expect(D.querySelector('.svid-dlg .sui-title').textContent).toBe('Slop PDF tutorial');
+      expect(D.querySelector('.svid-dlg .svid-note a').href).toBe('https://www.youtube.com/watch?v=sLjcd23fOhw');
+      D.querySelector('.svid-dlg .sui-x').click();
+      await waitFor(() => !D.querySelector('.svid-dlg'), { timeout: 3000 });   // closing removes the player, so it stops
+      // a Ctrl+click is left to the browser (a new tab on YouTube): no dialog
+      const ctrl = new pdf.contentWindow.MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true });
+      pdf.contentWindow.addEventListener('click', (e) => e.preventDefault(), { once: true });   // after the page's handler: keep the test from opening a tab
+      a.dispatchEvent(ctrl);
+      await sleep(100);
+      expect(D.querySelector('.svid-dlg')).toBe(null);
+      pdf.remove();
+      const phone = await boot('pdf');
+      phone.style.width = '390px';
+      await sleep(300);
+      expect(phone.contentWindow.getComputedStyle(phone.contentDocument.querySelector('.sh-tutorial')).display).toBe('none');   // gives way on phones
+      phone.remove();
+      const notes = await boot('notes');
+      expect(notes.contentDocument.querySelector('.sh-tutorial')).toBe(null);
+      notes.remove();
+    }, { timeout: 60000 });
+  });
+  run();
+  </script>
+</body>
+</html>

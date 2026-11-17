@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared outtake: one Open in… for every app</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="../../shared/profile/profile.js"></script>
+<script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+<script src="../../shared/slopui.js"></script>
+<script src="../../shared/apps.js"></script>
+<script src="../../shared/hub.js"></script>
+<script src="../../shared/intake/outtake.js"></script>
+<script src="../../shared/ops/entry.js"></script>
+<script>
+  // Covers: shared/intake/outtake.js, shared/hub.js, shared/ops/entry.js
+  // The one outbound builder: every registry app that takes the type, the handovers apps register (first, and standing in
+  // for that app's plain item), the items shared features add, the 'slop:outtake' event, Save to Slop Drive…, the menu
+  // and the toolbar button; SlopHub.openIn and sendMenuItems are the same builder. sendTo and saveToDrive are stubbed.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const H = window.SlopHub, O = window.SlopOuttake;
+  const sent = [];
+  H.sendTo = async (to, blob, name) => { sent.push([to, name, blob.size]); return 'id-' + to; };
+  H.saveToDrive = async (blob, name) => { sent.push(['drive', name]); return 'saved'; };
+  const png = () => new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' });
+  const out = (extra) => Object.assign({ from: 'cutout', get: png, name: 'cut.png', type: 'image/png' }, extra);
+  const labels = (items) => items.map((i) => (i === '-' ? '-' : i.label));
+  const takers = () => H.appsAccepting('image/png').filter((a) => a.id !== 'cutout' && a.id !== 'workflows');
+
+  describe('the items', () => {
+    it('lists every app that takes the type, then Save to Slop Drive…', () => {
+      const l = labels(O.items(out()));
+      expect(takers().length > 1).toBe(true);
+      for (const a of takers()) expect(l).toContain('Open in ' + a.name);
+      expect(l[l.length - 1]).toBe('Save to Slop Drive…');
+      expect(l).not.toContain('Open in ' + H.appById('cutout').name);
+    });
+    it('an app item sends the file through Slop Drive and fires slop:outtake (sent)', async () => {
+      const ev = [];
+      const h = (e) => ev.push(e.detail);
+      document.addEventListener('slop:outtake', h);
+      const a = takers()[0];
+      sent.length = 0;
+      await O.items(out()).find((i) => i.label === 'Open in ' + a.name).act();
+      document.removeEventListener('slop:outtake', h);
+      expect(sent[0]).toEqual([a.id, 'cut.png', 4]);
+      const s = ev.find((d) => d.phase === 'sent');
+      expect([s.from, s.to, s.id]).toEqual(['cutout', a.id, 'id-' + a.id]);
+    });
+    it('a handover is listed first and stands in for the plain item of its app (replaces)', async () => {
+      const ran = [];
+      const off = O.handover({ from: 'cutout', to: 'photoslop', types: ['image/*'], replaces: true, label: 'Send to PhotoSlop as a layer', run: async (ctx) => { ran.push(ctx.name()); } });
+      const l = labels(O.items(out()));
+      expect(l[0]).toBe('Send to PhotoSlop as a layer');
+      expect(l).not.toContain('Open in PhotoSlop');
+      await O.items(out()).find((i) => i.label === 'Send to PhotoSlop as a layer').act();
+      expect(ran).toEqual(['cut.png']);
+      expect(labels(O.items(out({ from: 'gallery' })))).not.toContain('Send to PhotoSlop as a layer'); // only for its own app
+      off();
+      expect(labels(O.items(out()))).toContain('Open in PhotoSlop');
+    });
+    it('shared features add items (extend, and the slop:outtake items event)', () => {
+      const off = O.extend((ctx) => ({ label: 'Add to a workflow… (' + ctx.type + ')', act() {} }));
+      const h = (e) => { if (e.detail.phase === 'items') e.detail.add({ label: 'Run a workflow…', act() {} }); };
+      document.addEventListener('slop:outtake', h);
+      const l = labels(O.items(out()));
+      document.removeEventListener('slop:outtake', h);
+      off();
+      expect(l).toContain('Add to a workflow… (image/png)');
+      expect(l).toContain('Run a workflow…');
+      expect(l.indexOf('Run a workflow…') < l.indexOf('Save to Slop Drive…')).toBe(true);
+    });
+  });
+
+  describe('Slop Workflows, one way', () => {
+    it('its entry gives Run a workflow… and Add to a workflow… once, in place of Open in Slop Workflows', async () => {
+      const l = labels(O.items(out()));
+      expect(l.filter((x) => x === 'Run a workflow…').length).toBe(1);
+      expect(l.filter((x) => x === 'Add to a workflow…').length).toBe(1);
+      expect(l).not.toContain('Open in Slop Workflows');
+      sent.length = 0;
+      await O.items(out()).find((i) => i.label === 'Add to a workflow…').act();
+      expect(sent[0][0]).toBe('workflows');
+      expect(sent[0][1]).toBe('cut.png');
+    });
+  });
+
+  describe('one builder for every menu', () => {
+    it('SlopHub.openIn is the builder, and sendMenuItems (the older call) is too: Send to …, Save only with folder', () => {
+      expect(labels(H.openIn(out()))).toEqual(labels(O.items(out())));
+      const old = labels(H.sendMenuItems(png, 'x.png', 'image/png'));
+      expect(old.filter((x) => !/workflow/.test(x)).every((x) => x.startsWith('Send to '))).toBe(true);
+      expect(old).toContain('Run a workflow…');
+      expect(labels(H.sendMenuItems(png, 'x.png', 'image/png', { folder: true }))).toContain('Save to Slop Drive…');
+    });
+    it('the toolbar button opens the same items in a menu', async () => {
+      const b = O.button(out(), { label: 'Open in…' });
+      document.body.append(b);
+      b.click();
+      const menu = await waitFor(() => document.querySelector('.sui-menu'));
+      expect(menu.textContent).toContain('Save to Slop Drive…');
+      expect(menu.textContent).toContain('Open in ' + takers()[0].name);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      b.remove();
+    });
+  });
+  run({ name: 'Shared outtake' });
+</script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mascot slot · the profile's size, and roaming the page</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- Covers: shared/mascot/roam.js, shared/mascot/slot.js, shared/mascot/ui.js, shared/mascot/interact.js, shared/roam/path.js, shared/roam/spots.js, brand/profiles/overlays/acme/mascot.js -->
+  <!-- The slot with the sample overlay in roam-fixture.html, in frames of a desktop's and a phone's width: the profile's
+       size (mascot.size) at each, roaming (mascot.roam) that moves it over time inside the window and off controls,
+       content and [data-mascot-avoid], holds still for keys and parks on a press, lives on the page while the person
+       scrolls (scrolls away with the content, then floats after them back into view to a clear spot; a long scroll
+       catches up quickly), and stays docked with reduced motion, on a phone and without the option. It moves by transform only: no layout shift. -->
+  <script src="../harness.js"></script>
+  <script type="module">
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  /** Opens the fixture in a frame w x h with a query; resolves to its window once the mascot shows. */
+  async function open(w, h, query) {
+    const f = document.createElement('iframe');
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    f.src = 'roam-fixture.html?' + query;
+    document.body.prepend(f);
+    await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    const win = f.contentWindow;
+    await waitFor(() => win.slotReady && win.MascotSlot, { timeout: 10000 });
+    return win;
+  }
+  const close = (win) => win.frameElement.remove();
+  const dockOf = (win) => win.document.querySelector('.mascot-slot');
+  const box = (el) => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+  const overlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+  const roamOf = (win) => win.MascotSlot.parts().roam;
+  /** Starts a trip now and waits for it to end; returns whether one started. */
+  async function trip(win) {
+    const R = roamOf(win);
+    if (!R.next()) return false;
+    let travel = '';
+    await waitFor(() => { const s = R.state(); travel = travel || win.document.querySelector('.mascot-slot [data-anim]').dataset.travel; return !s.travelling; }, { timeout: 9000, step: 30 });
+    return { travel };
+  }
+  /** The dock is inside the window below the header, and off every control, the text and the no-go area. */
+  function placed(win) {
+    const d = box(dockOf(win)), doc = win.document;
+    expect(d.l >= 0 && d.t >= doc.querySelector('header').getBoundingClientRect().bottom && d.r <= win.innerWidth && d.b <= win.innerHeight).toBe(true);
+    expect(overlap(d, box(doc.getElementById('nogo')))).toBe(false);
+    for (const el of doc.querySelectorAll('button:not(.mascot-slot), input, h1, h2, p')) expect(overlap(d, box(el))).toBe(false);
+  }
+
+  describe('the size the profile asks for', () => {
+    it('on a desktop: its height in px, the overlay drawn at that size', async () => {
+      const win = await open(1440, 800, 'size=200,64');
+      expect(dockOf(win).offsetHeight).toBe(200);
+      expect(dockOf(win).offsetWidth).toBe(Math.round(200 * 112 / 136));
+      expect(win.getComputedStyle(win.document.querySelector('.ms-stage')).height).toBe('200px');
+      close(win);
+    });
+    it('on a phone: the phone size', async () => {
+      const win = await open(390, 760, 'size=200,64');
+      expect(dockOf(win).offsetHeight).toBe(64);
+      close(win);
+    });
+    it('without one: today\'s size, and it stays where it is put', async () => {
+      const win = await open(1440, 800, '');
+      expect(dockOf(win).offsetHeight).toBe(136);
+      expect(roamOf(win).state().enabled).toBe(false);
+      expect(roamOf(win).next()).toBe(false);
+      close(win);
+    });
+  });
+
+  describe('roaming (float)', () => {
+    let win;
+    it('travels to clear spots over time, inside the window, off controls, content and the no-go area', async () => {
+      win = await open(1440, 800, 'size=200,64&roam=float');
+      expect(roamOf(win).state().enabled).toBe(true);
+      await waitFor(() => roamOf(win).state().off.x !== 0 || roamOf(win).state().off.y !== 0, { timeout: 12000 });   // on its own: out of the no-go area
+      await waitFor(() => !roamOf(win).state().travelling, { timeout: 9000 });
+      placed(win);
+      const seen = new Set();
+      for (let i = 0; i < 4; i++) {
+        const r = await trip(win);
+        expect(!!r).toBe(true);
+        expect(r.travel !== '').toBe(true);                       // the overlay hears the travel
+        placed(win);
+        const s = roamOf(win).state().off; seen.add(s.x + ',' + s.y);
+      }
+      expect(seen.size >= 2).toBe(true);
+      const R = roamOf(win), d = box(dockOf(win)), dir = d.l < win.innerWidth / 2 ? 1 : -1;
+      expect(R.to(d.l + dir * 320, d.t)).toBe(true);              // a trip sideways: it leans into the way it goes
+      let lean = 0;
+      await waitFor(() => { const s = R.state(); if (Math.abs(s.lean) > Math.abs(lean)) lean = s.lean; return !s.travelling; }, { timeout: 9000, step: 20 });
+      expect(Math.sign(lean)).toBe(dir);
+      expect(Math.abs(lean) > 1).toBe(true);
+      expect(dockOf(win).style.transform).toMatch(/translate/);
+    });
+    it('bobs gently at rest and moves by transform only: no layout shift', async () => {
+      const stage = win.document.querySelector('.ms-stage'), seen = new Set();
+      for (let i = 0; i < 10; i++) { seen.add(stage.style.translate); await sleep(120); }
+      expect(seen.size > 1).toBe(true);
+      expect(win.__cls).toBe(0);
+    });
+    it('a key holds it still where it is', async () => {
+      const R = roamOf(win);
+      expect(R.next()).toBe(true);
+      await sleep(200);
+      win.document.querySelector('input').dispatchEvent(new win.KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+      await sleep(100);
+      expect(R.state().travelling).toBe(false);
+      expect(R.state().paused).toBe(true);
+      const a = box(dockOf(win));
+      await sleep(400);
+      expect(Math.abs(box(dockOf(win)).l - a.l) < 8).toBe(true);
+    });
+    it('the pointer going for a control beside it sends it out of the way', async () => {
+      expect(await trip(win)).toBeTruthy();                      // a trip clears the key's pause; it then rests a while
+      const d = box(dockOf(win)), b = win.document.createElement('button');
+      b.textContent = 'x';
+      Object.assign(b.style, { position: 'fixed', left: (d.l - 25) + 'px', top: (d.t + 20) + 'px', width: '30px', height: '30px', zIndex: 1 });
+      win.document.body.append(b);
+      const x = d.l - 10, y = d.t + 35;
+      win.dispatchEvent(new win.PointerEvent('pointermove', { pointerType: 'mouse', clientX: x, clientY: y, bubbles: true }));
+      expect(roamOf(win).state().travelling).toBe(true);
+      await waitFor(() => !roamOf(win).state().travelling, { timeout: 9000 });
+      const n = box(dockOf(win));
+      expect(n.l <= x && x <= n.r && n.t <= y && y <= n.b).toBe(false);
+      b.remove();
+    });
+    it('a press parks it where it floats, without a jump', async () => {
+      const before = box(dockOf(win)), d = dockOf(win);
+      d.dispatchEvent(new win.PointerEvent('pointerdown', { pointerType: 'mouse', clientX: before.l + 20, clientY: before.t + 20, pointerId: 3, button: 0, bubbles: true }));
+      d.dispatchEvent(new win.PointerEvent('pointerup', { pointerType: 'mouse', clientX: before.l + 20, clientY: before.t + 20, pointerId: 3, button: 0, bubbles: true }));
+      const s = roamOf(win).state();
+      expect(s.parked).toBe(true);
+      expect(s.off).toEqual({ x: 0, y: 0 });
+      await sleep(300);
+      const after = box(dockOf(win));
+      expect(Math.abs(after.l - before.l) < 8 && Math.abs(after.t - before.t) < 8).toBe(true);
+      close(win);
+    });
+  });
+
+  /** The dock's top in page coordinates. */
+  const pageTop = (win) => box(dockOf(win)).t + win.scrollY;
+  const out = (win) => { const d = box(dockOf(win)); return d.b <= 0 || d.t >= win.innerHeight || d.r <= 0 || d.l >= win.innerWidth; };
+  /** Scrolls by dy in steps (a step every ms) and checks each frame that its place on the page holds. */
+  async function scrollSteps(win, dy, steps, ms) {
+    const top = pageTop(win);
+    for (let i = 0; i < steps; i++) {
+      win.scrollBy(0, dy / steps);
+      await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(r)));
+      expect(Math.abs(pageTop(win) - top) < 3).toBe(true);
+      expect(roamOf(win).state().following).toBe(false);
+      await sleep(ms);
+    }
+  }
+  /** Waits for the way back after a scroll; resolves to { wait, trip } (ms from the last scroll to the start, and its length). */
+  async function backIntoView(win, since) {
+    const R = roamOf(win);
+    await waitFor(() => R.state().following, { timeout: 4000, step: 15 });
+    const start = performance.now();
+    await waitFor(() => !R.state().travelling, { timeout: 4000, step: 15 });
+    return { wait: start - since, trip: performance.now() - start };
+  }
+
+  describe('it lives on the page while the person scrolls (float)', () => {
+    let win;
+    it('during a scroll it stays where it was on the page: it scrolls away with the content', async () => {
+      win = await open(1440, 800, 'size=200,64&roam=float');
+      const R = roamOf(win);
+      await waitFor(() => R.state().off.x !== 0 || R.state().off.y !== 0, { timeout: 12000 });
+      await waitFor(() => !R.state().travelling, { timeout: 9000 });
+      expect(R.next()).toBe(true);                              // a roaming trip: the scroll cuts it short where it is
+      await sleep(250);
+      const a = box(dockOf(win));
+      await scrollSteps(win, 900, 6, 80);
+      expect(R.state().away).toBe(true);
+      expect(R.state().travelling).toBe(false);
+      expect(box(dockOf(win)).t < a.t - 800).toBe(true);        // its screen place went up with the content
+    });
+    it('once the scroll is quiet it floats back into the window, to a clear spot', async () => {
+      const since = performance.now();
+      await sleep(350);
+      expect(roamOf(win).state().following).toBe(false);       // not while the scroll may go on
+      const r = await backIntoView(win, since);
+      expect(r.wait > 500 && r.wait < 1600).toBe(true);
+      expect(r.trip < 2200).toBe(true);
+      expect(roamOf(win).state().away).toBe(false);
+      placed(win);
+      expect(win.__cls).toBe(0);
+    });
+    it('a long fast scroll: it catches up from just past the edge, in a quick trip', async () => {
+      win.scrollTo(0, 3100);
+      const since = performance.now();
+      await waitFor(() => roamOf(win).state().following, { timeout: 4000, step: 10 });
+      expect(box(dockOf(win)).t > -dockOf(win).offsetHeight - 60).toBe(true);
+      await waitFor(() => !roamOf(win).state().travelling, { timeout: 4000, step: 15 });
+      expect(performance.now() - since < 3200).toBe(true);
+      placed(win);
+    });
+    it('a scroll that goes on: it never stays out of the window for long', async () => {
+      let outFor = 0, longest = 0, followed = false, prev = performance.now();
+      for (let i = 0; i < 70; i++) {                            // up the page about 900 px a second for 3.5 s
+        win.scrollBy(0, -45);
+        await sleep(50);
+        const t = performance.now();
+        outFor = out(win) ? outFor + (t - prev) : 0;
+        longest = Math.max(longest, outFor);
+        followed = followed || roamOf(win).state().following;
+        prev = t;
+      }
+      expect(followed).toBe(true);
+      expect(longest < 2600).toBe(true);
+    });
+    it('a key still holds it: it follows only after the typing pause', async () => {
+      await waitFor(() => !roamOf(win).state().travelling && !roamOf(win).state().away, { timeout: 6000 });
+      win.document.querySelector('input').dispatchEvent(new win.KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+      win.scrollBy(0, 900);
+      await sleep(1300);
+      expect(roamOf(win).state().paused).toBe(true);
+      expect(roamOf(win).state().away).toBe(true);
+      expect(roamOf(win).state().following).toBe(false);
+      await waitFor(() => roamOf(win).state().following, { timeout: 3000, step: 15 });
+      await waitFor(() => !roamOf(win).state().travelling, { timeout: 4000 });
+      placed(win);
+      close(win);
+    });
+  });
+
+  describe('it stays docked', () => {
+    it('with reduced motion', async () => {
+      const win = await open(1440, 800, 'size=200,64&roam=float&reduce=1');
+      expect(roamOf(win).next()).toBe(false);
+      const a = box(dockOf(win));
+      win.scrollBy(0, 600);
+      await sleep(1500);
+      expect(box(dockOf(win))).toEqual(a);                      // pinned to the window, even across a scroll
+      expect(dockOf(win).style.transform).toBe('');
+      close(win);
+    });
+    it('on a phone', async () => {
+      const win = await open(390, 760, 'size=200,64&roam=float');
+      expect(roamOf(win).state().enabled).toBe(false);
+      expect(roamOf(win).next()).toBe(false);
+      const a = box(dockOf(win));
+      win.scrollBy(0, 600);
+      await sleep(900);
+      expect(box(dockOf(win))).toEqual(a);
+      expect(dockOf(win).style.transform).toBe('');
+      close(win);
+    });
+    it('the hop style travels too (the buddy\'s arc)', async () => {
+      const win = await open(1440, 800, 'roam=hop');
+      expect(roamOf(win).state().style).toBe('hop');
+      await waitFor(() => !roamOf(win).state().travelling, { timeout: 9000 });
+      const r = await trip(win);
+      expect(!!r).toBe(true);
+      placed(win);
+      await scrollSteps(win, 900, 3, 60);                       // it scrolls away with the page, then hops back
+      await backIntoView(win, performance.now());
+      placed(win);
+      close(win);
+    });
+  });
+
+  SlopTest.run();
+  </script>
+</body>
+</html>

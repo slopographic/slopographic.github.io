@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhotoSlop effect presets tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../photoslop/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Shared effect presets in PhotoSlop: a layer effect is saved as a preset (kept in Slop Drive) and applied to another
+  // layer as one undo step; the picker lists the built-ins; an exported preset imports back as a new one.
+  const { describe, it, expect, waitFor } = SlopTest;
+  let win, W;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  describe('Effect presets: PhotoSlop layers', () => {
+    it('boots with the presets library and Slop Drive', async () => {
+      const frame = document.getElementById('app');
+      await waitFor(() => frame.contentWindow && frame.contentWindow.document && frame.contentWindow.document.body && frame.contentWindow.document.body.classList.contains('ready'), { timeout: 30000 });
+      win = frame.contentWindow;
+      W = new Proxy({}, { get: (_, k) => win.eval(String(k)) });
+      expect(typeof W.fxPresetSave).toBe('function');
+      expect(typeof win.SlopPresets.list).toBe('function');
+      await waitFor(() => win.SlopPresets.isLoaded(), { timeout: 10000 });
+      expect(win.SlopPresets.list({ kind: 'effect', app: 'photoslop' }).some((p) => p.id === 'soft-shadow')).toBe(true);
+    }, { timeout: 40000 });
+
+    it('saves a layer effect as a preset, applies it to another layer in one undo step, and keeps it in Slop Drive', async () => {
+      W.newDocTab(300, 200, '#ffffff', 'Presets'); W.selectTool('move');
+      const c = W.mkCanvas(300, 200), g = W.cx(c); g.fillStyle = '#000'; g.fillRect(60, 40, 180, 120);
+      W.addLayer({ name: 'Source', canvas: c }, 'Add Source');
+      const src = W.activeLayer();
+      W.setFxStack(src.id, [{ id: W.uid(), type: 'shadow', on: true, p: W.fxDefaults('shadow') }], 'Add Shadow');
+      W.addLayer({ name: 'Target', canvas: W.mkCanvas(300, 200) }, 'Add Target');
+      const dst = W.activeLayer();
+      expect(!dst.fx || dst.fx.length === 0).toBe(true);
+
+      const saved = await W.fxPresetSave(src.id, 'Test shadow', 'Saved by the browser test');
+      expect(saved.ok).toBe(true);
+      expect(saved.record.kind).toBe('effect');
+      expect(saved.record.apps.join(',')).toBe('photoslop');
+      expect(saved.record.params.effects[0].type).toBe('drop-shadow');
+
+      const before = W.Hist.idx;
+      const r = W.fxPresetApply(dst.id, win.SlopPresets.get(saved.id));
+      expect(r.added).toBe(1);
+      expect(r.skipped).toBe(0);
+      const after = W.D.layers.find((l) => l.id === dst.id);
+      expect(after.fx.length).toBe(1);
+      expect(after.fx[0].type).toBe('shadow');
+      const now = W.D.layers.find((l) => l.id === src.id);
+      expect(JSON.stringify(after.fx[0].p)).toBe(JSON.stringify(now.fx[0].p));
+      expect(W.Hist.idx).toBe(before + 1);
+      expect(W.Hist.states[W.Hist.idx].label).toBe('Apply Preset: Test shadow');
+      W.undo();
+      expect(!W.D.layers.find((l) => l.id === dst.id).fx?.length).toBe(true);
+
+      const drive = await win.SlopHub.list({ accept: 'application/json' });
+      const mine = drive.find((f) => f.meta && f.meta.type === 'preset' && f.name === 'Test shadow.slop.json');
+      expect(!!mine).toBe(true);
+      expect(mine.meta.kind).toBe('effect');
+    });
+
+    it('a preset file exports and imports back as a new preset; a broken one is refused', async () => {
+      const saved = await W.fxPresetSave(W.activeLayer().id, 'Round trip', '');
+      expect(saved.ok).toBe(false, 'the active layer has no effects here, so nothing is saved');
+      const src = W.D.layers.find((l) => l.fx && l.fx.length);
+      const again = await W.fxPresetSave(src.id, 'Round trip', '');
+      expect(again.ok).toBe(true);
+      const text = win.SlopPresets.exportText(again.id);
+      const imp = await win.SlopPresets.importText(text);
+      expect(imp.ok).toBe(true);
+      expect(imp.id === again.id).toBe(false);
+      expect(win.SlopPresets.get(imp.id).label).toBe('Round trip');
+      const bad = await win.SlopPresets.importText(text.replace('"op": ', '"op": 999, "x": '));
+      expect(bad.ok).toBe(false);
+    });
+
+    it('the picker lists built-in and personal presets, and closes', async () => {
+      W.fxPresetPick(W.activeLayer().id);
+      await sleep(20);
+      const rows = [...win.document.querySelectorAll('.sp-list .sp-row')];
+      expect(rows.length >= 10).toBe(true);
+      expect(rows.some((r) => r.textContent.includes('Soft shadow'))).toBe(true);
+      expect(rows.some((r) => r.textContent.includes('Built-in'))).toBe(true);
+      expect(rows.some((r) => r.textContent.includes('Mine'))).toBe(true);
+      win.document.querySelector('.sui-back:not(.sui-out) .sui-x').click();
+      await sleep(200);
+      expect(win.document.querySelectorAll('.sp-list').length).toBe(0);
+    });
+  });
+  SlopTest.run({ name: 'PhotoSlop effect presets' });
+  </script>
+</body>
+</html>

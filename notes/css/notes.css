@@ -1,0 +1,156 @@
+/* Slop Notes: colours come from the shared Slop theme (--sl-* set by shared/theme/theme.js); the fallbacks are the Dark look.
+ * The layout is below: the three-pane layout, the note list, the editor and the preview.
+ * Wide (900 px and up): notebooks | notes | editor. Phone (390 px): one pane at a time, chosen by data-pane. */
+:root {
+  --nt-bg: var(--sl-background, #0e0e10); --nt-panel: var(--sl-surface, #17171b); --nt-line: var(--sl-border, #2c2c34);
+  --nt-fg: var(--sl-text, #f1ede4); --nt-dim: color-mix(in srgb, var(--nt-fg) 75%, transparent); --nt-faint: color-mix(in srgb, var(--nt-fg) 65%, transparent);
+  --nt-accent: var(--sl-accent, #d4ff3a); --nt-hover: color-mix(in srgb, var(--nt-fg) 7%, transparent);
+  --nt-on: color-mix(in srgb, var(--nt-accent) 14%, transparent); --nt-ink: var(--sl-on-accent, #10180a);
+  --nt-danger: #ff7b7b; --nt-code: color-mix(in srgb, var(--nt-fg) 8%, var(--nt-panel));
+  --nt-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --nt-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+:root[data-slop-theme="light"], :root[data-slop-theme="classic"] {
+  --nt-danger: #b3261e;
+  color-scheme: light;
+}
+/* SlopUI dialogs, menus and toasts follow the Notes tokens (the shared --s-* fallbacks are fixed greys) */
+:root {
+  --sui-bg: var(--nt-panel); --sui-bg2: var(--nt-bg); --sui-input: var(--nt-bg); --sui-line: var(--nt-line);
+  --sui-fg: var(--nt-fg); --sui-dim: var(--nt-dim); --sui-faint: var(--nt-faint); --sui-hover: var(--nt-hover);
+  --sui-sel: var(--nt-on); --sui-accent: var(--nt-accent); --sui-accent-ink: var(--nt-ink);
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--nt-bg); color: var(--nt-fg); font: 14px/1.4 var(--nt-sans); overflow: hidden; }
+button, input, textarea { font: inherit; color: inherit; }
+
+/* layout */
+.nt-app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.nt-top { grid-column: 1 / -1; grid-row: 1; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--nt-line); background: var(--nt-panel); min-width: 0; }
+/* The menu bar (shared/menubar) holds New note; it is as tall as the shared header buttons (shared/ui/hbtn.css), and
+ * those take the look of the SlopUI buttons. */
+.smb-bar { --slop-hbtn-h: 32px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: var(--nt-panel); --slop-hbtn-line: var(--nt-line); --slop-hbtn-hover: var(--nt-hover); }
+.smb-tools .sui-btn { height: var(--slop-hbtn-h); }
+.nt-save { color: var(--nt-faint); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-save[data-state="error"] { color: var(--nt-danger); }
+.nt-bar .sui-btn { white-space: nowrap; }
+.nt-narrow { display: inline-flex; align-items: center; }
+.nt-side, .nt-list, .nt-main { grid-row: 2; min-width: 0; min-height: 0; }
+.nt-side, .nt-list { display: flex; flex-direction: column; background: var(--nt-panel); }
+.nt-side { overflow: auto; padding-bottom: 12px; }
+.nt-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; background: var(--nt-bg); }
+.nt-list { border-right: 1px solid var(--nt-line); }
+.nt-side { border-right: 1px solid var(--nt-line); }
+/* Phone only: the notes list or the editor, one at a time, and the notebooks as a drawer over them (shared/ui/sheet.js,
+ * attached in js/main.js). On desktop every pane stays visible whatever data-pane says. */
+@media (max-width: 899px) {
+  .nt-app[data-pane="list"] .nt-main, .nt-app[data-pane="editor"] .nt-list { display: none; }
+  .nt-side { --ssh-z: 950; }   /* over the sticky menu bar (900) */
+  .nt-app > .nt-side, .nt-app > .nt-list, .nt-app > .nt-main { grid-column: 1; }
+}
+
+/* sidebar */
+.nt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 4px; color: var(--nt-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.nt-mini { font-size: 12px; padding: 3px 8px; }
+.nt-books, .nt-folders { display: flex; flex-direction: column; gap: 2px; padding: 0 6px; }
+.nt-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; border: 0; background: none; text-align: left; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.nt-item:hover, .nt-item:focus-visible, .nt-tag:hover { background: var(--nt-hover); outline: none; }
+.nt-item.on { background: var(--nt-on); color: var(--nt-accent); }
+.nt-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-count { color: var(--nt-faint); font-size: 12px; flex: none; }
+.nt-hint { margin: 2px 12px 6px; color: var(--nt-faint); font-size: 12px; }
+.nt-tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
+.nt-tag { border: 1px solid var(--nt-line); background: none; border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer; }
+.nt-tag.on { background: var(--nt-on); border-color: var(--nt-accent); color: var(--nt-accent); }
+
+/* note list */
+.nt-search { padding: 10px 10px 4px; }
+.nt-search input { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--nt-line); border-radius: 8px; background: var(--nt-bg); }
+.nt-crumb { margin: 4px 12px 6px; color: var(--nt-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-notes:empty { display: none; }   /* the "no notes" line then sits under the search, not at the bottom */
+.nt-notes { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 6px 12px; }
+.nt-note { display: flex; flex-direction: column; gap: 3px; width: 100%; border: 0; background: none; text-align: left; padding: 9px 10px; border-radius: 8px; cursor: pointer; min-width: 0; }
+.nt-note:hover, .nt-note:focus-visible { background: var(--nt-hover); outline: none; }
+.nt-note.on { background: var(--nt-on); }
+.nt-note-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nt-note-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.nt-pin { color: var(--nt-accent); }
+.nt-note-snip { color: var(--nt-dim); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-note-meta { color: var(--nt-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-none, .nt-empty { margin: 24px 16px; color: var(--nt-faint); }
+
+/* editor */
+.nt-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 8px; padding: 10px 14px 14px; box-sizing: border-box; }
+.nt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nt-bar .nt-seg { margin-left: auto; display: flex; gap: 0; }
+.nt-seg .sui-btn { border-radius: 0; }
+.nt-seg .sui-btn:first-child { border-radius: 6px 0 0 6px; }
+.nt-seg .sui-btn:last-child { border-radius: 0 6px 6px 0; }
+.nt-seg [aria-pressed="true"] { background: var(--nt-on); color: var(--nt-accent); }
+.nt-danger { color: var(--nt-danger); }
+.nt-title { border: 0; background: none; font: 700 24px/1.25 var(--nt-sans); padding: 4px 0; outline: none; min-width: 0; }
+.nt-tagsin { border: 0; border-bottom: 1px solid var(--nt-line); background: none; padding: 4px 0; color: var(--nt-dim); outline: none; min-width: 0; }
+.nt-panes { flex: 1; min-height: 240px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.nt-panes[data-mode="write"] .nt-preview, .nt-panes[data-mode="preview"] .nt-body { display: none; }
+.nt-panes[data-mode="preview"] { grid-template-columns: minmax(0, 1fr); }
+.nt-panes[data-mode="write"] { grid-template-columns: minmax(0, 1fr); }
+.nt-body { width: 100%; height: 100%; min-height: 240px; box-sizing: border-box; border: 1px solid var(--nt-line); border-radius: 8px; padding: 12px; resize: none; background: var(--nt-panel); font: 14px/1.6 var(--nt-mono); outline: none; }
+.nt-body:focus { border-color: var(--nt-accent); }
+.nt-preview { border: 1px solid var(--nt-line); border-radius: 8px; padding: 12px 16px; overflow: auto; min-width: 0; overflow-wrap: anywhere; }
+.nt-empty { margin: auto; text-align: center; }
+
+/* rendered Markdown (preview and export share the look) */
+.md { font: 16px/1.6 var(--nt-sans); }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { line-height: 1.25; margin: 1em 0 .4em; }
+.md h1 { font-size: 1.6em; } .md h2 { font-size: 1.35em; } .md h3 { font-size: 1.15em; }
+.md p, .md ul, .md ol, .md blockquote, .md pre { margin: .6em 0; }
+.md code { font: .9em var(--nt-mono); background: var(--nt-code); padding: .1em .3em; border-radius: 4px; }
+.md pre.md-code { background: var(--nt-code); padding: 10px 12px; border-radius: 8px; overflow: auto; }
+.md pre.md-code code { background: none; padding: 0; }
+.md blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--nt-line); color: var(--nt-dim); }
+.md a { color: var(--nt-accent); }
+.md img { max-width: 100%; }
+.md hr { border: 0; border-top: 1px solid var(--nt-line); margin: 1.2em 0; }
+.md li input { margin-right: 6px; }
+
+/* phone: one pane at a time, and the notes list uses the whole width */
+@media (max-width: 899px) {
+  .nt-app { grid-template-columns: minmax(0, 1fr); }
+  .nt-app > .nt-side, .nt-app > .nt-list, .nt-app > .nt-main { grid-column: 1; }
+  .nt-side, .nt-list { border-right: 0; }
+  .nt-panes { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .nt-panes[data-mode="split"] .nt-body { min-height: 36vh; }
+  .nt-panes[data-mode="split"] .nt-preview { min-height: 30vh; }
+  .nt-bar .nt-seg { margin-left: 0; }
+  .nt-save { flex-basis: 100%; order: 3; }
+}
+@media (min-width: 900px) {
+  .nt-app { grid-template-columns: 220px 300px minmax(0, 1fr); }
+  .nt-top { grid-column: 1 / -1; grid-row: 1; }
+  .nt-side { grid-column: 1; grid-row: 2; }
+  .nt-list { grid-column: 2; grid-row: 2; }
+  .nt-main { grid-column: 3; grid-row: 2; }
+  .nt-app > .nt-top { grid-column: 1 / -1; }
+  .nt-side { grid-column: 1; }
+  .nt-list { grid-column: 2; }
+  .nt-main { grid-column: 3; }
+  .nt-narrow { display: none; }
+  .nt-app .nt-side, .nt-app .nt-list, .nt-app .nt-main { display: flex !important; }
+  .nt-panes { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .nt-panes[data-mode="write"], .nt-panes[data-mode="preview"] { grid-template-columns: minmax(0, 1fr); }
+}
+/* Blocks: tables, callouts (a quote with a [!NOTE] marker, and the video card) and the dialog form. */
+.md .md-table { overflow-x: auto; margin: .8em 0; }
+.md table { border-collapse: collapse; }
+.md th, .md td { border: 1px solid var(--nt-line); padding: 6px 10px; vertical-align: top; }
+.md th { background: var(--nt-panel); text-align: left; }
+.md-callout { border-left: 4px solid var(--nt-accent); background: var(--nt-panel); padding: 8px 14px; border-radius: 6px; margin: .8em 0; }
+.md-callout .md-callout-title { font-weight: 600; margin: 0 0 .3em; }
+.md-callout > p, .md-callout > ul, .md-callout > ol { margin: .3em 0; }
+.md-warning { border-left-color: #b26a00; }
+.md-video { border-left-color: #1d4f91; }
+.nt-form { display: grid; gap: 10px; min-width: min(360px, 80vw); }
+/* the open-note tabs sit on their own line under the title and tools */
+.nt-top > .doctabs-host { order: 2; flex: 1 0 100%; min-width: 0; }

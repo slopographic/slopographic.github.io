@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shared intake in Slop Drive: every way in is the same path</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../drive/util.js"></script>
+  <script>
+  // Covers: drive/js/ui/dnd.js, drive/js/core/io.js, drive/js/app/main.js, drive/js/ui/newdoc.js, drive/js/ui/quicklook.js, shared/intake/sources.js, shared/intake/outtake.js
+  // Slop Drive on the one intake: a drop on the pane, Upload files…, Upload a folder… (paths kept) and a launch file reach
+  // the same reader (one upload for the whole batch) with the same events; ?drive=<id> of a file Drive has shows it
+  // (no copy). Open with goes out through SlopOuttake.send with the record's id (no copy either).
+  const { describe, it, expect, waitFor } = SlopTest;
+  let W, DR, H, seen = [], events = [];
+  const txt = (name, path) => { const f = new W.File(['hello ' + name], name, { type: 'text/plain' }); if (path) Object.defineProperty(f, 'webkitRelativePath', { value: path }); return f; };
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const fileNames = () => [...DR.S.files.values()].map((f) => f.name).sort();
+  async function through(source, start, n) {
+    seen = []; events = [];
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    expect(seen).toEqual([[source, n]]);
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'drive' && e[2] === source)).toBe(true);
+  }
+
+  describe('Slop Drive: one way in', () => {
+    it('a drop on the pane uploads the batch once', async () => {
+      W = await DT.frame('../../drive/', (w) => w.document.body.classList.contains('ready') && w.SlopIntake.spec('drive'));
+      DR = W.DR; H = W.SlopHub;
+      await H.clear(); await DR.refresh(); DR.render();
+      const s = W.SlopIntake.spec('drive'), reader = s.processAll;
+      s.processAll = (files, ctx) => { seen.push([ctx.source, files.length]); return reader(files, ctx); };
+      for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+      await through('drop', () => W.document.getElementById('main').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf([txt('a.txt'), txt('b.txt')]) })), 2);
+      await waitFor(() => fileNames().join() === 'a.txt,b.txt');
+    }, { timeout: 40000 });
+    it('Upload files…', async () => {
+      W.SlopUI.pickFiles = async () => [txt('c.txt')];
+      await through('picker', () => DR.uploadPicker(false), 1);
+      await waitFor(() => fileNames().includes('c.txt'));
+    });
+    it('Upload a folder… keeps the paths', async () => {
+      let asked = null;
+      W.SlopIntake.pickFiles = async (accept, multiple, folder) => { asked = folder; return [txt('d.txt', 'Trip/d.txt'), txt('e.txt', 'Trip/Day 1/e.txt')]; };
+      await through('picker', () => DR.uploadPicker(true), 2);
+      W.SlopIntake.pickFiles = null;
+      expect(asked).toBe(true);
+      await waitFor(() => [...DR.S.folders.values()].some((f) => f.name === 'Day 1'));
+    });
+    it('a launch file is uploaded; ?drive=<id> of a Drive file shows it, with no copy', async () => {
+      await through('launch', () => W.SlopIntake.take([txt('f.txt')], { to: 'drive', source: 'launch' }), 1);
+      await waitFor(() => fileNames().includes('f.txt'));
+      const n = DR.S.files.size, a = [...DR.S.files.values()].find((f) => f.name === 'a.txt');
+      W.SlopHub.consumeLaunch = async () => H.get(a.id);
+      await through('launch', () => W.SlopIntake.launch({ to: 'drive' }), 1);
+      expect(DR.S.files.size).toBe(n);
+    });
+  });
+
+  describe('Slop Drive: one way out', () => {
+    it('Open with is SlopOuttake.send with the record id (no copy)', async () => {
+      const a = [...DR.S.files.values()].find((f) => f.name === 'a.txt'), n = (await H.list({ trashed: 'any' })).length;
+      const opened = []; W.open = (u) => { opened.push(u); return {}; };
+      let sent = null; const real = W.SlopOuttake.send;
+      W.SlopOuttake.send = (to, o) => { sent = [to, o.id]; return real(to, o); };
+      await DR.openWith(a, 'code');
+      expect(sent).toEqual(['code', a.id]);
+      expect(opened[0]).toBe(H.urlOf(H.appById('code'), { drive: a.id }));
+      expect((await H.list({ trashed: 'any' })).length).toBe(n);
+    });
+  });
+  SlopTest.run({ name: 'Shared intake: Slop Drive' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+/* Slop Tables, Korean: opening, saving and importing files, and the workbook config. Same keys as tables/i18n/en/io.js. Rules: shared/i18n/APPS-HOWTO.md, words: shared/i18n/glossary-ko.md. */
+window.SlopI18n && window.SlopI18n.add('ko', {
+  'tables.file.open_failed': '그 파일을 열 수 없습니다',
+  'tables.file.save_failed': '저장할 수 없습니다',
+  'tables.file.left_out': '일부 항목을 제외하고 열었습니다',
+  'tables.file.left_out_body': '저장하면 Slop Drive에 Slop Tables 파일로 보관됩니다. 파일 ▸ 다운로드 ▸ XLSX를 선택하면 새 Excel 파일이 만들어집니다.',
+  'tables.file.opened': '{name} 열림',
+  'tables.file.opened_it': '파일을 열었습니다',
+  'tables.file.not_ours': 'Slop Tables 파일이 아닙니다.',
+  'tables.file.kinds': 'Slop Tables는 .stab, .xlsx, .ods, .csv, .tsv 파일을 열 수 있습니다.',
+  'tables.file.damaged': '이 Slop Tables 파일은 손상되었습니다({what}).',
+  'tables.file.newer': '이 Slop Tables 파일은 더 새로운 버전의 Slop Tables에서 만들어졌습니다.',
+  'tables.import.unknown_fn': '수식 {n}개가 아직 지원하지 않는 함수를 사용하므로 #NAME?으로 표시됩니다.',
+  'tables.import.skipped': '가져오지 않음: {list}.',
+  'tables.import.chart_kind': '{kind} 차트 {n}개는 가져오지 않았습니다. Slop Tables는 세로 막대, 가로 막대, 꺾은선, 원형 차트를 그립니다.',
+  'tables.import.chart_shape': '차트 {n}개는 가져오지 않았습니다. 계열이 하나의 셀 블록이 아닙니다.',
+  'tables.drop.label': '스프레드시트를 놓아 여세요',
+  'tables.drop.noun': '스프레드시트',
+  'tables.config.label': '통합 문서',
+  'tables.config.desc': '시트와 셀 내용. 수식은 =로 시작하는 텍스트로 기록됩니다.',
+  'tables.config.kept': '열려 있던 통합 문서는 그대로 유지되었습니다',
+});

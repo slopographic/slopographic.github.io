@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI's message box in real apps: editing keys stay the box's, Up/Down recall, open on the next app</title>
+  <style>body { margin: 0; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); localStorage.setItem('photoslop.tourShown', '1'); } catch (e) { /* private window */ }</script>
+  <iframe id="f" style="width:1280px;height:800px"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // The owner: "Ctrl+A does not work in Slop AI's message box". The apps' shortcuts (SlopCmd, PhotoSlop's Select all on
+  // Ctrl+A, Undo on Ctrl+Z…) took the keys from the box: SlopCmd let every Ctrl/⌘ shortcut through while typing. Now one
+  // guard (shared/input/typing.js) keeps a field's editing keys in the field, for every shortcut handler.
+  // Covers: shared/input/typing.js, shared/commands/commands.js, shared/ai/panel.js, shared/ai/history.js, shell/header.js,
+  //   shell/shell.js, shared/nav/engine.js, photoslop/js/app/nav-adapter.js, shared/tour/panel.js, shared/tour/engine.js, slopcut/js/ui/cmd-fallback.js,
+  //   press/js/ui/actions.js, drive/js/ui/keys.js, shared/ui/undo.js, shared/viewmode/viewmode.js, pdf/js/editor/sel-bar.js
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const fr = document.getElementById('f');
+  let W, D;
+  const q = (s) => D.querySelector(s);
+  async function boot(app, width = 1280) {
+    fr.style.width = width + 'px';
+    fr.src = 'about:blank';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.location.href === 'about:blank');
+    fr.src = '../../' + app + '/';
+    await waitFor(() => { const w = fr.contentWindow; return w && w.document.readyState === 'complete' && w.document.querySelector('header .sh-ai') && w.SlopTyping && w.SlopCmd; }, { timeout: 40000 });
+    await sleep(400);
+    W = fr.contentWindow; D = W.document;
+    if (W.SlopBanner) W.SlopBanner.remove();
+  }
+  async function openAI() {
+    if (!(W.SlopAIPanel && W.SlopAIPanel.isOpen)) await W.SlopHeader.openAI();
+    const ta = await waitFor(() => q('.sap-comp textarea'), { timeout: 15000 });
+    await waitFor(() => W.SlopAIPanel.isOpen);
+    return ta;
+  }
+  /** A real key press from the runner (tests/run.mjs __slopKey) when there is one, else a synthetic keydown. */
+  async function press(el, key) {
+    if (window.__slopKey) { fr.focus(); W.focus(); el.focus(); await window.__slopKey(key); await sleep(30); return null; }
+    const parts = key.split('+'), k = parts.pop();
+    const ev = new W.KeyboardEvent('keydown', { key: k.length === 1 ? k.toLowerCase() : k, ctrlKey: parts.includes('Control'), shiftKey: parts.includes('Shift'), bubbles: true, cancelable: true, composed: true });
+    el.dispatchEvent(ev);
+    return ev;
+  }
+  /** Each editing shortcut, as the browser sends it: nothing on the page may cancel it or run a command. */
+  function synthetic(el, key, mods = {}) {
+    const ev = new W.KeyboardEvent('keydown', Object.assign({ key, bubbles: true, cancelable: true, composed: true }, mods));
+    el.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  }
+  const EDIT = [['a', { ctrlKey: true }], ['c', { ctrlKey: true }], ['v', { ctrlKey: true }], ['x', { ctrlKey: true }], ['z', { ctrlKey: true }],
+    ['y', { ctrlKey: true }], ['Z', { ctrlKey: true, shiftKey: true }], ['Backspace', { ctrlKey: true }], ['Delete', {}], ['Delete', { ctrlKey: true }],
+    ['Home', {}], ['End', {}], ['Home', { ctrlKey: true }], ['ArrowLeft', { ctrlKey: true, shiftKey: true }], ['a', { metaKey: true }], ['z', { metaKey: true }]];
+
+  describe('editing keys in the message box are never an app shortcut', () => {
+    for (const app of ['quotes', 'photoslop', 'pdf']) {
+      it(app + ': Ctrl+A selects the text; Ctrl+C/V/X/Z/Y, Delete, Home/End, Ctrl+Backspace reach the box', async () => {
+        await boot(app);
+        const ta = await openAI(), ran = [];
+        W.SlopCmd.on('run', (r) => ran.push(r.id));
+        ta.value = 'hello world'; ta.setSelectionRange(11, 11);
+        await press(ta, 'Control+A');
+        if (window.__slopKey) expect([ta.selectionStart, ta.selectionEnd]).toEqual([0, 11]);
+        for (const [k, m] of EDIT) expect(synthetic(ta, k, m)).toBe(false, app + ': ' + JSON.stringify([k, m]) + ' was cancelled');
+        expect(ran).toEqual([]);
+        if (window.__slopKey) {
+          ta.value = 'hello world'; ta.setSelectionRange(11, 11);
+          await press(ta, 'Control+Backspace'); expect(ta.value).toBe('hello ');
+          await press(ta, 'Home'); expect(ta.selectionStart).toBe(0);
+          await press(ta, 'End'); expect(ta.selectionStart).toBe(6);
+        }
+        expect(ran).toEqual([]);
+        expect(D.title).not.toContain('•');   // PhotoSlop: no Select all made the document dirty
+        // outside a field the app's own shortcut still works (PhotoSlop: Ctrl+A is Select all on the canvas)
+        if (app === 'photoslop') { ta.blur(); D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); expect(ran).toContain('ps.select-all'); }
+      }, { timeout: 90000 });
+    }
+  });
+
+  describe('Up and Down recall what was sent, as in the Claude Code CLI', () => {
+    it('Up goes back through sent messages, Down returns to the draft; only on the first/last line; not while composing', async () => {
+      await boot('quotes');
+      const ta = await openAI(), H = await waitFor(() => W.SlopAIKit.history);
+      H.clear(); H.add('make a quote for Acme'); H.add('add a line: 3 hours design');
+      ta.value = 'draft'; ta.setSelectionRange(5, 5);
+      const key = (k, o = {}) => ta.dispatchEvent(new W.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true, cancelable: true }, o)));
+      key('ArrowUp'); expect(ta.value).toBe('add a line: 3 hours design');
+      key('ArrowUp'); expect(ta.value).toBe('make a quote for Acme');
+      key('ArrowUp'); expect(ta.value).toBe('make a quote for Acme');
+      key('ArrowDown'); key('ArrowDown'); expect(ta.value).toBe('draft');
+      key('ArrowUp', { isComposing: true }); expect(ta.value).toBe('draft');
+      ta.value = 'line one\nline two'; ta.dispatchEvent(new W.Event('input')); ta.setSelectionRange(15, 15);
+      key('ArrowUp'); expect(ta.value).toBe('line one\nline two');   // the caret is on the last line: Up moves up a line
+      ta.setSelectionRange(2, 2); key('ArrowUp'); expect(ta.value).toBe('add a line: 3 hours design');
+      // what is typed and sent is remembered, for every app
+      ta.value = 'total it up'; key('Enter');
+      await waitFor(() => H.list().slice(-1)[0] === 'total it up');
+      expect(JSON.parse(localStorage.getItem('slop-ai.history')).slice(-1)[0]).toBe('total it up');
+    }, { timeout: 90000 });
+  });
+
+  describe('Slop AI stays open from app to app', () => {
+    it('open on Quotes, open on Notes (the app keeps the focus); closed, it stays closed; a phone does not reopen it', async () => {
+      await boot('quotes'); await openAI();
+      expect(localStorage.getItem('slop-ai.open')).toBe('1');
+      await boot('notes');
+      await waitFor(() => W.SlopAIPanel && W.SlopAIPanel.isOpen, { timeout: 20000 });
+      expect(q('.sap').hidden).toBe(false);
+      await sleep(100);
+      expect(D.activeElement === q('.sap-comp textarea')).toBe(false);
+      W.SlopAIPanel.close();
+      expect(localStorage.getItem('slop-ai.open')).toBe('0');
+      await boot('quotes'); await sleep(800);
+      expect(!!(W.SlopAIPanel && W.SlopAIPanel.isOpen)).toBe(false);
+      localStorage.setItem('slop-ai.open', '1');
+      await boot('quotes', 390); await sleep(800);
+      expect(!!(W.SlopAIPanel && W.SlopAIPanel.isOpen)).toBe(false);   // a bottom sheet would cover the page
+      expect(localStorage.getItem('slop-ai.open')).toBe('1');            // still remembered for a wide screen
+    }, { timeout: 120000 });
+  });
+  SlopTest.run({ name: 'Slop AI · message box' });
+  </script>
+</body>
+</html>

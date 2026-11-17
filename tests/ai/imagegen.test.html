@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop AI: generate_image in an app without a picture editor saves to Slop Drive (fake providers)</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:aitools', '1'); } catch (e) { /* private window */ }</script>
+  <script src="../harness.js"></script>
+  <script src="util.js"></script>
+  <script src="cloud-util.js"></script>
+  <script src="imagegen-util.js"></script>
+  <script>
+  // Covers: shared/ai/imagegen/tools.js, shared/ai/imagegen/run.js, shared/ai/imagegen/openrouter.js, shared/ai/imagegen/index.js,
+  //   shared/ai/imagegen/core.js, shared/ai/apptools.js, shared/ai/panel.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  let P, cu, F;
+  const steps = () => [...P.document.querySelectorAll('.sap-step')].map((s) => [...s.childNodes].filter((n) => !n.classList || !n.classList.contains('sap-step-r')).map((n) => n.textContent).join(''));   // the call, without its result line
+  const lastResult = () => cu.requests.filter((r) => /\/v1\/messages$/.test(r.url)).pop().body.messages.pop().content[0];
+  async function wipe() {
+    for (const k of Object.keys(localStorage)) if (/^slop-ai\.(cloud|imagegen)|^slop-firstrun:ai-cloud:/.test(k)) localStorage.removeItem(k);
+    for (const k of Object.keys(sessionStorage)) if (/^slop-ai\.cloud/.test(k)) sessionStorage.removeItem(k);
+    await new Promise((res) => { const r = indexedDB.deleteDatabase('slop-ai-keys'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+  }
+
+  describe('a picture from the AI panel of an app with no picture editor', () => {
+    it('Claude with an OpenRouter key for pictures: asked to spend, the picture is saved to Slop Drive, opened through the intake', async () => {
+      await wipe();
+      localStorage.setItem('slop-firstrun:ai-cloud:anthropic', '1');
+      sessionStorage.setItem('slop-ai.cloud.key:openrouter', 'sk-or-v1-PICTURES0123456789');
+      P = await AT.frame('panel-page.html', (w) => w.SlopAIPanel && w.SlopAI, { width: 900, height: 760 });
+      cu = CU.install(P, 'anthropic'); F = IG.install(P);
+      P.SlopAIPanel.open(); await P.SlopAIPanel.ready;
+      await P.SlopAIKit.picker.loadCloud();
+      const eng = new P.SlopAIKit.CloudEngine({ provider: 'anthropic', model: 'claude-sonnet-5-5', key: async () => 'sk-ant-api03-DRIVE-0123456789' });
+      await eng.load(); await P.SlopAIPanel.use(eng);
+      expect(P.SlopAIKit.imageGen.available.map((p) => p.id)).toEqual(['openrouter']);
+      expect(P.SlopImageSink).toBe(undefined);
+      const asked = []; let answer = false; P.SlopAIPermissions.prompt = async (r) => { asked.push(r.title + ' | ' + r.detail); return answer ? 'once' : 'deny'; };   // the permission question
+      // no: nothing goes to the picture provider
+      cu.replies.push(CU.anthropic.call('generate_image', { prompt: 'a lighthouse at dusk' }), CU.anthropic.text('OK, no picture.'));
+      await P.SlopAIPanel.send('make a picture of a lighthouse');
+      expect(asked.length).toBe(1);
+      expect(asked[0]).toMatch(/^Spend on image generation\? \| Make 1 picture with OpenRouter \(Google: Nano Banana 2\.1, 1:1, 1K\)/);
+      expect(asked[0]).toContain('goes to OpenRouter, which makes the picture and charges your account. OpenRouter’s terms and content rules apply.');
+      expect(F.calls.length).toBe(0);
+      expect(lastResult().is_error).toBe(true);
+      // yes: saved to Slop Drive from 'ai'
+      answer = true; F.color = '#ffaa00';
+      cu.replies.push(CU.anthropic.call('generate_image', { prompt: 'a lighthouse at dusk', aspect: '16:9' }), CU.anthropic.text('Saved it to Slop Drive.'));
+      await P.SlopAIPanel.send('yes, make it');
+      expect(F.calls.length).toBe(1);
+      expect(F.calls[0].url).toBe('https://openrouter.ai/api/v1/images');
+      expect(F.calls[0].headers.authorization).toBe('Bearer sk-or-v1-PICTURES0123456789');
+      expect(F.calls[0].body).toEqual({ model: 'google/gemini-nano-banana-2.1', prompt: 'a lighthouse at dusk', n: 1, aspect_ratio: '16:9', resolution: '1K', quality: 'medium' });
+      expect(steps().pop()).toBe('✓Make a picture: a lighthouse at dusk (done)');
+      const said = lastResult().content;
+      expect(said).toMatch(/^Made 1 picture with OpenRouter google\/gemini-nano-banana-2\.1 \(16:9, 1K\) · about \$0\.04\. Saved “ai-a-lighthouse-at-dusk\.png” to Slop Drive\./);
+      const f = (await P.SlopHub.list()).find((x) => x.name === 'ai-a-lighthouse-at-dusk.png');
+      expect(f.from).toBe('ai'); expect(f.type).toBe('image/png');
+      const bmp = await createImageBitmap(f.blob), c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+      c.getContext('2d').drawImage(bmp, 0, 0);
+      expect([...c.getContext('2d').getImageData(5, 5, 1, 1).data].slice(0, 3)).toEqual([255, 170, 0]);
+      // and another app opens it from Slop Drive (the intake reads ?drive=)
+      const opened = []; P.open = (url) => { opened.push(url); return {}; };
+      cu.replies.push(CU.anthropic.call('open_app', { id: 'photoslop', file: 'ai-a-lighthouse-at-dusk.png' }), CU.anthropic.text('Opened it in PhotoSlop.'));
+      await P.SlopAIPanel.send('open it in PhotoSlop');
+      expect(opened.length).toBe(1); expect(opened[0]).toContain('drive=' + encodeURIComponent(f.id));
+      // the visit's totals include the picture's reported cost
+      expect(P.SlopAIKit.cloud.meter.total().tokens).toBeGreaterThan(4000);
+    }, { timeout: 60000 });
+  });
+  SlopTest.run({ name: 'Slop AI: pictures saved to Slop Drive' });
+  </script>
+</body>
+</html>

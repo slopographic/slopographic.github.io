@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Consent · donate button</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frames.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, run } = SlopTest;
+  const { open, reset } = ConsentTest;
+  const URL = 'https://www.patreon.com/example';
+
+  describe('donate button', () => {
+    beforeEach(reset);
+    it('is hidden, with no link, when the URL is empty', async () => {
+      const w = await open({ cfg: { patreonUrl: '' } });
+      const slot = w.document.getElementById('donate-slot');
+      expect(slot.hidden).toBe(true);
+      expect(slot.querySelector('a')).toBe(null);
+    });
+    it('is shown with a link that opens in a new tab with rel noopener when the URL is set', async () => {
+      const w = await open({ cfg: { patreonUrl: URL } });
+      const slot = w.document.getElementById('donate-slot');
+      expect(slot.hidden).toBe(false);
+      const a = slot.querySelector('a');
+      expect(a.getAttribute('href')).toBe(URL);
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toContain('noopener');
+    });
+    it('ignores a non-https URL', async () => {
+      const w = await open({ cfg: { patreonUrl: 'javascript:alert(1)' } });
+      expect(w.SLOP_CONSENT_CONFIG.patreonUrl).toBe('');
+      expect(w.document.getElementById('donate-slot').hidden).toBe(true);
+    });
+  });
+
+  run({ name: 'Consent donate' });
+  </script>
+</body>
+</html>

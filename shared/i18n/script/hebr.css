@@ -1,0 +1,9 @@
+/* Script fallback for Hebrew (he), loaded by shared/i18n/i18n.js only when the chosen language uses it (LANGS[].script).
+ * The brand fonts carry Latin only: these @font-face rules add this script's glyphs to the brand families from fonts
+ * already on the device (local() only, nothing is downloaded), so a label mixes the brand Latin with a good system face
+ * instead of the browser's default fallback. Generated once; see shared/i18n/HANDOFF.md (World-ready). */
+@font-face { font-family: 'Inter Tight'; src: local('Segoe UI'), local('Arial Hebrew'), local('Noto Sans Hebrew'), local('Arial'), local('David'); unicode-range: U+0590-05FF, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: 'Inter'; src: local('Segoe UI'), local('Arial Hebrew'), local('Noto Sans Hebrew'), local('Arial'), local('David'); unicode-range: U+0590-05FF, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: 'Archivo'; src: local('Segoe UI'), local('Arial Hebrew'), local('Noto Sans Hebrew'), local('Arial'), local('David'); unicode-range: U+0590-05FF, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: 'Slopographic Sans'; src: local('Segoe UI'), local('Arial Hebrew'), local('Noto Sans Hebrew'), local('Arial'), local('David'); unicode-range: U+0590-05FF, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: 'Slopographic Condensed'; src: local('Segoe UI'), local('Arial Hebrew'), local('Noto Sans Hebrew'), local('Arial'), local('David'); unicode-range: U+0590-05FF, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta name="robots" content="noindex, nofollow"><script data-robots-guard>(function(h){if(["slopographic.com","www.slopographic.com","localhost","127.0.0.1","[::1]",""].indexOf(h)<0){var m=document.createElement('meta');m.name='robots';m.content='noindex';document.head.appendChild(m)}})(location.hostname)</script>
+  <script src="../../shared/profile/profile.js" data-src="shared/profile/profile.js"></script>
+  <script src="../../shared/theme/theme.js" data-app="aitools" data-src="shared/theme/theme.js"></script>
+  <link rel="expect" href="#slop-built" blocking="render">
+  <script src="../../shared/i18n/i18n.js" data-src="shared/i18n/i18n.js"></script>
+  <script src="../i18n/index.js" data-src="aitools/i18n/index.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speech to text · Slop AI Tools</title>
+  <meta name="description" content="Transcribe audio or the audio of a video with Whisper, on your device: tiny, base, small, or KB-Whisper for Swedish. Timestamps, .srt and .txt export.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../aitools.css">
+  <link rel="stylesheet" href="../../shared/frame/frame.css">
+  <link rel="stylesheet" href="../frame.css">
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <link rel="stylesheet" href="../../shared/models/chooser.css">
+</head>
+<body>
+  <header class="ai-top">
+    <a class="brand" href="../../" title="Slopographic home" aria-label="Slopographic home" data-i18n-attr="title:aitools.hub.home;aria-label:aitools.hub.home"><svg viewBox="0 0 32 32" class="brand-mark" aria-hidden="true"><path d="M16 2C16 2 6 13.5 6 20a10 10 0 0 0 20 0C26 13.5 16 2 16 2z"/></svg></a>
+    <a class="ai-crumb" href="../" data-i18n="aitools.page.crumb">AI Tools</a><span class="ai-sep" aria-hidden="true">/</span><h1 data-i18n="aitools.tool.speech_name">Speech to text</h1>
+  </header>
+  <div class="ai-tool">
+    <p class="ai-intro"><span data-i18n="aitools.speech.intro">One file at a time here. To record your voice, transcribe many files at once, correct the text or save it as Word or WebVTT, use </span><a href="../../transcribe/">Slop Transcribe</a><span data-i18n="aitools.speech.intro_end"> (the same models, already on this device once downloaded).</span></p>
+    <div id="gate" class="ai-stack" aria-live="polite"></div>
+    <section id="ui" class="ai-stack" hidden>
+      <div id="drop" class="ai-drop"><span data-i18n="aitools.speech.drop">Drop an audio or video file here, or </span><button type="button" id="chooseFile" class="ai-choose" data-i18n="aitools.page.choose_file">choose a file</button><br><span class="ai-meta" data-i18n="aitools.speech.limit">Up to 2 hours. Long files are read in 30-second windows.</span></div>
+      <div class="ai-grid2">
+        <div class="ai-field" data-side="settings"><span id="modelHead" data-i18n="aitools.ocr.lang">Language and model</span>
+          <button id="model" type="button" aria-haspopup="dialog" aria-describedby="modelHead">Detect automatically · Whisper tiny</button></div>
+        <div class="ai-field"><span class="ai-meta" id="fileName"></span></div>
+      </div>
+      <div><button id="run" class="ai-pri" type="button" disabled data-side="main" data-i18n="aitools.speech.run">Transcribe</button></div>
+      <progress id="prog" class="ai-progress" value="0" max="1" hidden></progress>
+      <p id="msg" class="ai-meta" role="status"></p>
+      <textarea id="out" class="ai-out" aria-label="Transcript" placeholder="The transcript appears here, with timestamps in the .srt file." data-i18n-attr="aria-label:aitools.speech.out;placeholder:aitools.speech.out_ph"></textarea>
+      <div class="ai-act">
+        <button id="srt" type="button" disabled data-side="save" data-i18n="aitools.speech.srt">Download .srt</button>
+        <button id="txt" type="button" disabled data-side="save" data-i18n="aitools.page.download_txt">Download .txt</button>
+      </div>
+    </section>
+  </div>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../speech-models.js"></script>
+  <script src="../model-registry.js"></script>
+  <script src="../../shared/firstrun/notice.js"></script>
+  <script src="../download.js"></script>
+  <script src="../models.js"></script>
+  <script src="../support.js"></script>
+  <script src="../get-more.js"></script>
+  <script src="../common.js"></script>
+  <script src="../transcript.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../intake.js"></script>
+  <script type="module" src="speech.js"></script>
+  <script src="../../shared/ui/sheet.js"></script>
+  <script src="../../shared/ui/menubutton.js"></script>
+  <script src="../../shared/ui/resize-panel.js"></script>
+  <script src="../../shared/frame/frame.js"></script>
+  <script src="../../shared/frame/panel.js"></script>
+  <script src="../frame.js"></script>
+  <script src="../../shell/shell.js"></script>
+<i id="slop-built" hidden></i>
+</body>
+</html>

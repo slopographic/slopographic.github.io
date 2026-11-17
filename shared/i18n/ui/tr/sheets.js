@@ -1,0 +1,23 @@
+/* Ortak bileşenler, Türkçe: e-tablo dosyalarının açılma hataları, eksik parçalar ve sütun filtreleri (shared/sheets). Terimler: shared/i18n/glossary-tr.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'ui.sheets.xls_old': 'Eski .xls dosyaları desteklenmiyor. Dosyayı Excel ya da LibreOffice’te açın ve .xlsx, .ods ya da .csv olarak kaydedin.',
+  'ui.sheets.ods_not_zip': 'Bu .ods dosyası geçerli bir e-tablo değil (zip paketi değil).',
+  'ui.sheets.xlsx_not_zip': 'Bu .xlsx dosyası geçerli bir çalışma kitabı değil (zip paketi değil).',
+  'ui.sheets.ods_no_content': 'OpenDocument e-tablosu değil (content.xml yok)',
+  'ui.sheets.ods_not_sheet': 'Bu OpenDocument dosyası bir e-tablo değil',
+  'ui.sheets.no_sheets': 'Bu çalışma kitabında çalışma sayfası yok',
+  'ui.sheets.xlsx_no_workbook': 'Bir Excel çalışma kitabı değil (xl/workbook.xml yok)',
+  'ui.sheets.xlsx_missing': 'Çalışma kitabında {part} eksik',
+  'ui.sheets.part_pictures': 'resimler',
+  'ui.sheets.part_charts': 'grafikler',
+  'ui.sheets.part_chart_sheets': 'grafik sayfaları',
+  'ui.sheets.part_pivots': 'pivot tablolar (değerleri korunur)',
+  'ui.sheets.part_comments': 'yorumlar',
+  'ui.sheets.part_macros': 'makrolar',
+  'ui.sheets.part_cond': 'koşullu biçimlendirme',
+  'ui.sheets.part_validation': 'veri doğrulama',
+  'ui.sheets.part_filters': 'filtreler',
+  'ui.sheets.sort_col': '{col} sütununu sırala',
+  'ui.sheets.filter_col': '{col} sütununu filtrele',
+  'ui.sheets.col_filtered': '{col} sütunu filtrelendi',
+});

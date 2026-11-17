@@ -1,0 +1,79 @@
+/* Reel Remix: a three-column page that stacks on a phone. Colours are tokens on :root (light by default). */
+:root { --rm-bg: #f6f6f8; --rm-panel: #fff; --rm-line: #d6d6de; --rm-text: #1b1b22; --rm-muted: #5d5d6b; --rm-accent: #3b5bdb; --rm-track: #ececf1; --rm-on-accent: #fff; }
+:root[data-theme="dark"] { --rm-bg: #15151b; --rm-panel: #1f1f27; --rm-line: #3a3a46; --rm-text: #ececf3; --rm-muted: #a4a4b3; --rm-accent: #7c93ff; --rm-track: #2a2a34; --rm-on-accent: #10101a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --rm-bg: #15151b; --rm-panel: #1f1f27; --rm-line: #3a3a46; --rm-text: #ececf3; --rm-muted: #a4a4b3; --rm-accent: #7c93ff; --rm-track: #2a2a34; --rm-on-accent: #10101a; } }
+/* lane.css reads these host tokens */
+:root { --sui-text: var(--rm-text); --sui-line: var(--rm-line); --sui-panel: var(--rm-panel); --sui-track: var(--rm-track); --sui-accent: var(--rm-accent); --sui-muted: var(--rm-muted); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--rm-bg); color: var(--rm-text); font: 14px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--rm-muted); margin: 0 0 10px; }
+h2 small { font-weight: 400; text-transform: none; }
+.rm-top { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--rm-line); background: var(--rm-panel); flex-wrap: wrap; }
+/* The shared header buttons (Tour, Theme, Apps: shared/ui/hbtn.css) wear the look of .rm-btn. */
+.rm-top { --slop-hbtn-h: 36px; --slop-hbtn-radius: 6px; --slop-hbtn-bg: var(--rm-panel); --slop-hbtn-line: var(--rm-line); --slop-hbtn-hover: var(--rm-bg); --slop-hbtn-fs: 14px; }
+.rm-home { color: var(--rm-muted); }
+.rm-note { color: var(--rm-muted); font-size: 12px; margin-left: auto; }
+.rm-main { display: grid; grid-template-columns: 210px minmax(0, 1fr) 240px; gap: 16px; padding: 16px; align-items: start; }
+.rm-bin, .rm-side, .rm-stage { background: var(--rm-panel); border: 1px solid var(--rm-line); border-radius: 8px; padding: 14px; min-width: 0; }
+.rm-drop { border: 2px dashed var(--rm-line); border-radius: 8px; padding: 14px; text-align: center; color: var(--rm-muted); }
+.rm-drop.over { border-color: var(--rm-accent); }
+.rm-drop p { margin: 0 0 8px; }
+.rm-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; max-height: 60vh; overflow: auto; }
+.rm-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--rm-line); border-radius: 6px; }
+.rm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.rm-empty { color: var(--rm-muted); border-style: dashed !important; justify-content: center; }
+.rm-x { border: 0; background: none; color: var(--rm-muted); font-size: 16px; cursor: pointer; }
+.rm-canvas { display: block; width: 100%; max-height: 70vh; height: auto; object-fit: contain; margin: 0 auto; background: #000; border-radius: 6px; }
+.rm-stage.over { outline: 2px dashed var(--rm-accent); outline-offset: 4px; }
+.rm-transport { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.rm-transport input[type=range] { flex: 1 1 160px; min-width: 120px; }
+.rm-lane { margin: 10px 0; }
+.rm-total { color: var(--rm-muted); font-size: 13px; margin: 6px 0; }
+.rm-cuts { font-size: 12px; color: var(--rm-muted); max-height: 220px; overflow: auto; padding-left: 22px; }
+.rm-cuts li { margin: 2px 0; }
+.rm-cut-item { border-radius: 4px; padding: 0 2px; }
+.rm-cut-item.over { outline: 2px dashed var(--rm-accent); }
+.rm-cutfill { font: inherit; font-size: 11px; margin-left: 4px; background: var(--rm-bg); color: var(--rm-text); border: 1px solid var(--rm-line); border-radius: 4px; }
+.rm-list li[draggable=true] { cursor: grab; }
+.rm-f { display: grid; gap: 4px; margin-bottom: 10px; font-size: 13px; }
+.rm-f input, .rm-f select { min-width: 0; max-width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--rm-line); border-radius: 6px; background: var(--rm-bg); color: var(--rm-text); }
+.rm-chk { display: flex; gap: 6px; align-items: center; margin: 4px 0 10px; font-size: 13px; }
+.rm-grids { border: 1px solid var(--rm-line); border-radius: 6px; padding: 6px 10px; margin: 0 0 10px; }
+.rm-grids legend { font-size: 12px; color: var(--rm-muted); padding: 0 4px; }
+.rm-size, .rm-status { font-size: 12px; color: var(--rm-muted); margin: 4px 0 10px; }
+.rm-row { display: flex; gap: 8px; }
+.rm-btn { font: inherit; line-height: 20px; padding: 7px 12px; border: 1px solid var(--rm-line); border-radius: 6px; background: var(--rm-panel); color: var(--rm-text); cursor: pointer; }
+.rm-btn.primary { background: var(--rm-accent); border-color: var(--rm-accent); color: var(--rm-on-accent); }
+.rm-btn.wide { width: 100%; margin-top: 8px; }
+@media (max-width: 960px) { .rm-main { grid-template-columns: 1fr; } .rm-canvas { max-height: 70vh; } }
+/* Timing, locks and audio */
+.rm-slots { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.rm-slotlock { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 12px; }
+.rm-slotlock.on { background: var(--rm-accent); border-color: var(--rm-accent); color: var(--rm-on-accent); }
+.rm-lockbtn { border: 0; background: none; color: var(--rm-muted); cursor: pointer; padding: 0 2px; vertical-align: middle; }
+.rm-cuts li.locked .rm-lockbtn { color: var(--rm-accent); }
+.rm-lockbadge { font-size: 11px; color: var(--rm-accent); border: 1px solid var(--rm-accent); border-radius: 4px; padding: 0 4px; }
+/* Keyframes and the effect layer */
+.rm-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; padding: 8px; border: 1px solid var(--rm-line); border-radius: 6px; font-size: 12px; }
+.rm-keys:has(button:disabled) :is(button, select, input) { opacity: .6; }   /* the controls fade; the note saying why stays readable */
+.rm-inline { display: inline-flex; align-items: center; gap: 4px; }
+.rm-inline select, .rm-keys select { font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--rm-line); border-radius: 6px; background: var(--rm-bg); color: var(--rm-text); }
+.rm-keys .rm-btn { padding: 4px 8px; font-size: 12px; }
+.rm-ktrack { position: relative; flex: 1 1 200px; min-width: 160px; height: 22px; border-radius: 4px; background: var(--rm-track); border: 1px solid var(--rm-line); }
+.rm-ktrack.off { opacity: .5; }
+.rm-kkey { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; padding: 0; border-radius: 50%; border: 2px solid var(--rm-accent); background: var(--rm-panel); cursor: ew-resize; touch-action: none; }
+.rm-kkey.on { background: var(--rm-accent); }
+.rm-fxrow { list-style: none; margin-top: 6px; color: var(--rm-text); }
+/* Moving clips and cuts */
+.rm-ghost { position: fixed; width: 120px; height: 120px; border: 2px solid var(--rm-accent); border-radius: 6px; pointer-events: none; z-index: 50; display: none; opacity: .9; }
+.rm-hl { position: fixed; pointer-events: none; z-index: 40; border: 3px solid var(--rm-accent); background: rgba(124, 147, 255, .18); display: none; }
+.rm-cuts li[data-drop=before] { box-shadow: inset 0 2px 0 var(--rm-accent); }
+.rm-cuts li[data-drop=after] { box-shadow: inset 0 -2px 0 var(--rm-accent); }
+.rm-cuts li[draggable=true] { cursor: grab; }
+/* The options panel (js/side.js): its footer holds Remix and Export. Wide: the panel stays in view as the page scrolls and
+   its own options scroll, the footer at its foot. Phone: a bottom sheet whose closed state is the footer alone. */
+.rm-side > .sf-p-foot { margin: 10px -14px 0; border-radius: 0 0 8px 8px; }
+@media (min-width: 961px) { .rm-side { position: sticky; top: 16px; max-height: calc(100vh - 90px); overflow-y: auto; padding-bottom: 0; } }
+.ssh-phone .rm-side { padding: 0 14px; border-radius: 18px 18px 0 0; }
+.ssh-phone .rm-side.ssh-on > h2 { margin-top: 14px; }
+.ssh-phone .rm-side > .sf-p-foot { margin-top: 0; border-radius: 0; }

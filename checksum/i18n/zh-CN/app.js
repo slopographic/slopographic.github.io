@@ -1,0 +1,28 @@
+/* Checksum, Simplified Chinese: the page, the settings panel and the verdicts. Same keys as checksum/i18n/en/app.js.
+ * Terms: shared/i18n/glossary-zh-CN.md. */
+window.SlopI18n && window.SlopI18n.add('zh-CN', {
+  'checksum.app.home': 'Slopographic 首页',
+  'checksum.app.lede': '计算文件的哈希值，或将其与发布者提供的哈希值进行比对。文件在本设备上读取，不会上传。',
+  'checksum.app.step_choose': '1. 选择文件',
+  'checksum.app.drop': '选择文件，或将其拖放到此处',
+  'checksum.app.step_hash': '2. 哈希值',
+  'checksum.app.hash_label': '文件的哈希值',
+  'checksum.app.settings_label': '哈希设置',
+  'checksum.app.algorithm': '算法',
+  'checksum.app.sha1_note': 'SHA-1 仅为匹配旧的已发布哈希值而保留。新的校验请使用 SHA-256。',
+  'checksum.app.check_against': '与已发布的哈希值比对',
+  'checksum.app.expected': '预期哈希值',
+  'checksum.app.expected_ph': '粘贴下载页面上的哈希值',
+  'checksum.app.copy': '复制哈希值',
+  'checksum.app.copied': '已复制',
+  'checksum.app.copy_failed': '复制失败',
+  'checksum.app.settings': '设置',
+  'checksum.app.a_file': '一个文件',
+  'checksum.app.reading': '正在读取 {name}（{mb} MB）…',
+  'checksum.app.hash_of': '{name} 的 {alg}',
+  'checksum.app.choose_first': '请先选择一个文件。',
+  'checksum.app.not_hash': '这看起来不是哈希值（只能包含 a 到 f 的字母和数字）。',
+  'checksum.app.length_differs': '长度不符：{alg} 哈希值为 {n} 个字符。请检查算法。',
+  'checksum.app.match': '匹配：该文件与发布的文件一致。',
+  'checksum.app.no_match': '不匹配：该文件与已发布的哈希值不同。',
+});

@@ -1,0 +1,15 @@
+From: Mallory <mallory@example.com>
+To: You <you@example.com>
+Subject: Hostile body
+Date: Mon, 6 Oct 2025 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><head><style>p.kept{color:#036}</style><meta http-equiv="refresh" content="0;url=javascript:parent.__xss=1"></head>
+<body onload="parent.__xss=2"><p class="kept">This text stays.</p><script>parent.__xss=3</script>
+<img src=x onerror="parent.__xss=4"><svg onload="parent.__xss=5"><a><animate attributeName="href" values="javascript:parent.__xss=6"/><text y="9">x</text></a></svg>
+<a href="java&#x09;script:parent.__xss=7">tab link</a> <a href="https://example.com/ok">good link</a>
+<noscript><p title="</noscript><img src=x onerror=parent.__xss=8>"></p></noscript>
+<math><mtext><table><mglyph><style><img src=x onerror=parent.__xss=9></style></mglyph></table></mtext></math>
+<iframe srcdoc="<script>parent.parent.__xss=10</script>"></iframe><form action="https://evil.example/"><input name=p></form>
+</body></html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI Tools presets from a task page's link: ?tool=portrait</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" src="../../aitools/index.html?tool=portrait"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: aitools/hub.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  describe('Slop AI Tools presets', () => {
+    it('?tool= goes straight to that tool page', async () => {
+      await waitFor(() => /\/aitools\/portrait\/(index\.html)?$/.test(W().location.pathname), { timeout: 20000 });
+      expect(W().location.pathname).toContain('/aitools/portrait/');
+    });
+    it('an unknown tool stays on the hub, and toolPage knows the five tools only', async () => {
+      f.src = '../../aitools/index.html?tool=nope';
+      await waitFor(() => W().SlopAIHub && W().document.querySelectorAll('.ai-card').length === 5, { timeout: 20000 });
+      expect(W().location.pathname).toMatch(/\/aitools\/(index\.html)?$/);
+      const P = W().SlopAIHub.toolPage;
+      expect([P('?tool=denoise'), P('?tool=speech'), P('?tool=ocr')]).toEqual(['denoise/', 'speech/', 'ocr/']);
+      expect([P('?tool=../x'), P('?tool='), P('')]).toEqual([null, null, null]);
+    });
+  });
+  run({ name: 'Slop AI Tools presets' });
+  </script>
+</body>
+</html>

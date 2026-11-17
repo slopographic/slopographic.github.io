@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopPreview</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } #host { padding: 8px; }</style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/preview/chrome.js"></script>
+  <script src="../../shared/preview/preview.js"></script>
+  <script>
+  const { describe, it, beforeEach, expect, waitFor } = SlopTest;
+  const SPV = window.SlopPreview;
+  const hostEl = () => document.getElementById('host');
+  /** A viewer in a box of a fixed size, appended to the page. */
+  const mount = (opts, w = 600, h = 420) => {
+    const box = document.createElement('div');
+    box.style.cssText = `width:${w}px;height:${h}px`;
+    hostEl().append(box);
+    const v = SPV.create(opts);
+    box.append(v.el);
+    return v;
+  };
+  /** A PNG of a given size (a light blue field with a dark square), as a blob URL. */
+  async function imageUrl(w = 800, h = 600) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.fillStyle = '#5cc8ff'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#222'; g.fillRect(w / 4, h / 4, w / 2, h / 2);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    return URL.createObjectURL(blob);
+  }
+  const imageOpts = async (extra = {}, w, h) => ({ title: 'picture.png', blobUrl: await imageUrl(w, h), kind: 'image', ...extra });
+  /** Wait until the picture has loaded and laid out; returns the <img>. */
+  async function loaded(v) {
+    const img = v.el.querySelector('.spv-img');
+    await waitFor(() => img && img.complete && img.naturalWidth > 0);
+    await new Promise((r) => requestAnimationFrame(() => r()));
+    return img;
+  }
+  const stage = (v) => v.el.querySelector('.spv-stage');
+  const readout = (v) => v.el.querySelector('.spv-pct').textContent;
+  const button = (v, label) => [...v.el.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === label);
+  /** A pointer event on the stage; touch and mouse use the same events. */
+  const pointer = (type, target, x, y, id = 1, extra = {}) => target.dispatchEvent(new PointerEvent(type, Object.assign({
+    pointerId: id, pointerType: 'mouse', isPrimary: id === 1, button: 0,
+    buttons: type === 'pointerup' || type === 'pointercancel' ? 0 : 1, clientX: x, clientY: y, bubbles: true, cancelable: true,
+  }, extra)));
+  const rect = (el) => el.getBoundingClientRect();
+
+  describe('SlopPreview: the picture', () => {
+    beforeEach(() => { hostEl().replaceChildren(); });
+
+    it('fits a picture to the window and shows the zoom readout', async () => {
+      const v = mount(await imageOpts());
+      const img = await loaded(v);
+      expect(readout(v)).toMatch(/^\d+%$/);
+      expect(rect(img).width).toBeLessThanOrEqual(rect(stage(v)).width + 0.5);
+      expect(rect(img).height).toBeLessThanOrEqual(rect(stage(v)).height + 0.5);
+    });
+
+    it('wheel zoom keeps the point under the pointer', async () => {
+      const v = mount(await imageOpts());
+      await loaded(v);
+      const before = rect(v.el.querySelector('.spv-img'));
+      const px = before.left + before.width * 0.35, py = before.top + before.height * 0.4;
+      const fx = (px - before.left) / before.width, fy = (py - before.top) / before.height;
+      stage(v).dispatchEvent(new WheelEvent('wheel', { deltaY: -240, clientX: px, clientY: py, bubbles: true, cancelable: true }));
+      const after = rect(v.el.querySelector('.spv-img'));
+      expect(after.width).toBeGreaterThan(before.width);
+      expect((px - after.left) / after.width).toBeCloseTo(fx, 0.002);
+      expect((py - after.top) / after.height).toBeCloseTo(fy, 0.002);
+    });
+
+    it('zoomTo clamps to 0.05 to 16 and reports the scale it used', async () => {
+      const v = mount(await imageOpts());
+      await loaded(v);
+      expect(v.zoomTo(100)).toBe(16);
+      expect(readout(v)).toBe('1600%');
+      expect(v.zoomTo(0.001)).toBe(0.05);
+      expect(readout(v)).toBe('5%');
+      expect(v.zoomTo(1)).toBe(1);
+      expect(readout(v)).toBe('100%');
+    });
+
+    it('a picture smaller than the view is kept centred', async () => {
+      const v = mount(await imageOpts({}, 40, 30));
+      const img = await loaded(v);
+      v.zoomTo(0.5);
+      const s = rect(stage(v)), i = rect(img);
+      expect(Math.abs((i.left + i.width / 2) - (s.left + s.width / 2))).toBeLessThan(1);
+      expect(Math.abs((i.top + i.height / 2) - (s.top + s.height / 2))).toBeLessThan(1);
+    });
+
+    it('mouse drag pans the picture when it is larger than the view', async () => {
+      const v = mount(await imageOpts());
+      await loaded(v);
+      v.zoomTo(4);
+      const st = rect(stage(v)), sx = st.left + 100, sy = st.top + 100;
+      const before = rect(v.el.querySelector('.spv-img'));
+      pointer('pointerdown', stage(v), sx, sy, 1);
+      expect(stage(v).classList.contains('spv-drag')).toBe(true);
+      pointer('pointermove', stage(v), sx + 30, sy + 20, 1);
+      pointer('pointerup', stage(v), sx + 30, sy + 20, 1);
+      expect(stage(v).classList.contains('spv-drag')).toBe(false);
+      const after = rect(v.el.querySelector('.spv-img'));
+      expect(after.left - before.left).toBeCloseTo(30, 1.5);
+      expect(after.top - before.top).toBeCloseTo(20, 1.5);
+    });
+
+    it('a touch pinch with two fingers zooms around the midpoint', async () => {
+      const v = mount(await imageOpts());
+      await loaded(v);
+      v.fit();
+      const before = rect(v.el.querySelector('.spv-img'));
+      const st = rect(stage(v)), cx = st.left + st.width / 2, cy = st.top + st.height / 2;
+      const touch = { pointerType: 'touch' };
+      pointer('pointerdown', stage(v), cx - 40, cy, 11, touch);
+      pointer('pointerdown', stage(v), cx + 40, cy, 12, touch);
+      pointer('pointermove', stage(v), cx - 80, cy, 11, touch);
+      pointer('pointermove', stage(v), cx + 80, cy, 12, touch);   // the fingers go from 80 px apart to 160 px
+      pointer('pointerup', stage(v), cx - 80, cy, 11, touch);
+      pointer('pointerup', stage(v), cx + 80, cy, 12, touch);
+      const after = rect(v.el.querySelector('.spv-img'));
+      expect(after.width / before.width).toBeCloseTo(2, 0.02);
+      expect((cx - after.left) / after.width).toBeCloseTo((cx - before.left) / before.width, 0.01);
+    });
+
+    it('double-tap toggles between fit and 2x', async () => {
+      const v = mount(await imageOpts());
+      const img = await loaded(v);
+      v.fit();
+      const r = rect(img), tx = r.left + r.width * 0.5, ty = r.top + r.height * 0.5, tap = { pointerType: 'touch' };
+      const doubleTap = () => {
+        pointer('pointerdown', stage(v), tx, ty, 21, tap); pointer('pointerup', stage(v), tx, ty, 21, tap);
+        pointer('pointerdown', stage(v), tx, ty, 21, tap); pointer('pointerup', stage(v), tx, ty, 21, tap);
+      };
+      doubleTap();
+      expect(readout(v)).toBe('200%');
+      doubleTap();
+      expect(readout(v)).not.toBe('200%');
+    });
+
+    it('the keys + - 0 1 zoom, and the buttons do the same', async () => {
+      const v = mount(await imageOpts());
+      await loaded(v);
+      v.el.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true, cancelable: true }));
+      expect(readout(v)).toBe('100%');
+      v.el.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true, cancelable: true }));
+      expect(readout(v)).toBe('80%');
+      button(v, 'Zoom in (+)').click();
+      expect(readout(v)).toBe('100%');
+      v.el.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true, cancelable: true }));
+      expect(readout(v) === '100%').toBe(false);
+    });
+
+    it('open in a new tab calls window.open with noopener (stubbed)', async () => {
+      const opts = await imageOpts();
+      const v = mount(opts);
+      await loaded(v);
+      const real = window.open, calls = [];
+      window.open = (...a) => { calls.push(a); return null; };
+      try { button(v, 'Open in a new tab').click(); } finally { window.open = real; }
+      expect(calls.length).toBe(1);
+      expect(calls[0][0]).toBe(opts.blobUrl);
+      expect(calls[0][1]).toBe('_blank');
+      expect(calls[0][2]).toContain('noopener');
+    });
+
+    it('Escape closes the viewer once, and onClose runs once', async () => {
+      let closed = 0;
+      const v = mount({ ...(await imageOpts()), onClose: () => { closed++; } });
+      await loaded(v);
+      v.el.querySelector('.spv-b').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(closed).toBe(1);
+      expect(v.el.isConnected).toBe(false);
+      v.close();
+      expect(closed).toBe(1);
+    });
+
+    it('the arrow keys call onPrev and onNext when the host gives them', async () => {
+      const seen = [];
+      const v = mount({ ...(await imageOpts()), onPrev: () => seen.push('prev'), onNext: () => seen.push('next') });
+      await loaded(v);
+      v.el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+      v.el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+      expect(seen).toEqual(['next', 'prev']);
+    });
+
+    it('chrome: a header with the title and a footer with the host actions', async () => {
+      const ran = [];
+      const v = mount({ ...(await imageOpts()), actions: [{ label: 'Use it', primary: true, act: () => ran.push('use') }] });
+      await loaded(v);
+      expect(v.el.querySelector('.spv-title').textContent).toBe('picture.png');
+      [...v.el.querySelectorAll('.spv-foot button')].find((b) => b.textContent === 'Use it').click();
+      expect(ran).toEqual(['use']);
+    });
+  });
+
+  describe('SlopPreview: other kinds and PDF pages', () => {
+    beforeEach(() => { hostEl().replaceChildren(); });
+
+    it('a kind with no preview shows the note', () => {
+      const v = mount({ title: 'notes.bin', blobUrl: 'blob:none', kind: 'other', chrome: false });
+      expect(v.el.querySelector('.spv-note').textContent).toBe('No preview for this kind of file.');
+      expect(v.el.querySelector('.spv-img')).toBe(null);
+    });
+
+    it('a PDF shows the pages the host renders, and zooms them', async () => {
+      const page = (w, h) => { const d = document.createElement('div'); d.style.width = w + 'px'; d.style.height = h + 'px'; d.style.background = '#fff'; return d; };
+      const v = mount({ title: 'doc.pdf', kind: 'pdf', chrome: false, renderPages: async () => ({ pages: [page(300, 400), page(300, 400)], note: 'Showing 2 of 2 pages.' }) });
+      await waitFor(() => v.el.querySelectorAll('.pv-pages > div').length === 2);
+      await waitFor(() => v.el.querySelector('.spv-note') && v.el.querySelector('.spv-note').textContent === 'Showing 2 of 2 pages.');
+      v.zoomTo(1);
+      expect(readout(v)).toBe('100%');
+      const content = v.el.querySelector('.spv-content');
+      expect(parseFloat(content.style.width)).toBe(300);
+      expect(parseFloat(content.style.height)).toBe(812);
+    });
+  });
+  SlopTest.run({ name: 'Shared · SlopPreview' });
+  </script>
+</body>
+</html>

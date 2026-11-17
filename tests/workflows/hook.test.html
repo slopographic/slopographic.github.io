@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows from other apps: SlopIsolate's and Slop Watermark's Add to a workflow…, and Run a workflow… in Ctrl+K</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  // Covers: shared/ops/flowdoc.js, slopisolate/js/ui/menus.js, slopisolate/js/ui/commands.js, watermark/js/main.js, shared/commands/commands.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const frame = document.getElementById('app');
+  async function load(src, ready) {
+    frame.src = 'about:blank';
+    await waitFor(() => frame.contentWindow && frame.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    frame.src = src;
+    await waitFor(() => { const w = frame.contentWindow; return w && w.location.href.includes(src.replace('../../', '')) && ready(w); }, { timeout: 20000 });
+    return frame.contentWindow;
+  }
+  /** Runs fn in the app with window.open caught; resolves with the URL it opened. */
+  async function opened(W, fn) {
+    let url = null;
+    W.open = (u) => { url = u; return {}; };
+    await fn();
+    await waitFor(() => url);
+    return url;
+  }
+
+  describe('Add to a workflow… from SlopIsolate', () => {
+    it('opens Slop Workflows with Remove background and the look SlopIsolate has (white background, crop)', async () => {
+      const W = await load('../../slopisolate/index.html', (w) => w.CO && w.CO.menus && w.CO.menus.act && w.document.getElementById('menus').children.length > 0);
+      Object.assign(W.CO.state.defaults.bg, { mode: 'color', color: '#ffffff' });
+      Object.assign(W.CO.state.defaults.crop, { mode: 'subject', pad: 20 });
+      expect(!!W.SlopCmd.get('co.add-to-workflow')).toBe(true);
+      const url = await opened(W, () => W.CO.menus.act.workflow());
+      expect(url).toMatch(/\/workflows\/\?add=/);
+      await WFT.boot(url.slice(url.indexOf('?')), { fresh: true });
+      const s = WFT.A.S.doc.steps.at(-1);
+      expect(s.id).toBe('slopisolate.remove-bg');
+      expect(s.options.background).toBe('color');
+      expect(s.options.crop).toBe(true);
+      expect(s.options.pad).toBe(20);
+      expect(WFT.W.location.search).toBe('');
+    }, { timeout: 40000 });
+  });
+
+  describe('Add to a workflow… from Slop Watermark', () => {
+    it('sends the text, position and opacity of the setup as a Watermark step', async () => {
+      const W = await load('../../watermark/index.html', (w) => w.document.body && w.document.body.classList.contains('ready') && w.WMSettings);
+      W.WMSettings.set({ layers: [{ kind: 'text', text: '© Hook test', position: 'tl', opacity: 0.8, size: 0.06 }] });
+      const add = [...W.document.querySelectorAll('.swp-actions button')].find((b) => b.textContent === 'Add to a workflow…');
+      const url = await opened(W, () => add.click());
+      await WFT.boot(url.slice(url.indexOf('?')), { fresh: true });
+      const s = WFT.A.S.doc.steps.at(-1);
+      expect(s.id).toBe('watermark.apply');
+      expect(s.options.text).toBe('© Hook test');
+      expect(s.options.position).toBe('tl');
+      expect(s.options.opacity).toBe(80);
+      expect(s.options.size).toBe(6);
+    }, { timeout: 40000 });
+  });
+
+  describe('Run a workflow… on any page with commands', () => {
+    it('is a command in SlopIsolate; it opens the workflow tool in a dialog there', async () => {
+      const W = await load('../../slopisolate/index.html', (w) => w.CO && w.CO.menus && w.document.getElementById('menus').children.length > 0);
+      expect(W.SlopCmd.get('cmd.workflow').title).toBe('Run a workflow…');
+      W.SlopCmd.run('cmd.workflow');
+      await waitFor(() => W.document.querySelector('.sl-wf-dlg .wf-tool .wf-add'), { timeout: 20000 });
+      expect(W.document.querySelector('.sl-wf-dlg .sui-title').textContent).toBe('Run a workflow');
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Slop Workflows hooks' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in Slop Resize: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1200px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: resize/js/app/main.js, resize/js/app/drive.js, shared/intake/sources.js, shared/intake/intake.js
+  // Slop Resize, a reference app of the one intake: a drop on the column, the zone's Choose files, Open (Ctrl+O), a paste,
+  // Open from Slop Drive, ?drive=<id> (launch), the Convert dialog's hand-back and the sample all reach the same reader
+  // (the queue) with the same events, and the first-use notice is shown once per batch whichever source.
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], notices = 0, events = [];
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = '../../resize/index.html';
+    // SlopIntake can be on the page a moment before its spec() is (a script that only adds to it runs first)
+    await waitFor(() => fr.contentWindow && fr.contentWindow.SlopIntake && typeof fr.contentWindow.SlopIntake.spec === 'function' && fr.contentWindow.SlopIntake.spec('resize'), { timeout: 20000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('resize'), reader = s.process;
+    s.process = (f, ctx) => { seen.push(ctx.source); return reader(f, ctx); };
+    s.notice = { title: 'First use', lines: ['test'] };
+    W.SlopFirstRun = { once: async () => { notices++; return true; } };
+    for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+  }
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 40; c.height = 30;
+    c.getContext('2d').fillRect(0, 0, 40, 30);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const queued = () => W.SlopResize.queue.items().length;
+  /** One source with two pictures: both reach the queue through the spec's reader, with one notice and the events. */
+  async function through(source, start, n = 2) {
+    seen = []; events = []; notices = 0;
+    const before = queued();
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after') && queued() === before + n, { timeout: 15000 });
+    expect(seen).toEqual(Array(n).fill(source));
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === 'resize' && e[2] === source)).toBe(true);
+    expect(notices).toBe(1);
+  }
+
+  describe('Slop Resize: one way in', () => {
+    it('a drop on the left column', async () => {
+      await boot();
+      const files = [await png('a.png'), await png('b.png')];
+      await through('drop', () => D.getElementById('rs-left').dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dtOf(files) })));
+    }, { timeout: 40000 });
+    it("the zone's Choose files", async () => {
+      const files = [await png('c.png'), await png('d.png')];
+      await through('picker', () => { const i = D.querySelector('#rs-drop input[type=file]'); i.files = dtOf(files).files; i.dispatchEvent(new W.Event('change')); });
+    });
+    it('Open (the button and Ctrl+O)', async () => {
+      const files = [await png('e.png'), await png('f.png')];
+      W.SlopUI.pickFiles = async () => files;
+      await through('picker', () => D.getElementById('rs-open').click());
+    });
+    it('a paste', async () => {
+      const files = [await png('g.png'), await png('h.png')];
+      await through('paste', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf(files) })));
+    });
+    it('Open from Slop Drive', async () => {
+      const blob = await png('drive.png');
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'drive.png', type: 'image/png', blob });
+      await through('drive', () => D.getElementById('rs-drive').click(), 1);
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      const blob = await png('sent.png');
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x2', name: 'sent.png', type: 'image/png', blob });
+      await through('launch', () => W.SlopIntake.launch({ to: 'resize' }), 1);
+    });
+    it("the Convert dialog's hand-back", async () => {
+      const blob = await png('converted.png');
+      await through('convert', () => W.SlopIntake.fromConvert([{ name: 'converted.png', blob }], { to: 'resize' }), 1);
+    });
+    it('the sample', async () => {
+      W.SlopResize.queue.clear();
+      await waitFor(() => D.querySelector('#rs-drop .sd-sample'));
+      await through('sample', () => D.querySelector('#rs-drop .sd-sample').click(), 4);
+    }, { timeout: 40000 });
+  });
+  run({ name: 'Shared intake: Slop Resize' });
+</script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SlopUI · file picker (pickFiles, cancel, same file twice)</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script src="../../shared/intake/rules.js"></script>
+  <script src="../../shared/intake/normalize.js"></script>
+  <script src="../../shared/intake/pipeline.js"></script>
+  <script src="../../shared/intake/intake.js"></script>
+  <script src="../../shared/intake/sources.js"></script>
+  <script src="../../shared/drop/panel.js"></script>
+  <script src="../../shared/drop/drop.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const U = window.SlopUI;
+
+  // The native file dialog cannot open in a test. Every file input clicked in this page is recorded here instead, and
+  // the test then plays the part of the dialog: it sets the files and fires change, or fires cancel.
+  const clicks = [];
+  const realClick = HTMLInputElement.prototype.click;
+  HTMLInputElement.prototype.click = function () {
+    if (this.type === 'file') { clicks.push(this); return; }
+    return realClick.call(this);
+  };
+  const nextInput = () => waitFor(() => clicks.pop() || null);
+  /** Plays a dialog choice: sets the files on the input and fires change, as the browser does. */
+  function choose(input, files) {
+    const dt = new DataTransfer();
+    files.forEach((f) => dt.items.add(f));
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  const json = (name) => new File(['{"a":1}'], name, { type: 'application/json' });
+
+  describe('pickFiles: the same file, twice', () => {
+    it('picking the same file twice gives two change events and two results', async () => {
+      const file = json('config.json');
+      let changes = 0;
+      const count = (e) => { if (e.target instanceof HTMLInputElement && e.target.type === 'file') changes++; };
+      document.addEventListener('change', count, true);
+      try {
+        const first = U.pickFiles({ accept: '.json' });
+        choose(await nextInput(), [file]);
+        const got1 = await first;
+        const second = U.pickFiles({ accept: '.json' });
+        choose(await nextInput(), [file]);
+        const got2 = await second;
+        expect(changes).toBe(2);
+        expect(got1.map((f) => f.name)).toEqual(['config.json']);
+        expect(got2.map((f) => f.name)).toEqual(['config.json']);
+      } finally { document.removeEventListener('change', count, true); }
+    });
+
+    it('the picker input is removed once the choice is made', async () => {
+      const p = U.pickFiles({});
+      const input = await nextInput();
+      expect(input.isConnected).toBe(true);
+      choose(input, [json('a.json')]);
+      await p;
+      expect(input.isConnected).toBe(false);
+    });
+  });
+
+  describe('pickFiles: cancelling', () => {
+    it('a cancelled picker settles with no files and removes its input', async () => {
+      const p = U.pickFiles({ accept: '.json' });
+      const input = await nextInput();
+      input.dispatchEvent(new Event('cancel'));
+      const got = await Promise.race([p, sleep(1000).then(() => 'still pending')]);
+      expect(got).toEqual([]);
+      expect(input.isConnected).toBe(false);
+    });
+
+    it('the picker opens again after a cancel', async () => {
+      const first = U.pickFiles({});
+      (await nextInput()).dispatchEvent(new Event('cancel'));
+      await first;
+      const second = U.pickFiles({});
+      choose(await nextInput(), [json('again.json')]);
+      expect((await second).map((f) => f.name)).toEqual(['again.json']);
+    });
+
+    it('a dialog button that awaits the picker is enabled again after a cancel', async () => {
+      let resolved = null;
+      const d = U.dialog({
+        title: 'Open test',
+        body: 'Pick a file.',
+        buttons: [
+          { label: 'Close' },
+          { label: 'Open file…', act: async () => { resolved = (await U.pickFiles({ accept: '.txt' }))[0] || null; return false; } },
+        ],
+      });
+      const btn = [...d.box.querySelectorAll('.sui-foot button')].find((b) => b.textContent === 'Open file…');
+      btn.click();
+      (await nextInput()).dispatchEvent(new Event('cancel'));
+      await waitFor(() => !btn.disabled, { timeout: 3000 });
+      expect(btn.disabled).toBe(false);
+      expect(resolved).toBe(null);
+      d.close(false);
+    });
+  });
+
+  describe('SlopDrop Choose files: the same file again', () => {
+    it('the Choose input is cleared after each pick, so the same file can be chosen again', async () => {
+      const zone = document.createElement('div');
+      document.body.append(zone);
+      let batches = 0;
+      const dropHandle = SlopDrop.attach(zone, {
+        accept: { types: ['application/json'], exts: ['.json'], noun: 'a JSON file' },
+        window: false, toast: false,
+        process: async (f) => f.name,
+        done: () => { batches++; },
+      });
+      try {
+        const input = zone.querySelector('input[type=file]');
+        const pick = zone.querySelector('.sd-choose');
+        pick.click();
+        choose(await nextInput(), [json('same.json')]);
+        await waitFor(() => batches === 1, { timeout: 3000 });
+        expect(input.value).toBe('');
+        expect(input.files.length).toBe(0);
+        pick.click();
+        const again = await nextInput();
+        expect(again).toBe(input);
+        choose(again, [json('same.json')]);
+        await waitFor(() => batches === 2, { timeout: 3000 });
+        expect(input.value).toBe('');
+      } finally { dropHandle.destroy(); zone.remove(); }
+    });
+  });
+
+  run({ name: 'SlopUI file picker' });
+  </script>
+</body>
+</html>

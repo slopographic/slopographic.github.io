@@ -1,0 +1,26 @@
+/* Shared components, Ukrainian: the finder (search, facets, count line, sortable table) and the record list's count.
+ * Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('uk', {
+  'ui.finder.count#one': '{n} елемент',
+  'ui.finder.count#few': '{n} елементи',
+  'ui.finder.count#many': '{n} елементів',
+  'ui.finder.count': '{n} елементів',
+  'ui.finder.count_of#one': 'Збігів: {shown} з {n} елемента',
+  'ui.finder.count_of#few': 'Збігів: {shown} з {n} елементів',
+  'ui.finder.count_of#many': 'Збігів: {shown} з {n} елементів',
+  'ui.finder.count_of': 'Збігів: {shown} з {n} елементів',
+  'ui.finder.count_noun': '{n} {noun}',
+  'ui.finder.count_of_noun': 'Збігів: {shown} з {n} ({noun})',
+  'ui.finder.matches': 'Збіги',
+  'ui.finder.chip_search': 'Пошук: «{q}»',
+  'ui.finder.chip': '{label}: {value}',
+  'ui.finder.sort_aria': '{label}, {sorted}',
+  'ui.finder.sorted_asc': 'за зростанням',
+  'ui.finder.sorted_desc': 'за спаданням',
+  'ui.finder.not_sorted': 'не відсортовано',
+  'ui.list.count#one': '{n} елемент',
+  'ui.list.count#few': '{n} елементи',
+  'ui.list.count#many': '{n} елементів',
+  'ui.list.count': '{n} елементів',
+  'ui.list.empty_any': 'Поки що тут нічого немає.',
+});

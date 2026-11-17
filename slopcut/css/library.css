@@ -1,0 +1,11 @@
+/* SlopCut: the transition library, the graphics library and the layout drop zones (templates.js, cells.js). */
+.tp-drop { min-height: 28px; border-radius: var(--radius-s); }
+.tp-drop.over { outline: 1px dashed var(--accent); outline-offset: 2px; background: var(--accent-soft); }
+.tr-box { display: grid; gap: 6px; margin-bottom: 8px; }
+.tr-prev { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: var(--radius-s); border: 1px solid var(--line-2); background: var(--ink); display: block; }
+.tr-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.tr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-sw { background: linear-gradient(90deg, var(--accent) 0 50%, var(--panel-2) 50%); }
+.gfx-ctl { display: grid; gap: 6px; margin-bottom: 8px; }
+.gfx-grid .fx svg { flex: none; color: var(--accent-line); }
+.gfx-grid .fx span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

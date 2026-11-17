@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+  <meta name="slop-test-limit" content="240"><title>File convert: cut video with ffmpeg</title></head>
+<body>
+  <script>try { localStorage.setItem('slop-firstrun:convert', '1'); } catch (e) { /* private window */ }</script>
+<script src="../harness.js"></script>
+<script type="module">
+// Covers: convert/js/core/media-geo.js, convert/js/core/cut.js
+// The real ffmpeg core from the pinned cdn commit, on the 2-second tone.webm fixture: a clip cut at the exact frame, and
+// one with the streams copied. Their sound is decoded here to measure what was kept.
+import { CONVERSIONS } from '../../convert/js/core/catalog.js';
+import { decodeAudio } from '../../convert/js/core/audio.js';
+const { describe, it, expect } = SlopTest;
+const fixture = async (name, type) => new File([await (await fetch('fixtures/' + name)).arrayBuffer()], name, { type });
+const run = (id, file, kind, o = {}) => CONVERSIONS.find((c) => c.id === id).run([{ file, name: file.name, kind }], o);
+const bytes = async (blob) => new Uint8Array(await blob.arrayBuffer());
+const seconds = async (blob) => (await decodeAudio(await bytes(blob))).duration;
+
+describe('cut video with ffmpeg.wasm', () => {
+  it('at the exact frame: a WebM of the asked length', async () => {
+    const src = await fixture('tone.webm', 'video/webm');
+    expect(Math.abs(await seconds(src) - 2)).toBeLessThan(0.1);
+    const [out] = await run('video-trim', src, 'webm', { start: '0.5', end: '1.5', exact: true });
+    const b = await bytes(out.blob);
+    expect([out.name, out.kind, out.blob.type, [...b.slice(0, 4)]]).toEqual(['tone-cut.webm', 'webm', 'video/webm', [0x1a, 0x45, 0xdf, 0xa3]]);
+    expect(Math.abs(await seconds(out.blob) - 1)).toBeLessThan(0.1);
+  }, { timeout: 240000 });
+  it('with the streams copied: the first second, which plays', async () => {
+    // a copy starts at the key frame before the start (this fixture has one, at 0:00), and ends where asked
+    const [out] = await run('video-trim', await fixture('tone.webm', 'video/webm'), 'webm', { start: '0', end: '1' });
+    expect(Math.abs(await seconds(out.blob) - 1)).toBeLessThan(0.15);
+    const v = document.createElement('video'); v.muted = true; v.src = URL.createObjectURL(out.blob);
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('the clip does not play')); });
+    expect([v.videoWidth, v.videoHeight]).toEqual([160, 120]);
+  }, { timeout: 240000 });
+  it('an MP4 stays an MP4, and an end before the start is refused before any work', async () => {
+    const [mp4] = await run('video-trim', await fixture('tone.mp4', 'video/mp4'), 'mp4', { start: '0:00.5', end: '1' });
+    expect([mp4.name, String.fromCharCode(...(await bytes(mp4.blob)).subarray(4, 8))]).toEqual(['tone-cut.mp4', 'ftyp']);
+    let msg = '';
+    try { await run('video-trim', await fixture('tone.mp4', 'video/mp4'), 'mp4', { start: '5', end: '2' }); } catch (e) { msg = e.message; }
+    expect(msg).toMatch(/end must be after the start/);
+  }, { timeout: 240000 });
+});
+SlopTest.run({ name: 'File convert: cut video with ffmpeg' });
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Ledger: Import SIE (accounts, opening balances, vouchers) and bank statements in OFX, QIF, camt.053 and MT940</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 860px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  // Covers: ledger/js/ui/sie.js, ledger/js/core/sie-import.js, ledger/js/ui/bank.js, ledger/js/core/bank.js, ledger/js/ui/commands.js, ledger/index.html, ledger/css/ledger.css, shared/finance/sie.js, shared/finance/index.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D;
+  const $ = (id) => D.getElementById(id);
+  const S = () => W.SlopData;
+  const fileOf = async (name) => new W.File([await (await fetch(`../finance/fixtures/${name}`, { cache: 'no-store' })).arrayBuffer()], name);
+  const dlg = () => [...D.querySelectorAll('.sui-dlg')].pop();
+  const press = (label) => [...dlg().querySelectorAll('button')].find((b) => b.textContent === label).click();
+  const stat = (k) => [...D.querySelectorAll('#bkStats .stat')].find((s) => s.querySelector('span').textContent === k).querySelector('b').textContent;
+  const journal = async () => (await S().store.list('journal')).value;
+  const acct = async (code) => (await S().store.get('accounts', code)).value;
+
+  describe('Import SIE', () => {
+    it('reads the file and asks first: new accounts, a code taken by another type, a name that differs, opening balances, vouchers', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../ledger/index.html#journal';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopLedger && f.contentWindow.SlopLedger.sieView && f.contentWindow.document.getElementById('boot').hidden, { timeout: 20000 });
+      W = f.contentWindow; D = W.document;
+      await S().store.erase(); await S().store.ready();
+      const set = (await S().store.get('settings', 'main')).value;
+      await S().store.put('settings', { ...set, defaultCurrency: 'SEK', locale: 'sv-SE' });
+      await S().store.put('accounts', { code: '1930', name: 'Bank account', type: 'asset' });
+      await S().store.put('accounts', { code: '6250', name: 'Prepaid postage', type: 'asset' });
+      expect($('jImportSie').textContent).toBe('Import SIE…');
+      W.SlopLedger.sieView.importFile(await fileOf('ankan-sie4.se'));
+      await waitFor(() => dlg() && dlg().textContent.includes('Import SIE: ankan-sie4.se'));
+      const text = dlg().textContent;
+      expect(text).toContain('Testbolaget Ankan AB (559999-0001), SIE type 4, SEK');
+      expect(text).toContain('6250 is Prepaid postage (asset) here, so this expense account gets 6251.');
+      expect(text).toContain('Use the file’s names for 1 account named differently here (1930 Bank account → Företagskonto)');
+      expect(text).toContain('Post the opening balances (4 accounts, dated 2025-01-01)');
+      expect(text).toContain('Post 4 vouchers as journal entries (2025-01-10 to 2025-01-21)');
+      // the person picks another code for the taken one, and keeps the names here
+      const input = dlg().querySelector('input[data-sie="6250"]');
+      input.value = '6255';
+      input.dispatchEvent(new W.Event('change'));
+      await waitFor(() => dlg().querySelector('input[data-sie="6250"]').value === '6255');
+    });
+    it('imports: accounts added, entries posted and balanced; then says what was done', async () => {
+      press('Import');
+      await waitFor(() => dlg() && dlg().textContent.includes('SIE imported'));
+      expect(dlg().textContent).toContain('From ankan-sie4.se: 9 accounts added, 0 accounts renamed, 5 journal entries posted.');
+      expect(dlg().textContent).toContain('Nothing was skipped.');
+      press('Done');
+      expect((await acct('1930')).name).toBe('Bank account');          // not overwritten: the box was not ticked
+      expect((await acct('6255')).name).toBe('Porto');
+      expect((await acct('6255')).type).toBe('expense');
+      expect((await acct('3001')).type).toBe('revenue');
+      expect((await acct('2081')).type).toBe('equity');
+      const j = await journal();
+      expect(j.length).toBe(5);
+      expect(j.some((e) => e.memo === 'B1 Porto och kontorsmateriel' && e.lines.some((l) => l.account === '6255' && l.debit === 80000))).toBe(true);
+      const tb = await S().ledger.trialBalance();
+      expect(tb.ok).toBe(true);
+      expect(tb.value.rows.find((r) => r.code === '1930').balance).toBe(5657500);   // the file's closing balance, 56 575.00
+    });
+    it('the same file again adds nothing: every entry is reported as already imported', async () => {
+      W.SlopLedger.sieView.importFile(await fileOf('ankan-sie4.se'));
+      await waitFor(() => dlg() && dlg().textContent.includes('Skipped: 5 items'));
+      press('Import');
+      await waitFor(() => dlg() && dlg().textContent.includes('SIE imported'));
+      expect(dlg().textContent).toContain('0 journal entries posted');
+      expect(dlg().textContent).toContain('Voucher A1 (2025-01-10): already imported');
+      press('Done');
+      expect((await journal()).length).toBe(5);
+    });
+    it('a file with an unbalanced voucher: the rest is posted, the voucher is listed with the reason', async () => {
+      W.SlopLedger.sieView.importFile(await fileOf('hb-quirks.se'));
+      await waitFor(() => dlg() && dlg().textContent.includes('Import SIE: hb-quirks.se'));
+      press('Import');
+      await waitFor(() => dlg() && dlg().textContent.includes('SIE imported'));
+      expect(dlg().textContent).toContain('Voucher A8 (2025-08-05): it does not balance (off by 1.00)');
+      expect(dlg().textContent).toContain('1 journal entry posted');
+      press('Done');
+    });
+    it('the File menu and the palette have the command', () => {
+      expect(W.SlopLedger.commands.list.some((c) => c.id === 'journal.importSie')).toBe(true);
+    });
+  });
+
+  describe('Bank tab: statements besides CSV', () => {
+    it('camt.053 in the base currency: booked lines in, the pending one left out', async () => {
+      W.location.hash = 'bank';
+      await waitFor(() => !$('view-bank').hidden);
+      await W.SlopLedger.bankView.importFile(await fileOf('ankan-camt053-v02.xml'));
+      await waitFor(() => stat('Statement lines') === '2');
+      expect(D.getElementById('bkRows').textContent).toContain('Kund Åkesson & Co · Faktura 1002');
+    });
+    it('QIF (no currency) is read; the same file twice adds nothing', async () => {
+      await W.SlopLedger.bankView.importFile(await fileOf('hyra-eu.qif'));
+      await waitFor(() => stat('Statement lines') === '4');
+      await W.SlopLedger.bankView.importFile(await fileOf('hyra-eu.qif'));
+      expect(stat('Statement lines')).toBe('4');
+    });
+    it('a statement in another currency is refused, and an SIE file is sent to Import SIE', async () => {
+      W.SlopLedger.bankView.importFile(await fileOf('checking-v1.ofx'));
+      await waitFor(() => dlg() && dlg().textContent.includes('This statement is in USD and the books are in SEK'));
+      press('OK');
+      W.SlopLedger.bankView.importFile(await fileOf('fakt-4i.si'));
+      await waitFor(() => dlg() && dlg().textContent.includes('Import SIE… in the Journal tab'));
+      press('OK');
+      expect(stat('Statement lines')).toBe('4');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

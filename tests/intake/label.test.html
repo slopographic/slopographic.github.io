@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared intake in SlopLabel: every way in is the same path</title>
+  <style>body { margin: 0; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: label/js/ui/intake.js, label/js/ui/hub.js, label/js/ui/boot.js, label/js/ui/keys.js, label/js/ui/export.js, label/js/ui/datadlg.js, label/js/ui/interact.js, label/js/ui/props-types.js, label/js/ui/configs-dlg.js
+  // SlopLabel on the one intake: a drop on the stage, the strip's Choose files, File ▸ Open, Insert image, a paste, the
+  // Slop Drive pickers and ?drive=<id> (launch) all reach the same reader with the same events and one first-use notice
+  // per batch; Replace image… is a part of its own. File ▸ Send to is the one builder (SlopOuttake).
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  let W, D, seen = [], notices = 0, events = [];
+  async function boot() {
+    const fr = document.getElementById('app');
+    fr.src = '../../label/index.html';
+    await waitFor(() => fr.contentWindow && fr.contentWindow.document.body && fr.contentWindow.document.body.classList.contains('ready') && fr.contentWindow.SlopIntake && fr.contentWindow.SlopIntake.spec('label'), { timeout: 30000 });
+    W = fr.contentWindow; D = W.document;
+    const s = W.SlopIntake.spec('label'), reader = s.process;
+    s.process = (f, ctx) => { seen.push([ctx.source, ctx.mode || 'open']); return reader(f, ctx); };
+    s.notice = { title: 'First use', lines: ['test'] };
+    W.SlopFirstRun = { once: async () => { notices++; return true; } };
+    for (const t of ['before', 'file', 'after']) W.SlopIntake.on(t, (d) => { events.push([t, d.app, d.source]); });
+  }
+  async function png(name) {
+    const c = D.createElement('canvas'); c.width = 40; c.height = 20;
+    c.getContext('2d').fillRect(0, 0, 40, 20);
+    return new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  const dtOf = (files) => { const dt = new W.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const images = () => W.eval('App').doc.objects.filter((o) => o.type === 'image').length;
+  async function through(source, mode, start, n = 2, app = 'label') {
+    seen = []; events = []; notices = 0;
+    await start();
+    await waitFor(() => events.some((e) => e[0] === 'after'), { timeout: 15000 });
+    if (app === 'label') { expect(seen).toEqual(Array(n).fill([source, mode])); expect(notices).toBe(1); }
+    expect(events.map((e) => e[0])).toEqual(['before', ...Array(n).fill('file'), 'after']);
+    expect(events.every((e) => e[1] === app && e[2] === source)).toBe(true);
+  }
+
+  describe('SlopLabel: one way in', () => {
+    it('a drop on the stage places the pictures where they were dropped', async () => {
+      await boot();
+      const before = images(), files = [await png('a.png'), await png('b.png')];
+      const st = D.getElementById('stage'), r = D.getElementById('cv').getBoundingClientRect();
+      await through('drop', 'open', () => st.dispatchEvent(new W.DragEvent('drop', { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, dataTransfer: dtOf(files) })));
+      expect(images()).toBe(before + 2);
+    }, { timeout: 45000 });
+    it("the strip's Choose files", async () => {
+      const files = [await png('c.png'), await png('d.png')];
+      await through('picker', 'open', () => { const i = D.querySelector('#lbDrop input[type=file]'); i.files = dtOf(files).files; i.dispatchEvent(new W.Event('change')); });
+    });
+    it('File ▸ Open… opens a project in a tab', async () => {
+      const proj = new W.File([await W.eval('projectBlob')(W.eval('TEMPLATES')[1].build()).text()], 'p.sloplabel');
+      W.SlopUI.pickFiles = async () => [proj];
+      await through('picker', 'open', () => W.openFilesDialog(), 1);
+      expect(W.eval('App').doc.name).toBe('Product label');
+    });
+    it('Insert image…', async () => {
+      const f = await png('e.png'), before = images();
+      W.SlopUI.pickFiles = async () => [f];
+      await through('picker', 'image', () => W.insertImageFile(), 1);
+      expect(images()).toBe(before + 1);
+    });
+    it('a paste places the picture', async () => {
+      const before = images(), f = await png('pasted.png');
+      await through('paste', 'open', () => D.body.dispatchEvent(new W.ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dtOf([f]) })), 1);
+      expect(images()).toBe(before + 1);
+    });
+    it('Insert image from Slop Drive', async () => {
+      const blob = await png('drive.png');
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x1', name: 'drive.png', type: 'image/png', blob });
+      await through('drive', 'image', () => W.imageFromDrive(), 1);
+    });
+    it('Open project from Slop Drive links it, so Save writes back to it', async () => {
+      const blob = new Blob([await W.eval('projectBlob')(W.eval('TEMPLATES')[1].build()).text()], { type: 'application/json' });
+      W.SlopHub.pickFromDrive = async () => ({ id: 'x2', name: 'Shelf.sloplabel', type: 'application/json', blob });
+      await through('drive', 'open', () => W.openProjectDrive(), 1);
+      expect(W.eval('App').driveId).toBe('x2');
+    });
+    it('?drive=<id> from another app (launch)', async () => {
+      const blob = await png('sent.png'), before = images();
+      W.SlopHub.consumeLaunch = async () => ({ id: 'x3', name: 'sent.png', type: 'image/png', blob });
+      await through('launch', 'open', () => W.SlopIntake.launch({ to: 'label' }), 1);
+      expect(images()).toBe(before + 1);
+    });
+    it('Replace image… is a part of its own (not the main reader)', async () => {
+      const img = W.eval('App').doc.objects.filter((o) => o.type === 'image').pop();
+      W.select([img.id]);
+      const c = D.createElement('canvas'); c.width = 10; c.height = 30; c.getContext('2d').fillRect(0, 0, 5, 5);
+      const f = new W.File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'swap.png', { type: 'image/png' }), asset = img.asset;
+      W.SlopUI.pickFiles = async () => [f];
+      await through('picker', null, () => W.replaceImage(), 1, 'label.replace');
+      expect(seen).toEqual([]);
+      expect(W.eval('App').doc.objects.find((o) => o.id === img.id).asset).not.toBe(asset);
+    });
+  });
+
+  describe('SlopLabel: one way out', () => {
+    it('File ▸ Send to is the SlopOuttake builder', () => {
+      const labels = W.sendToItems().filter((i) => i.label).map((i) => i.label);
+      expect(labels).toContain('Send to Slop PDF (PDF)');
+      expect(labels).toContain('Send to PhotoSlop (PNG)');
+      expect(labels.filter((l) => l === 'Run a workflow…').length).toBe(1);
+      expect(labels).toContain('Save PDF to Slop Drive…');
+      expect(labels).toContain('Save PNG to Slop Drive…');
+    });
+  });
+  run({ name: 'Shared intake: SlopLabel' });
+</script>
+</body>
+</html>

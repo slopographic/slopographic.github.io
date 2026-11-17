@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Watermark tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real page runs in the iframe. Each test drives it with the drops, clicks and input events a person makes,
+       then reads the page's own DOM and canvases through the frame's window. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/backup/zip.js"></script>
+  <script>
+  // Covers: watermark/js/main.js, watermark/js/settings.js, watermark/js/items.js, watermark/js/probe.js, watermark/js/list.js
+  // Covers: watermark/js/export.js, watermark/js/groups-ui.js, watermark/js/util.js, shared/watermark/preview.js
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const q = (sel) => W().document.querySelector(sel);
+  const qa = (sel) => [...W().document.querySelectorAll(sel)];
+  const KEY = 'slopwatermark.setup';
+  const ev = (name) => new (W().Event)(name, { bubbles: true });
+
+  /** Loads the page fresh and waits for its boot (body.ready). fresh: forget the saved setup first. */
+  async function open({ fresh = true } = {}) {
+    if (fresh) localStorage.removeItem(KEY);
+    f.src = 'about:blank';
+    await waitFor(() => f.contentWindow && f.contentWindow.location.href === 'about:blank', { timeout: 5000 });
+    f.src = '../../watermark/index.html';
+    await waitFor(() => { const w = f.contentWindow; return w && w.location.pathname.endsWith('/watermark/index.html') && w.document.body && w.document.body.classList.contains('ready'); }, { timeout: 20000 });
+    await sleep(60);
+    return W();
+  }
+  /** A PNG (with a transparent corner) or a JPEG of a gradient, so a watermark shows against it. */
+  async function picture(name, type, w, h, hue) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), grad = g.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, 'hsl(' + hue + ',70%,40%)'); grad.addColorStop(1, 'hsl(' + (hue + 120) + ',60%,70%)');
+    g.fillStyle = grad; g.fillRect(0, 0, w, h);
+    if (type === 'image/png') { g.clearRect(0, 0, 12, 12); }
+    const blob = await new Promise((r) => c.toBlob(r, type, 0.9));
+    return new File([blob], name, { type });
+  }
+  async function logoFile(name = 'logo.png') {
+    const c = document.createElement('canvas'); c.width = 160; c.height = 80;
+    const g = c.getContext('2d'); g.fillStyle = '#e02020'; g.fillRect(0, 0, 160, 80); g.fillStyle = '#ffffff'; g.fillRect(20, 20, 40, 40);
+    return new File([await new Promise((r) => c.toBlob(r, 'image/png'))], name, { type: 'image/png' });
+  }
+  /** Drops files on the drop zone, as a person does. */
+  function drop(files) {
+    const dt = new (W().DataTransfer)();
+    for (const file of files) dt.items.add(file);
+    q('#wm-drop').dispatchEvent(new (W().DragEvent)('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: 20, clientY: 20 }));
+  }
+  /** Types or picks a value in the watermark panel the way a person does: set it, then fire input and change. */
+  const textBox = () => q('.swp input[aria-label="Watermark text"]');
+  function set(el, value) {
+    if (el.type === 'checkbox') el.checked = value; else el.value = value;
+    el.dispatchEvent(ev('input')); el.dispatchEvent(ev('change'));
+  }
+  const field = (f) => q('.swp [data-f="' + f + '"]');
+  /** A logo dropped on the watermark panel: a new logo layer. */
+  function dropLogo(file) {
+    const dt = new (W().DataTransfer)();
+    dt.items.add(file);
+    q('.swp').dispatchEvent(new (W().DragEvent)('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  }
+  const rows = () => qa('#wm-list .wm-row');
+  /** A group's row in the groups list, and a control inside it (by its data-f name). */
+  const groupRow = (kind) => q('#wm-group-list .wm-group[data-kind="' + kind + '"]');
+  const groupCtl = (kind, f) => groupRow(kind).querySelector('[data-f="' + f + '"]');
+  const setEl = (el, value) => set(el, value);
+  /** Each finished output by its name, as bytes. */
+  async function outputs() {
+    const out = {};
+    for (const x of W().WMItems.all()) out[x.out.name] = new Uint8Array(await x.out.blob.arrayBuffer());
+    return out;
+  }
+  const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  /** The text font is loaded on first draw; wait for it so the outputs compare with the same font. */
+  const fontReady = () => W().document.fonts.load('600 16px "Inter Tight"');
+  const canvas = () => q('#wm-preview .swv-canvas');
+  const snap = () => { const c = canvas(); return c.getContext('2d').getImageData(0, 0, c.width, c.height).data.slice(); };
+  /** How many bytes differ between two snapshots (same size, else every byte counts). */
+  function differs(a, b) {
+    if (!a || !b || a.length !== b.length) return 1;
+    let n = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++;
+    return n;
+  }
+  const previewShown = () => { const c = canvas(); return !!c && !c.hidden && c.width > 0; };
+  async function applyAll() {
+    q('#wm-apply').click();
+    await waitFor(() => qa('#wm-list [data-act="dl"]:not([disabled])').length === rows().length && rows().length > 0, { timeout: 30000 });
+  }
+  /** Catches the blob that Download all creates (SlopUI.download makes an object URL for it). */
+  async function captureZip() {
+    const Wd = W(), orig = Wd.URL.createObjectURL, got = [];
+    Wd.URL.createObjectURL = function (b) { if (b && b.type === 'application/zip') got.push(b); return orig.apply(this, arguments); };
+    try {
+      q('#wm-zip').click();
+      await waitFor(() => got.length > 0, { timeout: 20000 });
+    } finally { Wd.URL.createObjectURL = orig; }
+    return got[0];
+  }
+
+  describe('Slop Watermark page', () => {
+    it('the header, drop zone and the shared watermark panel render with one text layer', async () => {
+      await open();
+      expect(q('#wm-bar .sab-name').textContent).toBe('Slop Watermark');
+      expect(q('#wm-drop .sd-msg, #wm-drop')).toBeTruthy();
+      expect(qa('.swp-item').map((b) => b.textContent)).toEqual(['“© Your name”']);
+      expect(textBox().value).toBe('© Your name');
+      expect(q('.swp-cell[data-pos="br"]').getAttribute('aria-pressed')).toBe('true');
+      expect(q('#wm-apply').disabled).toBe(true);
+    });
+
+    it('dropping two pictures lists both with their sizes and shows the first one in the preview', async () => {
+      await open();
+      drop([await picture('one.png', 'image/png', 300, 200, 200), await picture('two.jpg', 'image/jpeg', 240, 160, 20)]);
+      await waitFor(() => rows().length === 2, { timeout: 20000 });
+      expect(rows()[0].querySelector('.wm-name').textContent).toBe('one.png');
+      expect(rows()[1].querySelector('.wm-dim').textContent).toContain('240 × 160 px');
+      expect(q('#wm-count').textContent).toBe('2 pictures');
+      await waitFor(() => previewShown(), { timeout: 10000 });
+      expect(canvas().width).toBe(300);
+    });
+
+    it('a text watermark changes the preview canvas, and Preview shows another file', async () => {
+      await open();
+      drop([await picture('one.png', 'image/png', 300, 200, 200), await picture('two.jpg', 'image/jpeg', 240, 160, 20)]);
+      await waitFor(() => rows().length === 2 && previewShown(), { timeout: 20000 });
+      set(textBox(), '');
+      await waitFor(() => q('#wm-preview-note').textContent.includes('Type the watermark text'), { timeout: 5000 });
+      await sleep(80);
+      const before = snap();
+      set(textBox(), 'SLOP TEST');
+      set(field('opacity'), 100);
+      await waitFor(() => differs(before, snap()) > 0, { timeout: 5000 });
+      expect(q('#wm-preview-note').textContent).toBe('');
+      rows()[1].querySelector('[data-act="pv"]').click();
+      await waitFor(() => canvas().width === 240, { timeout: 5000 });
+      expect(q('#wm-preview-name').textContent).toBe('two.jpg');
+    });
+
+    it('a logo dropped on the panel is a new layer, drawn on the preview', async () => {
+      await open();
+      drop([await picture('one.png', 'image/png', 300, 200, 200)]);
+      await waitFor(() => rows().length === 1 && previewShown(), { timeout: 20000 });
+      await sleep(80);
+      const before = snap();
+      dropLogo(await logoFile());
+      await waitFor(() => qa('.swp-item').length === 2, { timeout: 10000 });
+      expect(qa('.swp-item')[0].textContent).toBe('Logo: logo.png');
+      expect(q('.swp-logo-name').textContent).toBe('logo.png');
+      await waitFor(() => differs(before, snap()) > 0, { timeout: 5000 });
+    });
+
+    it('apply to all makes one watermarked output per picture', async () => {
+      await open();
+      drop([await picture('one.png', 'image/png', 300, 200, 200), await picture('two.jpg', 'image/jpeg', 240, 160, 20)]);
+      await waitFor(() => rows().length === 2, { timeout: 20000 });
+      await applyAll();
+      expect(q('#wm-run-note').textContent.startsWith('Done: 2 pictures')).toBeTruthy();
+      expect(qa('#wm-list .wm-state.is-done').length).toBe(2);
+      expect(q('#wm-zip').disabled).toBe(false);
+    });
+
+    it('Download all gives a ZIP with two entries, the same format and the original size', async () => {
+      await open();
+      drop([await picture('one.png', 'image/png', 300, 200, 200), await picture('two.jpg', 'image/jpeg', 240, 160, 20)]);
+      await waitFor(() => rows().length === 2, { timeout: 20000 });
+      await applyAll();
+      const zip = await captureZip();
+      const entries = (await SlopZip.unzip(zip)).filter((e) => !e.dir);
+      expect(entries.length).toBe(2);
+      const names = entries.map((e) => e.name).sort();
+      expect(names).toEqual(['one-watermarked.png', 'two-watermarked.jpg']);
+      const png = entries.find((e) => e.name.endsWith('.png')).bytes;
+      expect(png[0]).toBe(0x89);
+      expect(new DataView(png.buffer, png.byteOffset).getUint32(16)).toBe(300);
+      const jpg = entries.find((e) => e.name.endsWith('.jpg')).bytes;
+      expect(jpg[0]).toBe(0xff); expect(jpg[1]).toBe(0xd8);
+    });
+
+    it('changing the setup after applying drops the results until they are applied again', async () => {
+      await open();
+      drop([await picture('one.png', 'image/png', 300, 200, 200)]);
+      await waitFor(() => rows().length === 1, { timeout: 20000 });
+      await applyAll();
+      set(field('rotate'), 15);
+      await waitFor(() => q('#wm-run-note').textContent.includes('Apply to all again'), { timeout: 5000 });
+      expect(q('#wm-zip').disabled).toBe(true);
+      expect(qa('#wm-list [data-act="dl"]:not([disabled])').length).toBe(0);
+    });
+
+    it('the setup is kept on this device and comes back on the next visit', async () => {
+      await open();
+      set(textBox(), 'Kept here');
+      q('.swp-cell[data-pos="tl"]').click();
+      await waitFor(() => { const v = localStorage.getItem(KEY); return v && JSON.parse(v).data.spec.layers[0].text === 'Kept here'; }, { timeout: 5000 });
+      await open({ fresh: false });
+      expect(textBox().value).toBe('Kept here');
+      expect(q('.swp-cell[data-pos="tl"]').getAttribute('aria-pressed')).toBe('true');
+      expect(q('#wm-saved').textContent).toBe('Saved on this device.');
+    });
+
+    it('a logo is kept with the setup, so it comes back too', async () => {
+      await open();
+      dropLogo(await logoFile('brand.png'));
+      await waitFor(() => { const v = localStorage.getItem(KEY); return v && JSON.parse(v).data.spec.layers.some((L) => L.logo); }, { timeout: 10000 });
+      await open({ fresh: false });
+      expect(qa('.swp-item')[0].textContent).toBe('Logo: brand.png');
+      expect(q('#wm-saved').textContent).toBe('Saved on this device, with the logo.');
+    });
+
+    it('a setup saved before the shared watermark (version 1) still loads, with its group', async () => {
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, data: { cfg: { kind: 'text', text: 'Old setup', position: 'tc', size: 0.045, opacity: 0.7, margin: 0.03, colour: '#ff0000' }, logo: null,
+        groups: { portrait: { on: true, position: 'tl', opacity: 0.9, size: 0.09, logoScale: 0.2 } } } }));
+      await open({ fresh: false });
+      expect(textBox().value).toBe('Old setup');
+      expect(q('.swp-cell[data-pos="tc"]').getAttribute('aria-pressed')).toBe('true');
+      expect(W().WMSettings.group('portrait').scale).toBe(2);
+    });
+
+    it('pictures are sorted into shape groups, each listed with a thumbnail, count and size range', async () => {
+      await open();
+      drop([await picture('p1.png', 'image/png', 120, 160, 30), await picture('l1.jpg', 'image/jpeg', 240, 160, 60),
+        await picture('s1.png', 'image/png', 200, 200, 90), await picture('p2.jpg', 'image/jpeg', 300, 400, 30)]);
+      await waitFor(() => rows().length === 4, { timeout: 20000 });
+      expect(q('#wm-groups').hidden).toBe(false);
+      expect(qa('#wm-group-list .wm-group').length).toBe(3);
+      expect(groupRow('portrait').querySelector('.wm-gname').textContent).toBe('Portrait, 2 pictures, 120 to 300 px');
+      expect(groupRow('landscape').querySelector('.wm-gname').textContent).toBe('Landscape, 1 picture, 160 px');
+      expect(groupRow('square').querySelector('.wm-gname').textContent).toBe('Square, 1 picture, 200 px');
+      expect(groupRow('portrait').querySelector('.wm-thumb').src.startsWith('blob:')).toBe(true);
+    });
+
+    it('a group setting is off until it is turned on, and turning it on starts from the shared setup', async () => {
+      await open();
+      drop([await picture('p1.png', 'image/png', 120, 160, 30)]);
+      await waitFor(() => rows().length === 1, { timeout: 20000 });
+      expect(groupCtl('portrait', 'on').checked).toBe(false);
+      expect(groupCtl('portrait', 'position').disabled).toBe(true);
+      setEl(groupCtl('portrait', 'on'), true);
+      expect(groupCtl('portrait', 'position').disabled).toBe(false);
+      expect(groupCtl('portrait', 'position').value).toBe(W().WMSettings.spec().layers[0].position);
+      setEl(groupCtl('portrait', 'on'), false);
+      expect(W().WMSettings.group('portrait').on).toBe(false);
+    });
+
+    it('an override changes the output of its own group only', async () => {
+      await open();
+      drop([await picture('p1.png', 'image/png', 120, 160, 30), await picture('p2.jpg', 'image/jpeg', 300, 400, 30),
+        await picture('l1.jpg', 'image/jpeg', 240, 160, 60)]);
+      await waitFor(() => rows().length === 3, { timeout: 20000 });
+      await fontReady();
+      await applyAll();
+      const before = await outputs();
+      setEl(groupCtl('portrait', 'on'), true);
+      setEl(groupCtl('portrait', 'position'), 'tl');
+      setEl(groupCtl('portrait', 'opacity'), 100);
+      await applyAll();
+      const after = await outputs();
+      expect(sameBytes(before['p1-watermarked.png'], after['p1-watermarked.png'])).toBe(false);
+      expect(sameBytes(before['p2-watermarked.jpg'], after['p2-watermarked.jpg'])).toBe(false);
+      expect(sameBytes(before['l1-watermarked.jpg'], after['l1-watermarked.jpg'])).toBe(true);
+    });
+
+    it('with no group settings, every group is drawn with the shared setup', async () => {
+      await open();
+      drop([await picture('p1.png', 'image/png', 120, 160, 30), await picture('l1.jpg', 'image/jpeg', 240, 160, 60)]);
+      await waitFor(() => rows().length === 2, { timeout: 20000 });
+      set(field('rotate'), 10);
+      await fontReady();
+      await applyAll();
+      for (const x of W().WMItems.all()) {
+        const blob = await W().SlopWatermark.apply(x.file, W().WMSettings.spec());
+        expect(sameBytes(new Uint8Array(await blob.arrayBuffer()), new Uint8Array(await x.out.blob.arrayBuffer()))).toBe(true);
+      }
+    });
+
+    it('group settings are saved with the setup and come back on the next visit', async () => {
+      await open();
+      drop([await picture('p1.png', 'image/png', 120, 160, 30)]);
+      await waitFor(() => rows().length === 1, { timeout: 20000 });
+      setEl(groupCtl('portrait', 'on'), true);
+      setEl(groupCtl('portrait', 'position'), 'tl');
+      await waitFor(() => { const s = localStorage.getItem(KEY); return s && JSON.parse(s).data.groups && JSON.parse(s).data.groups.portrait; }, { timeout: 5000 });
+      await open({ fresh: false });
+      await waitFor(() => W().WMSettings.group('portrait').on === true, { timeout: 5000 });
+      expect(W().WMSettings.group('portrait').position).toBe('tl');
+      expect(W().WMSettings.group('landscape').on).toBe(false);
+    });
+  });
+  run({ name: 'Slop Watermark' });
+  </script>
+</body>
+</html>

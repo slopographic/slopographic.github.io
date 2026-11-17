@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: kinds of text</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/findkinds.js, code/js/main.js
+  // Ctrl+Alt+K lists the kinds of text in the open file (IP addresses, e-mail, keys...). Find fills the find panel, Mask replaces every
+  // match in one change that Ctrl+Z undoes. The key below is built from pieces so no real-looking key sits in this file.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H, doc, view, textOf, dialog, clickButton } = CT;
+  let w;
+  const KEY = ['gh', 'p_'].join('') + 'aB3dE5gH7jK9mN1pQ3sT5vX7zA9cD1fG3hJ5';
+  const BODY = 'server 10.0.0.1 and 192.168.1.20\ncontact ops@example.org\ntoken = ' + KEY + '\n';
+  const rows = () => [...dialog(w).querySelectorAll('.cd-kinds-row')];
+  const row = (label) => rows().find((r) => r.querySelector('.cd-kinds-name').textContent.startsWith(label));
+  describe('Slop Code: kinds of text in a file', () => {
+    it('lists what the file holds, with counts', async () => {
+      w = await frame('../../code/');
+      const id = await H().put(text(BODY), { name: 'notes.txt', from: 'test' });
+      await w.SlopCode.openRecord(await H().get(id));
+      await waitFor(() => doc(w) && doc(w).name === 'notes.txt');
+      expect(w.SlopCode.actions.kinds()).toBe(true);
+      await waitFor(() => dialog(w));
+      expect(row('IPv4 address').querySelector('.cd-kinds-n').textContent).toBe('2');
+      expect(row('Email address').querySelector('.cd-kinds-n').textContent).toBe('1');
+      expect(row('GitHub token').textContent).toContain('looks like a secret');
+      expect(rows().some((r) => r.textContent.startsWith('UUID'))).toBe(false);
+    }, { timeout: 40000 });
+    it('Find fills the find panel and selects the first match', async () => {
+      [...row('IPv4 address').querySelectorAll('button')].find((b) => b.textContent === 'Find').click();
+      await waitFor(() => w.document.querySelector('.cm-search input[name=search]'));
+      const sel = view(w).state.selection.main;
+      expect(view(w).state.sliceDoc(sel.from, sel.to)).toBe('10.0.0.1');
+      expect(w.document.querySelector('.cm-search input[name=search]').value.length).toBeGreaterThan(5);
+    });
+    it('Mask changes every match at once, the file is marked changed, and Ctrl+Z puts it back', async () => {
+      w.SlopCode.actions.kinds();
+      await waitFor(() => dialog(w));
+      [...row('GitHub token').querySelectorAll('button')].find((b) => b.textContent === 'Mask').click();
+      await waitFor(() => !textOf(w).includes(KEY));
+      expect(textOf(w)).toContain('token = ghp_');
+      expect(textOf(w)).toContain('…');
+      expect(doc(w).dirty).toBe(true);
+      view(w).contentDOM.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'z', code: 'KeyZ', keyCode: 90, ctrlKey: true, bubbles: true, cancelable: true }));
+      await waitFor(() => textOf(w) === BODY);
+    });
+    it('says so when the file has none of them', async () => {
+      const id = await H().put(text('nothing to see here\n'), { name: 'plain.txt', from: 'test' });
+      await w.SlopCode.openRecord(await H().get(id));
+      await waitFor(() => doc(w).name === 'plain.txt');
+      w.SlopCode.actions.kinds();
+      await waitFor(() => dialog(w));
+      expect(dialog(w).textContent).toContain('No IP addresses');
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: kinds of text in a file' });
+  </script>
+</body>
+</html>

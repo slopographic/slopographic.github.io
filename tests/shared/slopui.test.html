@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Shared · SlopUI (dialogs, menus, toasts)</title>
+  <link rel="stylesheet" href="../../shared/slopui.css">
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/slopui.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const U = window.SlopUI;
+  const key = (target, k) => target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  const dlg = () => [...document.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop();
+  const btn = (label) => [...dlg().querySelectorAll('.sui-foot button')].find((b) => b.textContent === label);
+
+  describe('el', () => {
+    it('builds elements with attributes, classes, listeners and children', () => {
+      let clicked = 0;
+      const n = U.el('button', { class: 'x y', 'data-k': 'v', disabled: false, hidden: true, onclick: () => clicked++ }, 'Go', null, U.el('b', null, 'B'));
+      expect(n.className).toBe('x y');
+      expect(n.dataset.k).toBe('v');
+      expect(n.hasAttribute('disabled')).toBe(false);
+      expect(n.hasAttribute('hidden')).toBe(true);
+      expect(n.textContent).toBe('GoB');
+      n.click();
+      expect(clicked).toBe(1);
+    });
+  });
+
+  describe('dialogs', () => {
+    it('opens a dialog with a title, body and buttons, and closes it', async () => {
+      let closed = null;
+      const d = U.dialog({ title: 'Hello', body: 'Body text', buttons: [{ label: 'Cancel' }, { label: 'OK', primary: true }], onClose: (ok) => { closed = ok; } });
+      expect(U.openDialogs).toBe(1);
+      expect(dlg().getAttribute('aria-label')).toBe('Hello');
+      expect(dlg().querySelector('.sui-p').textContent).toBe('Body text');
+      btn('OK').click();
+      await waitFor(() => closed !== null);
+      expect(closed).toBe(true);
+      expect(U.openDialogs).toBe(0);
+      await sleep(200);
+      expect(document.querySelector('.sui-back')).toBe(null);
+    });
+    it('an act() returning false keeps the dialog open', async () => {
+      let tries = 0;
+      const d = U.dialog({ title: 'Keep', body: 'x', buttons: [{ label: 'Try', primary: true, act: () => ++tries > 1 }] });
+      btn('Try').click();
+      await sleep(20);
+      expect(U.openDialogs).toBe(1);
+      btn('Try').click();
+      await waitFor(() => U.openDialogs === 0);
+      expect(tries).toBe(2);
+    });
+    it('confirm resolves true on OK, false on Cancel and on Escape', async () => {
+      let p = U.confirm('Sure?', 'Really?', 'Yes');
+      await sleep(20); btn('Yes').click();
+      expect(await p).toBe(true);
+      p = U.confirm('Sure?', 'Really?');
+      await sleep(20); btn('Cancel').click();
+      expect(await p).toBe(false);
+      p = U.confirm('Sure?', 'Really?');
+      await sleep(20); key(dlg(), 'Escape');
+      expect(await p).toBe(false);
+    });
+    it('prompt returns the typed value (Enter submits) or null', async () => {
+      let p = U.prompt('Name', 'Your name', 'Sloppo');
+      await sleep(80);
+      const input = dlg().querySelector('input');
+      if (document.hasFocus()) expect(document.activeElement).toBe(input);   // focus needs a focused window
+      input.value = 'Goo';
+      key(input, 'Enter');
+      expect(await p).toBe('Goo');
+      p = U.prompt('Name', 'Your name');
+      await sleep(20); btn('Cancel').click();
+      expect(await p).toBe(null);
+    });
+    it('alert resolves when dismissed; form helpers build fields', async () => {
+      const p = U.alert('Note', 'Hi');
+      await sleep(20); btn('OK').click();
+      await p;
+      const f = U.field('Width', U.number(5, 0, 10), 'px');
+      expect(f.querySelector('.sui-label').textContent).toBe('Width');
+      expect(f.querySelector('input').type).toBe('number');
+      expect(f.querySelector('.sui-unit').textContent).toBe('px');
+      const s = U.select([['a', 'A'], ['b', 'B']], 'b');
+      expect(s.value).toBe('b');
+      const c = U.check('On', true);
+      expect(c.input.checked).toBe(true);
+    });
+  });
+
+  describe('menus', () => {
+    it('shows items, separators, checks and keys; click runs the action and closes', async () => {
+      let ran = '';
+      const m = U.menu([{ label: 'Copy', key: 'Ctrl+C', act: () => { ran = 'copy'; } }, '-', { label: 'Grid', check: true, act: () => {} }, { label: 'Nope', disabled: true, act: () => { ran = 'nope'; } }], 50, 60);
+      expect(m.querySelectorAll('.sui-row').length).toBe(3);
+      expect(m.querySelectorAll('.sui-sep').length).toBe(1);
+      expect(m.querySelectorAll('.sui-row')[1].querySelector('.sui-chk').textContent).toBe('✓');
+      expect(m.querySelectorAll('.sui-row')[2].disabled).toBe(true);
+      if (document.hasFocus()) expect(document.activeElement).toBe(m.querySelector(".sui-row"));
+      m.querySelector('.sui-row').click();
+      expect(ran).toBe('copy');
+      expect(document.querySelector('.sui-menu')).toBe(null);
+    });
+    it('arrow keys move focus, Escape closes, clicks outside close', async () => {
+      const m = U.menu([{ label: 'A', act: () => {} }, { label: 'B', act: () => {} }], 10, 10);
+      const rows = m.querySelectorAll('.sui-row');
+      key(m, 'ArrowDown');
+      expect(document.activeElement).toBe(rows[1]);
+      key(m, 'ArrowDown');
+      expect(document.activeElement).toBe(rows[0]);
+      key(m, 'ArrowUp');
+      expect(document.activeElement).toBe(rows[1]);
+      key(m, 'Escape');
+      expect(document.querySelector('.sui-menu')).toBe(null);
+      U.menu([{ label: 'A', act: () => {} }], 10, 10);
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      expect(document.querySelector('.sui-menu')).toBe(null);
+    });
+    it('stays inside the window and opens submenus', async () => {
+      const m = U.menu([{ label: 'More', sub: [{ label: 'Deep', act: () => {} }] }], innerWidth - 5, innerHeight - 5);
+      const r = m.getBoundingClientRect();
+      expect(r.right).toBeLessThanOrEqual(innerWidth);
+      expect(r.bottom).toBeLessThanOrEqual(innerHeight);
+      m.querySelector('.sui-row').dispatchEvent(new PointerEvent('pointerenter'));
+      await new Promise((r) => setTimeout(r, 260)); // hover opens a submenu after a short delay
+      expect(document.querySelectorAll('.sui-menu').length).toBe(2);
+      U.closeMenu();
+      expect(document.querySelectorAll('.sui-menu').length).toBe(0);
+    });
+  });
+
+  describe('toasts', () => {
+    it('shows a message and hides it after a while', async () => {
+      U.toast('Saved', 150);
+      const t = document.querySelector('.sui-toast');
+      expect(t.textContent).toBe('Saved');
+      expect(t.classList.contains('sui-show')).toBe(true);
+      expect(t.getAttribute('role')).toBe('status');
+      await sleep(250);
+      expect(t.classList.contains('sui-show')).toBe(false);
+      U.toast('Again');
+      expect(document.querySelectorAll('.sui-toast').length).toBe(1);
+    });
+    it('an action button (Undo) shows its label, readable on the dark toast (it was a blank light box)', async () => {
+      let undone = 0;
+      U.toast('Imported: 4 added.', 6000, { label: 'Undo', run: () => { undone++; } });
+      const t = document.querySelector('.sui-toast'), b = t.querySelector('.sui-toast-act');
+      expect(b.textContent).toBe('Undo');
+      const bg = getComputedStyle(b).backgroundColor;
+      // the button lets the toast's dark face show through, and its text stands out from it
+      expect(/rgba\(0, 0, 0, 0\)|transparent/.test(bg)).toBe(true);
+      expect(SlopTest.contrast(getComputedStyle(b).color, getComputedStyle(t).backgroundColor)).toBeGreaterThan(7);
+      b.click();
+      expect(undone).toBe(1);
+    });
+  });
+
+  run();
+  </script>
+</body>
+</html>

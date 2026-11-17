@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>The shared Slop Drive picker: pictures, kinds, a larger preview, the caller's types</title>
+  <style>body { margin: 0; } iframe { width: 1100px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script>
+  // Covers: shared/drive/picker.js, shared/drive/thumb-read.js, aitools/tags/tags.js
+  // The one Slop Drive picker every app opens (through SlopIntake.fromDrive): Auto tags picks a photo in it (its picture
+  // shows); a PDF shows the Drive's cached thumbnail, a video its first frame, other files a card with their kind; a
+  // resting pointer shows a larger preview; the caller's types decide what is listed.
+  const { describe, it, expect, sleep, run } = SlopTest;
+  const waitFor = (fn, o) => SlopTest.waitFor(fn, o).catch((e) => { throw new Error('waitFor timed out: ' + String(fn).slice(0, 90)); });
+  const RUN = 'pk' + Date.now();
+  let W, D;
+  const dlg = () => [...D.querySelectorAll('.sui-back:not(.sui-out) .sui-dlg')].pop() || null;
+  const grid = () => [...D.querySelectorAll('.sui-back:not(.sui-out) .hub-grid')].pop() || D.createElement('div'); // the open picker's
+  const item = (id) => grid().querySelector(`.hub-item[data-id="${id}"]`);
+  function seedThumb(dbName, id, modified, blob) {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(dbName, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('thumbs', { keyPath: 'id' });
+      r.onerror = () => rej(r.error);
+      r.onsuccess = () => {
+        const d = r.result, t = d.transaction('thumbs', 'readwrite');
+        t.objectStore('thumbs').put({ id, modified, ver: 3, blob, info: {} });
+        t.oncomplete = () => { d.close(); res(); };
+        t.onerror = () => rej(t.error);
+      };
+    });
+  }
+  async function png(w, h, color) {
+    const c = D.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = color; g.fillRect(0, 0, w, h);
+    return new Promise((r) => c.toBlob(r, 'image/png'));
+  }
+  /** Narrows the open picker to this run's files (they may sit beside other tests' files in Slop Drive). */
+  async function only(n) {
+    const s = [...D.querySelectorAll('.hub-search')].pop();
+    s.value = RUN; s.dispatchEvent(new W.Event('input'));
+    await waitFor(() => { const all = [...grid().querySelectorAll('.hub-item')]; return grid().dataset.query === RUN.toLowerCase() && all.length === n && all.every((b) => b.textContent.includes(RUN)); }, { timeout: 10000 });
+  }
+  const ids = {};
+
+  describe('the shared Slop Drive picker', () => {
+    it('Auto tags: Pick from Slop Drive opens it; the photo shows as a picture; picking it opens it with its tags', async () => {
+      const fr = document.getElementById('app');
+      fr.src = '../../aitools/tags/index.html';
+      await waitFor(() => { try { return fr.contentWindow.SlopIntake.spec('ai-tags') && fr.contentDocument.getElementById('pickDrive'); } catch (e) { return false; } }, { timeout: 20000 });
+      W = fr.contentWindow; D = W.document;
+      W.SLOP_THUMB_DB = 'picker-thumbs-' + RUN;
+      const events = [];
+      W.SlopIntake.on('after', (d) => events.push([d.app, d.source]));
+      ids.png = await W.SlopHub.put(await png(320, 200, '#3a7'), { name: RUN + '-photo.png', from: 'test', meta: { tags: ['cat'] } });
+      D.getElementById('pickDrive').click();
+      await waitFor(() => D.querySelector('.hub-search'), { timeout: 10000 });
+      await only(1);
+      const img = () => item(ids.png) && item(ids.png).querySelector('.hub-thumb img');
+      await waitFor(() => img() && img().complete && img().naturalWidth === 320, { timeout: 10000 });
+      expect(img().getAttribute('src').startsWith('blob:')).toBe(true);
+      item(ids.png).click();
+      await waitFor(() => events.length, { timeout: 15000 });
+      expect(events).toEqual([['ai-tags', 'drive']]);
+      await waitFor(() => !D.querySelector('.hub-search'), { timeout: 5000 });
+      expect(D.getElementById('tagText').value).toBe('cat');
+    }, { timeout: 40000 });
+
+    it('a PDF shows the Drive\'s cached thumbnail, a video its first frame, another file a card with its kind', async () => {
+      ids.pdf = await W.SlopHub.put(new Blob(['%PDF-1.4 not really'], { type: 'application/pdf' }), { name: RUN + '-doc.pdf', from: 'test' });
+      ids.vid = await W.SlopHub.put(new Blob([new Uint8Array(64)], { type: 'video/webm' }), { name: RUN + '-clip.webm', from: 'test' });
+      ids.zip = await W.SlopHub.put(new Blob([new Uint8Array(32)], { type: 'application/zip' }), { name: RUN + '-pack.zip', from: 'test' });
+      const rec = await W.SlopHub.get(ids.pdf);
+      await seedThumb(W.SLOP_THUMB_DB, ids.pdf, rec.modified || rec.time, await png(60, 80, '#c33'));
+      const picked = W.SlopHub.pickFromDrive({ title: 'Pick one' });
+      await waitFor(() => D.querySelector('.hub-search'), { timeout: 10000 });
+      await only(4);
+      await waitFor(() => item(ids.zip), { timeout: 10000 });
+      const pdfImg = () => item(ids.pdf).querySelector('.hub-thumb img');
+      await waitFor(() => pdfImg() && pdfImg().complete && pdfImg().naturalWidth === 60, { timeout: 10000 });
+      const v = await waitFor(() => item(ids.vid).querySelector('.hub-thumb video'), { timeout: 5000 }).catch(() => { throw new Error('no video: ' + item(ids.vid).innerHTML); });
+      expect(v.muted).toBe(true);
+      expect(v.getAttribute('src')).toMatch(/^blob:.*#t=0\.1$/);
+      const card = await waitFor(() => item(ids.zip).querySelector('.hub-thumb .hub-kind'));
+      expect(card.textContent).toContain('ZIP');
+      await waitFor(() => item(ids.zip).querySelector('.hub-kind small'), { timeout: 10000 }); // the kind's name, once shared/kinds is in
+      // a resting pointer: the larger preview over the grid; leaving takes it away
+      item(ids.png).dispatchEvent(new W.MouseEvent('mouseenter'));
+      const peek = await waitFor(() => D.querySelector('.hub-peek img'), { timeout: 3000 });
+      expect(peek.getAttribute('src').startsWith('blob:')).toBe(true);
+      item(ids.png).dispatchEvent(new W.MouseEvent('mouseleave'));
+      expect(D.querySelector('.hub-peek')).toBe(null);
+      [...item(ids.png).closest('.sui-dlg').querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+      expect(await picked).toBe(null);
+      await waitFor(() => !D.querySelector('.hub-search'), { timeout: 5000 }); // the closed picker is gone
+    }, { timeout: 40000 });
+
+    it('the caller\'s types decide what is listed', async () => {
+      const picked = W.SlopHub.pickFromDrive({ accept: ['image/*'] });
+      await waitFor(() => D.querySelector('.hub-search'), { timeout: 10000 });
+      await only(1);
+      await waitFor(() => item(ids.png), { timeout: 10000 });
+      await sleep(200);
+      expect(item(ids.pdf)).toBe(null);
+      expect(item(ids.vid)).toBe(null);
+      expect(item(ids.zip)).toBe(null);
+      item(ids.png).click();
+      expect((await picked).id).toBe(ids.png);
+      for (const id of Object.values(ids)) await W.SlopHub.remove(id);
+      await new Promise((res) => { const r = indexedDB.deleteDatabase(W.SLOP_THUMB_DB); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+    }, { timeout: 30000 });
+  });
+  run({ name: 'The shared Slop Drive picker' });
+</script>
+</body>
+</html>

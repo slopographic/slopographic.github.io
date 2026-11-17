@@ -1,0 +1,59 @@
+/* SlopVector — responsive layout and SlopUI theming */
+/* ---------- responsive ---------- */
+@media (max-width: 1180px) { :root { --dock-w: 248px; } .docname { display: none; } }
+@media (max-width: 899px) {
+  :root { --toolbar-w: 44px; --cb-h: 40px; }
+  .main { grid-template-columns: var(--toolbar-w) minmax(0, 1fr); }
+  .app.no-dock .main { grid-template-columns: var(--toolbar-w) minmax(0, 1fr); }
+  .app.no-dock .dock { display: flex; }
+  /* the dock is a drawer from the right under the bars: shared/ui/sheet.js gives place, motion, × and closing */
+  .dock { --ssh-z: 60; --ssh-top: calc(var(--menubar-h) + var(--cb-h)); }
+  .tools { grid-template-columns: 32px; }
+  .tool { width: 32px; height: 30px; }
+  .fs-stack { width: 40px; height: 40px; }
+  .fs { width: 24px; height: 24px; }
+  .fs.stroke .hole { inset: 7px; }
+  .fs-mini { display: none; }
+  .hl-text, .brand-name { display: none; }
+  .home-link { padding: 3px 7px; }
+  .doctab .dt-meta { display: none; }
+  .ruler { cursor: default; }
+  .menu-btn { padding: 0 8px; }
+}
+@media (max-width: 640px) { .menus { flex: 0 1 auto; } }
+@media (max-width: 560px) {
+  #sbPos, #sbFlags, #sbSel, .sbb, .zsel { display: none; }
+  .cb-label { min-width: 0; }
+  .num.w52 { width: 46px; }
+  :root { --ruler: 14px; }
+}
+@media (pointer: coarse) {
+  .lrow { height: 32px; }
+  .sui-menu .sui-row { min-height: 34px; }
+}
+.grid2 .fld .num { min-width: 44px; }
+.shape-sec .grid2 { grid-template-columns: 1fr; }
+.shape-sec .grid2 .fld { grid-template-columns: 96px minmax(0, 120px) auto; }
+
+/* ---------- SlopUI (shared dialogs / toasts / context menus) themed from SlopVector tokens ---------- */
+:root {
+  --sui-bg: var(--bg-panel); --sui-bg2: var(--bg-panel-2); --sui-input: var(--bg-input); --sui-line: var(--border);
+  --sui-fg: var(--text); --sui-dim: var(--text-dim); --sui-faint: var(--text-faint); --sui-hover: var(--bg-hover);
+  --sui-sel: #46561a; --sui-accent: var(--slop); --sui-accent-ink: var(--ink);
+  --sui-radius: 4px; --sui-shadow: var(--shadow); --sui-font: var(--font-ui); --sui-mono: var(--mono);
+}
+:root[data-theme="light"] { --sui-sel: #e4f6a0; }
+:root[data-theme="classic"] { --sui-sel: #000080; --sui-radius: 0; }
+.sv-form .sui-field { grid-template-columns: 110px minmax(0, 1fr) 28px; }
+.sv-form .sui-input { width: 100%; }
+.sv-check { margin: 2px 0 10px 118px; }
+.sui-dlg .sui-p b { color: var(--sui-fg); }
+.sui-foot .sv-left { margin-right: auto; }
+.sui-dlg.sui-wide .sui-body { max-height: calc(100dvh - 140px); }
+:root[data-theme="classic"] .picker { border-radius: 0; border: 0; padding-top: 0; }
+:root[data-theme="classic"] .picker-head { height: 24px; border-radius: 0; margin-top: 3px; margin-left: -7px; margin-right: -7px; }
+:root[data-theme="classic"] .picker-head .xbtn { background: #c0c0c0; color: #000; box-shadow: var(--bevel-btn); width: 18px; height: 16px; font-size: 13px; opacity: 1; font-weight: 700; }
+@media (max-width: 899px) { .sui-wide .shortcuts { grid-template-columns: 1fr; } .sv-check { margin-left: 0; } }
+@media (max-width: 560px) { .sv-form .sui-field { grid-template-columns: 90px minmax(0, 1fr) 24px; } }
+/* SlopUI keeps a closing backdrop in the DOM for its 140ms fade; don't let it swallow canvas input. */
+.sui-back.sui-out { pointer-events: none; }

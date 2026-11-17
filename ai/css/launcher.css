@@ -1,0 +1,13 @@
+/* Slop AI — the Apps list in the chat sidebar. */
+.apps-launch { flex-shrink: 0; max-height: 46%; overflow: auto; padding: 8px 6px 10px; border-top: 1px solid var(--line); }
+.apps-h { margin: 0 8px 6px; font-size: var(--fs-s); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.apps-list { display: grid; gap: 1px; }
+.app-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: var(--radius-s); }
+.app-row:hover, .app-row:focus-within { background: var(--hover); }
+.app-link { display: grid; min-width: 0; padding: 6px 8px; color: var(--fg); text-decoration: none; }
+.app-link b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-link small { color: var(--faint); font-size: var(--fs-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-more { width: 26px; height: 26px; border: 0; border-radius: 4px; background: none; color: var(--faint); display: grid; place-items: center; opacity: 0; }
+.app-row:hover .app-more, .app-row:focus-within .app-more, .app-more:focus-visible { opacity: 1; }
+.app-more:hover { color: var(--fg); background: var(--hover); }
+.app-more .ic { width: 14px; height: 14px; }

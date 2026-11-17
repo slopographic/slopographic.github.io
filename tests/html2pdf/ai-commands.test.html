@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop HTML to PDF: the assistant's commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1200px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: html2pdf/js/ai-commands.js, html2pdf/js/app.js, html2pdf/index.html, shared/commands/sources.js
+  const { describe, it, expect, waitFor } = SlopTest;
+  const pdfjs = await import('../../vendor/pdfjs/pdf.min.js');
+  pdfjs.GlobalWorkerOptions.workerSrc = '../../vendor/pdfjs/pdf.worker.min.js';
+  let W = null, C = null;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+
+  describe('Slop HTML to PDF: assistant commands', () => {
+    it('SlopCmd is on the page; prepare() loads the commands', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../html2pdf/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.H2P && f.contentWindow.H2P.app && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('h2p.open'), { timeout: 20000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      for (const t of ['new-document', 'add-images', 'set-page', 'export-pdf']) expect(C.get('h2p.ai.' + t).destructive).toBe(false);
+    }, { timeout: 30000 });
+
+    it('new_document from HTML text and from Slop Drive, set_page, export_pdf to Slop Drive', async () => {
+      let r = await run('h2p.ai.new-document', { html: '<h1>Bee report</h1><p>Hives: 12</p><script>alert(1)<\/script>', name: 'bees' });
+      expect(r.value).toMatch(/bees\.html is open on A4 portrait/);
+      expect(W.H2P.app.cleaned().body).not.toContain('script');
+      r = await run('h2p.ai.set-page', { paper: 'Letter', orientation: 'landscape', header: false });
+      expect(r.value).toMatch(/Letter landscape/);
+      expect(C.state().page.header).toBe(false);
+      r = await run('h2p.ai.export-pdf', { to: 'drive' });
+      const id = /id ([^)\s]+)\)/.exec(r.value)[1], rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('bees.pdf');
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await rec.blob.arrayBuffer()) }).promise;
+      expect(pdf.numPages).toBeGreaterThan(0);
+      await W.SlopHub.put(new Blob(['<p>From Drive</p>'], { type: 'text/html' }), { name: 'note.html', from: 'test' });
+      r = await run('h2p.ai.new-document', { file: 'note.html' });
+      expect(C.state().open).toBe('note.html');
+      expect((await C.exec('h2p.ai.new-document', {})).ok).toBe(false);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop HTML to PDF: assistant commands' });
+  </script>
+</body>
+</html>

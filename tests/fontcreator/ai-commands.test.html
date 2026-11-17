@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Font: the assistant's commands (SlopCmd with argument schemas)</title>
+<style>body { margin: 0; } iframe { width: 1280px; height: 900px; border: 0; display: block; }</style></head>
+<body>
+<iframe id="app"></iframe>
+<script src="../harness.js"></script>
+<script src="helpers.js"></script>
+<script>
+// Covers: fontcreator/js/commands.js, fontcreator/js/ai-commands.js, fontcreator/js/ai-commands-2.js, fontcreator/js/state.js, fontcreator/js/core/stroke.js
+const { describe, it, expect, waitFor } = SlopTest;
+let W, D, FC;
+const S = () => FC.state, P = () => W.SlopFont.paths, M = () => W.SlopFont.model;
+const exec = async (tool, args) => { const r = await W.SlopCmd.exec('fontcreator.ai.' + tool.replace(/_/g, '-'), args); if (!r.ok) throw new Error(tool + ': ' + r.error); return r.value; };
+const TOOLS = ['add_characters', 'add_kerning', 'add_shape', 'clear_glyph', 'copy_glyph', 'draw_glyph', 'draw_glyphs', 'draw_strokes', 'export_font', 'get_css', 'get_glyph',
+  'new_font', 'open_font', 'path_operation', 'remove_glyph', 'select_glyph', 'set_glyph_metrics', 'set_info', 'set_metrics', 'show_view', 'subset_font', 'transform_glyph'];
+describe('Slop Font: the assistant', () => {
+  it('the commands load on demand, each with a schema; the state reads the page', async () => {
+    ({ W, D, FC } = await FT.open(document.getElementById('app')));
+    await W.SlopCmd.prepare();
+    const cmds = W.SlopCmd.list().filter((c) => c.id.startsWith('fontcreator.ai.'));
+    expect(cmds.map((c) => c.tool).sort()).toEqual(TOOLS);
+    expect(cmds.every((c) => Array.isArray(c.args))).toBe(true);
+    const st = await W.SlopCmd.state();
+    expect(st.app).toBe('Slop Font');
+    expect(st.current.char).toBe('A');
+    expect(st.metrics.capHeight).toBe(700);
+  }, { timeout: 40000 });
+
+  it('"a rounded monospace font for the digits": new_font, draw_strokes on every digit, one width', async () => {
+    const undo = W.SlopCmd.checkpoint();
+    await exec('new_font', { family: 'Round Mono', characters: 'digits' });
+    expect(S().project().glyphs.length).toBe(12);
+    const ring = { d: 'M300 80 C420 80 470 200 470 350 C470 500 420 620 300 620 C180 620 130 500 130 350 C130 200 180 80 300 80 Z' };
+    await exec('draw_strokes', { char: '0', strokes: [ring], width: 90, advance: 600 });
+    await exec('draw_strokes', { char: '1', strokes: [{ points: [[200, 560], [300, 660], [300, 40]] }, { points: [[180, 40], [420, 40]] }], width: 90, advance: 600 });
+    const zero = M().find(S().project(), '0');
+    expect(zero.contours.length).toBe(2);
+    expect(zero.advance).toBe(600);
+    const one = await exec('get_glyph', { char: '1' });
+    expect(one.contours).toBe(1); expect(one.advance).toBe(600);
+    expect(one.path).toMatch(/^M/);
+    expect(S().canUndo()).toBe(true);
+    undo();
+    expect(S().project().info.family).toBe('My Font');
+  });
+
+  it('draw_glyph and draw_glyphs from SVG path data; add_shape adds and cuts', async () => {
+    await exec('draw_glyph', { char: 'I', path: 'M100 0 H200 V700 H100 Z' });
+    const sd = M().sides(M().find(S().project(), 'I'));
+    expect([sd.lsb, sd.rsb, sd.advance]).toEqual([100, 100, 300]);
+    const r = await exec('draw_glyphs', { glyphs: [{ char: 'L', path: 'M80 0 H400 V90 H170 V700 H80 Z' }, { char: 'T', path: 'M20 610 H520 V700 H20 Z M225 0 H315 V610 H225 Z', advance: 540 }] });
+    expect(r.length).toBe(2);
+    expect(M().find(S().project(), 'T').advance).toBe(540);
+    await exec('add_shape', { char: 'O', shape: 'ellipse', x: 50, y: 0, width: 560, height: 700 });
+    await exec('add_shape', { char: 'O', shape: 'ellipse', x: 160, y: 110, width: 340, height: 480, cut: true });
+    expect(M().find(S().project(), 'O').contours.length).toBe(2);
+    const bad = await W.SlopCmd.exec('fontcreator.ai.draw-glyph', { char: 'X', path: 'nonsense' });
+    expect(bad.ok).toBe(false);
+  });
+
+  it('set_metrics, set_info with the OFL, set_glyph_metrics, add_kerning', async () => {
+    const m = await exec('set_metrics', { xHeight: 520, lineGap: 120 });
+    expect([m.xHeight, m.lineGap, m.capHeight]).toEqual([520, 120, 700]);
+    const info = await exec('set_info', { family: 'Agent Sans', designer: 'The assistant', license: 'OFL' });
+    expect(info.license).toContain('SIL Open Font License');
+    expect(info.licenseURL).toBe('https://openfontlicense.org');
+    const s = await exec('set_glyph_metrics', { char: 'I', lsb: 60, rsb: 60 });
+    expect([s.lsb, s.rsb, s.advance]).toEqual([60, 60, 220]);
+    await exec('add_kerning', { pairs: [{ left: 'L', right: 'T', value: -60 }, { left: 'T', right: 'O', value: -30 }] });
+    expect(S().project().kerning).toEqual({ 'u004C u0054': -60, 'u0054 u004F': -30 });
+    const bad = await W.SlopCmd.exec('fontcreator.ai.add-kerning', { pairs: [{ left: 'Q', right: 'T', value: -10 }] });
+    expect(bad.ok).toBe(false);
+  });
+
+  it('path_operation, transform_glyph, copy_glyph for an accent, remove and clear', async () => {
+    await exec('draw_glyph', { char: 'X', path: 'M0 0 H300 V100 H0 Z M100 -50 H200 V300 H100 Z' });
+    await exec('path_operation', { char: 'X', op: 'merge' });
+    expect(M().find(S().project(), 'X').contours.length).toBe(1);
+    await exec('transform_glyph', { char: 'X', dx: 10, scale: 2 });
+    const b = P().bbox(M().find(S().project(), 'X').contours);
+    expect([Math.round(b.x), Math.round(b.w)]).toEqual([10, 600]);
+    await exec('draw_glyph', { char: '˚', path: 'M0 0 H60 V60 H0 Z' });
+    await exec('copy_glyph', { from: 'O', to: 'Ö' });
+    await exec('copy_glyph', { from: '˚', to: 'Ö', add: true, dx: 300, dy: 760 });
+    expect(M().find(S().project(), 'Ö').contours.length).toBe(3);
+    await exec('clear_glyph', { char: 'X' });
+    expect(M().find(S().project(), 'X').contours.length).toBe(0);
+    await exec('remove_glyph', { char: 'X' });
+    expect(M().find(S().project(), 'X')).toBe(null);
+  });
+
+  it('show_view, export_font to Slop Drive, get_css, subset_font; the snapshot is a picture of the font', async () => {
+    await exec('show_view', { view: 'test', text: 'LTO' });
+    expect(D.getElementById('view-test').hidden).toBe(false);
+    expect(S().settings().tester.text).toBe('LTO');
+    const out = await exec('export_font', { format: 'otf', to: 'drive' });
+    expect(out).toMatch(/Saved AgentSans-Regular\.otf to Slop Drive/);
+    expect(await exec('get_css', {})).toContain('font-family: "Agent Sans"');
+    await exec('subset_font', { chars: 'LTO' });
+    expect(S().project().glyphs.map((g) => g.unicode).filter((c) => c != null)).toEqual([0x20, 0x4c, 0x4f, 0x54]);
+    const snap = await W.SlopCmd.snapshot();
+    expect(snap.width).toBe(1200);
+    await exec('select_glyph', { char: 'L' });
+    expect(S().cur()).toBe('u004C');
+  });
+});
+SlopTest.run({ name: 'Slop Font assistant' });
+</script>
+</body>
+</html>

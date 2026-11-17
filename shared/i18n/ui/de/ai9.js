@@ -1,0 +1,20 @@
+/* Slop AI shared words, German: “Sign in with OpenRouter”, the one-click key (shared/ai/cloud/signin.js, connect.js, pick.js). Terms: shared/i18n/glossary-de.md. */
+window.SlopI18n && window.SlopI18n.add('de', {
+  'ui.ai.cloud.or_signin': 'Mit {name} anmelden',
+  'ui.ai.cloud.or_note': 'Noch kein Schlüssel? Melden Sie sich an, dann erstellt {name} einen Schlüssel für diesen Browser, bezahlt mit Ihrem eigenen {name}-Guthaben. Sie können ihn unter {link} begrenzen oder widerrufen.',
+  'ui.ai.cloud.or_privacy': 'Die Anmeldung geht direkt von diesem Browser zu {name}; nichts läuft über Server von {brand}.',
+  'ui.ai.cloud.or_manage': 'Ihre {name}-Schlüssel, per Anmeldung oder von Hand erstellt, lassen sich unter {link} begrenzen oder widerrufen. Schlüssel vergessen entfernt einen Schlüssel nur aus diesem Browser.',
+  'ui.ai.cloud.or_going': '{name} wird geöffnet…',
+  'ui.ai.cloud.or_finishing': 'Anmeldung bei {name} wird abgeschlossen…',
+  'ui.ai.cloud.or_done': 'Mit {name} angemeldet: Der Schlüssel für diesen Browser ist wie ein eingefügter gespeichert.',
+  'ui.ai.cloud.or_denied': 'Der Zugriff wurde bei {name} nicht erlaubt, daher wurde nichts verbunden. Drücken Sie „Mit {name} anmelden“, um es erneut zu versuchen, oder fügen Sie einen Schlüssel ein.',
+  'ui.ai.cloud.or_state': 'Diese Anmeldung wurde nicht in diesem Tab gestartet und daher zum Schutz Ihres Kontos abgelehnt. Drücken Sie „Mit {name} anmelden“, um neu zu beginnen.',
+  'ui.ai.cloud.or_used': 'Dieser Anmeldecode wurde bereits verwendet oder ist abgelaufen (Codes gelten 10 Minuten). Drücken Sie „Mit {name} anmelden“, um neu zu beginnen.',
+  'ui.ai.cloud.or_failed': '{name} hat keinen Schlüssel geliefert ({why}). Drücken Sie „Mit {name} anmelden“, um es erneut zu versuchen, oder fügen Sie einen Schlüssel ein.',
+  'ui.ai.cloud.or_offline': 'Dieser Browser ist offline, daher konnte die Anmeldung nicht abgeschlossen werden. Verbinden Sie sich mit dem Internet und drücken Sie dann erneut „Mit {name} anmelden“.',
+  'ui.ai.cloud.or_network': '{name} war nicht erreichbar, um die Anmeldung abzuschließen. Prüfen Sie die Verbindung und drücken Sie dann erneut „Mit {name} anmelden“.',
+  'ui.ai.cloud.or_no_crypto': 'Dieser Browser kann sich hier nicht mit {name} anmelden (dafür ist Web Crypto auf einer https-Seite nötig). Fügen Sie stattdessen einen Schlüssel ein.',
+  'ui.ai.cloud.or_key_label': '{brand} in diesem Browser',
+  'ui.ai.cloud.or_badge': 'Anmelden',
+  'ui.ai.cloud.or_badge_t': 'Kein Schlüssel zum Kopieren: Melden Sie sich mit Ihrem {name}-Konto an, dann wird ein Schlüssel für diesen Browser erstellt.',
+});

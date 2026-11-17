@@ -1,0 +1,30 @@
+FONTLOG for the Acme font family
+
+Basic Font Information
+----------------------
+
+Acme Sans is the made-up sample family of the white-label tooling: one sans made from an open-source (SIL OFL) font, with a serifed capital I, square dots on i and j, and the Acme mark (a plain tile with an A-shaped cut) in the Private Use Area. The sample mascot, Acme Bot, is not in the font.
+
+Version 1.000. Licensed under the SIL Open Font License 1.1 (OFL.txt).
+
+Styles and their sources
+------------------------
+
+- Acme Sans: modified from Inter Tight (Copyright 2022 The Inter Project Authors (https://github.com/rsms/inter-tight)).
+    Axes: wght 400-700.
+    Upstream alternates made the default: cv08.
+    The dots of i and j redrawn: square.
+    ss01: Plain I.
+    ss02: Round dots.
+    Private Use Area marks: mark.
+    Renamed (OFL 1.1); kerning, marks and the other kept features as upstream.
+
+Changelog
+---------
+
+- 1.000 (2026-10-25): the sample release.
+
+Acknowledgements
+----------------
+
+The upstream designers: Rasmus Andersson.

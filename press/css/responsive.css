@@ -1,0 +1,69 @@
+/* Slop Press — responsive layout (tablet, phone view/edit-lite) and SlopUI theming */
+/* Wide screens keep every menu in view (the shared buttons drop their labels first); narrower ones scroll the menus. */
+@media (min-width: 900px) { .menus { flex-shrink: 0; } }
+@media (max-width: 1180px) { :root { --dock-w: 260px; } .docname, .searchbtn .sb-label { display: none; } }
+@media (max-width: 899px) {
+  :root { --toolbar-w: 40px; --cb-h: 40px; }
+  .main { grid-template-columns: var(--toolbar-w) minmax(0, 1fr); }
+  .app.no-dock .main { grid-template-columns: var(--toolbar-w) minmax(0, 1fr); }
+  .app.no-dock .dock { display: flex; }
+  /* the dock is a drawer from the right under the bars: shared/ui/sheet.js gives place, motion, × and closing */
+  .dock { --ssh-z: 60; --ssh-top: calc(var(--menubar-h) + var(--cb-h)); }
+  .tool { width: 32px; height: 30px; }
+  .app-name, .searchbtn kbd { display: none; }
+  .menu-btn { padding: 0 7px; }
+  .paint-chips { width: 32px; height: 32px; }
+  .pchip { width: 19px; height: 19px; }
+}
+@media (max-width: 560px) {
+  :root { --ruler: 0px; --toolbar-w: 0px; }
+  .ruler, .ruler-corner { display: none; }
+  .toolbar { position: fixed; left: 0; right: 0; bottom: var(--sb-h); height: 42px; z-index: 30; flex-direction: row; justify-content: flex-start; padding: 0 6px; gap: 2px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-top: 1px solid var(--border-dark); }
+  .tool-sep { width: 1px; height: 24px; margin: 0 4px; }
+  .paint-chips { margin-top: 0; }
+  .main { grid-template-columns: minmax(0, 1fr) !important; }
+  .sb-hint, .sb-pos { display: none; }
+  .statusbar { gap: 6px; }
+  .searchbtn { padding: 0 6px; }
+  .menubar { gap: 2px; }
+  .brand { padding: 0 4px; }
+}
+@media (pointer: coarse) { .sui-menu .sui-row { min-height: 34px; } .srow, .lrow { height: 32px; } }
+
+/* SlopUI themed from Slop Press tokens */
+:root {
+  --sui-bg: var(--bg-panel); --sui-bg2: var(--bg-panel-2); --sui-input: var(--bg-input); --sui-line: var(--border);
+  --sui-fg: var(--text); --sui-dim: var(--text-dim); --sui-faint: var(--text-faint); --sui-hover: var(--bg-hover);
+  --sui-sel: #46561a; --sui-accent: var(--slop); --sui-accent-ink: var(--ink);
+  --sui-radius: 4px; --sui-shadow: var(--shadow); --sui-font: var(--font-ui); --sui-mono: var(--mono);
+}
+:root[data-theme="light"] { --sui-sel: #e4f6a0; }
+:root[data-theme="classic"] { --sui-sel: #000080; --sui-radius: 0; }
+.sui-back.sui-out { pointer-events: none; }
+.pr-form .sui-field { grid-template-columns: 120px minmax(0, 1fr) 30px; }
+.pr-form .sui-input { width: 100%; }
+.pr-form h4 { margin: 12px 0 8px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--sui-faint); }
+.pr-form h4:first-child { margin-top: 0; }
+.pr-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.pr-cols .sui-field { grid-template-columns: 82px minmax(0, 1fr) 26px; }
+.pr-check { display: flex; align-items: center; gap: 7px; margin: 4px 0 8px; color: var(--sui-fg); }
+.pr-check input { accent-color: var(--accent-line); }
+.pr-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--sui-line); margin: -4px 0 12px; flex-wrap: wrap; }
+.pr-tab { border: 0; background: none; color: var(--sui-dim); padding: 6px 10px; border-bottom: 2px solid transparent; cursor: pointer; font: inherit; }
+.pr-tab.on { color: var(--sui-fg); border-bottom-color: var(--sui-accent); }
+.pr-preview { width: 100%; height: 140px; border: 1px solid var(--sui-line); border-radius: 4px; background: #fff; display: block; }
+.pr-tpl { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.pr-tpl button { display: flex; flex-direction: column; gap: 6px; align-items: stretch; padding: 8px; border: 1px solid var(--sui-line); border-radius: 6px; background: var(--sui-bg2); color: var(--sui-fg); cursor: pointer; text-align: left; font: inherit; }
+.pr-tpl button:hover { border-color: var(--sui-accent); }
+.pr-tpl canvas { width: 100%; height: auto; background: #fff; border-radius: 2px; }
+.pr-tpl small { color: var(--sui-dim); }
+.pr-keys { display: grid; grid-template-columns: 1fr auto; gap: 3px 16px; max-height: 60vh; overflow: auto; }
+.pr-keys kbd { font: 11px var(--sui-mono); color: var(--sui-dim); }
+.pr-keys h5 { grid-column: 1 / -1; margin: 10px 0 2px; color: var(--sui-faint); text-transform: uppercase; font-size: 10px; letter-spacing: .06em; }
+.pr-pal input { width: 100%; }
+.pr-pal-list { max-height: 50vh; overflow: auto; margin-top: 8px; display: flex; flex-direction: column; }
+.pr-pal-list button { display: flex; justify-content: space-between; gap: 12px; border: 0; background: none; padding: 6px 8px; color: var(--sui-fg); text-align: left; border-radius: 4px; cursor: pointer; font: inherit; }
+.pr-pal-list button.on, .pr-pal-list button:hover { background: var(--sui-hover); }
+.pr-pal-list small { color: var(--sui-faint); }
+@media (max-width: 560px) { .pr-form .sui-field { grid-template-columns: 96px minmax(0, 1fr) 24px; } .pr-cols { grid-template-columns: 1fr; } }
+.sui-dlg.pr-mid { width: min(620px, 100%); }

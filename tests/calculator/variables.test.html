@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slopculator · variables</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { width: 1280px; height: 800px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <iframe id="app" src="../../calculator/index.html" title="Slopculator"></iframe>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const frame = document.getElementById('app');
+  const $ = (sel) => frame.contentDocument.querySelector(sel);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function until(fn, label, timeout = 12000) {
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = fn(); if (v) return v; } catch (e) { /* not yet */ }
+      if (Date.now() - t0 > timeout) throw new Error(`timed out waiting for ${label}`);
+      await sleep(40);
+    }
+  }
+  async function type(src) {
+    const input = $('#sc-expr');
+    input.value = src;
+    input.dispatchEvent(new frame.contentWindow.Event('input', { bubbles: true }));
+    await sleep(160);
+    input.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await sleep(200);
+  }
+  describe('Slopculator variables', () => {
+    it('a named result is kept, the next line uses it, and the Variables list shows it', async () => {
+      await until(() => $('#sc-vars') && frame.contentWindow.SlopCalc, 'the calculator');
+      await type('price = 4; price * 3');
+      await until(() => $('#sc-tape li:last-child') && /12/.test($('#sc-tape li:last-child').textContent), 'the tape');
+      const shown = [...frame.contentDocument.querySelectorAll('.sc-var')].map((b) => b.textContent);
+      expect(shown.some((t) => t.startsWith('price = 4'))).toBeTruthy();
+      expect(frame.contentWindow.localStorage.getItem('slopcalc.vars') !== null).toBeTruthy(); // kept on this device
+    });
+    it('naming a value puts it on the tape once: "price = 19.99 = 19.99", not "= price = 19.99"', async () => {
+      // Covers: calculator/js/app.js, shared/calc/calc.js
+      await type('price = 19.99');
+      await until(() => $('#sc-tape li:last-child .sc-line-expr') && $('#sc-tape li:last-child .sc-line-expr').textContent === 'price = 19.99', 'the tape line');
+      expect($('#sc-tape li:last-child .sc-line-val').textContent).toBe('= 19.99');
+      expect($('#sc-preview').textContent).toBe('= 19.99');
+      expect(frame.contentWindow.SlopCalc.program('price = 19.99', {}).steps[0].text).toBe('price = 19.99');   // the step keeps its own form
+    });
+    it('an unknown name says so and keeps nothing', async () => {
+      await type('nothing_here * 2');
+      expect($('#sc-preview').textContent).toMatch(/Unknown name/);
+    });
+  });
+  run({ name: 'Slopculator variables' });
+  </script>
+</body>
+</html>

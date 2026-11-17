@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop AI Tools: assistant commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="hub" title="Slop AI Tools hub"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script>
+  // Covers: aitools/ai-commands.js, aitools/ai-jobs.js, aitools/hub.js, aitools/index.html
+  // The hub loads SlopCmd; prepare() loads the jobs. A denoise job runs for real from a Slop Drive picture to a PNG in
+  // Slop Drive; a tool whose model is not on this device is refused with the model named, and request_model only shows
+  // the download dialog (nothing is fetched).
+  const { describe, it, expect, waitFor } = SlopTest;
+  const frame = document.getElementById('hub');
+  let W, C, fetched = [];
+  const run = async (tool, args) => { const r = await C.exec('ait.ai.' + tool.replace(/_/g, '-'), args); if (!r.ok) throw new Error(tool + ': ' + r.error); return r.value; };
+  const fails = async (tool, args) => { const r = await C.exec('ait.ai.' + tool.replace(/_/g, '-'), args); expect(r.ok).toBe(false); return r.error; };
+  const noisy = () => new Promise((res) => {
+    const c = document.createElement('canvas'); c.width = 40; c.height = 30;
+    const g = c.getContext('2d'); g.fillStyle = '#808080'; g.fillRect(0, 0, 40, 30);
+    for (let i = 0; i < 120; i++) { g.fillStyle = i % 2 ? '#fff' : '#000'; g.fillRect((i * 7) % 40, (i * 11) % 30, 1, 1); }
+    c.toBlob(res, 'image/png');
+  });
+
+  describe('Slop AI Tools: assistant commands', () => {
+    it('the hub has SlopCmd; prepare loads the commands and the state lists the models', async () => {
+      frame.src = '../../aitools/index.html?t=' + Date.now();
+      await waitFor(() => frame.contentWindow && frame.contentWindow.SlopAIHub && frame.contentWindow.SlopCmd && frame.contentDocument.querySelectorAll('.ai-model').length > 0, { timeout: 15000 });
+      W = frame.contentWindow; C = W.SlopCmd;
+      W.fetch = async (url) => { fetched.push(String(url)); return new Response(new Uint8Array(10)); };   // no model is fetched
+      expect(C.app).toBe('aitools');
+      await C.prepare();
+      expect(C.ownState()).toBe(true);
+      const s = await C.state();
+      expect(s.job).toBe(null);
+      expect(s.models.some((m) => m.id === 'modnet-portrait' && m.status === 'bundled')).toBe(true);
+    }, { timeout: 30000 });
+
+    it('a denoise job: new_job with a Drive file, set_options, run_job, export_result to Slop Drive', async () => {
+      await window.SlopHub.put(await noisy(), { name: 'noisy-ai-test.png', from: 'upload' });
+      let v = await run('new_job', { tool: 'denoise', file: 'noisy-ai-test.png' });
+      expect(v).toMatch(/Added noisy-ai-test\.png/);
+      v = await run('set_options', { mode: 'median', strength: 40 });
+      expect(v).toMatch(/mode median/);
+      expect(await fails('set_options', { language: 'en' })).toMatch(/no language option/);
+      v = await run('run_job', {});
+      expect(v).toMatch(/40 × 30 PNG/);
+      expect(W.document.getElementById('status').textContent).toBe('Denoise: done.');   // aitools.job.done, not a key
+      // in Swedish the status line is Swedish (it was English); the replies to the assistant stay English
+      W.SlopI18n.set('sv');
+      await waitFor(() => W.SlopI18n.get() === 'sv' && W.SlopI18n.t('aitools.job.done', { tool: 'x' }) === 'x: klart.', { timeout: 10000 });
+      expect(await run('run_job', {})).toMatch(/40 × 30 PNG/);
+      expect(W.document.getElementById('status').textContent).toBe('Brusreducering: klart.');
+      W.SlopI18n.set('en');
+      await waitFor(() => W.SlopI18n.t('aitools.job.done', { tool: 'x' }) === 'x: done.', { timeout: 10000 });
+      v = await run('export_result', { to: 'drive' });
+      const id = /id ([^)\s]+)\)/.exec(v)[1], rec = await window.SlopHub.get(id);
+      expect(rec.name).toBe('noisy-ai-test-denoised.png');
+      const bmp = await createImageBitmap(rec.blob);
+      expect(bmp.width).toBe(40);
+      expect((await C.state()).job.result.kind).toBe('image');
+    }, { timeout: 30000 });
+
+    it('a tool whose model is missing is refused with the model named; request_model shows the dialog only', async () => {
+      await run('new_job', { tool: 'tags' });
+      expect(await fails('add_file', { file: 'nope-not-here.png' })).toMatch(/No Slop Drive file/);
+      await run('add_file', { file: 'noisy-ai-test.png' });
+      expect((await C.state()).job.missing).toContain('mobilenetv3-l100');
+      expect(await fails('run_job', {})).toMatch(/MobileNet.*not on this device/);
+      const v = await run('request_model', {});
+      expect(v).toMatch(/download dialog/);
+      expect(!!W.document.querySelector('.ai-dlg')).toBe(true);
+      expect(fetched.length).toBe(0);
+      W.document.querySelector('.ai-dlg footer button').click();   // Cancel
+      expect(await fails('export_result', { to: 'drive' })).toMatch(/run_job first/);
+    }, { timeout: 30000 });
+
+    it('the checkpoint puts the job back', async () => {
+      const back = C.checkpoint();
+      await run('new_job', { tool: 'speech' });
+      expect((await C.state()).job.tool).toBe('speech');
+      expect(await fails('add_file', { file: 'noisy-ai-test.png' })).toMatch(/audio or video/);
+      expect(back()).toBe(true);
+      expect((await C.state()).job.tool).toBe('tags');
+    }, { timeout: 30000 });
+  });
+  SlopTest.run({ name: 'Slop AI Tools: assistant commands' });
+  </script>
+</body>
+</html>

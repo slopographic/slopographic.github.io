@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-limit" content="300">
+  <title>AI Tools · Whisper on real speech: tiny reads English, KB-Whisper base reads Swedish, no repeated lines (downloads the models)</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } pre { white-space: pre-wrap; padding: 8px; }</style>
+</head>
+<body>
+  <pre id="log"></pre>
+  <script src="../harness.js"></script>
+  <script src="../../shared/cdn/assets.js"></script>
+  <script src="../../shared/models/catalog.js"></script>
+  <script src="../../aitools/speech-models.js"></script>
+  <script src="../../aitools/model-registry.js"></script>
+  <script src="../../aitools/download.js"></script>
+  <script>
+  // Covers: aitools/workers/speech-engine.js, aitools/workers/whisper-logits.js, aitools/workers/whisper-quality.js, aitools/workers/whisper-decode.js, aitools/workers/whisper-longform.js, aitools/workers/infer.worker.js, aitools/download.js
+  // The real models from the cdn (the pinned commit in aitools/speech-models.js, every file checked against its SHA-256 and
+  // the parts joined as the installer does) run in the real worker on two public-domain LibriVox clips
+  // (tests/aitools/audio/SOURCES.txt). Needs the network: about 120 MB, or the test runner's download cache, which keeps
+  // the very same files (tests/netcache.mjs; CI restores it between runs).
+  const { describe, it, expect, run } = SlopTest;
+  const R = window.SlopAIModels;
+  const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+  const sha256Hex = async (b) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', b)), (x) => x.toString(16).padStart(2, '0')).join('');
+
+  let worker = null, seq = 0;
+  const pending = new Map();
+  function call(type, data, transfer = []) {
+    if (!worker) {
+      worker = new Worker('../../aitools/workers/infer.worker.js');
+      worker.onmessage = (e) => { const p = pending.get(e.data.id); if (!p || e.data.type === 'progress') return; pending.delete(e.data.id); e.data.type === 'done' ? p.res(e.data.data) : p.rej(new Error(e.data.message)); };
+    }
+    const id = ++seq;
+    return new Promise((res, rej) => { pending.set(id, { res, rej }); worker.postMessage({ id, type, data }, transfer); });
+  }
+  async function load(id) {
+    const files = {};
+    for (const f of R.byId(id).files) files[f.name] = await SlopAIDownload.fetchFile(f, { fetch: (u, o) => fetch(u, o), sha256Hex, allowedUrl: R.allowedUrl });
+    await call('load', { model: id, files }, Object.values(files));
+  }
+  async function samples(name) {
+    const buf = await (await fetch('audio/' + name)).arrayBuffer();
+    const ctx = new OfflineAudioContext(1, 16000, 16000);
+    return (await ctx.decodeAudioData(buf)).getChannelData(0).slice();
+  }
+  const lines = (r) => r.segments.map((s) => s.text.trim());
+  const norm = (t) => t.toLowerCase().replace(/[^\p{L}\s]/gu, ' ').replace(/\s+/g, ' ');
+  const noRepeats = (r) => { const l = lines(r).map(norm); return new Set(l).size === l.length; };
+
+  describe('Whisper on real speech', () => {
+    it('Whisper tiny: English, detected as English, the poem\'s first lines, no line twice', async () => {
+      await load('whisper-tiny');
+      const s = await samples('dickinson-en.ogg');
+      const det = await call('detect', { model: 'whisper-tiny', samples: s.slice() });
+      expect(det.languages[0].code).toBe('en');
+      expect(det.languages[0].p).toBeGreaterThan(0.8);
+      const r = await call('transcribe', { model: 'whisper-tiny', samples: s, language: 'auto' });
+      log('tiny en: ' + lines(r).join(' | '));
+      const text = norm(lines(r).join(' '));
+      expect(text).toContain('could not stop for death');
+      expect(text).toContain('kindly stopped for me');
+      expect(noRepeats(r)).toBe(true);
+      expect(r.language).toBe('en');
+    }, { timeout: 240000 });
+    it('Whisper tiny on Swedish: detected as Swedish, and whatever it reads, it does not loop', async () => {
+      const s = await samples('nyblom-sv.ogg');
+      const det = await call('detect', { model: 'whisper-tiny', samples: s.slice() });
+      expect(det.languages[0].code).toBe('sv');
+      const r = await call('transcribe', { model: 'whisper-tiny', samples: s, language: 'sv' });
+      log('tiny sv: ' + lines(r).join(' | '));
+      expect(noRepeats(r)).toBe(true);
+      expect(lines(r).join(' ').length).toBeLessThan(400);
+    }, { timeout: 120000 });
+    it('KB-Whisper base: the Swedish sentence as read, no line twice', async () => {
+      await call('unload', { model: 'whisper-tiny' });
+      await load('kb-whisper-base');
+      const r = await call('transcribe', { model: 'kb-whisper-base', samples: await samples('nyblom-sv.ogg'), language: 'sv' });
+      log('kb-base sv: ' + lines(r).join(' | '));
+      const text = norm(lines(r).join(' '));
+      expect(text).toContain('det var en gång en man och en hustru');
+      expect(text).toContain('gruvor och rykande smedjor');
+      expect(text).toContain('mannen hette rolf');
+      expect(noRepeats(r)).toBe(true);
+    }, { timeout: 240000 });
+  });
+  run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="slop-test-touch">
+  <title>Slop PDF on an iPhone: Convert ▸ Choose images and All formats…, text with Safari's streams</title>
+  <style>body { margin: 0; background: #111; } iframe { border: 0; display: block; width: 390px; height: 844px; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../shared/touch-kit.js"></script>
+  <script src="pdf.helpers.js"></script>
+  <script>
+  /* The owner on an iPhone (Safari): Convert ▸ Choose images… said "undefined is not a function (near '...t of e...')",
+     and All formats… did nothing. The first is pdf.js 5's getTextContent, a for-await over a ReadableStream, which Safari
+     cannot iterate (the browser here is told to forget its own stream iterator, as Safari is); shared/compat/stream.js,
+     loaded with pdf.js by shared/compat/pdfjs.js, fills it. The second was the Convert panel calling an undefined A.
+     Covers: shared/compat/stream.js, shared/compat/pdfjs.js, pdf/js/core/pdfjs.js, pdf/js/tools/doc-panels.js,
+       pdf/js/ui/exports.js, pdf/js/ui/open-convert.js */
+  const { describe, it, expect, waitFor, sleep } = SlopTest;
+  const doc = () => PT.win.document;
+  /** Makes the frame's ReadableStream like Safari's: no async iterator. */
+  function safariStreams(win) {
+    const P = win.ReadableStream.prototype;
+    delete P[win.Symbol.asyncIterator]; delete P.values;
+    return !(win.Symbol.asyncIterator in P);
+  }
+  async function jpeg(win, w = 40, h = 30) {
+    const c = win.document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = '#c00'; g.fillRect(0, 0, w, h);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+    return new win.File([blob], 'photo.jpg', { type: 'image/jpeg' });
+  }
+  /** Opens the Convert panel from the bottom rail with a tap; returns its body. */
+  async function convertPanel() {
+    const open = [...doc().querySelectorAll('button')].find((x) => /Choose images/.test(x.textContent) && x.offsetParent);
+    if (open) return open;   // a second tap on the rail would close it
+    const b = doc().querySelector('.rail-b[data-tool="convert"]');
+    b.scrollIntoView({ block: 'nearest', inline: 'center' });
+    await TouchKit.tap(b);
+    return waitFor(() => [...doc().querySelectorAll('button')].find((x) => /Choose images/.test(x.textContent) && x.offsetParent), { timeout: 10000 });
+  }
+  /** A finger's tap on a button of the panel, scrolled into view first (the sheet is taller than the phone). */
+  async function tapIn(el) { el.scrollIntoView({ block: 'center' }); await sleep(150); await TouchKit.tap(el); }
+  let alerts = [];
+
+  describe('Slop PDF with Safari\'s streams at 390 px', () => {
+    it('pdf.js comes with the stream fill: getTextContent and text extraction work without a stream iterator', async () => {
+      const win = await PT.boot();
+      expect(win.innerWidth).toBe(390);
+      expect(typeof (win.SlopCompat && win.SlopCompat.readStream)).toBe('function');   // loaded by shared/compat/pdfjs.js
+      expect(safariStreams(win)).toBe(true);
+      // the bug, as Safari has it
+      let err = null;
+      try { for await (const c of new win.Blob(['x']).stream()) void c; } catch (e) { err = e; }
+      expect(err && err.name).toBe('TypeError');
+      // the fill (what shared/compat/stream.js does on Safari when it loads)
+      expect(win.SlopCompat.installStreamIteration()).toBe(true);
+      PT.reset();
+      await PT.open(await PT.makePdf([{ text: 'Hello iPhone' }]), 'ios.pdf');
+      const f = [...PT.E.files.values()][0];
+      const tc = await (await f.doc.getPage(1)).getTextContent();
+      expect(tc.items.map((t) => t.str).join('')).toContain('Hello iPhone');
+      expect(await PT.E.extractText(await PT.E.build({}))).toContain('Hello iPhone');
+    }, { timeout: 60000 });
+
+    it('Convert ▸ Choose images… with a JPEG: the pages are added, no error', async () => {
+      const win = PT.win;
+      alerts = [];
+      win.SlopUI.alert = (t, m) => { alerts.push(t + ': ' + m); return Promise.resolve(); };
+      const pick = await jpeg(win);
+      win.SlopIntake.pickFiles = () => Promise.resolve([pick]);
+      const n = PT.E.state.pages.length;
+      const choose = await convertPanel();
+      await tapIn(choose);
+      await waitFor(() => PT.E.state.pages.length === n + 1 || alerts.length, { timeout: 20000 });
+      expect(alerts).toEqual([]);
+      expect(PT.E.state.pages.length).toBe(n + 1);
+    }, { timeout: 60000 });
+
+    it('…and with "add to the open document" off, a new PDF of the image is downloaded', async () => {
+      const win = PT.win, got = [];
+      const keep = win.SP.util.download;
+      win.SP.util.download = (data, name, mime) => { got.push({ data, name, mime }); };
+      try {
+        const choose = await convertPanel();
+        const box = [...doc().querySelectorAll('label')].find((l) => /Add the pages to the open document/.test(l.textContent)).querySelector('input');
+        if (box.checked) box.click();
+        await tapIn(choose);
+        await waitFor(() => got.length || alerts.length, { timeout: 20000 });
+      } finally { win.SP.util.download = keep; }
+      expect(alerts).toEqual([]);
+      expect(got[0].name).toBe('photo.pdf');
+      const back = await PT.read(got[0].data);
+      expect(back.n).toBe(1);
+    }, { timeout: 60000 });
+
+    it('All formats… answers a tap: the Convert dialog opens', async () => {
+      const all = await convertPanel().then(() => [...doc().querySelectorAll('button')].find((x) => /All formats/.test(x.textContent)));
+      await tapIn(all);
+      const dlg = await waitFor(() => doc().querySelector('.sl-cvt-dlg'), { timeout: 20000 });
+      expect(dlg.getAttribute('role')).toBe('dialog');
+      expect(alerts).toEqual([]);
+      doc().querySelector('.sl-cvt-dlg .sui-x').click();
+      await waitFor(() => !doc().querySelector('.sl-cvt-dlg'));
+    }, { timeout: 60000 });
+  });
+
+  SlopTest.run({ name: 'Slop PDF iOS compat' });
+  </script>
+</body>
+</html>

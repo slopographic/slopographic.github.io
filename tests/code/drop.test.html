@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Code: a file dropped anywhere on the page opens</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/apps.js"></script>
+  <script src="../../shared/hub.js"></script>
+  <script src="util.js"></script>
+  <script>
+  // Covers: code/js/main.js, code/js/tree.js, code/js/editor.js, shared/intake/sources.js
+  // A file dragged in from the computer opens wherever it lands on the page: the toolbar, the Explorer, a folder row (the file is
+  // saved in that folder), the editor (CodeMirror must not also type its text into the open file). A name that is taken gets a free one.
+  const { describe, it, expect, waitFor } = SlopTest;
+  const { frame, text, H, textOf, view } = CT;
+  let w;
+  const dtOf = (files) => { const dt = new w.DataTransfer(); files.forEach((f) => dt.items.add(f)); return dt; };
+  const file = (name, body) => new w.File([body], name, { type: 'text/plain' });
+  /** A file drag onto `el`: the first dragenter arms the page-wide handler, then dragover and drop, as a browser sends them. */
+  function dropOn(el, f) {
+    const dt = dtOf([f]), at = el.getBoundingClientRect();
+    const ev = (type) => new w.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientX: at.left + 5, clientY: at.top + 5 });
+    el.dispatchEvent(ev('dragenter'));
+    const over = ev('dragover'); el.dispatchEvent(over);
+    const drop = ev('drop'); el.dispatchEvent(drop);
+    return { over, drop };
+  }
+  const current = () => w.SlopCode.docs.current();
+  const names = () => [...w.document.querySelectorAll('.cd-tab-name')].map((b) => b.textContent.replace('•', '').trim());
+
+  describe('Slop Code: a dropped file opens anywhere', () => {
+    it('on the toolbar (outside the editor area)', async () => {
+      w = await frame('../../code/');
+      const { over, drop } = dropOn(w.document.getElementById('cd-open'), file('toolbar.txt', 'from the toolbar\n'));
+      expect(over.defaultPrevented).toBe(true);
+      expect(drop.defaultPrevented).toBe(true);
+      await waitFor(() => current() && current().name === 'toolbar.txt');
+      expect(textOf(w)).toBe('from the toolbar\n');
+    }, { timeout: 40000 });
+    it('on a heading of the Explorer', async () => {
+      dropOn(w.document.querySelector('.cd-sec-head'), file('explorer.txt', 'from the explorer\n'));
+      await waitFor(() => current() && current().name === 'explorer.txt');
+    });
+    it('on a folder row: saved into that folder', async () => {
+      const folder = await H().createFolder('Site');
+      const row = await waitFor(() => w.document.querySelector(`.cd-row[data-key="d:${folder.id || folder}"]`));
+      const id = folder.id || folder;
+      const { over } = dropOn(row, file('inside.txt', 'in the folder\n'));
+      expect(over.defaultPrevented).toBe(true);
+      await waitFor(() => current() && current().name === 'inside.txt');
+      expect((await H().get(current().id)).folderId).toBe(id);
+    });
+    it('a name that is taken gets a free one', async () => {
+      dropOn(w.document.getElementById('cd-open'), file('same.txt', 'one\n'));
+      await waitFor(() => current() && current().name === 'same.txt');
+      dropOn(w.document.getElementById('cd-open'), file('same.txt', 'two\n'));
+      await waitFor(() => current() && current().name === 'same (2).txt');
+      expect(textOf(w)).toBe('two\n');
+      expect(names()).toContain('same.txt');
+    });
+    it('on the editor: it opens in its own tab, and the open file is not changed', async () => {
+      const before = textOf(w), nameBefore = current().name;
+      dropOn(w.document.querySelector('.cd-editor .cm-content'), file('over-editor.txt', 'must not be typed in\n'));
+      await waitFor(() => current() && current().name === 'over-editor.txt');
+      expect(textOf(w)).toBe('must not be typed in\n');
+      [...w.document.querySelectorAll('.cd-tab-name')].find((b) => b.textContent.replace('•', '').trim() === nameBefore).click();
+      await waitFor(() => current().name === nameBefore);
+      expect(textOf(w)).toBe(before);
+    });
+  });
+  SlopTest.run({ name: 'Slop Code: drop anywhere' });
+  </script>
+</body>
+</html>

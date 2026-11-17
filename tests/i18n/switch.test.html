@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="slop-test-lang" content="default">
+  <title>Language switch across pages</title>
+  <!-- Covers: settings/language.js, shared/i18n/i18n.js, index.html, shared/finder/app-search.js, shared/i18n/ui/en/shell2.js, shared/i18n/ui/sv/shell2.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; } iframe { width: 1000px; height: 700px; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, beforeEach, afterEach, expect, sleep, waitFor, run } = SlopTest;
+  // Pages open in iframes of this origin, so they share localStorage (the profile). Each test starts with none.
+  const frames = [];
+  function open(src) {
+    const f = document.createElement('iframe');
+    f.src = src;
+    document.body.append(f);
+    frames.push(f);
+    return waitFor(() => f.contentDocument && f.contentDocument.readyState === 'complete' && f.contentWindow.SlopI18n && f.contentDocument.querySelector('[data-i18n="nav.apps"]'), { timeout: 20000 }).then(() => f);
+  }
+  const navText = (f) => f.contentDocument.querySelector('[data-i18n="nav.apps"]').textContent;
+  const stored = () => { try { return JSON.parse(localStorage.getItem('slop-profile') || 'null'); } catch (e) { return null; } };
+  /** Chooses a language in the Settings picker, the way a visitor does. */
+  async function choose(code) {
+    const s = await open('../../settings/index.html');
+    const sel = s.contentDocument.getElementById('lang-select');
+    sel.value = code;
+    sel.dispatchEvent(new s.contentWindow.Event('change'));
+    return s;
+  }
+
+  describe('language across the site', () => {
+    beforeEach(() => { localStorage.clear(); });
+    afterEach(() => { frames.splice(0).forEach((f) => f.remove()); localStorage.clear(); });
+
+    it('the Settings picker lists every language, English first', async () => {
+      const s = await open('../../settings/index.html');
+      const values = [...s.contentDocument.getElementById('lang-select').options].map((o) => o.value);
+      expect(values).toEqual(['en', 'es', 'fr', 'de', 'pt-BR', 'it', 'ar', 'sv', 'zh-CN', 'zh-TW', 'ja', 'ko', 'hi', 'ru', 'uk', 'pl', 'nl', 'tr', 'id', 'vi', 'he', 'sw', 'am', 'ha', 'yo', 'ig', 'zu', 'xh', 'af']);
+      const opt = (c) => [...s.contentDocument.getElementById('lang-select').options].find((o) => o.value === c);
+      expect(opt('ja').textContent).toBe('日本語');
+      expect(opt('sw').textContent).toBe('Kiswahili (beta)');
+    });
+
+    it('choosing Spanish changes the homepage nav text, and it persists across a reload', async () => {
+      const home = await open('../../index.html');
+      expect(navText(home)).toBe(SlopTest.said(home.contentWindow, 'nav.apps', 'Apps'));   // the build's start language (here English)
+      await choose('es');
+      const h = await open('../../index.html');
+      expect(navText(h)).toBe('Aplicaciones');
+      expect(h.contentDocument.documentElement.getAttribute('lang')).toBe('es');
+      expect(stored().data.lang.mode).toBe('es');
+      // Reload the homepage: the stored choice is read again at boot.
+      const loaded = new Promise((r) => h.addEventListener('load', r, { once: true }));
+      h.contentWindow.location.reload();
+      await loaded;
+      await waitFor(() => h.contentDocument && h.contentDocument.querySelector('[data-i18n="nav.apps"]') && navText(h) === 'Aplicaciones', { timeout: 20000 });
+      expect(navText(h)).toBe('Aplicaciones');
+      expect(h.contentDocument.documentElement.getAttribute('lang')).toBe('es');
+    });
+
+    it('a page that loads only the shell also shows the chosen language at boot', async () => {
+      localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'es' } } }));
+      const page = await open('../../ledger/index.html');
+      const btn = await waitFor(() => page.contentDocument.querySelector('.sh-switch .sh-hbtn-txt'), { timeout: 20000 });
+      expect(btn.textContent).toBe('Aplicaciones');
+      expect(page.contentDocument.documentElement.getAttribute('lang')).toBe('es');
+    });
+
+    it('the homepage finder\'s label and the long app descriptions are in the chosen language, and follow a switch', async () => {
+      // the finder's aria-label and the descriptions (shared/finder/app-search.js) stayed English in Swedish
+      localStorage.setItem('slop-profile', JSON.stringify({ v: 1, data: { lang: { mode: 'sv' } } }));
+      const h = await open('../../index.html');
+      const W = h.contentWindow, top = () => h.contentDocument.querySelector('.finder-top');
+      await waitFor(() => top().getAttribute('aria-label') === 'Hitta en app', { timeout: 20000 });
+      expect(W.SLOP_APP_SEARCH.pdf.desc.startsWith('Ordna, redigera, signera')).toBe(true);
+      W.SlopI18n.set('en');
+      await waitFor(() => top().getAttribute('aria-label') === 'Find an app', { timeout: 20000 });
+      expect(W.SLOP_APP_SEARCH.pdf.desc.startsWith('Organise, edit, sign')).toBe(true);
+    });
+
+    it('switching back to English restores the English nav text', async () => {
+      await choose('es');
+      await choose('en');
+      const h = await open('../../index.html');
+      expect(navText(h)).toBe('Apps');
+      // English is the default here, so the override is cleared; a build that starts in another language keeps the choice
+      if (BRAND_FACTS.defaultLang === 'en') expect(stored().data.lang).toBeFalsy();
+      else expect(stored().data.lang.mode).toBe('en');
+    });
+  });
+  run({ name: 'Language switch across pages' });
+  </script>
+</body>
+</html>

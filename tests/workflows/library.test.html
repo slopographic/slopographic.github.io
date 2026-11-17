@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Workflows: templates, save and open, export and import, share link, Undo, reorder by keyboard, commands with arguments</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app"></iframe>
+  <script src="../harness.js"></script>
+  <script src="helpers.js"></script>
+  <script>
+  // Covers: workflows/js/ui/library.js, workflows/js/ui/commands.js, workflows/js/core/store.js, workflows/js/core/templates.js
+  // Covers: shared/ops/flowdoc.js, shared/ops/files.js, shared/ops/clean.js, shared/ops/upscale.js, shared/ops/ocr.js, convert/js/core/catalog.js, convert/js/core/pdf-lock.js
+  const { describe, it, expect, waitFor, run } = SlopTest;
+  const A = () => WFT.A, $ = (id) => WFT.D.getElementById(id);
+  const ids = () => A().S.doc.steps.map((s) => s.id);
+
+  describe('Slop Workflows: templates and files', () => {
+    it('Product photos loads five steps that fit together, from its button on the empty page', async () => {
+      await WFT.boot('', { fresh: true });
+      A().lib.newFlow();
+      await waitFor(() => !$('wf-empty').hidden);
+      WFT.D.querySelector('[data-template="product-photos"]').click();
+      expect(ids()).toEqual(['slopisolate.remove-bg', 'slopisolate.background', 'resize.image', 'watermark.apply', 'to-jpg']);
+      expect($('wf-name').value).toBe('Product photos');
+      expect(WFT.D.querySelectorAll('.wf-step.wf-bad').length).toBe(0);
+      expect($('wf-empty').hidden).toBe(true);
+    });
+
+    it('every template opens; Protect and send asks for its password before it can run', async () => {
+      for (const id of ['web-photos', 'scans-pdf', 'protect-send']) expect(A().lib.openTemplate(id)).toBe(true);
+      expect(ids()).toEqual(['merge-pdf', 'pdf-protect']);
+      expect(WFT.D.querySelector('.wf-step.wf-bad .wf-problem').textContent).toBe('Type a password.');
+      // a password is typed on the card: it is used, but never stored in the workflow
+      const uid = A().S.doc.steps[1].uid;
+      for (const k of ['password', 'confirm']) { const el = $(`cv-o-wf-${uid}-${k}`); el.value = 's3cret'; el.dispatchEvent(new Event('change', { bubbles: true })); }
+      expect(WFT.D.querySelectorAll('.wf-step.wf-bad').length).toBe(0);
+      expect(JSON.stringify(A().S.doc)).not.toContain('s3cret');
+      expect(A().F.toText(A().S.doc)).not.toContain('s3cret');
+    });
+
+    it('Save keeps it in this browser; it is listed, and opens again after another workflow', async () => {
+      A().lib.openTemplate('web-photos');
+      A().edit('Rename', (d) => { d.name = 'My web photos'; });
+      const r = await A().lib.save();
+      expect(r.ok).toBe(true);
+      await waitFor(() => $('wf-saved').textContent.includes('My web photos'));
+      expect($('wf-state').textContent).toBe('Saved');
+      A().lib.newFlow();
+      expect(ids()).toEqual([]);
+      const btn = [...WFT.D.querySelectorAll('#wf-saved .wf-li-open')].find((b) => b.textContent.includes('My web photos'));
+      btn.click();
+      await waitFor(() => A().S.doc.steps.length === 3);
+      expect(ids()).toEqual(['clean.metadata', 'resize.image', 'to-webp']);
+      expect(A().S.id).toBe(r.id);
+    });
+
+    it('export and import a .slopflow file give the same workflow', async () => {
+      const text = A().F.toText(A().S.doc);
+      expect(JSON.parse(text).kind).toBe('slopflow');
+      A().lib.newFlow();
+      const res = await A().lib.importFile(new File([text], 'x.slopflow', { type: 'application/json' }));
+      expect(res.ok).toBe(true);
+      expect(A().F.toText(A().S.doc)).toBe(text);
+      const bad = await A().lib.importFile(new File(['not json'], 'y.slopflow'));
+      expect(bad.ok).toBe(false);
+    });
+
+    it('a share link opens the same workflow in a new page', async () => {
+      const text = A().F.toText(A().S.doc);
+      const { url } = await A().lib.shareLink({ copy: false });
+      expect(url).toMatch(/\?flow=z/);
+      await WFT.boot('?' + url.split('?')[1], { fresh: true });
+      expect(A().F.toText(A().S.doc)).toBe(text);
+      expect(WFT.W.location.search).toBe('');
+    });
+  });
+
+  describe('Slop Workflows: editing', () => {
+    it('Undo takes back a removed step, a move and a rename', async () => {
+      A().lib.openTemplate('product-photos');
+      WFT.D.querySelector('.wf-step:nth-child(2) .wf-x').click();
+      expect(ids().length).toBe(4);
+      $('wf-undo').click();
+      await waitFor(() => ids().length === 5);
+      expect(ids()[1]).toBe('slopisolate.background');
+    });
+
+    it('the grip moves a step with the keyboard and keeps the focus on it', async () => {
+      const grip = WFT.D.querySelector('.wf-step:nth-child(1) .wf-grip');
+      grip.focus();
+      grip.dispatchEvent(new WFT.W.KeyboardEvent('keydown', { key: 'ArrowDown', altKey: true, bubbles: true }));
+      expect(ids().slice(0, 2)).toEqual(['slopisolate.background', 'slopisolate.remove-bg']);
+      expect(WFT.D.activeElement.getAttribute('aria-label')).toMatch(/^Move step 2, Remove background/);
+    });
+
+    it('commands with arguments build the workflow (the AI assistant’s way in)', async () => {
+      A().lib.newFlow();
+      const C = WFT.W.SlopCmd;
+      let r = await C.exec('workflows.add-step', { op: 'resize.image', options: '{"width": "640px", "format": "WebP"}' });
+      expect(r.ok).toBe(true);
+      expect(A().S.doc.steps[0].options.width).toBe(640);
+      expect(A().S.doc.steps[0].options.format).toBe('webp');
+      r = await C.exec('workflows.set-option', { step: 1, key: 'quality', value: '70' });
+      expect(A().S.doc.steps[0].options.quality).toBe(70);
+      r = await C.exec('workflows.add-step', { op: 'zip-files', at: 1 });
+      expect(ids()).toEqual(['zip-files', 'resize.image']);
+      const st = C.state();
+      expect(st.steps[1].problem).toMatch(/Resize cannot take ZIP/);
+      r = await C.exec('workflows.remove-step', { step: 1 });
+      expect(ids()).toEqual(['resize.image']);
+    });
+
+    it('+ Add step opens a searchable menu grouped by app', async () => {
+      $('wf-add').click();
+      const menu = await waitFor(() => WFT.D.querySelector('.smb-menu[role="menu"]'));
+      const heads = [...menu.querySelectorAll('.smb-h')].map((h) => h.textContent);
+      for (const h of ['File convert', 'SlopIsolate', 'Slop Watermark', 'Slop Resize', 'Slop Upscale', 'SlopClean', 'Slop OCR', 'Files', 'Slop PDF']) expect(heads).toContain(h);
+      const search = menu.querySelector('input');
+      search.value = 'watermark'; search.dispatchEvent(new Event('input', { bubbles: true }));
+      const row = [...menu.querySelectorAll('.smb-row')].find((b) => !b.closest('[hidden]') && b.textContent.includes('Watermark'));
+      row.click();
+      expect(ids()).toEqual(['resize.image', 'watermark.apply']);
+    });
+  });
+  run({ name: 'Slop Workflows library' });
+  </script>
+</body>
+</html>

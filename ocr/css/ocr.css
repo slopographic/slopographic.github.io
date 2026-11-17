@@ -1,0 +1,69 @@
+/* Slop OCR: layout and colour. Every colour is a --sl-* token set by shared/theme/theme.js (light, dark, classic and lime
+ * follow the one theme switcher). The fallbacks are the light theme for a page without the script. */
+:root {
+  --ocr-ink: var(--sl-text, #0a0a0a);
+  --ocr-paper: var(--sl-background, #ebe7de);
+  --ocr-card: var(--sl-surface, #f8f6f1);
+  --ocr-edge: var(--sl-border, #8e8b82);
+  --ocr-hi: var(--sl-accent, #4f6c00);
+  --ocr-on-hi: var(--sl-on-accent, #ffffff);
+  --ocr-muted: color-mix(in srgb, var(--sl-text, #0a0a0a) 68%, transparent);
+}
+/* A hidden part stays hidden whatever its own display (the tool waits behind the model prompt; the pages wait for a file). */
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--ocr-paper); color: var(--ocr-ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+/* The page scrolls while the model prompt shows; once the tool is ready it is SlopFrame's View · Panel (shared/frame) and
+   fills the window: the files, page and text in the middle, the options and Read text in the panel on the right. */
+.ocr-app { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+.ocr-intro, .ocr-gate { width: 100%; max-width: 1100px; margin-inline: auto; padding-inline: 16px; box-sizing: border-box; }
+.ocr-main { display: grid; gap: 14px; align-content: start; padding: 16px; }
+.ocr-side .sf-acts button, .ocr-side .ocr-group > button { width: 100%; }
+.ocr-group { display: grid; gap: 8px; }
+.ocr-app *, .ocr-app *::before, .ocr-app *::after { box-sizing: border-box; }
+.ocr-app :focus-visible { outline: 2px solid var(--ocr-hi); outline-offset: 2px; }
+
+.ocr-app h1 { font-size: 26px; margin: 0 0 2px; line-height: 1.2; }
+.ocr-meta, .ocr-msg { color: var(--ocr-muted); font-size: 13px; margin: 4px 0; }
+.ocr-link { color: var(--ocr-ink); text-decoration: none; border: 1px solid var(--ocr-edge); border-radius: 8px; padding: 6px 10px; background: var(--ocr-card); }
+
+.ocr-app button, .ocr-app .ocr-link { font: inherit; padding: 0 12px; min-height: 36px; border-radius: 8px; border: 1px solid var(--ocr-edge); background: var(--ocr-card); color: var(--ocr-ink); cursor: pointer; }
+.ocr-app button:disabled { opacity: .5; cursor: default; }
+.ocr-app button.ocr-primary { background: var(--ocr-hi); color: var(--ocr-on-hi); border-color: var(--ocr-hi); }
+.ocr-app select { font: inherit; max-width: 100%; min-height: 36px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--ocr-edge); background: var(--ocr-card); color: var(--ocr-ink); }
+
+.ocr-ui { flex: 1 1 auto; min-height: 0; }
+.ocr-intro { margin: 8px 0 14px; }
+.ocr-drop { display: block; border: 2px dashed var(--ocr-edge); border-radius: 12px; padding: 22px 16px; text-align: center; color: var(--ocr-muted); background: var(--ocr-card); }
+.ocr-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.ocr-progress { flex: 1 1 160px; height: 8px; accent-color: var(--ocr-hi); min-width: 0; }
+
+.ocr-work { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.ocr-view, .ocr-text { min-width: 0; }
+.ocr-pager { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.ocr-pager select { flex: 1 1 200px; }
+.ocr-check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+.ocr-figure { margin: 0; background: var(--ocr-card); border: 1px solid var(--ocr-edge); border-radius: 10px; padding: 8px; overflow: hidden; }
+.ocr-figure canvas { display: block; width: 100%; height: auto; max-height: 72vh; object-fit: contain; border-radius: 4px; }
+.ocr-label { display: block; font-size: 13px; color: var(--ocr-muted); margin-bottom: 4px; }
+.ocr-out { display: block; width: 100%; min-height: 280px; resize: vertical; font: 15px/1.6 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; background: var(--ocr-card); color: var(--ocr-ink); border: 1px solid var(--ocr-edge); border-radius: 8px; padding: 10px 12px; }
+.ocr-out[readonly] { opacity: .75; }
+
+.ocr-help { background: var(--ocr-card); border: 1px solid var(--ocr-edge); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.ocr-help summary { cursor: pointer; font-weight: 600; }
+.ocr-help p { margin: 8px 0; }
+
+.ocr-gate .ai-panel { margin: 0; }
+.ocr-gate .ai-meta { color: var(--ocr-muted); }
+
+@media (min-width: 820px) {
+  .ocr-work { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+  .ocr-app h1 { font-size: 30px; }
+}
+@media (max-width: 480px) {
+  .ocr-app { padding: 16px; }
+}
+/* The line that offers a better model after a first read (shared/ocr/choose.js). */
+.ocr-suggest { margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--ocr-hi); border-radius: 8px; background: var(--ocr-card); font-size: 14px; }
+.ocr-suggest button { margin-left: 6px; }
+body:has(#ui[hidden]) .sf-toggle { display: none; }   /* no panel to show while the model prompt is up */

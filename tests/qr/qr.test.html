@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QR SLOP tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 800px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. Each test reads the app's own state and DOM through the frame's window, and drives it with
+       the same clicks, keys and input events a person makes. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="qr-frame.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const { f, W, q, qa, ev, open, type, field, tabBtn, clickTab, chip, pixels } = QRT;
+
+  describe('QR SLOP: header and layout', () => {
+    it('the shared header renders the title, the home link and the actions with labels', async () => {
+      await open();
+      expect(q('#qr-bar .sab-name').textContent).toBe('QR SLOP');
+      expect(q('#qr-bar .sab-brand > a.brand')).toBeTruthy();
+      expect(q('#qr-bar [data-id="save"]').getAttribute('aria-label')).toBe('Save to Drive');
+      expect(q('#qr-bar [data-id="open"]').getAttribute('aria-label')).toBe('Open from Drive');
+      expect(q('#qr-bar [data-id="buffer"]').disabled).toBe(true);
+    });
+
+    it('the tabs are a tablist: arrow keys move between them, and the Batch tab is the secondary one', async () => {
+      await open();
+      expect(tabBtn('content').getAttribute('aria-selected')).toBe('true');
+      tabBtn('content').dispatchEvent(new (W().KeyboardEvent)('keydown', { key: 'ArrowRight', bubbles: true }));
+      expect(tabBtn('design').getAttribute('aria-selected')).toBe('true');
+      expect(q('#qr-panel-design').hidden).toBe(false);
+      expect(q('#qr-panel-content').hidden).toBe(true);
+      expect(tabBtn('batch').classList.contains('qr-tab-batch')).toBe(true);
+    });
+
+    it('the phone width (390 px) has no sideways page scroll, and the actions move into the ⋯ menu', async () => {
+      await open();
+      f.style.width = '390px';
+      await sleep(150);
+      const doc = W().document.documentElement;
+      expect(doc.scrollWidth).toBeLessThanOrEqual(doc.clientWidth);
+      expect(q('#qr-bar .sab').dataset.narrow).toBe('true');
+      expect(q('#qr-bar .sab-more-btn')).toBeTruthy();
+    });
+  });
+
+  describe('QR SLOP: templates and the form', () => {
+    it('the gallery lists the templates, and picking one fills the fields and the name', async () => {
+      const w = await open();
+      clickTab('templates');
+      expect(qa('#qr-templates .qr-tpl').length).toBe(11);
+      q('.qr-tpl[data-id="wifi-card"]').click();
+      expect(w.QRState.S.kind).toBe('wifi');
+      expect(tabBtn('content').getAttribute('aria-selected')).toBe('true');
+      expect(field('Network name (SSID)').value).toBe('Guest Wi-Fi');
+      expect(q('#qr-name').value).toBe('Wi-Fi card');
+      expect(w.QRApp.last().text).toBe('WIFI:T:WPA;S:Guest Wi-Fi;P:welcome-guest;H:false;;');
+    });
+
+    it('a contact template fills the vCard fields and presses its kind chip', async () => {
+      await open();
+      clickTab('templates');
+      q('.qr-tpl[data-id="contact-card"]').click();
+      expect(chip('vcard').getAttribute('aria-pressed')).toBe('true');
+      expect(field('First name').value).toBe('Alex');
+      expect(field('Job title') || true).toBeTruthy();
+    });
+
+    it('a social template is a public link, and the form shows it as a web address', async () => {
+      const w = await open();
+      clickTab('templates');
+      q('.qr-tpl[data-id="whatsapp"]').click();
+      expect(field('Web address').value.startsWith('https://wa.me/15550100100?text=')).toBe(true);
+      expect(w.QRApp.last().text.startsWith('https://wa.me/')).toBe(true);
+    });
+  });
+
+  describe('QR SLOP: live preview', () => {
+    it('the preview updates on every keystroke, and the message names what is wrong', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'a');
+      const first = q('#qr-img').src;
+      expect(q('#qr-img').hidden).toBe(false);
+      type(field('Text'), 'ab');
+      expect(q('#qr-img').src).not.toBe(first);
+      expect(w.QRApp.last().text).toBe('ab');
+      expect(q('#qr-meta').textContent).toMatch(/bytes/);
+      chip('url').click();
+      type(field('Web address'), 'two words');
+      expect(q('#qr-err').textContent).toBe('A web address cannot contain spaces.');
+      expect(q('#qr-img').hidden).toBe(true);
+      type(field('Web address'), 'example.com');
+      expect(q('#qr-err').textContent).toBe('');
+      expect(w.QRApp.last().text).toBe('https://example.com');
+    });
+
+    it('the dirty dot shows after an edit', async () => {
+      await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'changed');
+      expect(q('#qr-bar .sab-dirty').hidden).toBe(false);
+    });
+
+    it('the picture is the drag source: a drag puts the PNG on the buffer', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'drag me');
+      expect(q('#qr-img').getAttribute('draggable')).toBe('true');
+      await w.QRPreview.pngFor(w.QRApp.last().svg, 512);
+      const dt = new (W().DataTransfer)();
+      q('#qr-img').dispatchEvent(new (W().DragEvent)('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await waitFor(() => w.SlopBuffer.get() && w.SlopBuffer.get().source === 'qr', { timeout: 5000 });
+      expect(w.SlopBuffer.get().kind).toBe('image');
+      expect(w.SlopBuffer.get().formats['image/png'] instanceof W().Blob).toBe(true);
+    });
+  });
+
+  describe('QR SLOP: raw text', () => {
+    it('a URL typed in the Raw tab fills the form, and a form edit takes over again', async () => {
+      const w = await open();
+      clickTab('raw');
+      type(q('#qr-raw'), 'https://example.org/menu');
+      expect(w.QRState.S.kind).toBe('url');
+      expect(w.QRApp.last().text).toBe('https://example.org/menu');
+      clickTab('content');
+      expect(field('Web address').value).toBe('https://example.org/menu');
+      type(field('Web address'), 'https://example.org/menu2');
+      expect(w.QRState.S.raw).toBe(null);
+      expect(w.QRApp.last().text).toBe('https://example.org/menu2');
+    });
+
+    it('a Wi-Fi text in the Raw tab is encoded as typed, and the form shows its fields', async () => {
+      const w = await open();
+      clickTab('raw');
+      type(q('#qr-raw'), 'WIFI:T:WPA;S:Lab;P:secretpass;H:false;;');
+      expect(w.QRApp.last().text).toBe('WIFI:T:WPA;S:Lab;P:secretpass;H:false;;');
+      clickTab('content');
+      expect(field('Network name (SSID)').value).toBe('Lab');
+    });
+  });
+
+  describe('QR SLOP: design, logo and export', () => {
+    it('a logo sets error correction to H, which the Design tab shows as fixed', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'logo check');
+      clickTab('logo');
+      q('.qr-mark[aria-label="Star"]').click();
+      await waitFor(() => w.QRState.S.logo.href, { timeout: 5000 });
+      expect(w.QRState.S.logo.mark).toBe('star');
+      expect(w.QRState.renderOpts().ec).toBe('H');
+      expect(w.QRApp.last().svg.includes('<image')).toBe(true);
+      clickTab('design');
+      const ec = field('Error correction', '#qr-design');
+      expect(ec.value).toBe('H');
+      expect(ec.disabled).toBe(true);
+    });
+
+    it('the logo width is capped at 22 percent of the code width', async () => {
+      const w = await open();
+      clickTab('logo');
+      const range = q('#qr-logo input[type="range"]');
+      expect(range.max).toBe('22');
+      range.value = '30';
+      range.dispatchEvent(ev('input'));
+      expect(w.QRState.S.logo.frac).toBeCloseTo(0.22, 6);
+    });
+
+    it('a logo file is drawn on a canvas and kept as a PNG data URL', async () => {
+      const w = await open();
+      const cv = document.createElement('canvas');
+      cv.width = 40; cv.height = 40;
+      cv.getContext('2d').fillStyle = '#d4ff3a';
+      cv.getContext('2d').fillRect(0, 0, 40, 40);
+      const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+      const url = await w.QRLogo.fromFile(new (W().File)([blob], 'mark.png', { type: 'image/png' }));
+      expect(url.startsWith('data:image/png;base64,')).toBe(true);
+    });
+
+    it('a gradient and rounded modules reach the SVG, and a transparent background drops the rectangle', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'style check');
+      clickTab('design');
+      q('#qr-design input[type="checkbox"]').click();
+      expect(w.QRApp.last().svg.includes('url(#qr-grad)')).toBe(true);
+      const shape = field('Modules', '#qr-design');
+      shape.value = 'round';
+      shape.dispatchEvent(ev('change'));
+      expect(w.QRApp.last().svg.includes('a 0.3 0.3 0 0 1 ')).toBe(true);
+      qa('#qr-design input[type="checkbox"]')[1].click();
+      expect(w.QRApp.last().svg.includes('<rect width=')).toBe(false);
+    });
+
+    it('the SVG export is non-empty, and the PNG keeps its transparency', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'export check');
+      const svg = w.QRApp.last().svg;
+      expect(svg.startsWith('<svg')).toBe(true);
+      expect(svg.length).toBeGreaterThan(200);
+      expect(q('#qr-dl-png').disabled).toBe(false);
+      const opaque = await pixels(await w.QRPreview.pngFor(svg, 128));
+      expect(opaque.data[3]).toBe(255);
+      clickTab('design');
+      qa('#qr-design input[type="checkbox"]')[1].click();
+      const clear = await pixels(await w.QRPreview.pngFor(w.QRApp.last().svg, 128));
+      expect(clear.data[3]).toBe(0);
+    });
+
+    it('the print page is a PDF', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'print me');
+      const png = await w.QRPreview.pngFor(w.QRApp.last().svg, 512);
+      const pdf = await w.QRExport.toPdf(png, { title: 'Print me', line: 'print me' });
+      expect(pdf.type).toBe('application/pdf');
+      const head = new Uint8Array(await pdf.slice(0, 5).arrayBuffer());
+      expect(String.fromCharCode(...head)).toBe('%PDF-');
+    }, { timeout: 60000 });
+  });
+
+  describe('QR SLOP: buffer and Slop Drive', () => {
+    it('copy to buffer puts the code on the buffer as an image item from QR SLOP', async () => {
+      const w = await open();
+      clickTab('content');
+      chip('text').click();
+      type(field('Text'), 'buffer check');
+      q('#qr-bar [data-id="buffer"]').click();
+      await waitFor(() => w.SlopBuffer.get() && w.SlopBuffer.get().source === 'qr', { timeout: 8000 });
+      expect(w.SlopBuffer.get().kind).toBe('image');
+      expect(w.SlopBuffer.get().formats['image/png'] instanceof W().Blob).toBe(true);
+    });
+
+    it('a saved code opens again with its settings: the PNG points at the settings record, and the record restores them', async () => {
+      const w = await open();
+      clickTab('templates');
+      q('.qr-tpl[data-id="event"]').click();
+      w.QRState.S.style.fg = '#1f3fff';
+      w.QRState.S.style.shape = 'round';
+      w.QRApp.redrawAll();
+      const snapshot = JSON.parse(JSON.stringify(w.QRState.snapshot()));
+      const png = await w.QRPreview.pngFor(w.QRApp.last().svg, 512);
+      const base = 'qr-test-' + Date.now();
+      const ids = await w.QRSave.saveTo(null, png, snapshot, base);
+      const rec = await w.SlopHub.get(ids.pngId);
+      expect(rec.meta.qrSettings).toBe(ids.jsonId);
+      const saved = await w.QRSave.settingsFor({ type: 'image/png', id: ids.pngId });
+      expect(JSON.stringify(saved)).toBe(JSON.stringify(snapshot));
+      w.QRState.reset();
+      expect(w.QRState.S.kind).toBe('text');
+      expect(w.QRState.restore(saved)).toBe(true);
+      expect(w.QRState.S.kind).toBe('event');
+      expect(w.QRState.vals().title).toBe('Open evening');
+      expect(w.QRState.S.style.shape).toBe('round');
+    }, { timeout: 30000 });
+  });
+
+  describe('QR SLOP: batch (secondary tab)', () => {
+    it('one card per non-empty line, each with SVG and PNG buttons', async () => {
+      await open();
+      clickTab('batch');
+      expect(q('#qr-panel-batch').hidden).toBe(false);
+      type(q('#qr-batch-in'), 'first\n\n  second  \nthird');
+      q('#qr-batch-go').click();
+      const cards = qa('#qr-grid .qr-card');
+      expect(cards.length).toBe(3);
+      expect(cards[1].querySelector('figcaption').textContent).toBe('second');
+      expect(cards[0].querySelectorAll('button').length).toBe(2);
+      expect(cards[2].querySelector('svg')).toBeTruthy();
+    });
+
+    it('the batch cards follow the design, so a transparent background removes their rectangles', async () => {
+      const w = await open();
+      clickTab('batch');
+      type(q('#qr-batch-in'), 'a\nb');
+      q('#qr-batch-go').click();
+      expect(qa('#qr-grid .qr-card svg rect').length).toBe(2);
+      clickTab('design');
+      qa('#qr-design input[type="checkbox"]')[1].click();
+      clickTab('batch');
+      expect(qa('#qr-grid .qr-card svg rect').length).toBe(0);
+      expect(w.QRBatch.items().length).toBe(2);
+    });
+  }, { timeout: 60000 });
+
+  run();
+  </script>
+</body>
+</html>

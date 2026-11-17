@@ -1,0 +1,23 @@
+/* Shared components, English: the names of the kinds of text shared/patterns finds. Rules: shared/i18n/APPS-HOWTO.md. */
+window.SlopI18n && window.SlopI18n.add('en', {
+  'ui.patterns.ipv4': 'IPv4 address',
+  'ui.patterns.ipv6': 'IPv6 address',
+  'ui.patterns.mac': 'MAC address',
+  'ui.patterns.email': 'Email address',
+  'ui.patterns.url': 'URL',
+  'ui.patterns.uuid': 'UUID',
+  'ui.patterns.jwt': 'JSON Web Token',
+  'ui.patterns.aws_access_key': 'AWS access key ID',
+  'ui.patterns.aws_secret': 'AWS secret key',
+  'ui.patterns.github_token': 'GitHub token',
+  'ui.patterns.slack_token': 'Slack token',
+  'ui.patterns.stripe_key': 'Stripe key',
+  'ui.patterns.google_api_key': 'Google API key',
+  'ui.patterns.private_key': 'Private key',
+  'ui.patterns.bearer': 'Bearer token',
+  'ui.patterns.basic_auth_url': 'Password in URL',
+  'ui.patterns.secret_assignment': 'Secret assignment',
+  'ui.patterns.hash': 'Hash (MD5, SHA-1, SHA-256)',
+  'ui.patterns.credit_card': 'Credit card number',
+  'ui.patterns.iban': 'IBAN',
+});

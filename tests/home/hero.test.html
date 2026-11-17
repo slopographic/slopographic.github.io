@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homepage · hero, app globe and capability strip</title>
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; } iframe { display: block; border: 0; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="hero-boot.js"></script>
+  <script>
+  // Covers: home/globe/globe.js, home/globe/sphere.js, home/globe/paint.js, home/globe/drag.js, home/globe/globe.css, home/hero.css, index.html
+  /* The hero at 1280 and 390 px, in the Light and Dark themes: the headline paints first (largest paint, before the globe
+   * starts), reads clearly above the globe with no icon shown over it; the copy sits beside the globe on a wide screen and
+   * under it on a phone; the globe turns and stops when it should (hidden tab, off screen, reduced motion); a drag spins it
+   * and the fling slows down; the strip comes from the registry; the page never scrolls sideways.
+   * Links, hover, the keyboard list and the buttons: hero-links.test.html. */
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const rgb = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+  const lcp = (win) => new Promise((res) => {
+    const po = new win.PerformanceObserver((l) => { const e = l.getEntries(); res(e[e.length - 1]); po.disconnect(); });
+    po.observe({ type: 'largest-contentful-paint', buffered: true });
+    setTimeout(() => res(null), 2000);
+  });
+
+  for (const width of [1280, 390]) for (const theme of ['light', 'dark']) {
+    describe(`hero at ${width} px, ${theme}`, () => {
+      it('the headline paints first and reads clearly above the globe; no icon is shown over it; no wordmark', async () => {
+        const win = await HeroTest.open({ width, theme });
+        const doc = win.document, box = HeroTest.titleBox(win);
+        expect(doc.querySelectorAll('.hx-mark, .hx-stage').length).toBe(0);
+        // the globe keeps its changing state in its own data-live layer: the hero's attributes are the page's own
+        const hero = doc.getElementById('hero');
+        expect(hero.getAttributeNames().sort()).toEqual(['aria-labelledby', 'class', 'id']);
+        expect(hero.className).toBe('hx');
+        expect(doc.querySelector('.gx-layer').hasAttribute('data-live') && doc.querySelector('.gx-nav').hasAttribute('data-live')).toBe(true);
+        const big = await lcp(win);
+        if (big) {
+          expect(!!(big.element && big.element.closest('.hx-copy'))).toBe(true);   // the headline or its sub-line, never the globe
+          expect(big.startTime).toBeLessThan(win.SlopGlobe.startedAt());
+        }
+        expect(box.left).toBeGreaterThanOrEqual(0);
+        expect(box.right).toBeLessThanOrEqual(win.innerWidth);
+        expect(box.height).toBeGreaterThan(width > 600 ? 120 : 70);
+        const z = (sel) => Number(win.getComputedStyle(doc.querySelector(sel)).zIndex);
+        expect(z('.hx-copy')).toBeGreaterThan(z('.gx-layer'));
+        const fg = rgb(win.getComputedStyle(doc.querySelector('.hx-title')).color), bg = rgb(win.getComputedStyle(doc.body).backgroundColor);
+        const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+        expect((hi + 0.05) / (lo + 0.05)).toBeGreaterThan(7);
+        for (let k = 0; k < 10; k++) {
+          for (const ic of win.SlopGlobe.icons()) {
+            const r = ic.el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+            if (cx > box.left && cx < box.right && cy > box.top && cy < box.bottom && Number(ic.el.style.opacity) > 0.12) throw new Error(`${ic.id} shows at ${ic.el.style.opacity} over the headline`);
+          }
+          await sleep(100);
+        }
+      }, { timeout: 60000 });
+
+      it('the globe sits beside the copy (wide) or above it (phone), turns, holds every app it can, and nothing scrolls sideways', async () => {
+        const win = await HeroTest.open({ width, theme });
+        const doc = win.document, g = doc.querySelector('.gx-box').getBoundingClientRect(), copy = doc.querySelector('.hx-copy').getBoundingClientRect();
+        if (width > 900) expect(g.left).toBeGreaterThanOrEqual(copy.right - 1); else expect(g.bottom).toBeLessThanOrEqual(copy.top + 1);
+        const v = win.SlopGlobe.view();
+        expect(Math.abs(v.geom.cx - (g.left + g.right) / 2)).toBeLessThan(2);
+        expect(win.SlopGlobe.state()).toBe('running');
+        if (width < 700) expect(win.SlopGlobe.tier()).toBe('lite');
+        if (win.SlopGlobe.tier() === 'lite') {
+          // the lite globe: no filters, and no frames while the page scrolls
+          expect(doc.querySelector('.gx-layer').classList.contains('gx-lite')).toBe(true);
+          expect(win.getComputedStyle(doc.querySelector('.gx-i .gx-svg')).filter).toBe('none');
+          let f = 0;
+          for (let k = 0; k < 8; k++) { win.dispatchEvent(new win.Event('scroll')); if (k === 1) f = win.SlopGlobe.frames(); await sleep(50); }
+          expect(win.SlopGlobe.frames()).toBe(f);
+          await waitFor(() => win.SlopGlobe.frames() > f, { timeout: 5000 });   // and it goes on once the page is still
+        }
+        const apps = win.SLOP_APPS.filter((a) => !a.path.startsWith('#') && win.SLOP_ICONS[a.id]).length;
+        const a = HeroTest.transforms(win);
+        expect(a.length).toBe(Math.min(apps, win.SlopGlobeMath.TIERS[win.SlopGlobe.tier()].icons));
+        await waitFor(() => { const b = HeroTest.transforms(win); return a.filter((t, i) => t !== b[i]).length > a.length / 2; }, { timeout: 8000 });
+        const icons = win.SlopGlobe.icons();
+        expect(icons.some((i) => i.z > 0.5) && icons.some((i) => i.z < -0.5)).toBe(true);
+        const front = icons.reduce((m, i) => (i.z > m.z ? i : m)), back = icons.reduce((m, i) => (i.z < m.z ? i : m));
+        expect(front.el.getBoundingClientRect().width).toBeGreaterThan(back.el.getBoundingClientRect().width);
+        expect(front.opacity > back.opacity || front.opacity < 0.2).toBe(true);
+        expect(back.el.dataset.depth).toBe('far2');
+        expect(doc.scrollingElement.scrollWidth).toBeLessThanOrEqual(win.innerWidth);
+        win.scrollTo(0, 1200);
+        await sleep(100);
+        expect(win.scrollX).toBe(0);
+      }, { timeout: 60000 });
+    });
+  }
+
+  describe('the globe stops when nobody can see it, holds still for reduced motion, and spins when dragged', () => {
+    it('a hidden tab stops it; showing the tab again starts it', async () => {
+      const win = await HeroTest.open({ width: 1280 });
+      const doc = win.document;
+      Object.defineProperty(doc, 'hidden', { configurable: true, get: () => true });
+      doc.dispatchEvent(new win.Event('visibilitychange'));
+      expect(win.SlopGlobe.state()).toBe('paused');
+      await sleep(80);
+      const f = win.SlopGlobe.frames(), t = HeroTest.transforms(win);
+      await sleep(400);
+      expect(win.SlopGlobe.frames()).toBe(f);
+      expect(HeroTest.transforms(win)).toEqual(t);
+      delete doc.hidden;
+      doc.dispatchEvent(new win.Event('visibilitychange'));
+      expect(win.SlopGlobe.state()).toBe('running');
+      await waitFor(() => win.SlopGlobe.frames() > f + 3, { timeout: 5000 });
+    }, { timeout: 60000 });
+
+    it('scrolled out of view it stops; back in view it runs', async () => {
+      const win = await HeroTest.open({ width: 1280 });
+      win.scrollTo(0, win.document.getElementById('apps').offsetTop);
+      await waitFor(() => win.SlopGlobe.state() === 'paused', { timeout: 5000 });
+      win.scrollTo(0, 0);
+      await waitFor(() => win.SlopGlobe.state() === 'running', { timeout: 5000 });
+    }, { timeout: 60000 });
+
+    it('reduced motion: a still globe with every app that does not turn, and the strip does not scroll', async () => {
+      const win = await HeroTest.open({ width: 1280 });
+      win.SlopGlobe.reduce(true);
+      expect(win.SlopGlobe.state()).toBe('static');
+      const a = HeroTest.transforms(win), f = win.SlopGlobe.frames();
+      expect(a.length).toBe(win.SLOP_APPS.filter((x) => !x.path.startsWith('#') && win.SLOP_ICONS[x.id]).length);
+      await sleep(400);
+      expect(HeroTest.transforms(win)).toEqual(a);
+      expect(win.SlopGlobe.frames()).toBe(f);
+      expect(win.SlopGlobe.icons().filter((i) => i.opacity > 0.5).length).toBeGreaterThan(10);
+      win.SlopGlobe.reduce(false);
+      expect(win.SlopGlobe.state()).toBe('running');
+      const rules = [...win.document.styleSheets].flatMap((s) => { try { return [...s.cssRules]; } catch (e) { return []; } });
+      const still = rules.some((r) => r.media && /reduce/.test(r.media.mediaText) && [...r.cssRules].some((x) => x.selectorText === '.mq-track' && x.style.animationName === 'none'));
+      expect(still).toBe(true);
+    }, { timeout: 60000 });
+
+    it('a drag turns it with the pointer; let go, the fling slows down towards the idle turn', async () => {
+      const win = await HeroTest.open({ width: 1280 });
+      const hit = win.document.querySelector('.gx-hit'), r = hit.getBoundingClientRect();
+      const x0 = r.left + r.width * 0.3, y0 = r.top + r.height / 2;
+      const ev = (type, x, target) => (target || win).dispatchEvent(new win.PointerEvent(type, { pointerId: 7, pointerType: 'mouse', button: 0, clientX: x, clientY: y0, bubbles: true }));
+      ev('pointerdown', x0, hit);
+      const y1 = win.SlopGlobe.view().yaw;
+      for (let k = 1; k <= 8; k++) { ev('pointermove', x0 + k * 20); await sleep(16); }
+      const turned = win.SlopGlobe.view().yaw - y1, R = win.SlopGlobe.view().geom.r;
+      expect(turned).toBeGreaterThan((120 / R) * 0.8);   // about the distance dragged, in radii
+      ev('pointerup', x0 + 160);
+      const v0 = win.SlopGlobe.view().vel;
+      expect(v0).toBeGreaterThan(0.0003);
+      await sleep(1200);
+      const v1 = win.SlopGlobe.view().vel;
+      expect(v1).toBeLessThan(v0);
+      expect(v1).toBeGreaterThan(0);
+    }, { timeout: 60000 });
+  });
+
+  describe('the capability strip', () => {
+    it('is made from the registry: one label per app, File convert as its conversions, looped by an aria-hidden copy', async () => {
+      const win = await HeroTest.open({ width: 1280 });
+      const doc = win.document;
+      const lists = doc.querySelectorAll('.hx-marquee .mq-list');
+      expect(lists.length).toBe(2);
+      const one = [...lists[0].children].map((li) => li.textContent), two = [...lists[1].children].map((li) => li.textContent);
+      expect(two).toEqual(one);
+      expect(lists[1].getAttribute('aria-hidden')).toBe('true');
+      const apps = win.SLOP_APPS.filter((a) => a.kind === 'app');
+      expect(one.length).toBeLessThanOrEqual(apps.length);
+      expect(one.length).toBeGreaterThan(apps.length - 4);
+      // brand names: what each app does, File convert as its conversions; plain names: each app's name (home/marquee.js)
+      if (BRAND_FACTS.naming === 'plain') expect([...lists[0].querySelectorAll('a[data-id]')].every((a) => a.textContent === win.slopAppName(a.dataset.id))).toBe(true);
+      else expect(one.some((t) => /^\d+ conversions$/.test(t))).toBe(true);
+      const hero = doc.getElementById('hero'), strip = doc.querySelector('.hx-marquee'), finder = doc.querySelector('.finder-top');
+      expect(hero.nextElementSibling).toBe(strip);
+      expect(strip.nextElementSibling).toBe(finder);
+      // it runs; a plain-tone build leaves the strip out of the page (style/tone.css)
+      if (BRAND_FACTS.tone === 'plain') expect(win.getComputedStyle(strip).display).toBe('none');
+      else expect(doc.querySelector('.mq-track').getAnimations().some((a) => a.playState === 'running')).toBe(true);
+    }, { timeout: 60000 });
+  });
+
+  run({ name: 'Homepage · hero, app globe and capability strip' });
+  </script>
+</body>
+</html>

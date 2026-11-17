@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop EML attachment preview tests</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+</head>
+<body>
+  <!-- The real app runs in an iframe. A message with one attachment of each kind is built here and opened in it. -->
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor, sleep, run } = SlopTest;
+  const f = document.getElementById('app');
+  const W = () => f.contentWindow;
+  const enc = new TextEncoder();
+  const bytesOfB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const b64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
+  const PNG = bytesOfB64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+  const PART_BYTES = {
+    'pic.png': ['image/png', PNG],
+    'doc.pdf': ['application/pdf', enc.encode('%PDF-1.4\n1 0 obj << >> endobj\n%%EOF\n')],
+    'data.csv': ['text/csv', enc.encode('name,qty\nwidget,3\n')],
+    'notes.txt': ['text/plain', enc.encode('<b>not bold</b> & more')],
+    'page.html': ['text/html', enc.encode('<html><body><p>Hi</p><script>parent.document.title = \"ran\";<\/script><img src="https://example.com/x.png"></body></html>')],
+    'book.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', enc.encode('PK\u0003\u0004 not really a workbook')],
+    'archive.zip': ['application/zip', enc.encode('PK\u0005\u0006 empty zip')],
+  };
+  const part = (name) => {
+    const [type, bytes] = PART_BYTES[name];
+    return '--BND\r\nContent-Type: ' + type + '; name="' + name + '"\r\nContent-Transfer-Encoding: base64\r\n' +
+      'Content-Disposition: attachment; filename="' + name + '"\r\n\r\n' + b64(bytes).replace(/(.{76})/g, '$1\r\n') + '\r\n';
+  };
+  const NAMES = ['pic.png', 'doc.pdf', 'data.csv', 'notes.txt', 'page.html', 'book.xlsx', 'archive.zip'];
+  const EML = 'From: a@example.com\r\nTo: b@example.com\r\nSubject: Attachments\r\nDate: Mon, 5 Jan 2026 10:00:00 +0000\r\n' +
+    'MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="BND"\r\n\r\n' +
+    '--BND\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nHello\r\n' + NAMES.map(part).join('') + '--BND--\r\n';
+
+  // The attachments are in the side panel (shared/frame/panel.js): each row's name opens the preview.
+  const att = (i) => W().document.querySelectorAll('#em-side .sf-item')[i].querySelector('.sf-item-main');
+  const dlg = () => W().document.querySelector('.sui-back:not(.sui-out) .sui-dlg.em-prev-dlg');
+  const frame = () => dlg() && dlg().querySelector('iframe');
+  const btn = (label) => [...dlg().querySelectorAll('.sui-foot button')].find((b) => b.textContent === label);
+  const closeAll = () => W().document.querySelectorAll('.sui-back').forEach((n) => n.remove());
+  const key = (target, k) => target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  async function open(i) {
+    att(i).click();
+    await waitFor(() => dlg(), { timeout: 3000 });
+    await sleep(60);
+  }
+  const preview = (i) => W().EmlPreview;
+
+  async function load() {
+    await new Promise((r) => { f.addEventListener('load', r, { once: true }); f.src = '../../eml/index.html'; });
+    await waitFor(() => W().EmlApp && W().EmlPreview && W().document.body.classList.contains('ready'), { timeout: 10000 });
+    await W().EmlApp.openFile(new File([EML], 'attachments.eml', { type: 'message/rfc822' }));
+    await waitFor(() => W().document.querySelectorAll('#em-side .sf-item').length === NAMES.length, { timeout: 5000 });
+  }
+
+  describe('attachment preview: the kind of each file', () => {
+    it('images, PDF, spreadsheets, HTML, text and other files are told apart by name first', async () => {
+      const P = (name, type) => preview(0).kindOf({ name, type });
+      expect(P('pic.png', '')).toBe('image');
+      expect(P('scan.JPEG', 'application/octet-stream')).toBe('image');
+      expect(P('logo.svg', 'image/svg+xml')).toBe('image');
+      expect(P('doc.pdf', '')).toBe('pdf');
+      expect(P('book.xlsx', '')).toBe('sheet');
+      expect(P('old.xls', '')).toBe('sheet');
+      expect(P('data.csv', 'text/csv')).toBe('sheet');
+      expect(P('sheet.tsv', '')).toBe('sheet');
+      expect(P('sheet.ods', '')).toBe('sheet');
+      expect(P('page.html', '')).toBe('html');
+      expect(P('notes.txt', 'text/plain')).toBe('text');
+      expect(P('readme', 'text/x-custom')).toBe('text');
+      expect(P('archive.zip', 'application/zip')).toBe('other');
+    });
+  });
+
+  describe('attachment preview: opening and closing', () => {
+    it('clicking an attachment opens a preview dialog with its name as the title', async () => {
+      await open(0);
+      expect(dlg().getAttribute('role')).toBe('dialog');
+      expect(dlg().querySelector('.sui-title').textContent).toBe('pic.png');
+      closeAll();
+    });
+
+    it('Escape closes the preview', async () => {
+      await open(3);
+      key(dlg(), 'Escape');
+      await waitFor(() => !dlg(), { timeout: 2000 });
+    });
+
+    it('the close button closes the preview', async () => {
+      await open(3);
+      dlg().querySelector('.sui-x').click();
+      await waitFor(() => !dlg(), { timeout: 2000 });
+    });
+
+    it('the Close button closes the preview', async () => {
+      await open(3);
+      btn('Close').click();
+      await waitFor(() => !dlg(), { timeout: 2000 });
+    });
+
+    it('focus stays inside the dialog: Tab from the last control goes to the first', async () => {
+      await open(3);
+      const controls = [...dlg().querySelectorAll('button')].filter((b) => !b.disabled);
+      controls[controls.length - 1].focus();
+      key(controls[controls.length - 1], 'Tab');
+      expect(dlg().contains(W().document.activeElement)).toBe(true);
+      expect(W().document.activeElement).toBe(controls[0]);
+      key(W().document.activeElement, 'Tab');
+      closeAll();
+    });
+
+    it('focus that moves into the sandboxed frame comes back to the dialog, so Escape still closes', async () => {
+      await open(1);
+      frame().focus();
+      await sleep(80);
+      expect(dlg().contains(W().document.activeElement)).toBe(true);
+      expect(W().document.activeElement.tagName).toBe('BUTTON');
+      key(W().document.activeElement, 'Escape');
+      await waitFor(() => !dlg(), { timeout: 2000 });
+    });
+  });
+
+  describe('attachment preview: each type', () => {
+    it('an image is shown in a sandboxed frame as a data: URL', async () => {
+      await open(0);
+      await waitFor(() => frame() && /data:image\/png;base64,/.test(frame().srcdoc), { timeout: 3000 });
+      expect(frame().getAttribute('sandbox')).toBe('');
+      expect(frame().srcdoc).toContain('<img');
+      closeAll();
+    });
+
+    it('a PDF is shown in a sandboxed frame with a blob: URL, without same-origin access', async () => {
+      await open(1);
+      expect(frame().getAttribute('src')).toMatch(/^blob:/);
+      expect(frame().getAttribute('sandbox')).not.toMatch(/allow-same-origin/);
+      closeAll();
+    });
+
+    it('CSV is escaped text when there is no spreadsheet preview yet, with the note', async () => {
+      await open(2);
+      if (W().SlopSheets) { closeAll(); return; }
+      expect(dlg().querySelector('.em-prev-note').textContent).toBe('Spreadsheet preview is not available yet');
+      expect(dlg().querySelector('pre').textContent).toContain('widget,3');
+      closeAll();
+    });
+
+    it('a text file is escaped in a pre block (no markup is drawn)', async () => {
+      await open(3);
+      expect(dlg().querySelector('pre.em-plain').textContent).toBe('<b>not bold</b> & more');
+      expect(dlg().querySelector('b')).toBe(null);
+      closeAll();
+    });
+
+    it('an HTML attachment is shown in a frame with no scripts and the same policy as the message body', async () => {
+      await open(4);
+      const sb = frame().getAttribute('sandbox');
+      expect(sb).toMatch(/allow-popups/);
+      expect(sb).not.toMatch(/allow-scripts/);
+      expect(frame().srcdoc).toContain('Content-Security-Policy');
+      expect(frame().srcdoc).toContain("default-src 'none'");
+      closeAll();
+    });
+
+    it('a spreadsheet without SlopSheets shows the note and no frame', async () => {
+      await open(5);
+      if (W().SlopSheets) { closeAll(); return; }
+      expect(dlg().querySelector('.em-prev-note').textContent).toBe('Spreadsheet preview is not available yet');
+      expect(frame()).toBe(null);
+      closeAll();
+    });
+
+    it('another type shows the name, size and type, with a Save button', async () => {
+      await open(6);
+      const meta = dlg().querySelector('.em-prev-meta').textContent;
+      expect(meta).toContain('archive.zip');
+      expect(meta).toContain('application/zip');
+      expect(btn('Save')).toBeTruthy();
+      closeAll();
+    });
+  });
+
+  describe('attachment preview: Save', () => {
+    it('Save downloads the attachment and keeps the preview open', async () => {
+      const saved = [];
+      const real = W().SlopUI.download;
+      W().SlopUI.download = (blob, name) => saved.push({ blob, name });
+      try {
+        await open(6);
+        btn('Save').click();
+        await sleep(60);
+        expect(saved.length).toBe(1);
+        expect(saved[0].name).toBe('archive.zip');
+        expect(saved[0].blob.size).toBe(PART_BYTES['archive.zip'][1].length);
+        expect(!!dlg()).toBe(true);
+      } finally { W().SlopUI.download = real; closeAll(); }
+    });
+
+    it('the panel has a Save button and an Open in menu for each attachment', async () => {
+      const rows = [...W().document.querySelectorAll('#em-side .sf-item')];
+      expect(rows.map((r) => [...r.querySelectorAll('.sf-item-acts .sf-btn-txt')].map((b) => b.textContent).join('|'))).toEqual(NAMES.map(() => 'Save|Open in'));
+    });
+  });
+
+  (async () => {
+    try { await load(); } catch (e) { console.error('load failed', e); }
+    run({ name: 'Slop EML attachment preview' });
+  })();
+  </script>
+</body>
+</html>

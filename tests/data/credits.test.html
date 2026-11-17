@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Data · credit notes: credit what is owed, refund what was paid, the books and the statement agree</title>
+  <!-- Covers: shared/data/credits.js, shared/data/billing.js, shared/data/statement.js, shared/data/schema-defs.js, shared/data/store.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 13px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the records' messages (shared/i18n/ui/en/data.js) -->
+  <script src="../../shared/data/money.js"></script>
+  <script src="../../shared/data/barcode.js"></script>
+  <script src="../../shared/data/schema-checks.js"></script><script src="../../shared/data/schema-defs.js"></script>
+  <script src="../../shared/data/schema.js"></script>
+  <script src="../../shared/data/currency.js"></script>
+  <script src="../../shared/data/store.js"></script>
+  <script src="../../shared/data/numbering.js"></script>
+  <script src="../../shared/data/fx.js"></script>
+  <script src="../../shared/data/ledger.js"></script>
+  <script src="../../shared/data/billing.js"></script>
+  <script src="../../shared/data/credits.js"></script>
+  <script src="../../shared/data/statement.js"></script>
+  <script>
+  const { describe, it, expect, beforeEach, run } = SlopTest;
+  const S = window.SlopData, st = S.store, C = S.credits;
+  const fresh = async () => { const r = await st.erase(); if (!r.ok) throw new Error(r.message); const q = await st.ready(); if (!q.ok) throw new Error(q.message); };
+  let cust;
+  /** An issued invoice of 2 × 50.00 at 20% tax: subtotal 100.00, tax 20.00, total 120.00. */
+  async function issued() {
+    cust = (await st.put('customers', { name: 'Ada', stage: 'customer' })).value;
+    const d = await st.put('invoices', { customerId: cust.id, date: '2026-10-01', dueDate: '2026-10-31', lines: [{ description: 'Work', qty: 2, unitPrice: 5000, taxRate: 2000 }] });
+    const r = await S.billing.issue(d.value.id);
+    if (!r.ok) throw new Error(r.message);
+    return r.value;
+  }
+  const inv = async (id) => (await st.get('invoices', id)).value;
+  /** Account balances by code (debit positive), from the trial balance. */
+  async function books() {
+    const t = await S.ledger.trialBalance();
+    expect(t.ok).toBe(true);
+    return Object.fromEntries(t.value.rows.map((a) => [a.code, a.debit - a.credit]));
+  }
+
+  describe('credit notes: pure rules', () => {
+    it('splits a credit in the invoice proportions, and says what comes off the balance and what is paid back', () => {
+      expect(C.split({ total: 12000, tax: 2000 }, 6000)).toEqual({ subtotal: 5000, tax: 1000 });
+      expect(C.split({ total: 0, tax: 0 }, 0)).toEqual({ subtotal: 0, tax: 0 });
+      expect(C.effect(12000, 3000)).toEqual({ applied: 3000, refund: 0 });
+      expect(C.effect(2000, 3000)).toEqual({ applied: 2000, refund: 1000 });
+      expect(C.effect(0, 3000)).toEqual({ applied: 0, refund: 3000 });
+      expect(C.creditable({ total: 12000, credited: 5000 })).toBe(7000);
+      expect(C.statusAfter({ total: 100, status: 'issued' }, 100, 0)).toBe('credited');
+      expect(C.statusAfter({ total: 100, status: 'issued' }, 40, 0)).toBe('paid');
+      expect(C.statusAfter({ total: 100, status: 'issued' }, 40, 20)).toBe('issued');
+    });
+  });
+
+  describe('credit notes on the store', () => {
+    beforeEach(async () => { await fresh(); cust = null; });
+    it('a partial credit on an unpaid invoice: CN-0001, revenue and tax reversed, the balance lower, still issued', async () => {
+      const i = await issued();
+      const r = await C.issue({ invoiceId: i.id, amount: 3000, date: '2026-10-05', reason: 'Price agreed' });
+      expect(r.ok).toBe(true);
+      expect([r.value.number, r.value.subtotal, r.value.tax, r.value.refund, r.value.applied]).toEqual(['CN-0001', 2500, 500, 0, 3000]);
+      const now = await inv(i.id);
+      expect([now.status, now.credited, now.refunded]).toEqual(['issued', 3000, 0]);
+      expect(S.billing.balanceDue(now, [])).toBe(9000);
+      const b = await books();
+      expect([b['1200'], b['4000'], b['2100']]).toEqual([9000, -7500, -1500]);
+    });
+    it('paying the rest after a credit marks it paid; a credit of all of it marks it credited', async () => {
+      const i = await issued();
+      await C.issue({ invoiceId: i.id, amount: 2000 });
+      expect((await S.billing.recordPayment({ invoiceId: i.id, amount: 10001 })).code).toBe('overpayment');
+      expect((await S.billing.recordPayment({ invoiceId: i.id, amount: 10000 })).ok).toBe(true);
+      expect((await inv(i.id)).status).toBe('paid');
+      const j = await issued();
+      const all = await C.issue({ invoiceId: j.id, amount: 12000 });
+      expect(all.ok).toBe(true);
+      expect((await inv(j.id)).status).toBe('credited');
+      expect((await C.issue({ invoiceId: j.id, amount: 1 })).code).toBe('invalid_transition');
+    });
+    it('crediting a paid invoice pays it back: it needs a method, goes out of the bank, and AR is untouched', async () => {
+      const i = await issued();
+      await S.billing.recordPayment({ invoiceId: i.id, amount: 12000, method: 'bank' });
+      expect((await C.issue({ invoiceId: i.id, amount: 6000 })).code).toBe('needs_method');
+      const r = await C.issue({ invoiceId: i.id, amount: 6000, method: 'bank' });
+      expect(r.ok).toBe(true);
+      expect([r.value.refund, r.value.applied]).toEqual([6000, 0]);
+      const now = await inv(i.id);
+      expect([now.status, now.credited, now.refunded]).toEqual(['paid', 6000, 6000]);
+      const b = await books();
+      expect([b['1010'], b['1200'], b['4000'], b['2100']]).toEqual([6000, 0, -5000, -1000]);
+    });
+    it('cannot credit more than is left, nor a draft; a credited invoice cannot be voided; numbers run CN-0001, CN-0002', async () => {
+      const i = await issued();
+      expect((await C.issue({ invoiceId: i.id, amount: 12001 })).code).toBe('overcredit');
+      const a = await C.issue({ invoiceId: i.id, amount: 1000 }), b = await C.issue({ invoiceId: i.id, amount: 1000 });
+      expect([a.value.number, b.value.number]).toEqual(['CN-0001', 'CN-0002']);
+      expect((await S.billing.voidInvoice(i.id)).code).toBe('has_credits');
+      const d = await st.put('invoices', { customerId: cust.id, date: '2026-10-01', lines: [{ description: 'x', qty: 1, unitPrice: 100, taxRate: 0 }] });
+      expect((await C.issue({ invoiceId: d.value.id, amount: 50 })).code).toBe('invalid_transition');
+      expect((await st.put('creditNotes', { ...a.value, reason: 'edited' })).ok).toBe(false);   // posting only and immutable
+      const list = await C.forInvoice(i.id);
+      expect(list.value.map((c) => c.number)).toEqual(['CN-0001', 'CN-0002']);
+    });
+    it('the statement shows the credit note and the refund, and its closing balance and ageing agree with the books', async () => {
+      const i = await issued();
+      await S.billing.recordPayment({ invoiceId: i.id, amount: 10000, date: '2026-10-03' });
+      await C.issue({ invoiceId: i.id, amount: 5000, date: '2026-10-04', method: 'cash' });   // 2000 off the balance, 3000 paid back
+      const [invs, pays, cns] = await Promise.all(['invoices', 'payments', 'creditNotes'].map(async (n) => (await st.list(n)).value));
+      const s = S.statement.build(invs, pays, cust.id, { currency: 'USD', today: '2026-10-10', credits: cns });
+      expect(s.lines.map((l) => l.kind)).toEqual(['invoice', 'payment', 'credit', 'refund']);
+      expect(s.lines.map((l) => l.balance)).toEqual([12000, 2000, -3000, 0]);
+      expect(s.closing).toBe(0);
+      expect(s.owed).toEqual([]);
+      expect((await books())['1200']).toBe(0);
+      expect(S.statement.csv(s, String).split('\r\n')[3].split(',')[1]).toBe('Credit note');
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

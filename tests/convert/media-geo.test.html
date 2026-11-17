@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>File convert: favicon set, cut audio, GPX, KML and GeoJSON, and the new pages</title></head>
+<body>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: convert/js/core/media-geo.js, convert/js/core/favicon.js, convert/js/core/geo-read.js, convert/js/core/geo-write.js
+  // Covers: convert/js/core/cut.js, convert/js/core/ico.js, convert/js/core/more-pages-2.js, convert/js/core/more-pages-3.js, convert/js/core/pages.js
+  // A picture drawn here becomes a favicon set (read back from the ZIP and drawn); a WAV tone is cut and faded and read back;
+  // a real GPX (waypoint, two-segment track with times) and a KML (folder, point, line, polygon with a hole, gx:Track,
+  // extended data) become GeoJSON, then GPX and CSV.
+  import { CONVERSIONS, conversionsFor } from '../../convert/js/core/catalog.js';
+  import { detectKind } from '../../convert/js/core/detect.js';
+  import { encodeWav, decodeAudio } from '../../convert/js/core/audio.js';
+  import { kmlCoords } from '../../convert/js/core/geo-read.js';
+  import { readZip } from '../../shared/office/zip.js';
+  import { PAGES } from '../../convert/js/core/pages.js';
+  import { CONVERT_PAGES } from '../../shared/seo/convert-copy.mjs';
+  // the English page: a build whose root language is another has it under /en/ (shared/seo/HANDOFF.md, "Languages")
+  const EN_DIR = window.BRAND_FACTS && window.BRAND_FACTS.defaultLang !== 'en' ? 'en/' : '';
+  // a build that is not indexed (seo.index) and starts in another language has no English copies of the pages
+  const EN_PAGES = !(EN_DIR && window.BRAND_FACTS && !window.BRAND_FACTS.seoIndex);
+  import { MORE_PAGES_2 } from '../../convert/js/core/more-pages-2.js';
+  import { MORE_PAGES_3 } from '../../convert/js/core/more-pages-3.js';
+  const { describe, it, expect } = SlopTest;
+  const conv = (id) => CONVERSIONS.find((c) => c.id === id);
+  const run = (id, file, o = {}) => conv(id).run([{ name: file.name, file, kind: detectKind(file.name, file.type, null) }], o);
+  const ids = (kind) => conversionsFor([kind]).map((c) => c.id).filter((i) => !conv(i).from.includes('*'));
+
+  async function picture() {   // 64 × 32: red left half, blue right half, so a square icon has transparent bands
+    const c = document.createElement('canvas'); c.width = 64; c.height = 32;
+    const g = c.getContext('2d'); g.fillStyle = '#f00'; g.fillRect(0, 0, 32, 32); g.fillStyle = '#00f'; g.fillRect(32, 0, 32, 32);
+    return new File([await new Promise((r) => c.toBlob(r, 'image/png'))], 'logo.png', { type: 'image/png' });
+  }
+  async function pixels(bytes) {
+    const bmp = await createImageBitmap(new Blob([bytes]));
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    c.getContext('2d').drawImage(bmp, 0, 0);
+    return { w: bmp.width, h: bmp.height, at: (x, y) => SlopTest.pixel(c, x, y) };
+  }
+
+  describe('favicon set', () => {
+    it('a ZIP with favicon.ico (16, 32, 48), the PNG icons, the manifest and the tags; the picture is fitted, not stretched', async () => {
+      const [z] = await run('favicon-pack', await picture(), { name: 'Bakery', padding: '0', fill: false, background: '#ffffff' });
+      expect(z.name).toBe('logo-favicons.zip');
+      const files = await readZip(z.blob);
+      expect([...files.keys()]).toEqual(['favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'favicon-48x48.png', 'apple-touch-icon.png',
+        'android-chrome-192x192.png', 'android-chrome-512x512.png', 'site.webmanifest', 'head-tags.html']);
+      const ico = files.get('favicon.ico'), dv = new DataView(ico.buffer, ico.byteOffset);
+      expect([dv.getUint16(4, true), ico[6], ico[22], ico[38]]).toEqual([3, 16, 32, 48]);
+      const big = await pixels(files.get('android-chrome-192x192.png'));
+      expect([big.w, big.h]).toEqual([192, 192]);
+      expect(big.at(5, 5)[3]).toBe(0);                     // above the picture: transparent
+      expect(big.at(40, 96)).toEqual([255, 0, 0, 255]);    // the red half
+      expect(big.at(150, 96)).toEqual([0, 0, 255, 255]);   // the blue half
+      const apple = await pixels(files.get('apple-touch-icon.png'));
+      expect([apple.w, apple.at(5, 5)]).toEqual([180, [255, 255, 255, 255]]);   // filled: iPhones show transparency as black
+      expect(JSON.parse(new TextDecoder().decode(files.get('site.webmanifest'))).name).toBe('Bakery');
+      expect(new TextDecoder().decode(files.get('head-tags.html'))).toContain('<link rel="icon" href="/favicon.ico" sizes="48x48">');
+    });
+    it('a filled background and space around the picture', async () => {
+      const files = await readZip((await run('favicon-pack', await picture(), { padding: '10', fill: true, background: '#00ff00' }))[0].blob);
+      const p = await pixels(files.get('android-chrome-512x512.png'));
+      expect([p.at(10, 256), p.at(60, 256)]).toEqual([[0, 255, 0, 255], [255, 0, 0, 255]]);
+      expect(JSON.parse(new TextDecoder().decode(files.get('site.webmanifest'))).theme_color).toBe('#00ff00');
+    });
+  });
+
+  describe('cut audio', () => {
+    const tone = () => {   // 2 s stereo at 44.1 kHz: left a 440 Hz tone, right silence
+      const n = 88200, l = new Float32Array(n), r = new Float32Array(n);
+      for (let i = 0; i < n; i++) l[i] = 0.5 * Math.sin((2 * Math.PI * 440 * i) / 44100);
+      return new File([encodeWav([l, r], 44100)], 'tone.wav', { type: 'audio/wav' });
+    };
+    it('a WAV piece of the right length with the same samples, faded in', async () => {
+      const out = await run('audio-trim', tone(), { start: '0.5', end: '1:01.5', fadeIn: 0.1, output: 'wav' });
+      expect([out[0].name, out[0].kind, out.info]).toEqual(['tone-cut.wav', 'wav', 'Kept 1.5 s of 2 s.']);
+      const buf = await decodeAudio(new Uint8Array(await out[0].blob.arrayBuffer()));
+      expect([buf.numberOfChannels, Math.abs(buf.duration - 1.5) < 0.01]).toEqual([2, true]);
+      const L = buf.getChannelData(0);
+      expect(Math.abs(L[0])).toBeLessThan(0.001);   // the fade starts at silence
+      const want = 0.5 * Math.sin((2 * Math.PI * 440 * (22050 + 8000)) / 44100);
+      expect(Math.abs(L[8000] - want)).toBeLessThan(0.001);   // past the fade: the original sample
+    });
+    it('as MP3, and a start past the end is refused', async () => {
+      const [mp3] = await run('audio-trim', tone(), { start: '1', output: 'mp3', bitrate: '128' });
+      expect([mp3.name, mp3.blob.type]).toEqual(['tone-cut.mp3', 'audio/mpeg']);
+      expect(Math.abs((await decodeAudio(new Uint8Array(await mp3.blob.arrayBuffer()))).duration - 1)).toBeLessThan(0.1);
+      let msg = '';
+      try { await run('audio-trim', tone(), { start: '3' }); } catch (e) { msg = e.message; }
+      expect(msg).toMatch(/after the end of the file/);
+    });
+  });
+
+  const GPX = `<?xml version="1.0"?><gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+    <wpt lat="59.3293" lon="18.0686"><ele>28</ele><name>Start &amp; café</name><time>2026-05-01T08:00:00Z</time></wpt>
+    <trk><name>Morning run</name><type>running</type>
+      <trkseg><trkpt lat="59.33" lon="18.07"><ele>30.5</ele><time>2026-05-01T08:00:05Z</time></trkpt><trkpt lat="59.331" lon="18.072"><time>2026-05-01T08:00:15Z</time></trkpt></trkseg>
+      <trkseg><trkpt lat="59.335" lon="18.08"/></trkseg></trk></gpx>`;
+  const KML = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2"><Document><Folder><name>Trip</name>
+    <Placemark><name>Hotel</name><description>Check in at 3</description><ExtendedData><Data name="stars"><value>4</value></Data></ExtendedData><Point><coordinates>12.57,55.68,0</coordinates></Point></Placemark>
+    <Placemark><name>Walk</name><LineString><coordinates>12.5,55.6 12.6,55.7,10
+      12.7,55.8</coordinates></LineString></Placemark>
+    <Placemark><name>Park</name><Polygon><outerBoundaryIs><LinearRing><coordinates>0,0 4,0 4,4 0,0</coordinates></LinearRing></outerBoundaryIs><innerBoundaryIs><LinearRing><coordinates>1,1 2,1 2,2 1,1</coordinates></LinearRing></innerBoundaryIs></Polygon></Placemark>
+    <Placemark><name>Ride</name><gx:Track><when>2026-05-02T10:00:00Z</when><when>2026-05-02T10:01:00Z</when><gx:coord>10 50 5</gx:coord><gx:coord>10.1 50.1 6</gx:coord></gx:Track></Placemark>
+  </Folder></Document></kml>`;
+
+  describe('maps and GPS', () => {
+    it('GPX to GeoJSON: the waypoint, the track as a MultiLineString with its times', async () => {
+      const r = await run('gpx-to-geojson', new File([GPX], 'run.gpx'));
+      const g = JSON.parse(await r[0].blob.text());
+      expect([r[0].name, g.features.length, r.info]).toEqual(['run.geojson', 2, '2 GPX features: 1 point, 1 line or shape.']);
+      expect(g.features[0]).toEqual({ type: 'Feature', properties: { name: 'Start & café', time: '2026-05-01T08:00:00Z' }, geometry: { type: 'Point', coordinates: [18.0686, 59.3293, 28] } });
+      expect(g.features[1].geometry).toEqual({ type: 'MultiLineString', coordinates: [[[18.07, 59.33, 30.5], [18.072, 59.331]], [[18.08, 59.335]]] });
+      expect([g.features[1].properties.name, g.features[1].properties.type, g.features[1].properties.coordTimes[0][1]]).toEqual(['Morning run', 'running', '2026-05-01T08:00:15Z']);
+    });
+    it('KML to GeoJSON: points with their data, lines, polygons with holes, a gx:Track with times', async () => {
+      const g = JSON.parse(await (await run('kml-to-geojson', new File([KML], 'trip.kml')))[0].blob.text());
+      expect(g.features.map((f) => [f.properties.name, f.geometry.type])).toEqual([['Hotel', 'Point'], ['Walk', 'LineString'], ['Park', 'Polygon'], ['Ride', 'LineString']]);
+      expect(g.features[0].properties).toEqual({ name: 'Hotel', description: 'Check in at 3', stars: '4' });
+      expect([g.features[1].geometry.coordinates[1], g.features[2].geometry.coordinates.length]).toEqual([[12.6, 55.7, 10], 2]);
+      expect(g.features[3].properties.coordTimes).toEqual(['2026-05-02T10:00:00Z', '2026-05-02T10:01:00Z']);
+      expect(kmlCoords(' 1,2 3,4,5\n')).toEqual([[1, 2], [3, 4, 5]]);
+    });
+    it('KML to GPX (through GeoJSON): a valid GPX a reader finds the waypoint and tracks in', async () => {
+      const [geo] = await run('kml-to-geojson', new File([KML], 'trip.kml'));
+      const out = await run('geojson-to-gpx', new File([geo.blob], 'trip.geojson'));
+      expect(out.info).toBe('1 waypoint and 3 tracks; 2 area outlines are written as tracks.');
+      const doc = new DOMParser().parseFromString(await out[0].blob.text(), 'application/xml');
+      expect(doc.getElementsByTagName('parsererror').length).toBe(0);
+      expect([doc.getElementsByTagName('wpt').length, doc.getElementsByTagName('trk').length, doc.getElementsByTagName('trkpt').length]).toEqual([1, 3, 3 + 4 + 4 + 2]);
+      expect(doc.querySelector('wpt').getAttribute('lat')).toBe('55.68');
+      expect([...doc.getElementsByTagName('time')].map((t) => t.textContent)).toEqual(['2026-05-02T10:00:00Z', '2026-05-02T10:01:00Z']);
+      const back = JSON.parse(await (await run('gpx-to-geojson', new File([out[0].blob], 'trip.gpx')))[0].blob.text());
+      expect(back.features[0].geometry.coordinates).toEqual([12.57, 55.68, 0]);
+    });
+    it('GPX to CSV (through GeoJSON): one row per point with latitude and longitude', async () => {
+      const [geo] = await run('gpx-to-geojson', new File([GPX], 'run.gpx'));
+      const [csv] = await run('geojson-to-csv', new File([geo.blob], 'run.geojson'), { delimiter: ',' });
+      expect((await csv.blob.text()).split('\n').slice(0, 3)).toEqual(['feature,name,geometry,part,point,latitude,longitude,elevation,time,type',
+        '1,Start & café,Point,1,1,59.3293,18.0686,28,2026-05-01T08:00:00Z,', '2,Morning run,MultiLineString,1,1,59.33,18.07,30.5,2026-05-01T08:00:05Z,running']);
+      let msg = '';
+      try { await run('gpx-to-geojson', new File(['<gpx'], 'bad.gpx')); } catch (e) { msg = e.message; }
+      expect(msg).toMatch(/well formed/);
+    });
+  });
+
+  describe('menus and pages', () => {
+    it('each new kind gets its conversions', () => {
+      expect([ids('gpx'), ids('kml'), ids('geojson'), ids('ass'), ids('sbv'), ids('jsonl')]).toEqual([['gpx-to-geojson', 'text-to-utf8'], ['kml-to-geojson', 'text-to-utf8'],
+        ['geojson-to-gpx', 'geojson-to-csv', 'text-to-utf8'], ['ass-to-srt', 'ass-to-vtt', 'text-to-utf8'], ['sbv-to-srt', 'text-to-utf8'], ['jsonl-to-json', 'text-to-utf8']]);
+      expect(conversionsFor(['csv'])[0].id).toBe('csv-to-json');   // the default stays
+      for (const k of ['png', 'svg', 'jpg']) expect(ids(k)).toContain('favicon-pack');
+      for (const k of ['mp3', 'wav', 'mp4']) expect(ids(k)).toContain('audio-trim');
+      expect(ids('webm')).toContain('video-trim');
+    });
+    it('every new page exists with its tool, and its head copy is the page copy', async () => {
+      for (const p of [...MORE_PAGES_2, ...MORE_PAGES_3]) {
+        expect(PAGES.includes(p)).toBe(true);
+        expect(CONVERT_PAGES[`convert/${p.slug}`].title).toBe(p.title);
+        if (EN_PAGES) {
+          const doc = new DOMParser().parseFromString(await (await fetch(`../../${EN_DIR}convert/${p.slug}/`)).text(), 'text/html');
+          expect([doc.title, doc.querySelector('h1').textContent, doc.querySelector('[data-convert-root]').dataset.preset]).toEqual([p.title, p.h1, p.conv]);
+          expect(doc.querySelectorAll('.cv-faq h3').length).toBe(p.faq.length);
+        }
+        const first = p.conv.split('>')[0];
+        for (const k of p.from) expect(conv(first).from).toContain(k);
+      }
+    });
+  });
+  SlopTest.run({ name: 'File convert: favicon set, cut audio, maps and GPS' });
+  </script>
+</body>
+</html>

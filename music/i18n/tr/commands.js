@@ -1,0 +1,28 @@
+/* Slop Music, Turkish: the command palette entries. Same keys as music/i18n/en/commands.js.
+ * Terms: shared/i18n/glossary-tr.md. */
+window.SlopI18n && window.SlopI18n.add('tr', {
+  'music.cmd.play': 'Çal',
+  'music.cmd.pause': 'Duraklat',
+  'music.cmd.play_pause': 'Çal ya da duraklat',
+  'music.cmd.play_track': 'Bir parça çal…',
+  'music.cmd.play_playlist': 'Bir çalma listesi çal…',
+  'music.cmd.next': 'Sonraki parça',
+  'music.cmd.previous': 'Önceki parça',
+  'music.cmd.seek': 'Konuma git',
+  'music.cmd.volume': 'Sesi ayarla',
+  'music.cmd.speed': 'Hızı ayarla',
+  'music.cmd.shuffle': 'Karıştır',
+  'music.cmd.repeat': 'Tekrar',
+  'music.cmd.queue_track': 'Sıraya bir parça ekle…',
+  'music.cmd.find_tracks': 'Parça bul…',
+  'music.cmd.tag_track': 'Bir parçayı etiketle…',
+  'music.cmd.create_playlist': 'Yeni çalma listesi…',
+  'music.cmd.rename_playlist': 'Çalma listesinin adını değiştir…',
+  'music.cmd.add_to_playlist': 'Bir parçayı çalma listesine ekle…',
+  'music.cmd.remove_from_playlist': 'Bir parçayı çalma listesinden kaldır…',
+  'music.cmd.delete_playlist': 'Çalma listesini sil…',
+  'music.cmd.export_playlist': 'Bir çalma listesini dışa aktar…',
+  'music.cmd.group_player': 'Oynatıcı',
+  'music.cmd.group_library': 'Kitaplık',
+  'music.cmd.group_playlists': 'Çalma listeleri',
+});

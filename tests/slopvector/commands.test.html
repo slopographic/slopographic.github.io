@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SlopVector · commands tests</title>
+<style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; }</style></head>
+<body>
+  <iframe id="app" src="../../slopvector/index.html"></iframe>
+  <script src="../harness.js"></script>
+  <script src="boot.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  let C;
+  const bx = () => SV.selBBox(SV.state.sel).x;
+  const key = (code, k, mods = {}, target) => { const e = new W.KeyboardEvent('keydown', Object.assign({ code, key: k, bubbles: true, cancelable: true }, mods)); (target || W.document.body).dispatchEvent(e); return e; };
+
+  describe('SlopCmd in SlopVector', () => {
+    it('registers every action and tool', () => {
+      C = W.SlopCmd; C.resetKeys();
+      expect(SV.cmdOn).toBe(true);
+      const ids = new Set(C.list().map((c) => c.id));
+      for (const id of Object.keys(SV.actions)) if (id !== 'help.commands') expect(ids.has('sv.' + id)).toBe(true);
+      for (const t of SV.TOOL_LIST) expect(ids.has('sv.tool.' + t.id)).toBe(true);
+      expect(C.get('sv.view.guideLayout')).toBeTruthy();
+      expect(C.get('sv.edit.undo').keys.map((k) => C.canon(k))).toEqual(['Mod+Z']);
+      expect(C.get('sv.tool.rrect').keys.map((k) => C.canon(k))).toEqual(['Shift+M']);
+    });
+
+    it('runs tools, actions and canvas keys through SlopCmd', async () => {
+      blank();
+      key('KeyM', 'm'); expect(SV.state.tool).toBe('rect');
+      key('KeyM', 'M', { shiftKey: true }); expect(SV.state.tool).toBe('rrect');
+      key('KeyV', 'v'); expect(SV.state.tool).toBe('select');
+      const L = SV.activeLayer(); L.children.push(SV.mk.rect(10, 10, 50, 50, 0, { fill: '#f00' })); SV.commit('r'); SV.select([L.children[0].id]);
+      key('ArrowRight', 'ArrowRight'); expect(bx()).toBe(10 + SV.state.prefs.keyInc);
+      key('ArrowRight', 'ArrowRight', { shiftKey: true }); expect(bx()).toBe(10 + SV.state.prefs.keyInc * 11);
+      key('KeyZ', 'z', { ctrlKey: true }); expect(SV.state.doc.layers[0].children[0].x).toBe(10); // quick nudges merge into one undo step
+      SV.select([SV.state.doc.layers[0].children[0].id]);
+      const g = SV.state.prefs.guides; key('Semicolon', ';', { ctrlKey: true }); expect(SV.state.prefs.guides).toBe(!g); key('Semicolon', ';', { ctrlKey: true });
+      key('Delete', 'Delete'); expect(SV.state.doc.layers[0].children.length).toBe(0);
+    });
+
+    it('typing in the text editor is never hijacked', () => {
+      const ta = W.document.getElementById('textEditor');
+      SV.setTool('select'); ta.focus();
+      key('KeyM', 'm', {}, ta);
+      expect(SV.state.tool).toBe('select');
+      ta.blur();
+    });
+
+    it('shortcuts can be rebound and menus show the binding', () => {
+      const item = () => UI.menuItems('View').find((i) => i && i.label === 'Show Guides');
+      expect(item().key).toBe('Ctrl+;');
+      C.setKeys('sv.view.guides', ['Alt+G']);
+      expect(item().key).toBe('Alt+G');
+      const g = SV.state.prefs.guides;
+      key('Semicolon', ';', { ctrlKey: true }); expect(SV.state.prefs.guides).toBe(g);
+      key('KeyG', 'g', { altKey: true }); expect(SV.state.prefs.guides).toBe(!g);
+      key('KeyG', 'g', { altKey: true });
+      C.resetKeys('sv.view.guides'); expect(item().key).toBe('Ctrl+;');
+    });
+
+    it('Ctrl+K opens the palette, which finds guide commands; Help lists both entries', async () => {
+      key('KeyK', 'k', { ctrlKey: true });
+      await waitFor(() => C.isOpen && W.document.querySelector('.scmd-input'));
+      expect(C.search('guide layout').map((c) => c.id)).toContain('sv.view.guideLayout');
+      C.close(); await waitFor(() => !C.isOpen);
+      const help = UI.menuItems('Help').map((i) => i && i.label);
+      expect(help).toContain('Search Commands…'); expect(help).toContain('Keyboard Shortcuts');
+      expect(UI.menuItems('Help')[0].key).toBe('Ctrl+K');
+      expect(W.document.getElementById('cmdBtn').hidden).toBe(false);
+    });
+
+    it('Ctrl+K belongs to Search Commands only: Preferences is Ctrl+, (it once took Ctrl+K too)', async () => {
+      // Covers: slopvector/js/ui/actions.js
+      expect(C.keyFor('sv.edit.prefs')).toBe('Ctrl+,');
+      expect(UI.menuItems('Edit').find((i) => i && i.label === 'Preferences…').key).toBe('Ctrl+,');
+      expect(C.list().filter((c) => c.id !== 'cmd.palette' && C.bindings(c.id).includes('Mod+K')).map((c) => c.id)).toEqual([]);
+      expect(SV.keymap['mod+k']).toBe('help.commands');
+      expect(SV.keymap['mod+,']).toBe('edit.prefs');
+      key('Comma', ',', { ctrlKey: true });
+      await waitFor(() => [...W.document.querySelectorAll('.sui-dlg')].find((d) => d.getAttribute('aria-label') === 'Preferences'), { timeout: 3000 });
+      for (const x of W.document.querySelectorAll('.sui-back .sui-x')) x.click();
+      expect(C.isOpen).toBeFalsy();
+    });
+  });
+  </script>
+  <script>SlopTest.run({ name: 'SlopVector · commands' });</script>
+</body>
+</html>

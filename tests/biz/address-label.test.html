@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Business · address label (SlopBiz.addressLabel): a project SlopLabel opens</title>
+  <!-- Covers: shared/biz/address-label.js -->
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="../../shared/biz/address-label.js"></script>
+  <script src="../../label/js/core/units.js"></script>
+  <script src="../../label/js/core/stocks.js"></script>
+  <script src="../../label/js/core/model.js"></script>
+  <script>
+  const { describe, it, expect, run } = SlopTest;
+  const A = window.SlopBiz.addressLabel;
+  describe('address label', () => {
+    const doc = A.project({ name: 'Ada Ltd', lines: ['1 High St', '', 'Leeds LS1 1AA'], from: 'Slop Studio', ref: 'ORD-0007' });
+    it('is a 4 × 2" label with the sender, the name in bold, the address lines and the reference', () => {
+      expect([doc.label.w, doc.label.h, doc.stock.id]).toEqual([101.6, 50.8, 'roll-4x2']);
+      const by = Object.fromEntries(doc.objects.map((o) => [o.id, o]));
+      expect(by.from.content).toBe('From: Slop Studio');
+      expect([by.name.content, by.name.bold]).toEqual(['Ada Ltd', true]);
+      expect(by.address.content).toBe('1 High St\nLeeds LS1 1AA');
+      expect(by.ref.content).toBe('ORD-0007');
+      expect(doc.name).toBe('Address label ORD-0007');
+      for (const o of doc.objects) { expect(o.x + o.w <= doc.label.w).toBe(true); expect(o.y + o.h <= doc.label.h).toBe(true); }
+    });
+    it('without a sender or a reference those lines are left out', () => {
+      expect(A.project({ name: 'Bob', lines: ['Somewhere'] }).objects.map((o) => o.id)).toEqual(['name', 'address']);
+    });
+    it('SlopLabel opens it: its own parser reads the file and fills in every object', () => {
+      const parsed = parseProject(JSON.stringify(doc));   // label/js/core/model.js
+      expect(parsed.objects.length).toBe(4);
+      const name = parsed.objects.find((o) => o.id === 'name');
+      expect(name.font).toBe('sans');
+      expect(name.size).toBe(15);
+      expect(parsed.unit).toBe('in');
+    });
+    it('send() hands a .sloplabel file to SlopLabel through SlopHub', async () => {
+      const sent = [];
+      window.SlopHub = { sendTo: async (app, blob, name, o) => { sent.push({ app, name, text: await blob.text(), o }); return 'id1'; } };
+      expect(await A.send({ name: 'Ada Ltd', lines: ['1 High St'], ref: 'ORD-0007', app: 'orders' })).toBe('id1');
+      expect([sent[0].app, sent[0].name, sent[0].o.from]).toEqual(['label', 'Address label ORD-0007.sloplabel', 'orders']);
+      expect(JSON.parse(sent[0].text).app).toBe('sloplabel');
+    });
+    it('with the one outbound builder on the page, send() goes through SlopOuttake.send', async () => {
+      const sent = [];
+      window.SlopOuttake = { send: async (to, o) => { sent.push({ to, from: o.from, name: o.name, text: await o.get().text() }); return 'id2'; } };
+      expect(await A.send({ name: 'Ada Ltd', lines: ['1 High St'], ref: 'ORD-0008', app: 'orders' })).toBe('id2');
+      expect([sent[0].to, sent[0].from, sent[0].name]).toEqual(['label', 'orders', 'Address label ORD-0008.sloplabel']);
+      delete window.SlopOuttake;
+    });
+  });
+  run();
+  </script>
+</body>
+</html>

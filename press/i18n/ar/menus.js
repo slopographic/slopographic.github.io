@@ -1,0 +1,22 @@
+/* The Slop Press string tables, Arabic: the menu titles and submenu names. Same keys as press/i18n/en/menus.js. Terms: shared/i18n/glossary-ar.md. */
+window.SlopI18n && window.SlopI18n.add('ar', {
+  'press.menu.layout': 'التخطيط',
+  'press.menu.type': 'النص',
+  'press.menu.object': 'الكائن',
+  'press.menu.window': 'النافذة',
+  'press.menu.tools': 'الأدوات',
+  'press.menu.styles': 'الأنماط',
+  'press.menu.send_to': 'إرسال إلى',
+  'press.menu.pages': 'الصفحات',
+  'press.menu.para_style': 'نمط الفقرة',
+  'press.menu.char_style': 'نمط الحرف',
+  'press.menu.alignment': 'المحاذاة',
+  'press.menu.special_char': 'إدراج حرف خاص',
+  'press.menu.composer': 'المُنسِّق',
+  'press.menu.arrange': 'ترتيب',
+  'press.menu.fitting': 'الملاءمة',
+  'press.menu.text_wrap': 'التفاف النص',
+  'press.menu.theme': 'السمة',
+  'press.menu.hub_unavailable': 'Slop Hub غير متاح',
+  'press.menu.none': '(بلا)',
+});

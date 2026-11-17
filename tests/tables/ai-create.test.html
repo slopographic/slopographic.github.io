@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Tables AI: making workbooks</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1280px; height: 760px; border: 0; display: block; }</style>
+  <!-- Covers: tables/js/ui/ai-create.js, tables/js/ui/ai-commands.js, tables/js/io/build.js, shared/ops/create-tables.js -->
+</head>
+<body>
+  <iframe id="app" src="about:blank"></iframe>
+  <script src="../harness.js"></script>
+  <script src="../../shared/profile/profile.js"></script>
+  <script src="../../shared/i18n/i18n.js"></script>   <!-- the shared components' words (shared/i18n/ui) -->
+  <script src="../../shared/commands/args.js"></script>
+  <script src="tables.helpers.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  let W, T, C;
+  const steps = () => T.S.hist.undo.length;
+  const ex = async (tool, args) => { const r = await C.exec('tables.ai.' + tool.replace(/_/g, '-'), args); if (!r.ok) throw new Error(tool + ': ' + r.error); return r; };
+  const driveId = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+  const SALES = [['Item', 'Qty', 'Price', 'Total'], ['Tea', 2, 3, '=B2*C2'], ['Cake', '4', '2.5', '=B3*C3']];
+
+  describe('Slop Tables · assistant: making workbooks', () => {
+    it('registers the new commands with schemas; delete_rows and delete_column are destructive', async () => {
+      W = await TB.boot(); T = TB.T; C = W.SlopCmd;
+      await C.prepare();
+      for (const t of ['new_workbook', 'build_table', 'set_range', 'add_rows', 'add_sheet', 'format_cells', 'create_chart', 'delete_rows', 'delete_column', 'export_workbook'])
+        expect(!!C.get('tables.ai.' + t.replace(/_/g, '-'))).toBe(true);
+      expect(C.list().filter((c) => /^tables\.ai\./.test(c.id) && c.destructive).map((c) => c.tool).sort()).toEqual(['delete_column', 'delete_rows']);
+      expect(SlopCmdArgs.jsonSchema(C.get('tables.ai.set-range').args).properties.rows.type).toBe('array');
+    }, { timeout: 30000 });
+
+    it('build_table opens a new tab with the rows, formulas computed and a bold header', async () => {
+      const n = T.tabs.api().tabs().length;
+      const r = await ex('build_table', { name: 'Sales', sheet: 'Q1', rows: SALES });
+      expect(r.value).toMatch(/A1:D3/);
+      expect(T.tabs.api().tabs().length).toBe(n + 1);
+      expect(T.sheet.name).toBe('Q1');
+      expect([T.value('D2'), T.value('D3'), T.value('B3')]).toEqual([6, 10, 4]);
+      expect(T.wb.style(T.sheet.get(0, 0).s).b).toBe(true);
+    });
+
+    it('set_range, add_rows, format_cells, add_sheet: one undo step each', async () => {
+      const s0 = steps();
+      await ex('set_range', { start: 'F1', rows: [['Note'], ['ok']] });
+      expect(T.value('F2')).toBe('ok');
+      await ex('add_rows', { rows: [['Jam', 1, 4, '=B4*C4']] });
+      expect([T.value('A4'), T.value('D4')]).toEqual(['Jam', 4]);
+      await ex('format_cells', { range: 'C2:D4', number_format: '0.00', align: 'right', bold: true });
+      const st = T.wb.style(T.sheet.get(1, 2).s);
+      expect([st.b, st.nf, st.al]).toEqual([true, '0.00', 'r']);
+      expect(steps()).toBe(s0 + 3);
+      expect((await C.exec('tables.ai.set-range', { start: 'A9', rows: [['=SUM(']] })).ok).toBe(false);
+      expect(steps()).toBe(s0 + 3);
+      await ex('add_sheet', { name: 'Notes', rows: [['Topic'], ['Pricing']] });
+      expect([T.sheet.name, T.value('A2')]).toEqual(['Notes', 'Pricing']);
+      T.undo();
+      expect(T.wb.sheets.map((s) => s.name)).toEqual(['Q1']);
+    });
+
+    it('create_chart, delete_rows and delete_column move formulas like Excel', async () => {
+      await ex('create_chart', { range: 'A1:B4', type: 'bar', title: 'Qty' });
+      expect(T.sheet.charts.length).toBe(1);
+      expect([T.sheet.charts[0].type, T.sheet.charts[0].range]).toEqual(['bar', 'A1:B4']);
+      await ex('set_range', { start: 'B6', rows: [['=SUM(B2:B4)']] });
+      expect(T.value('B6')).toBe(7);
+      await ex('delete_rows', { from_row: 2 });
+      expect([T.value('A2'), T.value('D2'), T.value('B5')]).toEqual(['Cake', 10, 5]);
+      expect(T.sheet.get(4, 1).f).toBe('SUM(B2:B3)');
+      await ex('delete_column', { column: 'Price' });
+      expect(T.value('C1')).toBe('Total');
+      expect(T.sheet.get(1, 2).f).toContain('#REF!');
+      expect(T.value('E1')).toBe('Note');
+    });
+
+    it('export_workbook to Slop Drive: XLSX and CSV read back', async () => {
+      const x = await ex('export_workbook', { format: 'xlsx', name: 'sales-out' });
+      const rec = await W.SlopHub.get(driveId(x));
+      expect(rec.name).toBe('sales-out.xlsx');
+      const Z = await import('../../shared/office/zip.js'), map = await Z.readZip(rec.blob);
+      expect(Z.readText(map, 'xl/workbook.xml')).toContain('name="Q1"');
+      const strings = Z.readText(map, 'xl/worksheets/sheet1.xml');
+      expect(strings).toContain('Cake');
+      const c = await ex('export_workbook', { format: 'csv' });
+      const text = await (await W.SlopHub.get(driveId(c))).blob.text();
+      expect(text.split(/\r?\n/)[0]).toBe('Item,Qty,Total,,Note');
+    });
+
+    it('new_workbook opens an empty tab; the checkpoint closes the tabs the assistant opened', async () => {
+      const T0 = T.tabs.current(), n = T.tabs.api().tabs().length, cp = C.checkpoint();
+      await ex('new_workbook', { name: 'Scratch' });
+      expect(T.tabs.api().tabs().length).toBe(n + 1);
+      expect(T.S.file.name).toBe('Scratch');
+      expect(T.sheet.usedRange(false)).toBe(null);
+      expect(cp()).toBe(true);
+      expect(T.tabs.api().tabs().length).toBe(n);
+      expect(T.tabs.current()).toBe(T0);
+    });
+
+    it('the operation table-data-to-spreadsheet makes an XLSX from JSON and from CSV, headless', async () => {
+      const R = await import('../../shared/ops/create-tables.js');
+      const op = R.CREATE_TABLES[0];
+      const json = new File([JSON.stringify({ sheets: [{ name: 'Stock', rows: [['Item', 'Qty'], ['Pen', 3], ['Sum', '=SUM(B2:B2)']] }, { name: 'B', rows: [['x']] }] })], 'stock.json');
+      const out = await op.run([{ file: json, name: 'stock.json', kind: 'json' }], { format: 'xlsx' });
+      expect(out[0].name).toBe('stock.xlsx');
+      expect(out.info).toMatch(/2 sheets: Stock, B/);
+      const Z = await import('../../shared/office/zip.js'), map = await Z.readZip(out[0].blob);
+      expect(Z.readText(map, 'xl/workbook.xml')).toContain('name="Stock"');
+      expect(Z.readText(map, 'xl/worksheets/sheet1.xml')).toContain('<f>SUM(B2:B2)</f>');
+      const csv = await op.run([{ file: new File(['a,b\n1,2'], 't.csv'), name: 't.csv', kind: 'csv' }], { format: 'stab' });
+      expect(JSON.parse(await csv[0].blob.text()).sheets[0].cells.length).toBe(4);
+    });
+  });
+  SlopTest.run({ name: 'Slop Tables AI: making workbooks' });
+  </script>
+</body>
+</html>

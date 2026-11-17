@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Docs PDF: the pages as a PDF, read back with pdf.js, in six writing systems</title></head>
+<body>
+<script src="../harness.js"></script>
+<script src="pdf-helpers.js"></script>
+<script>
+// Covers: shared/fonts/pdf-runs.js, docs/js/io/pdf.js, docs/js/io/pdf-text.js, docs/js/io/pdf-nav.js, docs/js/io/vendor.js, docs/js/fonts/lang.js, docs/js/fonts/lang-doc.js, docs/js/ui/output.js, docs/js/ui/render.js, docs/js/ui/geom.js, docs/js/layout/runs.js, docs/js/layout/bidi.js, docs/js/layout/atoms.js, docs/js/layout/lines.js, docs/js/layout/para.js, docs/js/bridge.js
+/* The real app in an iframe, with the Noto language packs installed from small subsets (tests/docs/fixtures). One document
+ * with English, Arabic with digits, Hebrew, Chinese, Japanese and Hindi, a list, a table, an image, a link, two headings and
+ * a header and footer, two pages long. Its PDF is read back with pdf.js and compared with the layout the screen shows. */
+const { describe, it, expect, waitFor } = SlopTest;
+const T = window.DocsTest;
+const INTL = { ar: 'مرحبا بالعالم 2024 والرقم ٤٥٦', he: 'שלום עולם 123', zh: '你好，世界', ja: 'こんにちは世界', hi: 'नमस्ते दुनिया' };
+const FILL = 'The quick brown fox jumps over the lazy dog while the report keeps its lines exactly where the screen put them. ';
+let W = null, out = null;
+
+function png() { const c = document.createElement('canvas'); c.width = 40; c.height = 20; const g = c.getContext('2d'); g.fillStyle = '#c00000'; g.fillRect(0, 0, 40, 20); return c.toDataURL('image/png'); }
+function build(W) {
+  const E = W.SlopDocEngine, M = E.M, P = (t, s, p) => M.para(t, s || 'Normal', p || {});
+  let d = M.newDoc();
+  const link = P(''); link.runs = [{ text: 'Read more at ' }, { text: 'example.com', link: 'https://example.com/' }, { text: ' and an image ' }, { text: '￼', obj: 'img', src: png(), w: 40, h: 20 }];
+  const cell = (t) => ({ blocks: [P(t)] });
+  const table = { type: 'table', id: 'tt', cols: [234, 234], border: { w: 0.5, color: '#000000' }, rows: [{ header: true, cells: [cell('Region'), cell('Total')] }, { cells: [cell('North'), cell('1,204')] }] };
+  d.blocks = [P('International report', 'H1'), P('Hello world. ' + FILL.repeat(3)), P(INTL.ar), P(INTL.he), P(INTL.zh), P(INTL.ja), P(INTL.hi),
+    P('First point', 'Normal', { list: { id: 'bul', lvl: 0 } }), P('Second point', 'Normal', { list: { id: 'bul', lvl: 0 } }), table, link,
+    P('Second heading', 'H2'), ...Array.from({ length: 22 }, (_, i) => P(`Line ${i + 1}. ` + FILL))];
+  d.lists.bul = E.S.bulletList();
+  d = E.HF.applyHF(M.normalizeDoc(d), { header: { text: 'Slop Docs test report', align: 'right' }, footer: { text: 'Page {page} of {pages}', align: 'center' } });
+  return d;
+}
+async function exported() {
+  if (out) return out;
+  await T.installPacks();
+  W = await T.open();
+  W.SlopDocs.setDoc(build(W));
+  const blob = await W.SlopDocs.pdfBlob();
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  out = { bytes, pdf: await T.readPdf(bytes), layout: W.SlopDocs.layout, blob };
+  return out;
+}
+const pageText = (p) => p.lines.map((l) => l.text).join('\n');
+
+describe('PDF export', () => {
+  it('File ▸ Download PDF writes a PDF with the same number and size of pages as the screen', async () => {
+    const { bytes, pdf, layout, blob } = await exported();
+    expect(blob.type).toBe('application/pdf');
+    expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-');
+    expect(layout.pages.length).toBeGreaterThanOrEqual(2);
+    expect(pdf.n).toBe(layout.pages.length);
+    expect(W.document.querySelectorAll('#pages .page').length).toBe(pdf.n);
+    for (const p of pdf.pages) { expect(p.w).toBeCloseTo(layout.W, 0.01); expect(p.h).toBeCloseTo(layout.H, 0.01); }
+    const rows = W.SlopDocs.menus.file().filter((r) => r && r.label);
+    expect(rows.some((r) => r.label === 'Download PDF (.pdf)')).toBe(true);
+  }, { timeout: 60000 });
+  it('every left-to-right line is at the same place with the same text as on screen (same line and page breaks)', async () => {
+    const { pdf, layout } = await exported();
+    let checked = 0;
+    layout.pages.forEach((pg, pi) => {
+      for (const it of pg.items) {
+        if (it.kind !== 'line' || it.line.rtl) continue;
+        const text = it.line.frags.filter((f) => f.text && f.kind !== 'tab').map((f) => f.text).join('');
+        if (!text.trim() || /[^\u0000-\u024f\u2022\u2013\u2014\u2019]/.test(text)) continue;
+        const y = it.y + it.line.baseline, hit = pdf.pages[pi].lines.find((l) => Math.abs(l.y - y) < 1.5);
+        if (!hit) throw new Error(`page ${pi + 1}: no PDF line at y ${y.toFixed(1)} for "${text}"`);
+        expect(T.squash(hit.text)).toContain(T.squash(text));
+        // a line that starts the PDF row (not a second table column) starts at the same x
+        if (T.squash(hit.text).startsWith(T.squash(text))) expect(hit.x).toBeCloseTo(it.x + it.line.frags.find((f) => f.text).x, 0.5);
+        checked++;
+      }
+    });
+    expect(checked).toBeGreaterThan(30);
+  }, { timeout: 60000 });
+  it('the international text is real text: Arabic with its digits, Hebrew, Chinese, Japanese and Hindi', async () => {
+    const { pdf } = await exported();
+    const t = T.squash(pageText(pdf.pages[0]));
+    for (const w of ['مرحبا', 'بالعالم', 'والرقم', '٤٥٦', '2024', 'שלום', 'עולם', '123', '你好，世界', 'こんにちは世界', 'नमस्ते']) expect(t).toContain(w);
+    // a Devanagari vowel sign drawn before its consonant comes out in drawing order: compare the characters
+    const hi = pdf.pages[0].lines.find((l) => /न/.test(l.text) && /य/.test(l.text));
+    expect([...T.squash(hi.text)].sort().join('')).toBe([...T.squash(INTL.hi)].sort().join(''));
+  }, { timeout: 60000 });
+  it('right-to-left paragraphs end at the right margin, on screen and in the PDF, in their language fonts', async () => {
+    const { pdf, layout } = await exported();
+    const right = layout.W - 72;
+    for (const word of ['مرحبا', 'שלום']) {
+      const items = (await pdf.pages[0].page.getTextContent()).items.filter((i) => T.squash(i.str).length && pdf.pages[0].lines.some((l) => l.text.includes(i.str) && T.squash(l.text).includes(word)));
+      expect(Math.max(...items.map((i) => i.transform[4] + i.width))).toBeCloseTo(right, 1.5);
+    }
+    const k = W.SlopDocs.R.k(), page = W.document.querySelector('#pages .page').getBoundingClientRect();
+    const ar = [...W.document.querySelectorAll('#pages .t')].filter((s) => /[\u0621-\u064a]/.test(s.textContent));
+    expect(ar.length).toBeGreaterThan(0);
+    expect(ar.every((s) => s.dir === 'rtl' && /SDL noto-arabic/.test(s.style.fontFamily))).toBe(true);
+    expect(Math.max(...ar.map((s) => s.getBoundingClientRect().right - page.left)) / k).toBeCloseTo(right, 1.5);
+  }, { timeout: 60000 });
+  it('embeds subsets of the exact faces used: Carlito and the five Noto language fonts', async () => {
+    const { bytes } = await exported();
+    const doc = await W.PDFLib.PDFDocument.load(new W.Uint8Array(bytes)), names = [];
+    for (const [, obj] of doc.context.enumerateIndirectObjects()) {
+      const fn = obj && obj.get && obj.get(W.PDFLib.PDFName.of('FontName'));
+      if (fn) names.push(fn.decodeText ? fn.decodeText() : fn.toString());
+    }
+    for (const f of ['Carlito', 'NotoSansArabic', 'NotoSansHebrew', 'NotoSansDevanagari', 'NotoSansJP', 'NotoSansSC']) expect(names.some((n) => n.includes(f))).toBe(true);
+  }, { timeout: 60000 });
+  it('the header and footer are on every page, with the page number and count filled in', async () => {
+    const { pdf } = await exported();
+    pdf.pages.forEach((p, i) => {
+      expect(p.lines[0].text).toBe('Slop Docs test report');
+      expect(p.lines[p.lines.length - 1].text).toBe(`Page ${i + 1} of ${pdf.n}`);
+    });
+  }, { timeout: 60000 });
+  it('the list bullets, the table, the image, the link and the heading bookmarks are in the PDF', async () => {
+    const { pdf } = await exported();
+    const t = pageText(pdf.pages[0]);
+    expect(t).toContain('• First point');
+    expect(t).toMatch(/Region\s*Total/);
+    expect(t).toMatch(/North\s*1,204/);
+    const p1 = pdf.pages[0].page, ops = await p1.getOperatorList();
+    expect(ops.fnArray.includes(T.lib().OPS.paintImageXObject)).toBe(true);
+    const links = (await p1.getAnnotations()).filter((a) => a.subtype === 'Link');
+    expect(links.some((a) => a.url === 'https://example.com/')).toBe(true);
+    const outline = await pdf.doc.getOutline();
+    expect(outline.map((o) => o.title)).toEqual(['International report']);
+    expect(outline[0].items.map((o) => o.title)).toEqual(['Second heading']);
+  }, { timeout: 60000 });
+});
+
+describe('language fonts are asked for, not fetched behind your back', () => {
+  it('a document that needs a font that is not installed asks first; Cancel leaves the page as it was', async () => {
+    await T.closeAll();
+    await T.removePacks(['noto-hebrew']);
+    out = null;
+    const W2 = await T.open();
+    try { W2.localStorage.removeItem('slop-fonts.auto'); } catch (e) { /* none */ }
+    const d = W2.SlopDocEngine.M.newDoc();
+    d.blocks = [W2.SlopDocEngine.M.para('שלום עולם')];
+    W2.SlopDocs.setDoc(W2.SlopDocEngine.M.normalizeDoc(d));
+    const dlg = await waitFor(() => W2.document.querySelector('.sui-back:not(.sui-out) .sui-dlg'), { timeout: 8000 });
+    expect(dlg.textContent).toContain('Download a font for this language?');
+    [...dlg.querySelectorAll('button')].find((b) => b.textContent === 'Cancel').click();
+    await SlopTest.sleep(300);
+    expect(W2.SlopDocEngine.LANG.hasPack('noto-hebrew', false)).toBe(false);
+    expect(W2.document.querySelectorAll('#pages .t').length).toBeGreaterThan(0);
+    await T.closeAll();
+    await T.removePacks();
+  }, { timeout: 40000 });
+});
+SlopTest.run({ name: 'Slop Docs PDF' });
+</script>
+</body>
+</html>

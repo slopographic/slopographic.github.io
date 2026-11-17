@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop OCR: the assistant's commands</title>
+  <style>body { margin: 0; background: #111; } iframe { width: 1000px; height: 900px; border: 0; }</style>
+</head>
+<body>
+  <iframe id="app" title="Slop OCR page"></iframe>
+  <script src="../harness.js"></script>
+  <script type="module">
+  // Covers: ocr/js/ai-commands.js, ocr/js/app.js, ocr/index.html, shared/commands/sources.js
+  // The recognition worker is stubbed (SlopAITools.call/ensure): the page's own add, read and outputs run for real.
+  import { readZip, readText } from '../../shared/office/zip.js';
+  const { describe, it, expect, waitFor } = SlopTest;
+  const pdfjs = await import('../../vendor/pdfjs/pdf.min.js');
+  pdfjs.GlobalWorkerOptions.workerSrc = '../../vendor/pdfjs/pdf.worker.min.js';
+  let W = null, C = null;
+  const run = async (id, args) => { const r = await C.exec(id, args); if (!r.ok) throw new Error(id + ': ' + r.error); return r; };
+  const idOf = (r) => /id ([^)\s]+)\)/.exec(r.value)[1];
+
+  describe('Slop OCR: assistant commands', () => {
+    it('SlopCmd is on the page; prepare() loads the commands', async () => {
+      const f = document.getElementById('app');
+      f.src = '../../ocr/index.html';
+      await waitFor(() => f.contentWindow && f.contentWindow.SlopOcrPage && f.contentWindow.SlopCmd && f.contentWindow.SlopCmd.get('ocr.read'), { timeout: 30000 });
+      W = f.contentWindow; C = W.SlopCmd;
+      await C.prepare();
+      expect(C.get('ocr.ai.new-document').destructive).toBe(true);
+      expect(C.get('ocr.ai.read-text').tool).toBe('read_text');
+      W.SlopAITools.ensure = async () => {};
+      W.SlopAITools.call = async (kind, msg) => ({ lines: [{ text: 'Honey invoice 42', score: 1, box: { x: 10, y: 10, w: Math.min(300, msg.w - 20), h: 30 } }], skipped: 0 });
+    }, { timeout: 40000 });
+
+    it('add_files, read_text, set_text, export_text as Word and PDF to Slop Drive, new_document', async () => {
+      const c = document.createElement('canvas'); c.width = 400; c.height = 120;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 400, 120); g.fillStyle = '#000'; g.font = '30px sans-serif'; g.fillText('Honey invoice 42', 10, 40);
+      await W.SlopHub.put(await new Promise((r) => c.toBlob(r, 'image/png')), { name: 'scan.png', from: 'test' });
+      let r = await run('ocr.ai.add-files', { files: ['scan.png'] });
+      expect(r.value).toMatch(/Added 1 page/);
+      r = await run('ocr.ai.read-text', {});
+      expect(r.value.text).toContain('Honey invoice 42');
+      await run('ocr.ai.set-text', { page: 1, text: 'Honey invoice 43' });
+      expect((await C.exec('ocr.ai.set-text', { page: 5, text: 'x' })).ok).toBe(false);
+      r = await run('ocr.ai.export-text', { format: 'docx', name: 'honey' });
+      const doc = await W.SlopHub.get(idOf(r));
+      expect(doc.name).toBe('honey.docx');
+      expect(readText(await readZip(doc.blob), 'word/document.xml')).toContain('Honey invoice 43');
+      r = await run('ocr.ai.export-text', { format: 'pdf' });
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await (await W.SlopHub.get(idOf(r))).blob.arrayBuffer()) }).promise;
+      const text = (await (await pdf.getPage(1)).getTextContent()).items.map((i) => i.str).join(' ');
+      expect(text).toContain('Honey invoice 43');
+      await run('ocr.ai.new-document', {});
+      expect(C.state().pages.length).toBe(0);
+    }, { timeout: 40000 });
+  });
+  SlopTest.run({ name: 'Slop OCR: assistant commands' });
+  </script>
+</body>
+</html>

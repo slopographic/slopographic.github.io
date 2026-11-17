@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Paint Classic in Swedish</title>
+  <!-- Covers: photoslop/classic/i18n/index.js, photoslop/classic/commands.js, photoslop/classic/ctx.js, photoslop/classic/hub.js, photoslop/classic/paint/01-helpers.js, photoslop/classic/paint/03-state.js, photoslop/classic/paint/04-icons.js, photoslop/classic/paint/05-view.js, photoslop/classic/paint/06-undo.js, photoslop/classic/paint/07-colors.js, photoslop/classic/paint/08-selection.js, photoslop/classic/paint/09-text.js, photoslop/classic/paint/13-tool-handlers.js, photoslop/classic/paint/14-pointer.js, photoslop/classic/paint/15-tools-ui.js, photoslop/classic/paint/17-files.js, photoslop/classic/paint/18-dialogs.js, photoslop/classic/paint/19-dialogs-colors.js, photoslop/classic/paint/20-menus.js, photoslop/classic/paint/22-boot.js -->
+  <style>body { margin: 0; background: #111; color: #eee; font: 12px system-ui; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="app-sv.js"></script>
+  <script>
+  AppSv.spec({
+    name: 'Slop Paint Classic', path: '../../photoslop/classic/index.html', ns: 'paint-classic',
+    ready: (doc, win) => win.slopPaint && doc.querySelector('#menubar .mb-item') && doc.querySelector('#tools .tool'),
+    checks: [
+      ['#menubar .mb-item', 'Arkiv', 'File'],
+      ['#tools .tool[data-tool="pencil"]', 'Penna', 'Pencil', 'title'],
+      ['#sbMsg', 'Hjälpavsnitt', 'Help Topics'],
+      ['#title', 'namnlös', 'untitled'],
+      ['#startmenu [data-act="about"] span', 'Om Slop Paint', 'About Slop Paint'],
+      ['#palette', 'Färgpalett', 'Color palette', 'aria-label'],
+    ],
+  });
+  SlopTest.run({ name: 'Slop Paint Classic in Swedish' });
+  </script>
+</body>
+</html>

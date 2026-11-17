@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Slop Slides restore original aspect ratio</title>
+  <style>body { margin: 0; background: #111; } iframe { display: block; }</style>
+</head>
+<body>
+  <script src="../harness.js"></script>
+  <script src="frame.js"></script>
+  <script>
+  const { describe, it, expect } = SlopTest;
+  let w, doc;
+  const rows = () => [...doc.querySelectorAll('.sui-menu[data-level="0"] .sui-row')];
+  const row = (label) => rows().find((r) => r.querySelector('.sui-lbl').textContent === label);
+  const contextAt = (target, cx, cy) => target.dispatchEvent(new w.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: cx, clientY: cy, detail: 1 }));
+  const img = () => w.SS.app.slide().objects.find((o) => o.type === 'image');
+
+  describe('Slop Slides: restore original aspect ratio', () => {
+    it('a picture stretched by resizing gets its natural ratio back from the object menu', async () => {
+      w = await ST.open('../../slides/');
+      doc = w.document;
+      w.SS.app.change('Add picture', () => { w.SS.app.slide().objects.push(w.SS.objects.make('image', { x: 100, y: 100, w: 200, h: 100, src: { w: 400, h: 200 } })); });
+      const o = img(); w.SS.app.select([o.id]);
+      w.SS.app.change('Resize', () => { o.w = 100; }); // 100 × 100: stretched
+      expect(w.SS.aspect.target()).toBe(o);
+      const c = w.SS.stage.toClient(o.x + o.w / 2, o.y + o.h / 2);
+      contextAt(doc.getElementById('canvas'), c.x, c.y);
+      const r = row('Restore original aspect ratio');
+      expect(!!r).toBe(true);
+      expect(r.disabled).toBe(false);
+      r.click();
+      expect(o.w).toBeCloseTo(100, 3); expect(o.h).toBeCloseTo(50, 3);
+      expect(o.x).toBe(100); expect(o.y).toBe(100);
+    }, { timeout: 30000 });
+
+    it('one undo takes the restore back', () => {
+      const o = img(), before = o.h;
+      w.SS.app.undo();
+      expect(img().h).toBeCloseTo(100, 3); expect(before).toBeCloseTo(50, 3);
+    });
+
+    it('the command palette has the same action, and a shape without a source ratio is not a target', () => {
+      expect(!!w.SlopCmd.get('edit.restoreAspect')).toBe(true);
+      w.SS.app.change('Add shape', () => { w.SS.app.slide().objects.push(w.SS.objects.make('shape', { x: 300, y: 300, w: 100, h: 60 })); });
+      const s = w.SS.app.slide().objects.find((x) => x.type === 'shape');
+      w.SS.app.select([s.id]);
+      expect(w.SS.aspect.target()).toBe(null);
+      w.SS.app.select([img().id]);
+      w.SlopCmd.run('edit.restoreAspect', { source: 'palette' });
+      expect(img().w).toBeCloseTo(100, 3); expect(img().h).toBeCloseTo(50, 3);
+      w.SS.app.select([]);
+    });
+  });
+  SlopTest.run({ name: 'Slop Slides restore aspect ratio' });
+  </script>
+</body>
+</html>

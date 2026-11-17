@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Slop Compare: texts, JSON and CSV on the page</title>
+<style>body { margin: 0; } iframe { border: 0; display: block; width: 1280px; height: 860px; }</style></head>
+<body>
+  <!-- Covers: diff/index.html, diff/js/ui/main.js, diff/js/ui/bar.js, diff/js/ui/state.js, diff/js/ui/slots.js, diff/js/ui/view.js, diff/js/ui/panel.js, diff/js/ui/export.js, diff/js/ui/samples.js, diff/js/ui/commands.js, diff/js/io/files.js, diff/js/core/render.js, diff/js/core/report.js, diff/js/core/patch.js, diff/css/diff.css, diff/css/result.css -->
+  <script src="../harness.js"></script>
+  <script>
+  const { describe, it, expect, waitFor } = SlopTest;
+  async function open(width = 1280) {
+    const f = document.createElement('iframe');
+    f.style.width = width + 'px';
+    f.src = '../../diff/index.html';
+    document.body.append(f);
+    await waitFor(() => f.contentWindow && f.contentWindow.SlopCompare && f.contentWindow.SlopCompare.ready, { timeout: 30000 });
+    return { W: f.contentWindow, D: f.contentDocument, f };
+  }
+  const file = (W, name, text, type = 'text/plain') => new W.File([text], name, { type });
+  const textOf = (n) => n.textContent.replace(/\s+/g, ' ').trim();
+
+  describe('Slop Compare: two texts', () => {
+    it('the sample: changed lines side by side, the changed words marked, Next and Previous walk the changes', async () => {
+      const { W, D } = await open();
+      D.querySelector('#df-drop .sd-sample').click();
+      await waitFor(() => W.SlopCompare.S.result, { timeout: 15000 });
+      expect(D.getElementById('df-a-text').value).toContain('Owner: Priya\n');
+      expect(D.getElementById('df-a-name').textContent).toBe('checklist-v1.md');
+      expect(D.getElementById('df-sum').textContent).toBe('4 changes: +7 −7 lines (6 lines changed in place).');
+      const words = [...D.querySelectorAll('#df-out ins')].map(textOf);
+      expect(words).toContain('Wednesday');
+      expect(words).toContain('60');
+      expect([...D.querySelectorAll('#df-out del')].map(textOf)).toContain('Friday');
+      expect(D.querySelector('#df-out .df-split')).toBeTruthy();
+      D.getElementById('df-next').click();
+      expect(D.getElementById('df-pos').textContent).toBe('1 of 4');
+      expect(D.querySelector('#df-out .df-cur').dataset.block).toBe('0');
+      D.getElementById('df-prev').click();
+      expect(D.getElementById('df-pos').textContent).toBe('4 of 4');
+      expect([...D.querySelectorAll('#df-out .df-cur')].every((r) => r.dataset.block === '3')).toBe(true);
+      W.SlopCmd.run('diff.next');
+      expect(D.getElementById('df-pos').textContent).toBe('1 of 4');
+    }, { timeout: 40000 });
+
+    it('typed text compares live; unified view; ignore whitespace and case; folds open on a click', async () => {
+      const { W, D } = await open();
+      const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
+      const type = (id, v) => { const t = D.getElementById(id); t.value = v; t.dispatchEvent(new W.Event('input', { bubbles: true })); };
+      type('df-a-text', lines.join('\n'));
+      type('df-b-text', lines.join('\n').replace('line 15', 'LINE   15'));
+      await W.SlopCompare.compare();
+      expect(D.getElementById('df-sum').textContent).toMatch(/^1 change/);
+      D.querySelector('#df-opt-view [data-value="unified"]').click();
+      await waitFor(() => D.querySelector('#df-out .df-unified'));
+      expect(D.querySelectorAll('#df-out .df-fold-btn').length).toBe(2);
+      expect(textOf(D.querySelector('#df-out .df-fold-btn'))).toBe('11 unchanged lines');
+      D.querySelector('#df-out .df-fold-btn').click();
+      await waitFor(() => D.querySelectorAll('#df-out .df-fold-btn').length === 1);
+      // the line differs in case and spacing only
+      D.getElementById('df-opt-ignoreCase').click();
+      D.getElementById('df-opt-ignoreWs').click();
+      await waitFor(() => /^The two texts are the same/.test(D.getElementById('df-sum').textContent));
+      // typing re-compares by itself once there is a result
+      type('df-b-text', lines.join('\n') + '\nline 31');
+      await waitFor(() => /^1 change: \+1 −0/.test(D.getElementById('df-sum').textContent), { timeout: 5000 });
+      W.SlopCompare.S.opts.ignoreCase = false; W.SlopCompare.S.opts.ignoreWs = false; W.localStorage.removeItem('slop-diff:opts');
+    }, { timeout: 40000 });
+
+    it('the .patch and the HTML report of two text files', async () => {
+      const { W, D } = await open();
+      await W.SlopIntake.take([file(W, 'a.txt', 'one\ntwo\nthree\n'), file(W, 'b.txt', 'one\n2\nthree\n')], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result);
+      const p = await W.SlopCompare.export.blobOf('patch');
+      expect(p.name).toBe('compare-a-vs-b.patch');
+      expect(await p.blob.text()).toBe('--- a/a.txt\n+++ b/b.txt\n@@ -1,3 +1,3 @@\n one\n-two\n+2\n three\n');
+      const h = await W.SlopCompare.export.blobOf('html');
+      const page = await h.blob.text();
+      expect(page).toContain('a.txt compared with b.txt');
+      expect(page).toContain('<del>two</del>');
+      const id = await W.SlopCompare.export.saveToDrive('html');
+      const rec = await W.SlopHub.get(id);
+      expect(rec.name).toBe('compare-a-vs-b.html');
+      expect(rec.type).toBe('text/html');
+      const items = D.querySelectorAll('#df-panel .sf-btn');
+      expect([...items].map((b) => b.textContent.trim())).toContain('Save to Slop Drive…');
+    }, { timeout: 40000 });
+  });
+
+  describe('Slop Compare: JSON and CSV by structure', () => {
+    it('JSON files: differences by key path, the order of keys ignored, records matched by id', async () => {
+      const { W, D } = await open();
+      const a = { name: 'Shop', items: [{ id: 1, price: 5 }, { id: 2, price: 7 }], open: true };
+      const b = { open: true, items: [{ id: 2, price: 7 }, { id: 1, price: 6 }, { id: 3, price: 2 }], name: 'Shop' };
+      await W.SlopIntake.take([file(W, 'a.json', JSON.stringify(a, null, 2), 'application/json'), file(W, 'b.json', JSON.stringify(b), 'application/json')], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result);
+      expect(W.SlopCompare.S.result.kind).toBe('json');
+      const rows = [...D.querySelectorAll('#df-out tbody tr')].map((r) => textOf(r.children[0]) + ' ' + textOf(r.children[1]));
+      expect(rows).toEqual(['Changed $.items[id=1].price', 'Added $.items[id=3]']);
+      expect(D.querySelector('#df-out .df-j-changed del').textContent).toBe('5');
+      expect(D.querySelector('#df-out .df-j-changed ins').textContent).toBe('6');
+    }, { timeout: 40000 });
+
+    it('CSV files: rows matched by the key column, the changed cells marked; the key can be set', async () => {
+      const { W, D } = await open();
+      await W.SlopIntake.take([file(W, 'stock-a.csv', 'sku,name,qty\nA1,Pen,5\nB2,Ink,3\nC3,Pad,9\n', 'text/csv'), file(W, 'stock-b.csv', 'sku,name,qty\nC3,Pad,9\nB2,Ink,4\nD4,Cup,1\n', 'text/csv')], { to: 'diff' });
+      await waitFor(() => W.SlopCompare.S.result);
+      expect(D.getElementById('df-sum').textContent).toBe('3 rows differ: 1 added, 1 removed, 1 changed (1 cell). Rows matched by sku.');
+      expect(textOf(D.querySelector('#df-out .df-row-mod .df-cell'))).toBe('3 4');
+      expect(D.querySelectorAll('#df-out .df-row-del').length).toBe(1);
+      expect(D.querySelector('#df-panel #df-opt-key')).toBeTruthy();
+      const key = D.getElementById('df-opt-key');
+      key.value = 'none'; key.dispatchEvent(new W.Event('change'));
+      await waitFor(() => !/matched by/.test(D.getElementById('df-sum').textContent));
+      W.localStorage.removeItem('slop-diff:opts');
+    }, { timeout: 40000 });
+
+    it('refuses what it cannot read, and says what is missing', async () => {
+      const { W, D } = await open();
+      const r = await W.SlopIntake.take([new W.File([new Uint8Array([0, 1, 2])], 'clip.mp4', { type: 'video/mp4' })], { to: 'diff' });
+      expect(r.refused.length).toBe(1);
+      expect(r.refused[0].reason).toMatch(/not a text, a PDF or a picture/);
+      await W.SlopCompare.compare();
+      expect(D.getElementById('df-err').textContent).toBe('Add A first: type or paste a text, or open a file.');
+    }, { timeout: 40000 });
+  });
+  SlopTest.run();
+  </script>
+</body>
+</html>
